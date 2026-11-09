@@ -463,91 +463,113 @@ test.beforeEach(async ({ page }) => {
   await expect(card(page, 0)).toBeVisible();
 });
 
-test("Virtualizing 5,000 images limits DOM nodes and requests to the viewport while keeping the end reachable", async ({ page }) => {
-  await bounded(page);
-  expect(await page.locator(".asset-card").first().getAttribute("aria-setsize")).toBe("5000");
-  await expect.poll(() => imageRequests.size).toBeLessThan(40);
-  await scroll(page, "bottom");
-  await expect(card(page, 4999)).toBeVisible();
-  await bounded(page);
-  const box = await card(page, 4999).boundingBox();
-  const previous = await card(page, 4997).boundingBox();
-  const width = await page.locator(".panel-body").evaluate((el) => el.clientWidth);
-  expect(box!.y - previous!.y).toBeCloseTo((width - 34) / 2 * 3 / 4 + 50, 0);
-  await scroll(page, 0);
-  await expect(card(page, 0)).toBeVisible();
-});
+test("Virtualizing 5,000 images supports search, reveal, focus order, drag pinning, tab reopen, and resize", async ({ page }) => {
+  await test.step("viewport virtualization and row spacing", async () => {
+    await bounded(page);
+    expect(await page.locator(".asset-card").first().getAttribute("aria-setsize")).toBe("5000");
+    await expect.poll(() => imageRequests.size).toBeLessThan(40);
+    await scroll(page, "bottom");
+    await expect(card(page, 4999)).toBeVisible();
+    await bounded(page);
+    const box = await card(page, 4999).boundingBox();
+    const previous = await card(page, 4997).boundingBox();
+    const width = await page.locator(".panel-body").evaluate((el) => el.clientWidth);
+    expect(box!.y - previous!.y).toBeCloseTo((width - 34) / 2 * 3 / 4 + 50, 0);
+    await scroll(page, 0);
+    await expect(card(page, 0)).toBeVisible();
+  });
 
-test("Searching and clearing a search from a deep scroll position still finds every asset", async ({ page }) => {
-  await scroll(page, "bottom");
-  const search = page.locator(".asset-search input");
-  await search.fill("Photo 004999");
-  await expect(page.locator(".asset-card")).toHaveCount(1);
-  await expect(card(page, 4999)).toBeVisible();
-  await search.press("Escape");
-  await expect(card(page, 0)).toBeVisible();
-  await bounded(page);
-  await search.fill("Photo 004");
-  await expect(page.locator(".asset-count")).toContainText("1000 / 5000");
-  await expect(card(page, 4000)).toBeVisible();
-  await bounded(page);
-  await search.fill("missing");
-  await expect(page.locator(".asset-card")).toHaveCount(0);
-  await page.getByRole("button", { name: "検索をクリア" }).click();
-  await expect(card(page, 0)).toBeVisible();
-});
+  await test.step("searching and clearing from a deep scroll position", async () => {
+    await scroll(page, "bottom");
+    const search = page.locator(".asset-search input");
+    await search.fill("Photo 004999");
+    await expect(page.locator(".asset-card")).toHaveCount(1);
+    await expect(card(page, 4999)).toBeVisible();
+    await search.press("Escape");
+    await expect(card(page, 0)).toBeVisible();
+    await bounded(page);
+    await search.fill("Photo 004");
+    await expect(page.locator(".asset-count")).toContainText("1000 / 5000");
+    await expect(card(page, 4000)).toBeVisible();
+    await bounded(page);
+    await search.fill("missing");
+    await expect(page.locator(".asset-card")).toHaveCount(0);
+    await page.getByRole("button", { name: "検索をクリア" }).click();
+    await expect(card(page, 0)).toBeVisible();
+  });
 
-test("Reveal requests remove the filter and scroll to an asset that was not rendered", async ({ page }) => {
-  await page.locator(".asset-search input").fill("Photo 000001");
-  await page.evaluate((id) => (window as any).assetEditor.getState().revealAsset(id), id(4500));
-  await expect(page.locator(".asset-search input")).toHaveValue("");
-  await expect(card(page, 4500)).toBeVisible();
-  await expect(card(page, 4500)).toHaveClass(/is-revealed/);
-  await bounded(page);
-});
+  await test.step("reveal clears filter and scrolls to offscreen asset", async () => {
+    await page.locator(".asset-search input").fill("Photo 000001");
+    await page.evaluate((id) => (window as any).assetEditor.getState().revealAsset(id), id(4500));
+    await expect(page.locator(".asset-search input")).toHaveValue("");
+    await expect(card(page, 4500)).toBeVisible();
+    await expect(card(page, 4500)).toHaveClass(/is-revealed/);
+    await bounded(page);
+    await scroll(page, 0);
+    await expect(card(page, 0)).toBeVisible();
+  });
 
-test("Reopening a tab restores scroll, and resizing does not overlap rows", async ({ page }) => {
-  await scroll(page, 20000);
-  const before = await page.locator(".panel-body").evaluate((el) => el.scrollTop);
-  await page.evaluate(() => (window as any).setAssetPanelOpen(false));
-  await expect(page.locator(".asset-panel")).toHaveCount(0);
-  await page.evaluate(() => (window as any).setAssetPanelOpen(true));
-  await expect(page.locator(".asset-panel")).toBeVisible();
-  await expect.poll(() => page.locator(".panel-body").evaluate((el) => el.scrollTop)).toBeCloseTo(before, 0);
-  await page.locator("#asset-host").evaluate((el) => { el.style.width = "380px"; el.style.height = "500px"; });
-  await frame(page);
-  await scroll(page, "bottom");
-  await expect(card(page, 4999)).toBeVisible();
-  const a = await card(page, 4997).boundingBox(), b = await card(page, 4999).boundingBox();
-  expect(b!.y).toBeGreaterThan(a!.y + a!.height);
-  await bounded(page);
-});
+  await test.step("offscreen focus and Tab/Shift+Tab navigation order", async () => {
+    await card(page, 0).locator(".asset-thumb").focus();
+    await scroll(page, "bottom");
+    await expect(card(page, 0).locator(".asset-thumb")).toBeFocused();
+    await card(page, 0).getByRole("button", { name: "削除", exact: true }).evaluate((el: HTMLElement) => el.focus({ preventScroll: true }));
+    await page.keyboard.press("Tab");
+    await expect(card(page, 1).locator(".asset-thumb")).toBeFocused();
+    await expect(card(page, 1)).toBeVisible();
+    await page.keyboard.press("Shift+Tab");
+    await expect(card(page, 0).getByRole("button", { name: "削除", exact: true })).toBeFocused();
+    await scroll(page, "bottom");
+    await card(page, 4999).getByRole("button", { name: "削除", exact: true }).focus();
+    await page.keyboard.press("Tab");
+    await expect(page.locator("#after")).toBeFocused();
+    await scroll(page, 0);
+    await card(page, 0).locator(".asset-thumb").focus();
+    await page.keyboard.press("Shift+Tab");
+    await expect(page.locator(".asset-clean")).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(card(page, 0).locator(".asset-thumb")).toBeFocused();
+    await page.locator("#after").focus();
+    await page.keyboard.press("Shift+Tab");
+    await expect(card(page, 4999).getByRole("button", { name: "削除", exact: true })).toBeFocused();
+    await expect(card(page, 4999)).toBeVisible();
+    await bounded(page);
+    await scroll(page, 0);
+    await expect(card(page, 0)).toBeVisible();
+  });
 
-test("Offscreen focus and Tab/Shift+Tab retain the logical navigation order", async ({ page }) => {
-  await card(page, 0).locator(".asset-thumb").focus();
-  await scroll(page, "bottom");
-  await expect(card(page, 0).locator(".asset-thumb")).toBeFocused();
-  await card(page, 0).getByRole("button", { name: "削除", exact: true }).evaluate((el: HTMLElement) => el.focus({ preventScroll: true }));
-  await page.keyboard.press("Tab");
-  await expect(card(page, 1).locator(".asset-thumb")).toBeFocused();
-  await expect(card(page, 1)).toBeVisible();
-  await page.keyboard.press("Shift+Tab");
-  await expect(card(page, 0).getByRole("button", { name: "削除", exact: true })).toBeFocused();
-  await scroll(page, "bottom");
-  await card(page, 4999).getByRole("button", { name: "削除", exact: true }).focus();
-  await page.keyboard.press("Tab");
-  await expect(page.locator("#after")).toBeFocused();
-  await scroll(page, 0);
-  await card(page, 0).locator(".asset-thumb").focus();
-  await page.keyboard.press("Shift+Tab");
-  await expect(page.locator(".asset-clean")).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(card(page, 0).locator(".asset-thumb")).toBeFocused();
-  await page.locator("#after").focus();
-  await page.keyboard.press("Shift+Tab");
-  await expect(card(page, 4999).getByRole("button", { name: "削除", exact: true })).toBeFocused();
-  await expect(card(page, 4999)).toBeVisible();
-  await bounded(page);
+  await test.step("actively dragged card stays mounted across scroll", async () => {
+    await card(page, 0).locator(".asset-thumb").evaluate((el) => {
+      const transfer = new DataTransfer();
+      el.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: transfer }));
+      (window as any).assetDrag = { id: transfer.getData("application/x-tsumu-asset"), effect: transfer.effectAllowed };
+    });
+    await scroll(page, "bottom");
+    await expect(card(page, 0)).toHaveCount(1);
+    expect(await page.evaluate(() => (window as any).assetDrag.id)).toBe(id(0));
+    await card(page, 0).locator(".asset-thumb").dispatchEvent("dragend");
+    await expect(card(page, 0)).toHaveCount(0);
+    await bounded(page);
+    await scroll(page, 0);
+    await expect(card(page, 0)).toBeVisible();
+  });
+
+  await test.step("tab reopen restores scroll and resize avoids row overlap", async () => {
+    await scroll(page, 20000);
+    const before = await page.locator(".panel-body").evaluate((el) => el.scrollTop);
+    await page.evaluate(() => (window as any).setAssetPanelOpen(false));
+    await expect(page.locator(".asset-panel")).toHaveCount(0);
+    await page.evaluate(() => (window as any).setAssetPanelOpen(true));
+    await expect(page.locator(".asset-panel")).toBeVisible();
+    await expect.poll(() => page.locator(".panel-body").evaluate((el) => el.scrollTop)).toBeCloseTo(before, 0);
+    await page.locator("#asset-host").evaluate((el) => { el.style.width = "380px"; el.style.height = "500px"; });
+    await frame(page);
+    await scroll(page, "bottom");
+    await expect(card(page, 4999)).toBeVisible();
+    const a = await card(page, 4997).boundingBox(), b = await card(page, 4999).boundingBox();
+    expect(b!.y).toBeGreaterThan(a!.y + a!.height);
+    await bounded(page);
+  });
 });
 
 test("Scrolling during rename preserves the input, Enter saves, and Escape cancels", async ({ page }) => {
@@ -565,20 +587,6 @@ test("Scrolling during rename preserves the input, Enter saves, and Escape cance
   await input.fill("Cancelled");
   await input.press("Escape");
   await expect(card(page, 0).locator(".asset-name")).toHaveText("Edited.png");
-});
-
-test("An actively dragged card remains mounted and passes its asset ID to the canvas", async ({ page }) => {
-  await card(page, 0).locator(".asset-thumb").evaluate((el) => {
-    const transfer = new DataTransfer();
-    el.dispatchEvent(new DragEvent("dragstart", { bubbles: true, dataTransfer: transfer }));
-    (window as any).assetDrag = { id: transfer.getData("application/x-tsumu-asset"), effect: transfer.effectAllowed };
-  });
-  await scroll(page, "bottom");
-  await expect(card(page, 0)).toHaveCount(1);
-  expect(await page.evaluate(() => (window as any).assetDrag.id)).toBe(id(0));
-  await card(page, 0).locator(".asset-thumb").dispatchEvent("dragend");
-  await expect(card(page, 0)).toHaveCount(0);
-  await bounded(page);
 });
 
 test("Replacing an offscreen image uses the latest preview and insertion source", async ({ page }) => {

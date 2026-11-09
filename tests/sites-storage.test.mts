@@ -6,21 +6,21 @@ import { transformSync } from "./helpers/bundle";
 import { useEditor } from "../lib/store";
 import { createInitialDoc } from "../lib/presets";
 import { elements, importCallbacks } from "./helpers/pending-import";
-import { dbConfigured as dbConfigured_2, getDbFromBinding, type Db, type D1LikeDatabase } from "../lib/db";
+import { dbConfigured, getDbFromBinding, type Db, type D1LikeDatabase } from "../lib/db";
 import { assetStore } from "../lib/kv";
 import { fakeIndexedDB } from "./helpers/fake-indexeddb";
 import { createBrowserDoc, deleteBrowserDoc, readBrowserDoc, writeBrowserDoc } from "../lib/browser-doc-storage";
 import { browserDocumentCreateScenario, browserDocumentScenario, cursorScenario, expectedCreate, expectedDocument, expectedTransaction, transactionCases, transactionScenario } from "./helpers/indexeddb-transactions";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join as join_2, join as join_3, join as join_4, join as join_5, join as join_6 } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assetFileName, nodeAssetStore, nodeDatabase } from "../lib/node-storage";
 import { readCurrentDoc, saveCurrentDoc } from "../lib/doc-storage";
 import * as siteModel from "../lib/site-model";
+import { isSiteId, isSiteRole, normalizeSiteInput } from "../lib/site-model";
 import * as sites from "../lib/sites";
-import { isSiteId as isSiteId_2, isSiteRole, normalizeSiteInput as normalizeSiteInput_2 } from "../lib/site-model";
-import { deleteSite as deleteSite_2, insertSite as insertSite_2, deleteSite as deleteSite_3, insertSite as insertSite_3, listSites as listSites_2, deleteSite as deleteSite_4, getSite as getSite_2, getSiteRoomKey as getSiteRoomKey_2, insertSite as insertSite_4, deleteSite as deleteSite_5, getSite as getSite_3, insertSite as insertSite_5, updateSite } from "../lib/sites";
+import { deleteSite, insertSite, listSites, getSite, getSiteRoomKey, updateSite } from "../lib/sites";
 import { permits } from "../lib/site-access";
 import { ZipArchive, ZipBuilder } from "../lib/zip";
 import { createSiteBackup } from "../lib/site-backup";
@@ -29,7 +29,7 @@ import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import-format";
 import { extractAssetReferences } from "../lib/asset-gc-plan";
 import { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited } from "../lib/api-json";
 import { userMessage } from "../lib/errors";
-import { argOf, isRoomLookup, original as original_2, replacement, setup as setup_2, sqlOf } from "./helpers/document-generation-api";
+import { argOf, isRoomLookup, original, replacement, setup, sqlOf } from "./helpers/document-generation-api";
 import { buildAssetNames } from "../lib/generator/names";
 import { createSiteFromFile, importFileKind } from "../lib/import-site-file";
 import { siteThumbnailImages } from "../lib/site-thumbnail";
@@ -188,7 +188,7 @@ test("browser-local mode disables server-side database and KV storage", () => {
   const old = process.env.TSUMU_STORAGE_MODE;
   try {
     process.env.TSUMU_STORAGE_MODE = "local";
-    assert.equal(dbConfigured_2(), false);
+    assert.equal(dbConfigured(), false);
     assert.equal(assetStore(), null);
   } finally {
     if (old === undefined) delete process.env.TSUMU_STORAGE_MODE;
@@ -252,7 +252,7 @@ for (const abort of [false, true]) {
 describe("node-storage", () => {
 function withDataDir(run: (dir: string) => Promise<void>) {
   return async () => {
-    const dir = mkdtempSync(join_2(tmpdir(), "tsumu-data-"));
+    const dir = mkdtempSync(join(tmpdir(), "tsumu-data-"));
     const prev = process.env.TSUMU_DATA_DIR;
     process.env.TSUMU_DATA_DIR = dir;
     try {
@@ -402,7 +402,7 @@ test("アセットをファイルに保存・配信・削除できる", withData
 
 test("file assets initialize on upload and retry after the directory becomes available", withDataDir(async (dir) => {
   const store = nodeAssetStore()!;
-  const root = join_2(dir, "assets");
+  const root = join(dir, "assets");
   const key = "assets/notes.txt";
 
   assert.equal(await store.get(key, { type: "arrayBuffer" }), null);
@@ -420,8 +420,8 @@ test("failed asset writes remove the temporary file and can be retried", withDat
   const store = nodeAssetStore()!;
   const key = "assets/notes.txt";
   const name = assetFileName(key);
-  const data = join_2(dir, "assets", "data");
-  const destination = join_2(data, name);
+  const data = join(dir, "assets", "data");
+  const destination = join(data, name);
   mkdirSync(destination, { recursive: true });
 
   await assert.rejects(store.put(key, "draft text"));
@@ -452,11 +452,11 @@ test("長いキー（日本語の名前など）はハッシュのファイル�
 test("消したサイトの編集データは、開いたままのタブが保存しても作り直さない", withDataDir(async () => {
   const db = await getDbFromBinding(nodeDatabase()!);
   const dest = { name: "s", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null };
-  await insertSite_2(db, "s1", dest);
+  await insertSite(db, "s1", dest);
   const snapshot = JSON.stringify(createInitialDoc());
   const first = await saveCurrentDoc(db, "s1", snapshot, null);
   assert.equal(first.kind, "saved");
-  await deleteSite_2(db, "s1");
+  await deleteSite(db, "s1");
   assert.deepEqual(await saveCurrentDoc(db, "s1", snapshot, first.kind === "saved" ? first.rev : null), { kind: "missing" });
   assert.deepEqual(await saveCurrentDoc(db, "s1", snapshot, null), { kind: "missing" });
   assert.equal(await readCurrentDoc(db, "s1"), null);
@@ -464,7 +464,7 @@ test("消したサイトの編集データは、開いたままのタブが保�
 
 test("Node SQLite rejects malformed documents, invalid revisions and corrupt stored snapshots", withDataDir(async () => {
   const db = await getDbFromBinding(nodeDatabase()!);
-  await insertSite_2(db, "s1", {
+  await insertSite(db, "s1", {
     name: "s", repo: null, branch: "main", previewBranch: "preview",
     siteUrl: null, previewUrl: null,
   });
@@ -499,21 +499,21 @@ test("per-site roles permit only their designated operations", () => {
 });
 
 test("site listings are filtered by explicit ownership and viewer membership", async () => {
-  const dir = mkdtempSync(join_3(tmpdir(), "tsumu-site-members-"));
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-site-members-"));
   const previous = process.env.TSUMU_DATA_DIR;
   process.env.TSUMU_DATA_DIR = dir;
   try {
     const db = await getDbFromBinding(nodeDatabase()!);
     const dest = { name: "Test site", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null };
-    await insertSite_3(db, "alpha", dest, "alpha-owner@example.test");
-    await insertSite_3(db, "beta", dest, "beta-owner@example.test");
+    await insertSite(db, "alpha", dest, "alpha-owner@example.test");
+    await insertSite(db, "beta", dest, "beta-owner@example.test");
     await db.execute({ sql: "INSERT INTO site_members(site_id,email,role) VALUES(?,?,'viewer')", args: ["alpha", "colleague@example.test"] });
-    const names = async (email: string) => (await listSites_2(db, email)).map(site => [site.id, site.accessRole]);
+    const names = async (email: string) => (await listSites(db, email)).map(site => [site.id, site.accessRole]);
     assert.deepEqual(await names("alpha-owner@example.test"), [["alpha", "owner"]]);
     assert.deepEqual(await names("beta-owner@example.test"), [["beta", "owner"]]);
     assert.deepEqual(await names("colleague@example.test"), [["alpha", "viewer"]]);
     assert.deepEqual(await names("stranger@example.test"), []);
-    await deleteSite_3(db, "alpha");
+    await deleteSite(db, "alpha");
     assert.deepEqual(await names("colleague@example.test"), []);
     const removed = await db.execute({ sql: "SELECT 1 FROM site_members WHERE site_id='alpha'", args: [] });
     assert.equal(removed.rows.length, 0);
@@ -525,7 +525,7 @@ test("site listings are filtered by explicit ownership and viewer membership", a
 });
 
 test("unsupported storage_schema versions are rejected", async () => {
-  const dir = mkdtempSync(join_3(tmpdir(), "tsumu-schema-strict-"));
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-schema-strict-"));
   const previous = process.env.TSUMU_DATA_DIR;
   process.env.TSUMU_DATA_DIR = dir;
   try {
@@ -656,7 +656,7 @@ test("manual backup refuses assets with no recoverable file contents", async () 
 
 describe("site-copy-concurrency", () => {
 async function database(run: (db: Db) => Promise<void>) {
-  const dir = mkdtempSync(join_4(tmpdir(), "tsumu-copy-"));
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-copy-"));
   const previous = process.env.TSUMU_DATA_DIR;
   process.env.TSUMU_DATA_DIR = dir;
   try {
@@ -740,11 +740,11 @@ describe("site-create-generation", () => {
 const copyRequest = (input: unknown = { name: "Copy", copyFrom: "source" }) => new Request("https://editor.example.test/api/sites", {
   method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
 });
-const imported = { name: original_2.siteName, importId: "0123456789", initialDoc: original_2 };
+const imported = { name: original.siteName, importId: "0123456789", initialDoc: original };
 
 for (const importing of [false, true]) {
   test(`${importing ? "import" : "copy"} rolls back its own generation if document routing lookup fails`, async t => {
-    const f = await setup_2(t); await f.create("source");
+    const f = await setup(t); await f.create("source");
     const id = importing ? imported.importId : "destination";
     let createdKey: string | null = null;
     f.hooks.afterBatch = async stmts => {
@@ -759,7 +759,7 @@ for (const importing of [false, true]) {
     assert.ok(createdKey);
     assert.equal(await sites.getSite(f.rawDb, id), null);
     assert.equal(await sites.getSiteRoomKey(f.rawDb, id), null);
-    assert.equal(f.room(createdKey).replace(JSON.stringify(original_2), null).kind, "missing");
+    assert.equal(f.room(createdKey).replace(JSON.stringify(original), null).kind, "missing");
     f.hooks.beforeExecute = undefined;
     assert.equal((await f.sites.POST(copyRequest(importing ? imported : undefined))).status, 200, "retry is not blocked by an empty site");
   });
@@ -768,7 +768,7 @@ for (const importing of [false, true]) {
 for (const timing of ["before target lookup", "during RPC", "after RPC", "final response lookup"] as const) {
   for (const replacementDoc of [null, replacement]) {
     test(`copy rejects a replacement ${timing}, preserving its ${replacementDoc ? "document" : "empty room"}`, async t => {
-      const f = await setup_2(t); await f.create("source");
+      const f = await setup(t); await f.create("source");
       let replacementKey: string | undefined;
       const replace = async () => { replacementKey = await f.replace("destination", replacementDoc); };
       if (timing === "before target lookup") {
@@ -804,7 +804,7 @@ for (const timing of ["before target lookup", "during RPC", "after RPC", "final 
 }
 
 test("copy rejects a generation deleted while initialization RPC completes", async t => {
-  const f = await setup_2(t); await f.create("source"); let createdKey: string | undefined;
+  const f = await setup(t); await f.create("source"); let createdKey: string | undefined;
   f.hooks.afterRoomWrite = async key => {
     f.hooks.afterRoomWrite = undefined; createdKey = key;
     await sites.deleteSite(f.rawDb, "destination", key);
@@ -813,11 +813,11 @@ test("copy rejects a generation deleted while initialization RPC completes", asy
   assert.equal(response.status, 502);
   assert.equal(await sites.getSite(f.rawDb, "destination"), null);
   assert.ok(createdKey);
-  assert.equal(f.room(createdKey).replace(JSON.stringify(original_2), null).kind, "missing");
+  assert.equal(f.room(createdKey).replace(JSON.stringify(original), null).kind, "missing");
 });
 
 test("failed D1 rollback and cleanup never target a replacement generation", async t => {
-  const f = await setup_2(t); await f.create("source"); let replacementKey: string | undefined;
+  const f = await setup(t); await f.create("source"); let replacementKey: string | undefined;
   const attemptedErase: string[] = [];
   f.hooks.afterBatch = async stmts => {
     if (stmts.some(stmt => /INSERT INTO sites/.test(sqlOf(stmt)) && argOf(stmt) === "destination")) {
@@ -843,7 +843,7 @@ test("failed D1 rollback and cleanup never target a replacement generation", asy
 });
 
 test("ordinary D1 creation, copy, and import retain public response shapes without generation keys", async t => {
-  const f = await setup_2(t); await f.create("source");
+  const f = await setup(t); await f.create("source");
   for (const input of [{ name: "Empty" }, { name: "Copy", copyFrom: "source" }, imported]) {
     const id = "importId" in input ? input.importId : "destination";
     const response = await f.sites.POST(copyRequest(input));
@@ -854,14 +854,14 @@ test("ordinary D1 creation, copy, and import retain public response shapes witho
     assert.equal(payload.site.id, id);
     assert.ok(!JSON.stringify(payload).includes(key));
     assert.ok(!Object.hasOwn(payload.site, "roomKey"));
-    if ("copyFrom" in input || "importId" in input) assert.deepEqual(JSON.parse(f.room(key).snapshot()!.body), original_2);
+    if ("copyFrom" in input || "importId" in input) assert.deepEqual(JSON.parse(f.room(key).snapshot()!.body), original);
     else assert.equal(f.room(key).snapshot(), null);
     await sites.deleteSite(f.rawDb, id, key);
   }
 });
 
 test("insertSite returns only the generation it created and getSite can require that generation", async t => {
-  const f = await setup_2(t);
+  const f = await setup(t);
   const key = await sites.insertSite(f.rawDb, "destination", {
     name: "Original", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,
   });
@@ -1171,7 +1171,7 @@ test("an upload without a registered destination is never accepted as a restored
 describe("site-room-generation", () => {
 function withFreshDb(run: (db: Awaited<ReturnType<typeof getDbFromBinding>>) => Promise<void>) {
   return async () => {
-    const dir = mkdtempSync(join_5(tmpdir(), "tsumu-room-keys-"));
+    const dir = mkdtempSync(join(tmpdir(), "tsumu-room-keys-"));
     const old = process.env.TSUMU_DATA_DIR;
     process.env.TSUMU_DATA_DIR = dir;
     try {
@@ -1200,46 +1200,46 @@ const dest = {
 
 test("D1 creates only the generation map, not the old JSON document table", withFreshDb(async db => {
   assert.equal((await db.execute("SELECT name FROM sqlite_master WHERE name='docs'")).rows.length, 0);
-  await insertSite_4(db, "reusable", dest);
+  await insertSite(db, "reusable", dest);
   assert.equal((await db.execute("SELECT name FROM sqlite_master WHERE name='docs'")).rows.length, 0);
-  assert.match((await getSiteRoomKey_2(db, "reusable"))!, /^[0-9a-f-]{36}$/);
-  assert.equal((await getSite_2(db, "reusable"))?.savedAt, null, "new sites are not yet saved");
-  const roomKey = (await getSiteRoomKey_2(db, "reusable"))!;
+  assert.match((await getSiteRoomKey(db, "reusable"))!, /^[0-9a-f-]{36}$/);
+  assert.equal((await getSite(db, "reusable"))?.savedAt, null, "new sites are not yet saved");
+  const roomKey = (await getSiteRoomKey(db, "reusable"))!;
   await db.execute({
     sql: "UPDATE site_document_rooms SET saved_at=? WHERE site_id=? AND room_key=?",
     args: [123456, "reusable", roomKey],
   });
-  assert.equal((await getSite_2(db, "reusable"))?.savedAt, 123456);
+  assert.equal((await getSite(db, "reusable"))?.savedAt, 123456);
 
 }));
 
 test("deleting and recreating the same site ID always assigns a different room", withFreshDb(async db => {
-  await insertSite_4(db, "reusable", dest);
-  const oldKey = (await getSiteRoomKey_2(db, "reusable"))!;
+  await insertSite(db, "reusable", dest);
+  const oldKey = (await getSiteRoomKey(db, "reusable"))!;
   assert.ok(oldKey);
-  await deleteSite_4(db, "reusable", oldKey);
-  assert.equal(await getSite_2(db, "reusable"), null);
-  assert.equal(await getSiteRoomKey_2(db, "reusable"), null);
+  await deleteSite(db, "reusable", oldKey);
+  assert.equal(await getSite(db, "reusable"), null);
+  assert.equal(await getSiteRoomKey(db, "reusable"), null);
   const tombstones = (await db.execute("SELECT room_key FROM document_room_cleanup")).rows;
   assert.deepEqual(tombstones.map(row => row.room_key), [oldKey]);
 
-  await insertSite_4(db, "reusable", { ...dest, name: "New site" });
-  const newKey = (await getSiteRoomKey_2(db, "reusable"))!;
+  await insertSite(db, "reusable", { ...dest, name: "New site" });
+  const newKey = (await getSiteRoomKey(db, "reusable"))!;
   assert.ok(newKey);
   assert.notEqual(newKey, oldKey);
-  await assert.rejects(deleteSite_4(db, "reusable", oldKey), /サイトが変更された/);
-  assert.equal((await getSite_2(db, "reusable"))?.name, "New site");
-  assert.equal(await getSiteRoomKey_2(db, "reusable"), newKey);
+  await assert.rejects(deleteSite(db, "reusable", oldKey), /サイトが変更された/);
+  assert.equal((await getSite(db, "reusable"))?.name, "New site");
+  assert.equal(await getSiteRoomKey(db, "reusable"), newKey);
 
-  await deleteSite_4(db, "reusable", newKey);
+  await deleteSite(db, "reusable", newKey);
   const pending = (await db.execute("SELECT room_key FROM document_room_cleanup ORDER BY queued_at,room_key")).rows;
   assert.deepEqual(new Set(pending.map(row => row.room_key)), new Set([oldKey, newKey]));
 }));
 
 test("simultaneous import IDs cannot create two DO generations", withFreshDb(async db => {
   const attempts = await Promise.allSettled([
-    insertSite_4(db, "same-import", dest),
-    insertSite_4(db, "same-import", dest),
+    insertSite(db, "same-import", dest),
+    insertSite(db, "same-import", dest),
   ]);
   assert.equal(attempts.filter(result => result.status === "fulfilled").length, 1);
   assert.equal(attempts.filter(result => result.status === "rejected").length, 1);
@@ -1249,12 +1249,12 @@ test("simultaneous import IDs cannot create two DO generations", withFreshDb(asy
 
 describe("site-settings-concurrency", () => {
 async function database(run: (db: Db) => Promise<void>) {
-  const dir = mkdtempSync(join_6(tmpdir(), "tsumu-site-settings-"));
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-site-settings-"));
   const previous = process.env.TSUMU_DATA_DIR;
   process.env.TSUMU_DATA_DIR = dir;
   try {
     const db = await getDbFromBinding(nodeDatabase()!);
-    await insertSite_5(db, "site", { name: "Original", repo: "owner/original", branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null });
+    await insertSite(db, "site", { name: "Original", repo: "owner/original", branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null });
     await run(db);
   } finally {
     if (previous === undefined) delete process.env.TSUMU_DATA_DIR; else process.env.TSUMU_DATA_DIR = previous;
@@ -1269,7 +1269,7 @@ function api(db: Db) {
     .replace(/^import[\s\S]*?;\n/gm, "").replace(/^export /gm, "");
   const injected = { NextResponse, JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited, dbUnavailable: () => { throw new Error("Unexpected fallback"); }, serverTr: async () => (text: string) => text,
     requireAuth: async () => null, requireSiteAccess: async () => null, siteRole: async () => "owner", sessionUser: async () => null, dbConfigured: () => true, getDb: async () => db, userMessage,
-    deleteSite: deleteSite_5, getSite: getSite_3, isSiteId: isSiteId_2, normalizeSiteInput: normalizeSiteInput_2, updateSite };
+    deleteSite: deleteSite, getSite: getSite, isSiteId: isSiteId, normalizeSiteInput: normalizeSiteInput, updateSite };
   const patch = new Function(...Object.keys(injected), `${source}\nreturn PATCH;`)(...Object.values(injected));
   return (input: unknown, contentType = "application/json") => patch(new Request("https://example.test/api/sites/site", { method: "PATCH", headers: { "Content-Type": contentType }, body: JSON.stringify(input) }), { params: Promise.resolve({ id: "site" }) }) as Promise<Response>;
 }
@@ -1286,7 +1286,7 @@ test("renaming does not revert concurrently changed publication settings", async
   const wrapped = race(db, async () => { await db.execute("UPDATE sites SET repo = 'owner/changed', branch = 'release' WHERE id = 'site'"); });
   const response = await api(wrapped)({ name: "Renamed" });
   assert.equal(response.status, 200);
-  const saved = await getSite_3(db, "site");
+  const saved = await getSite(db, "site");
   assert.equal(saved?.name, "Renamed");
   assert.equal(saved?.repo, "owner/changed");
   assert.equal(saved?.branch, "release");
@@ -1296,15 +1296,15 @@ test("a concurrent branch change is revalidated against the requested preview br
   const wrapped = race(db, async () => { await db.execute("UPDATE sites SET branch = 'release' WHERE id = 'site'"); });
   const response = await api(wrapped)({ previewBranch: "release" });
   assert.equal(response.status, 400);
-  const saved = await getSite_3(db, "site");
+  const saved = await getSite(db, "site");
   assert.equal(saved?.branch, "release");
   assert.equal(saved?.previewBranch, "preview");
 }));
 
 test("deletion between loading and saving settings is not a successful null result", async () => database(async db => {
-  const response = await api(race(db, () => deleteSite_5(db, "site")))({ name: "Late rename" });
+  const response = await api(race(db, () => deleteSite(db, "site")))({ name: "Late rename" });
   assert.equal(response.status, 404);
-  assert.equal(await getSite_3(db, "site"), null);
+  assert.equal(await getSite(db, "site"), null);
 }));
 
 
@@ -1321,13 +1321,13 @@ test("continuously competing settings changes return conflict instead of claimin
   const response = await api(wrapped)({ name: "Attempted rename" });
   assert.equal(response.status, 409);
   assert.equal(writes, 4);
-  const site = await getSite_3(db, "site");
+  const site = await getSite(db, "site");
   assert.equal(site?.name, "Original");
   assert.equal(site?.repo, "owner/concurrent-4");
 }));
 
 test("site settings reject arrays and invalid lock-suffixed branch path components", async () => database(async db => {
-  const before = await getSite_3(db, "site");
+  const before = await getSite(db, "site");
   for (const input of [
     [],
     { branch: "release.lock/site" },
@@ -1337,25 +1337,25 @@ test("site settings reject arrays and invalid lock-suffixed branch path componen
     { siteUrl: "https://example.com\\evil" },
   ]) {
     assert.equal((await api(db)(input)).status, 400);
-    assert.deepEqual(await getSite_3(db, "site"), before);
+    assert.deepEqual(await getSite(db, "site"), before);
   }
   assert.equal((await api(db)({ branch: "release/v2", previewBranch: "previews/v2", siteUrl: "https://example.com" })).status, 200);
 }));
 
 
 test("oversized site-settings PATCH is rejected without modifying settings", async () => database(async db => {
-  const before = await getSite_3(db, "site");
+  const before = await getSite(db, "site");
   const response = await api(db)({ name: "x".repeat(128 * 1024) });
   assert.equal(response.status, 413);
-  assert.deepEqual(await getSite_3(db, "site"), before);
+  assert.deepEqual(await getSite(db, "site"), before);
 }));
 
 
 test("site settings reject non-JSON Content-Type without touching the database", async () => database(async db => {
-  const before = await getSite_3(db, "site");
+  const before = await getSite(db, "site");
   const response = await api(db)({ name: "Injected" }, "text/plain");
   assert.equal(response.status, 415);
-  assert.deepEqual(await getSite_3(db, "site"), before);
+  assert.deepEqual(await getSite(db, "site"), before);
 }));
 });
 

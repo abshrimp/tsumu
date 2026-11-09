@@ -9,7 +9,7 @@ import { createRequire } from "node:module";
 import { transformSync } from "./helpers/bundle";
 import { type AssetGcDependencies } from "../lib/asset-gc";
 import { isolatedPreviewConfig, previewArguments, assertSupportedOpenNextConfig, previewLaunch } from "../scripts/cloudflare-preview.mjs";
-import { getDbFromBinding as getDbFromBinding_2, type D1LikeDatabase, type Db } from "../lib/db";
+import { getDbFromBinding, type D1LikeDatabase, type Db } from "../lib/db";
 import { nodeDatabase } from "../lib/node-storage";
 import { deleteSite, getSite, insertSite, recordSiteSavedAt, SITE_EDIT_METADATA_INTERVAL_MS } from "../lib/sites";
 import { readActivity, recordActivity } from "../lib/activity";
@@ -60,7 +60,7 @@ test("Cloudflare 設定の文字列内にあるカンマと閉じ括弧を保持
       UNICODE: "日本語,] 終わり, }",
     },
   };
-  assert.deepEqual(generatedConfig(JSON.stringify(config)), config);
+  assert.deepEqual(parseJsonc(JSON.stringify(config)), config);
 });
 
 test("Cloudflare 設定のコメントと末尾カンマを除き、文字列を保持する", () => {
@@ -77,7 +77,7 @@ test("Cloudflare 設定のコメントと末尾カンマを除き、文字列を
     ],
     "enabled": true, /* オブジェクトの末尾 */
   }`;
-  assert.deepEqual(generatedConfig(src), {
+  assert.deepEqual(parseJsonc(src), {
     vars: { TEXT: "a,]b, }c", COMMENT: "/* not a comment,} */ //,]" },
     rules: [{ values: [1, 2] }, { values: ["x,]", "y,}"] }],
     enabled: true,
@@ -92,7 +92,7 @@ test("Cloudflare 設定のエスケープを含むキーと値を変更しない
     vars[value] = value;
   }
   const config = { vars };
-  assert.deepEqual(generatedConfig(JSON.stringify(config)), config);
+  assert.deepEqual(parseJsonc(JSON.stringify(config)), config);
 });
 
 const completeStorage = {
@@ -469,7 +469,7 @@ test("D1 metadata and edit activity write only once per minute per site/editor",
       prepare: sql => sqlite.prepare(sql),
       batch: statements => sqlite.batch(statements),
     };
-    const real = await getDbFromBinding_2(binding);
+    const real = await getDbFromBinding(binding);
     assert.equal(real.backend, "d1");
     let metadataWrites = 0;
     let activityWrites = 0;

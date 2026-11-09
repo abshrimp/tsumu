@@ -1,8 +1,8 @@
 import { describe, before, test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
-import vm, { runInNewContext as runInNewContext_2, runInNewContext as runInNewContext_3 } from "node:vm";
+import vm, { runInNewContext } from "node:vm";
 import { generateExportProject, exportLimitations, prepareExportProject } from "../lib/export-formats";
-import { listRuntimeDom as listRuntimeDom_2 } from "./helpers/list-runtime-dom";
+import { listRuntimeDom } from "./helpers/list-runtime-dom";
 import { makeBox, makeText, createInitialDoc, makeImage } from "../lib/presets";
 import { type ScriptStep, type SiteDoc, type Asset, type NodeStyles } from "../lib/types";
 import { filterPredicate } from "../lib/generator/render-helpers";
@@ -14,13 +14,12 @@ import { fetchRequestOf, type FetchOptions } from "../lib/fetch-request";
 import { applyList, toListItems, type ListOp, filterItems, pageDataSteps } from "../lib/data";
 import { resolvedListOps } from "../components/canvas/render";
 import { runChecks } from "../lib/generator/checks";
-import { generateProject as generateProject_2, generateProject as generateProject_3, generateProject as generateProject_4, generateProject as generateProject_5 } from "../lib/generator";
+import { generateProject } from "../lib/generator";
 import { createRequire } from "node:module";
-import { transformSync as transformSync_2 } from "esbuild";
-import { parseFragment, type DefaultTreeAdapterTypes as Html, parse as parse_2 } from "parse5";
+import { transformSync } from "./helpers/bundle";
+import { parseFragment, type DefaultTreeAdapterTypes as Html, parse } from "parse5";
 import { renderToStaticMarkup } from "react-dom/server";
 import { headHtmlToJsx } from "../lib/generator/head";
-import { transformSync as transformSync_3, transformSync as transformSync_4, transformSync as transformSync_5 } from "./helpers/bundle";
 import { deferRunnableScripts } from "../lib/generator/defer-scripts";
 import { ZipArchive } from "../lib/zip";
 import { exportProjectZip } from "../lib/exportZip";
@@ -35,7 +34,7 @@ import { toSingleHtmlProject } from "../lib/generator/single-html";
 import { reactSource } from "../lib/generator/react-export";
 import { readRestoreJson } from "../lib/publish-security";
 import { retainImportedDependencies } from "../lib/generator/imported-dependencies";
-import { toJavaScriptProject as toJavaScriptProject_2 } from "../lib/generator/javascript-export";
+import { toJavaScriptProject } from "../lib/generator/javascript-export";
 import { cssAssetReferences } from "../lib/css-assets";
 import { applyPagePayload, buildPagePayload } from "../lib/page-transfer";
 import { singleHtmlResources, EXPORT_BASE } from "../lib/generator/single-html-resources";
@@ -154,7 +153,7 @@ describe("browser-data-export", () => {
       document: { querySelector: () => ({ textContent: plan }) },
       fetch: async () => Response.json(source),
     });
-    const dom = listRuntimeDom_2(html, files["scripts.js"], { window });
+    const dom = listRuntimeDom(html, files["scripts.js"], { window });
     await dom.dispose;
     const ranks = () => dom.active("[data-item]").map(row => JSON.parse(row.getAttribute("data-item")!).rank);
     assert.deepEqual(ranks(), [8, 5]);
@@ -329,10 +328,10 @@ describe("generated-fetch-request-parity", () => {
       fetch: async (_url: string, init: unknown) => { request = JSON.parse(JSON.stringify(init)); return Response.json({}); },
     };
     if (native) {
-      runInNewContext_2(nativeDataModule().replace(/\bexport /g, "") + "\nglobalThis.run = loadPageData;", context);
+      runInNewContext(nativeDataModule().replace(/\bexport /g, "") + "\nglobalThis.run = loadPageData;", context);
       await context.run({ steps: [step] }, context.location.search, context.fetch);
     } else {
-      runInNewContext_2(PAGE_DATA_RUNTIME, context);
+      runInNewContext(PAGE_DATA_RUNTIME, context);
       await context.window.__pageDataReady;
     }
     assert.ok(request, "request must reach fetch");
@@ -369,11 +368,11 @@ describe("generated-list-order-parity", () => {
     };
     let vars, rows;
     if (native) {
-      runInNewContext_2(nativeDataModule().replace(/\bexport /g, "") + "\nglobalThis.run = loadPageData; globalThis.rows = listItemsWithOps;", context);
+      runInNewContext(nativeDataModule().replace(/\bexport /g, "") + "\nglobalThis.run = loadPageData; globalThis.rows = listItemsWithOps;", context);
       vars = await context.run(plan, "", context.fetch);
       rows = context.rows(plan.listOps, vars, "rows", 0);
     } else {
-      runInNewContext_2(PAGE_DATA_RUNTIME, context);
+      runInNewContext(PAGE_DATA_RUNTIME, context);
       vars = await context.window.__pageDataReady;
       rows = context.window.__pageListRows(vars.rows, "rows", vars);
     }
@@ -406,7 +405,7 @@ describe("list-filter-value-parity", () => {
   const passesStart = PAGE_DATA_RUNTIME.indexOf("  function passes(");
   const passesEnd = PAGE_DATA_RUNTIME.indexOf("  function filter(", passesStart);
   assert.ok(passesStart >= 0 && passesEnd > passesStart);
-  const browserPasses = runInNewContext_2(PAGE_DATA_RUNTIME.slice(passesStart, passesEnd) + "\npasses", {
+  const browserPasses = runInNewContext(PAGE_DATA_RUNTIME.slice(passesStart, passesEnd) + "\npasses", {
     read: lookupVar, compare: (left: unknown, right: unknown, op: string) => matchesValueCondition(left, op, right), parseValueLiteral, interpolate,
   });
 
@@ -612,7 +611,7 @@ describe("checks-fetch-detail", () => {
   test('detail page with a generated server fetch does not warn that no data is fetched',()=>{
    const doc=fixture();
    assert.equal(pageDataSteps(doc,'detail').some(s=>s.kind==='fetch'&&s.as==='post'),true);
-   const output=generateProject_2(doc).files['app/posts/[slug]/page.tsx'];
+   const output=generateProject(doc).files['app/posts/[slug]/page.tsx'];
    assert.match(output,/await fetchJson\(interpolateUrl\("https:\/\/example.com\/posts\/\{slug\}"/);
    assert.deepEqual(missingData(doc),[]);
   });
@@ -633,7 +632,7 @@ const require = createRequire(import.meta.url);
 function renderHead(html: string) {
   const source = headHtmlToJsx(html, '');
   const mod = { exports: {} as any };
-  new Function('require', 'module', 'exports', transformSync_2('export default <>' + source + '</>', { loader: 'tsx', format: 'cjs', jsx: 'automatic' }).code)(require, mod, mod.exports);
+  new Function('require', 'module', 'exports', transformSync('export default <>' + source + '</>', { loader: 'tsx', format: 'cjs', jsx: 'automatic' }).code)(require, mod, mod.exports);
   return { source, tree: mod.exports.default, html: renderToStaticMarkup(mod.exports.default) };
 }
 const emitted = (html: string) => renderHead(html).html;
@@ -698,7 +697,7 @@ const require = createRequire(import.meta.url);
 
 function evaluate(source: string) {
   const module = { exports: {} as any };
-  const code = transformSync_3(source, { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
+  const code = transformSync(source, { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
   new Function("require", "module", "exports", code)(
     (id: string) => id.endsWith(".css") ? {} : require(id), module, module.exports,
   );
@@ -749,7 +748,7 @@ test("generated Next layout renders head metadata containing a children attribut
     pages: { home: { id: "home", name: "Home", title: "Home", slug: "", description: "", children: [] } },
     customHeadHtml: '<meta name="description" children="inert" content="Preserved"><script children="globalThis.notAuthored = true;"></script>',
   };
-  const layout = evaluate(generateProject_3(doc).files["app/layout.tsx"]);
+  const layout = evaluate(generateProject(doc).files["app/layout.tsx"]);
   const html = renderToStaticMarkup(layout({ children: "Body remains available" }));
   assert.match(html, /<meta name="description" content="Preserved"\/>/);
   assert.match(html, /<body>Body remains available<\/body>/);
@@ -828,7 +827,7 @@ test("Next.js page and site footer export inert HTML but preserve the authored s
     pageOrder: ["home"], nodes: {}, assets: {},
     customBodyEndHtml: '<script src="/site.js"></script>',
   };
-  const files = generateProject_4(doc).files;
+  const files = generateProject(doc).files;
   assert.ok(files["components/PageHtml.tsx"]);
   assert.match(files["app/page.tsx"], /<PageHtml html=/);
   assert.match(files["app/page.tsx"], /staticHtml=/);
@@ -1407,7 +1406,7 @@ function fixture(): SiteDoc {
 async function pageMarkup(files: Record<string, string>, framework: string, language: string): Promise<string> {
   if (framework === "nextjs" || framework === "react") {
     const path = framework === "nextjs" ? "app/guide/details/page" : "src/pages/Page0";
-    const code = transformSync_4(files[path + (language === "typescript" ? ".tsx" : ".jsx")], {
+    const code = transformSync(files[path + (language === "typescript" ? ".tsx" : ".jsx")], {
       loader: "tsx", format: "cjs", jsx: "automatic",
     }).code;
     const module = { exports: {} as any };
@@ -2064,7 +2063,7 @@ for (const [name, head] of [
       pages: { home: { id: "home", name: "Home", slug: "", title: "Home", description: "", children: [] } },
       pageOrder: ["home"], nodes: {}, assets: {},
     }, "react");
-    const output = await toJavaScriptProject_2(source, "react");
+    const output = await toJavaScriptProject(source, "react");
     const entry = '<script type="module" src="/src/main.tsx"></script>';
     const index = source.files["index.html"].lastIndexOf(entry);
     assert.ok(index >= 0);
@@ -2126,7 +2125,7 @@ for (const src of [
       pages: { home: { id: "home", name: "Home", slug: "", title: "Home", description: "", children: [] } },
       pageOrder: ["home"], nodes: {}, assets: {},
     }, "react");
-    const output = await toJavaScriptProject_2(source, "react");
+    const output = await toJavaScriptProject(source, "react");
     assert.ok(output.files["index.html"].includes(head));
     assert.ok(output.files["index.html"].includes('src="/src/main.jsx"'));
   });
@@ -2142,7 +2141,7 @@ for (const href of ["/", "/nested/", "https://cdn.example/app/"]) {
       pages: { home: { id: "home", name: "Home", slug: "", title: "Home", description: "", children: [] } },
       pageOrder: ["home"], nodes: {}, assets: {},
     }, "react");
-    const output = await toJavaScriptProject_2(source, "react");
+    const output = await toJavaScriptProject(source, "react");
     // Vite の入力は、base ではなく index.html が基準。相対パスを、ルートからの相対パスに変えない。
     assert.ok(output.files["index.html"].includes(base + external));
     assert.ok(output.files["index.html"].includes('src="./src/main.jsx?v=1#boot" data-authored="yes"'));
@@ -2159,7 +2158,7 @@ for (const src of ["/src/main.tsx", "./src/main.tsx", "src/main.tsx?v=1#boot"]) 
       pages: { home: { id: "home", name: "Home", slug: "", title: "Home", description: "", children: [] } },
       pageOrder: ["home"], nodes: {}, assets: {},
     }, "react");
-    const output = await toJavaScriptProject_2(source, "react");
+    const output = await toJavaScriptProject(source, "react");
     assert.ok(output.files["index.html"].includes(head));
     assert.ok(output.files["index.html"].includes('src="/src/main.jsx"'));
   });
@@ -2644,11 +2643,11 @@ test("generated and copied HTML routes retain usable quoted assets without chang
   copied.pageOrder = [];
   applyPagePayload(copied, buildPagePayload(original, ["p"]));
   for (const doc of [original, copied]) {
-    const project = generateProject_5(doc);
+    const project = generateProject(doc);
     const routePath = "app/route.ts";
     const route = project.files[routePath];
     assert.ok(route, `missing ${routePath}`);
-    const code = transformSync_5(route, { loader: "ts", format: "cjs" }).code;
+    const code = transformSync(route, { loader: "ts", format: "cjs" }).code;
     const mod = { exports: {} as { GET: () => Response } };
     new Function("module", "exports", code)(mod, mod.exports);
     const exported = await mod.exports.GET().text();
@@ -2670,7 +2669,7 @@ describe("single-html-svg-image", () => {
       });
       assert.match(project.files["index.html"], new RegExp(`${attribute}="data:image/png;base64,AQID"`));
       assert.match(project.files["index.html"], /width="30" height="20"\/>/);
-      const tree = parse_2(project.files["index.html"]);
+      const tree = parse(project.files["index.html"]);
       const elements: any[] = [];
       const visit = (node: any) => { if (node.tagName === "image") elements.push(node); node.childNodes?.forEach(visit); };
       visit(tree);
@@ -2707,13 +2706,13 @@ describe("single-html-script-types", () => {
       }, binaries: {}, remoteAssets: {} }, async () => { throw new Error("Unexpected network request"); });
       const scripts: any[] = [];
       const visit = (node: any) => { if (node.tagName === "script") scripts.push(node); node.childNodes?.forEach(visit); };
-      visit(parse_2(result.files["index.html"]));
+      visit(parse(result.files["index.html"]));
       const attrs = Object.fromEntries(scripts[0].attrs.map((a: any) => [a.name, a.value]));
       assert.match(attrs.src, /^data:/);
       assert.equal(attrs.type, type);
       assert.ok(Object.hasOwn(attrs, "defer"));
       const context: any = {};
-      runInNewContext_3(Buffer.from(attrs.src.split(",")[1].split("#")[0], "base64").toString(), context);
+      runInNewContext(Buffer.from(attrs.src.split(",")[1].split("#")[0], "base64").toString(), context);
       assert.equal(context.answer, 42);
     });
   }
@@ -2868,7 +2867,7 @@ describe("single-html-script-encoding", () => {
   function scriptAttributes(html: string): Record<string, string> {
     const scripts: any[] = [];
     const visit = (node: any) => { if (node.tagName === "script") scripts.push(node); node.childNodes?.forEach(visit); };
-    visit(parse_2(html));
+    visit(parse(html));
     assert.equal(scripts.length, 1);
     return Object.fromEntries(scripts[0].attrs.map((attr: any) => [attr.name, attr.value]));
   }
@@ -2892,7 +2891,7 @@ describe("single-html-script-encoding", () => {
     if (bytes[0] === 0xff && bytes[1] === 0xfe) decoder = new TextDecoder("utf-16le");
     if (bytes[0] === 0xfe && bytes[1] === 0xff) decoder = new TextDecoder("utf-16be");
     const context: { answer?: unknown } = {};
-    runInNewContext_3(decoder.decode(bytes), context);
+    runInNewContext(decoder.decode(bytes), context);
     return context.answer;
   }
 
@@ -3207,7 +3206,7 @@ describe("single-html-css-encoding", () => {
     assert.ok(embedded);
     assert.match(embedded.url, /^data:text\/css;charset=utf-8;base64,/);
     assert.deepEqual(embedded.bytes, Buffer.from(prefix + expectedCss));
-    const doc = parse_2(html);
+    const doc = parse(html);
     const nodes: any[] = [];
     const visit = (node: any) => { if (node.tagName === "link") nodes.push(node); node.childNodes?.forEach(visit); };
     visit(doc);

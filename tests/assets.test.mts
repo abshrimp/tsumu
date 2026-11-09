@@ -4,7 +4,7 @@ import { ZipArchive } from "../lib/zip";
 import { exportProjectZip } from "../lib/exportZip";
 import { generateExportProject } from "../lib/export-formats";
 import { parseSiteImport, restoreImportAssets } from "../lib/site-import";
-import { validSiteDoc as validSiteDoc_2, validSiteDoc as validSiteDoc_3 } from "../lib/doc-tree";
+import { validSiteDoc } from "../lib/doc-tree";
 import { makeBox, makeImage, createInitialDoc, makeText } from "../lib/presets";
 import { type SiteDoc, type Asset } from "../lib/types";
 import { useEditor } from "../lib/store";
@@ -12,36 +12,36 @@ import { closeDialog, useDialogs } from "../lib/dialog";
 import { assetDocUrl, assetSrc, downloadAsset, mediaSrc, nodeAssetSrc, replaceEmbeddedAsset, withSiteAssetUrl, mapLimit, ASSET_FETCH_CONCURRENCY, fetchWithRetry } from "../lib/assets";
 import { createBrowserDoc } from "../lib/browser-doc-storage";
 import { fakeIndexedDB } from "./helpers/fake-indexeddb";
-import { assetConfirmationCallbacks, assetConfirmationDoc, candidate as candidate_2, spare, candidate as candidate_3 } from "./helpers/asset-confirmation";
+import { assetConfirmationCallbacks, assetConfirmationDoc, candidate, spare } from "./helpers/asset-confirmation";
 import { DatabaseSync } from "node:sqlite";
 import { parseFragment } from "parse5";
 import { cssAssetReferences } from "../lib/css-assets";
 import { assetUploadedAt, extractAssetReferences, planAssetGc } from "../lib/asset-gc-plan";
-import { recordAssetGcCandidates as recordAssetGcCandidates_2, runAssetGc, type AssetGcDocumentNamespace } from "../lib/asset-gc";
+import { recordAssetGcCandidates, runAssetGc, type AssetGcDocumentNamespace } from "../lib/asset-gc";
 import { type Db, getDbFromBinding } from "../lib/db";
 import { type KVLikeNamespace } from "../lib/kv";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join as join_2, resolve as resolve_2 } from "node:path";
+import { join, resolve } from "node:path";
 import { nodeDatabase } from "../lib/node-storage";
 import { transformSync } from "./helpers/bundle";
-import { readAssetLedger as readAssetLedger_2, recordUploadedAsset as recordUploadedAsset_2 } from "../lib/asset-ledger";
+import { readAssetLedger, recordUploadedAsset } from "../lib/asset-ledger";
 import { computeStorageUsage } from "../lib/storage-usage";
 import { assetLibraryCallbacks, assetLibraryDoc } from "./helpers/asset-library";
 import { elements } from "./helpers/pending-import";
 import { ASSET_TOKEN_TTL, verifyAssetToken, signAssetPaths } from "../lib/asset-token";
 import { signAssetPath } from "./helpers/sign-asset-path";
 import { createRequire } from "node:module";
-import { permanentlyDeleteTrashedAsset as permanentlyDeleteTrashedAsset_2 } from "../lib/asset-trash-delete";
+import { permanentlyDeleteTrashedAsset } from "../lib/asset-trash-delete";
 import * as apiJson from "../lib/api-json";
-import { readAssetForm as readAssetForm_2 } from "../lib/asset-upload";
+import { readAssetForm } from "../lib/asset-upload";
 import { assetUsage } from "../lib/asset-usage";
 import { referenceAssetUsage } from "./helpers/asset-usage-reference";
 import { largeAssetLibrary } from "./helpers/large-asset-library";
 import { ASSET_CACHE_MAX_AGE, assetCacheControl } from "../lib/asset-cache";
 import { loadAllTrash } from "../lib/asset-trash-client";
 import { assetDisplayKind, assetExtensionLabel, isVisualAsset } from "../lib/asset-display";
-import { createElement as createElement_2 } from "react";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AssetGrid } from "../components/ImagePicker";
 import { assetWindow, assetRowHeight, resizedAssetScrollTop } from "../lib/asset-window";
@@ -88,7 +88,7 @@ function fixture(dataUrl: string, count = 32): SiteDoc {
 for (const framework of ["nextjs", "react", "vue", "nuxt", "sveltekit", "html"] as const) {
   for (const [name, url] of cases) test(`${framework} preserves ${name} asset bytes and ZIP-relative aliases`, async () => {
     const doc = fixture(url), before = structuredClone(doc);
-    assert.equal(validSiteDoc_2(doc), true);
+    assert.equal(validSiteDoc(doc), true);
     const parsed = await parseSiteImport(new TextEncoder().encode(JSON.stringify(doc)), "doc");
     assert.deepEqual(parsed.doc, doc);
     // ネイティブの data URL の取得は、アセットの復元が使うものと同じバイト列のデコーダー。
@@ -160,7 +160,7 @@ test("4000 nested nodes, 160 scripts and binary assets survive JSON, ZIP, restor
     }
     const restored = await restoreImportAssets(imported);
     assert.deepEqual(restored.warnings, []);
-    assert.equal(validSiteDoc_2(restored.doc), true);
+    assert.equal(validSiteDoc(restored.doc), true);
     assert.deepEqual(restored.doc.nodes, doc.nodes);
     assert.deepEqual(restored.doc.pages, doc.pages);
     assert.deepEqual(Object.keys(restored.doc.assets), Object.keys(doc.assets));
@@ -208,7 +208,7 @@ function fixture(doc = assetConfirmationDoc()) {
       const tree = render();
       if (!single) tree.find((e) => e.props?.className === "asset-clean").props.onClick();
       else {
-        const card = tree.find((e) => e.props?.["data-asset-id"] === candidate_2.id);
+        const card = tree.find((e) => e.props?.["data-asset-id"] === candidate.id);
         card.props.children.find((e: any) => e?.props?.["data-tip"] === "Delete").props.onClick();
       }
       assert.ok(useDialogs.getState().queue.length);
@@ -228,20 +228,20 @@ function remote(edit: (doc: SiteDoc) => void) {
 }
 
 const references: Record<string, (doc: SiteDoc) => void> = {
-  image: (d) => { d.nodes.image.image!.assetId = candidate_2.id; },
-  media: (d) => { d.nodes.media.media!.assetId = candidate_2.id; },
-  background: (d) => { d.nodes.image.styles = { base: { default: { backgroundImage: `url("${assetSrc(candidate_2)}")` } } }; },
-  pageBackground: (d) => { d.pages.p.bodyStyles = { base: { default: { backgroundImage: `url("${assetSrc(candidate_2)}")` } } }; },
-  escapedBackground: (d) => { d.nodes.image.styles = { base: { hover: { backgroundImage: `url("\\2f ${assetSrc(candidate_2).slice(1)}")` } } }; },
-  escapedCustomCss: (d) => { d.nodes.image.customCss = `background-image: url("\\2f ${assetSrc(candidate_2).slice(1)}&v=1");`; },
-  escapedPageBackground: (d) => { d.pages.p.bodyStyles = { sm: { default: { backgroundImage: `url("\\2f ${assetSrc(candidate_2).slice(1)}")` } } }; },
-  favicon: (d) => { d.favicon = { assetId: candidate_2.id }; },
-  pageImage: (d) => { d.pages.p.ogImage = { assetId: candidate_2.id }; },
-  html: (d) => { d.pages.p.rawHtml = `<img src="${assetSrc(candidate_2)}">`; },
+  image: (d) => { d.nodes.image.image!.assetId = candidate.id; },
+  media: (d) => { d.nodes.media.media!.assetId = candidate.id; },
+  background: (d) => { d.nodes.image.styles = { base: { default: { backgroundImage: `url("${assetSrc(candidate)}")` } } }; },
+  pageBackground: (d) => { d.pages.p.bodyStyles = { base: { default: { backgroundImage: `url("${assetSrc(candidate)}")` } } }; },
+  escapedBackground: (d) => { d.nodes.image.styles = { base: { hover: { backgroundImage: `url("\\2f ${assetSrc(candidate).slice(1)}")` } } }; },
+  escapedCustomCss: (d) => { d.nodes.image.customCss = `background-image: url("\\2f ${assetSrc(candidate).slice(1)}&v=1");`; },
+  escapedPageBackground: (d) => { d.pages.p.bodyStyles = { sm: { default: { backgroundImage: `url("\\2f ${assetSrc(candidate).slice(1)}")` } } }; },
+  favicon: (d) => { d.favicon = { assetId: candidate.id }; },
+  pageImage: (d) => { d.pages.p.ogImage = { assetId: candidate.id }; },
+  html: (d) => { d.pages.p.rawHtml = `<img src="${assetSrc(candidate)}">`; },
   zipDependency: (d) => {
     d.assets.sheet = { id: "sheet", name: "sheet.css", mimeType: "text/css", width: 0, height: 0, zip: {
       version: 1, group: "zip", path: "sheet.css", stylesheet: {
-        source: "body { background: url(a.png) }", references: [{ url: "a.png", assetId: candidate_2.id, suffix: "" }],
+        source: "body { background: url(a.png) }", references: [{ url: "a.png", assetId: candidate.id, suffix: "" }],
       },
     } };
     d.pages.p.rawHtml = '<link rel="stylesheet" href="tsumu-zip-css:sheet">';
@@ -258,7 +258,7 @@ for (const [name, reference] of Object.entries(references)) {
       assert.deepEqual(f.deleted, [spare.path]);
       state().undo(); assert.deepEqual(state().doc, before);
       state().redo(); assert.equal(state().doc.assets[spare.id], undefined);
-      assert.deepEqual(state().doc.assets[candidate_2.id], candidate_2);
+      assert.deepEqual(state().doc.assets[candidate.id], candidate);
     } finally { f.close(); }
   });
 }
@@ -275,7 +275,7 @@ test("cleanup only removes originally approved unused assets and preserves unrel
     const before = structuredClone(state().doc);
     await f.finish();
     assert.deepEqual(state().doc, { ...before, assets: { [spare.id]: before.assets[spare.id], added: before.assets.added } });
-    assert.deepEqual(f.deleted, [candidate_2.path]);
+    assert.deepEqual(f.deleted, [candidate.path]);
   } finally { f.close(); }
 });
 
@@ -283,18 +283,18 @@ for (const single of [false, true]) {
   for (const change of ["path", "embedded", "zip", "removed"] as const) {
     test(`${single ? "single deletion" : "cleanup"} preserves an asset ${change} during confirmation`, async () => {
       const doc = assetConfirmationDoc();
-      if (change === "embedded") { delete doc.assets[candidate_2.id].path; doc.assets[candidate_2.id].dataUrl = "data:image/png;base64,b2xk"; }
+      if (change === "embedded") { delete doc.assets[candidate.id].path; doc.assets[candidate.id].dataUrl = "data:image/png;base64,b2xk"; }
       const f = fixture(doc);
       try {
         f.begin(single); remote((d) => {
-          if (change === "path") d.assets[candidate_2.id].path = "assets/replacement.png";
-          if (change === "embedded") d.assets[candidate_2.id].dataUrl = "data:image/png;base64,bmV3";
-          if (change === "zip") d.assets[candidate_2.id].zip = { version: 1, group: "new", path: "a.png" };
-          if (change === "removed") delete d.assets[candidate_2.id];
+          if (change === "path") d.assets[candidate.id].path = "assets/replacement.png";
+          if (change === "embedded") d.assets[candidate.id].dataUrl = "data:image/png;base64,bmV3";
+          if (change === "zip") d.assets[candidate.id].zip = { version: 1, group: "new", path: "a.png" };
+          if (change === "removed") delete d.assets[candidate.id];
         });
         const before = structuredClone(state().doc);
         await f.finish();
-        assert.deepEqual(state().doc.assets[candidate_2.id], before.assets[candidate_2.id]);
+        assert.deepEqual(state().doc.assets[candidate.id], before.assets[candidate.id]);
         assert.deepEqual(f.deleted, single ? [] : [spare.path]);
         if (single) assert.deepEqual(state().doc, before);
       } finally { f.close(); }
@@ -341,14 +341,14 @@ test("single used deletion still removes its approved references and only its fi
   try {
     f.begin(true); state().updateNode("media", { name: "Unrelated" });
     await f.finish();
-    assert.equal(state().doc.assets[candidate_2.id], undefined);
+    assert.equal(state().doc.assets[candidate.id], undefined);
     assert.deepEqual(state().doc.assets[spare.id], spare);
     assert.equal(state().doc.nodes.image.image!.assetId, undefined);
     assert.equal(state().doc.nodes.image.image!.src, "");
     assert.equal(state().doc.favicon, null);
     assert.equal(state().doc.pages.p.bodyStyles!.base!.default!.backgroundImage, undefined);
     assert.equal(state().doc.nodes.media.name, "Unrelated");
-    assert.deepEqual(f.deleted, [candidate_2.path]);
+    assert.deepEqual(f.deleted, [candidate.path]);
   } finally { f.close(); }
 });
 
@@ -359,7 +359,7 @@ test("repeated confirmations do not delete the same file twice or create empty h
     await f.finish(); const past = structuredClone(state().past);
     await f.finish();
     assert.deepEqual(state().doc.assets, {});
-    assert.deepEqual(f.deleted, [candidate_2.path, spare.path]);
+    assert.deepEqual(f.deleted, [candidate.path, spare.path]);
     assert.deepEqual(state().past, past);
   } finally { f.close(); }
 });
@@ -379,11 +379,11 @@ test("renaming and measured metadata do not change file identity", async () => {
     const f = fixture();
     try {
       f.begin(single); remote((d) => {
-        Object.assign(d.assets[candidate_2.id], { name: "renamed.png", width: 30, height: 20, bytes: 100, svgFilter: false });
+        Object.assign(d.assets[candidate.id], { name: "renamed.png", width: 30, height: 20, bytes: 100, svgFilter: false });
       });
       await f.finish();
-      assert.equal(state().doc.assets[candidate_2.id], undefined);
-      assert.deepEqual(f.deleted, single ? [candidate_2.path] : [candidate_2.path, spare.path]);
+      assert.equal(state().doc.assets[candidate.id], undefined);
+      assert.deepEqual(f.deleted, single ? [candidate.path] : [candidate.path, spare.path]);
     } finally { f.close(); }
   }
 });
@@ -394,12 +394,12 @@ for (const single of [false, true]) {
       const f = fixture();
       try {
         f.begin(single); remote((d) => {
-          d.assets.alias = { ...candidate_2, id: "alias" };
+          d.assets.alias = { ...candidate, id: "alias" };
           if (used) d.nodes.image.image!.assetId = "alias";
         });
         await f.finish();
-        assert.equal(state().doc.assets[candidate_2.id], undefined);
-        assert.equal(state().doc.assets.alias.path, candidate_2.path);
+        assert.equal(state().doc.assets[candidate.id], undefined);
+        assert.equal(state().doc.assets.alias.path, candidate.path);
         assert.deepEqual(f.deleted, single ? [] : [spare.path]);
       } finally { f.close(); }
     });
@@ -408,23 +408,23 @@ for (const single of [false, true]) {
 
 test("cleanup preserves files reached through ZIP dependencies under another asset ID", async () => {
   const doc = assetConfirmationDoc();
-  references.zipDependency(doc); doc.assets[spare.id].path = candidate_2.path;
+  references.zipDependency(doc); doc.assets[spare.id].path = candidate.path;
   const f = fixture(doc);
   try {
     f.begin(); await f.finish();
-    assert.deepEqual(state().doc.assets[candidate_2.id], candidate_2);
+    assert.deepEqual(state().doc.assets[candidate.id], candidate);
     assert.equal(state().doc.assets[spare.id], undefined);
     assert.deepEqual(f.deleted, []);
   } finally { f.close(); }
 });
 
 test("cleanup deletes an approved shared path once when none of its aliases remain", async () => {
-  const doc = assetConfirmationDoc(); doc.assets[spare.id].path = candidate_2.path;
+  const doc = assetConfirmationDoc(); doc.assets[spare.id].path = candidate.path;
   const f = fixture(doc);
   try {
     f.begin(); await f.finish();
     assert.deepEqual(state().doc.assets, {});
-    assert.deepEqual(f.deleted, [candidate_2.path]);
+    assert.deepEqual(f.deleted, [candidate.path]);
   } finally { f.close(); }
 });
 
@@ -439,7 +439,7 @@ test("unused cleanup checks all removed files in one browser scan bound to the o
     // A copied URL in HTML can reference the file without a library record in this site.
     const unrelatedUrl = new URL(assetSrc(spare), "https://synthetic.test");
     unrelatedUrl.searchParams.set("path", spare.path + ".backup");
-    const markup = `<img src="${assetSrc(candidate_2)}"><img src="${unrelatedUrl.pathname + unrelatedUrl.search}">`;
+    const markup = `<img src="${assetSrc(candidate)}"><img src="${unrelatedUrl.pathname + unrelatedUrl.search}">`;
     await createBrowserDoc("other", JSON.stringify({ pages: { main: { rawHtml: markup } } }));
     await createBrowserDoc("original", JSON.stringify({ assets: { spare } }));
     const db = opens.mock.calls[0].result!.result;
@@ -456,7 +456,7 @@ test("unused cleanup checks all removed files in one browser scan bound to the o
     };
     f.begin();
     await f.finish();
-    assert.deepEqual(requests, [["original", candidate_2.path, "1"], ["original", spare.path, null]]);
+    assert.deepEqual(requests, [["original", candidate.path, "1"], ["original", spare.path, null]]);
     assert.equal(scans.mock.callCount(), 1);
   } finally { globalThis.window = previous; f.close(); }
 });
@@ -465,7 +465,7 @@ test("single asset deletion prunes page htmlZip.assetIds, resetDoc bumps docEdit
   const { validSiteDoc } = await import("../lib/doc-tree");
   const { isComposingKey, isEscapeKey } = await import("../lib/keys");
   const doc = assetConfirmationDoc();
-  doc.pages.p.htmlZip = { path: "index.html", assetIds: [candidate_2.id, spare.id] };
+  doc.pages.p.htmlZip = { path: "index.html", assetIds: [candidate.id, spare.id] };
   const f = fixture(doc);
   try {
     f.begin(true);
@@ -526,7 +526,7 @@ for (const status of [403, 404, 500, 502]) {
     try {
       let read = false;
       globalThis.fetch = async () => ({ ok: false, status, blob: async () => { read = true; return new Blob(["error"]); } }) as Response;
-      await assert.rejects(downloadAsset(candidate_3), { message: failure });
+      await assert.rejects(downloadAsset(candidate), { message: failure });
       assert.equal(read, false);
       assert.deepEqual([b.saved, b.blobs, b.opened], [[], [], []]);
     } finally { b.close(); }
@@ -537,7 +537,7 @@ for (const embedded of [false, true]) {
   test(`${embedded ? "data URL" : "remote"} download preserves bytes and filename, with deferred cleanup`, async () => {
     const b = browser();
     try {
-      const asset = embedded ? { ...candidate_3, path: undefined, dataUrl: "data:image/png;base64,AAEC/w==" } : candidate_3;
+      const asset = embedded ? { ...candidate, path: undefined, dataUrl: "data:image/png;base64,AAEC/w==" } : candidate;
       const bytes = new Uint8Array([0, 1, 2, 255]);
       const nativeFetch = globalThis.fetch;
       globalThis.fetch = async (src) => {
@@ -547,7 +547,7 @@ for (const embedded of [false, true]) {
       await downloadAsset(asset);
       assert.deepEqual(new Uint8Array(await b.blobs[0].arrayBuffer()), bytes);
       assert.equal(b.blobs[0].type, "image/png");
-      assert.deepEqual(b.saved, [{ href: "blob:download-1", download: candidate_3.name }]);
+      assert.deepEqual(b.saved, [{ href: "blob:download-1", download: candidate.name }]);
       assert.deepEqual(b.opened, []);
       assert.deepEqual(b.revoked, []);
       b.timers.forEach((run) => run());
@@ -560,8 +560,8 @@ test("network/CORS rejection retains source navigation fallback", async () => {
   const b = browser();
   try {
     globalThis.fetch = async () => { throw new TypeError("Failed to fetch"); };
-    await downloadAsset(candidate_3);
-    assert.deepEqual(b.opened, [[assetSrc(candidate_3), "_blank", "noopener"]]);
+    await downloadAsset(candidate);
+    assert.deepEqual(b.opened, [[assetSrc(candidate), "_blank", "noopener"]]);
     assert.deepEqual(b.saved, []);
   } finally { b.close(); }
 });
@@ -570,7 +570,7 @@ test("interrupted response bodies reject without navigation or corrupted files",
   const b = browser();
   try {
     globalThis.fetch = async () => ({ ok: true, blob: async () => { throw new Error("interrupted"); } }) as Response;
-    await assert.rejects(downloadAsset(candidate_3), /interrupted/);
+    await assert.rejects(downloadAsset(candidate), /interrupted/);
     assert.deepEqual([b.saved, b.blobs, b.opened], [[], [], []]);
   } finally { b.close(); }
 });
@@ -580,7 +580,7 @@ test("click failure still schedules object URL cleanup", async () => {
   try {
     globalThis.fetch = async () => new Response("bytes");
     globalThis.document.createElement = (() => ({ click() { throw new Error("click failed"); } })) as any;
-    await assert.rejects(downloadAsset(candidate_3), /click failed/);
+    await assert.rejects(downloadAsset(candidate), /click failed/);
     b.timers.forEach((run) => run());
     assert.deepEqual(b.revoked, ["blob:download-1"]);
     assert.deepEqual(b.opened, []);
@@ -595,7 +595,7 @@ function panel() {
   globalThis.fetch = () => new Promise<Response>((resolve) => requests.push(resolve));
   return {
     ...b, ui, requests,
-    click(id = candidate_3.id) {
+    click(id = candidate.id) {
       const card = ui.render().find((e) => e.props?.["data-asset-id"] === id);
       card.props.children.find((e: any) => e?.props?.["data-tip"] === "Download").props.onClick();
     },
@@ -632,8 +632,8 @@ for (const change of ["newer-download", "newer-upload", "unmount", "replace-doc"
       if (change === "site") window.location.pathname = "/sites/other";
       if (change === "replace-asset" || change === "remove-asset") {
         const d = structuredClone(s().doc);
-        if (change === "replace-asset") d.assets[candidate_3.id].path = "assets/new.png";
-        else delete d.assets[candidate_3.id];
+        if (change === "replace-asset") d.assets[candidate.id].path = "assets/new.png";
+        else delete d.assets[candidate.id];
         s().applyRemoteDoc(d);
       }
       p.requests[0](new Response("missing", { status: 404 })); await tick();
@@ -700,7 +700,7 @@ test("asset GC retains HTML character references accepted by the HTML and URL pa
     assert.equal(new URL(url!, "https://example.com").searchParams.get("path"), path, html);
     const doc = createInitialDoc();
     doc.pages[doc.pageOrder[0]].rawHtml = html;
-    assert.equal(validSiteDoc_3(doc), true);
+    assert.equal(validSiteDoc(doc), true);
     assert.equal(extractAssetReferences(JSON.stringify(doc)).has(path), true, html);
   }
 });
@@ -1068,7 +1068,7 @@ test("the image-delete event registers a candidate immediately without KV enumer
   const path = key(35);
   const f = fixture(async () => [], [path]);
   try {
-    const inserted = await recordAssetGcCandidates_2(f.db, [path], now);
+    const inserted = await recordAssetGcCandidates(f.db, [path], now);
     assert.equal(inserted, 1);
     assert.equal(f.lists(), 0);
     const candidate = f.sql.prepare("SELECT first_unreferenced_at FROM asset_gc_candidates WHERE path=?").get(path);
@@ -1084,8 +1084,8 @@ test("repeated image deletion resets the seven-day candidate clock", async () =>
   const path = key(50);
   const f = fixture(async () => [], [path]);
   try {
-    await recordAssetGcCandidates_2(f.db, [path], now - 6 * day);
-    await recordAssetGcCandidates_2(f.db, [path], now);
+    await recordAssetGcCandidates(f.db, [path], now - 6 * day);
+    await recordAssetGcCandidates(f.db, [path], now);
     const candidate = f.sql.prepare("SELECT first_unreferenced_at FROM asset_gc_candidates WHERE path=?").get(path);
     assert.equal(candidate?.first_unreferenced_at, now);
     const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms,
@@ -1149,7 +1149,7 @@ test("weekly reconciliation preserves explicit delete-event age", async () => {
   const path = key(100);
   const f = fixture(async () => [], [path]);
   try {
-    await recordAssetGcCandidates_2(f.db, [path], now - 4 * day);
+    await recordAssetGcCandidates(f.db, [path], now - 4 * day);
     await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now,
       discoverUntracked: true });
     const saved = f.sql.prepare("SELECT first_unreferenced_at FROM asset_gc_candidates WHERE path=?").get(path);
@@ -1161,7 +1161,7 @@ test("weekly reconciliation preserves explicit delete-event age", async () => {
 test("daily GC skips all site reads when no candidate is old enough", async () => {
   const f = fixture(async () => { throw new Error("DO unavailable"); }, [key(50)]);
   try {
-    await recordAssetGcCandidates_2(f.db, [key(50)], now);
+    await recordAssetGcCandidates(f.db, [key(50)], now);
     const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms,
       now: now + day, dryRun: false });
     assert.equal(report.status, "ok");
@@ -1175,7 +1175,7 @@ test("expired orphan from an explicit delete is protected by a different current
   const path = key(100);
   const f = fixture(async () => [path], [path]);
   try {
-    await recordAssetGcCandidates_2(f.db, [path], now - 9 * day);
+    await recordAssetGcCandidates(f.db, [path], now - 9 * day);
     const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms,
       now, dryRun: false });
     assert.equal(report.deleted, 0);
@@ -1361,7 +1361,7 @@ for (const browserReferenced of [true, false]) {
 
 test("Node/Docker retain files referenced only by another site's HTML or CSS, with exact path matching", async () => {
   const previous = process.env.TSUMU_DATA_DIR;
-  const dir = mkdtempSync(join_2(tmpdir(), "tsumu-shared-asset-"));
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-shared-asset-"));
   process.env.TSUMU_DATA_DIR = dir;
   try {
     const db = await getDbFromBinding(nodeDatabase()!);
@@ -1490,27 +1490,27 @@ function ledgerDb(backend: "d1" | "sqlite" = "d1") {
 test("the ledger counts every stored file, including removed ones waiting for GC, while scoping unknownPaths per site", async () => {
   const { sql, db } = ledgerDb();
   try {
-    await recordUploadedAsset_2(db, "assets/a.png", 100, 1);
-    await recordUploadedAsset_2(db, "assets/b.png", 50, 2);
+    await recordUploadedAsset(db, "assets/a.png", 100, 1);
+    await recordUploadedAsset(db, "assets/b.png", 50, 2);
     sql.prepare("INSERT INTO asset_objects VALUES(?,?,?,?)").run("assets/old.png", null, 0, 0);
     sql.prepare("INSERT INTO asset_objects VALUES(?,?,?,?)").run("assets/other-site.png", null, 0, 0);
     sql.prepare("INSERT INTO site_asset_uploads VALUES(?,?)").run("site-a", "assets/old.png");
     sql.prepare("INSERT INTO site_asset_uploads VALUES(?,?)").run("site-b", "assets/other-site.png");
     sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)").run("assets/b.png", 3, 3, 50);
-    const ledger = await readAssetLedger_2(db);
+    const ledger = await readAssetLedger(db);
     assert.deepEqual(ledger, {
       complete: false, count: 4, bytes: 150, unknownCount: 2,
       unknownPaths: ["assets/old.png", "assets/other-site.png"],
       pendingCount: 1, pendingBytes: 50,
     });
-    const scoped = await readAssetLedger_2(db, { siteId: "site-a" });
+    const scoped = await readAssetLedger(db, { siteId: "site-a" });
     assert.deepEqual(scoped, {
       complete: false, count: 4, bytes: 150, unknownCount: 2,
       unknownPaths: ["assets/old.png"],
       pendingCount: 1, pendingBytes: 50,
     });
     sql.exec("UPDATE asset_ledger_state SET complete_at=10");
-    assert.equal((await readAssetLedger_2(db))?.complete, true);
+    assert.equal((await readAssetLedger(db))?.complete, true);
   } finally { sql.close(); }
 });
 
@@ -1519,7 +1519,7 @@ test("ledger uses the Trash candidate size when the object inventory lacks bytes
   try {
     sql.prepare("INSERT INTO asset_objects VALUES(?,?,?,?)").run("assets/unknown.png", null, 0, 0);
     sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)").run("assets/unknown.png", 1, 1, 2048);
-    const result = await readAssetLedger_2(db);
+    const result = await readAssetLedger(db);
     assert.deepEqual(result, {
       complete: false, count: 1, bytes: 2048, unknownCount: 0, unknownPaths: [],
       pendingCount: 1, pendingBytes: 2048,
@@ -1530,9 +1530,9 @@ test("ledger uses the Trash candidate size when the object inventory lacks bytes
 test("Node/Docker have no ledger", async () => {
   const { sql, db } = ledgerDb("sqlite");
   try {
-    await recordUploadedAsset_2(db, "assets/a.png", 100);
+    await recordUploadedAsset(db, "assets/a.png", 100);
     assert.equal(Number(sql.prepare("SELECT count(*) AS n FROM asset_objects").get()?.n), 0);
-    assert.equal(await readAssetLedger_2(db), null);
+    assert.equal(await readAssetLedger(db), null);
   } finally { sql.close(); }
 });
 
@@ -2334,7 +2334,7 @@ function fixture(options: {
     },
   };
   return {
-    run: () => permanentlyDeleteTrashedAsset_2({ db, rooms, kv, path }),
+    run: () => permanentlyDeleteTrashedAsset({ db, rooms, kv, path }),
     snapshot: () => ({ lease, stored, deleted, reads, kvDeletes }),
   };
 }
@@ -2599,12 +2599,12 @@ test("multipart parsing counts all bytes, including fields and undeclared or und
   form.append("file", new File(["ok"], "a.txt", { type: "text/plain" }));
   form.append("other", "x".repeat(1000));
   const request = () => new Request("https://editor.example/upload", { method: "POST", body: form });
-  const good = await readAssetForm_2(request(), 4096);
+  const good = await readAssetForm(request(), 4096);
   assert.equal(await (good!.get("file") as File).text(), "ok");
   for (const length of [null, "1", "4000"]) {
     const req = request();
     if (length !== null) req.headers.set("content-length", length);
-    await assert.rejects(readAssetForm_2(req, 500), RangeError);
+    await assert.rejects(readAssetForm(req, 500), RangeError);
   }
 });
 
@@ -2626,7 +2626,7 @@ test("a declared oversized cloned upload rejects without consuming the other bra
   original.headers.set("content-length", "4000");
   const clone = original.clone();
   try {
-    await assert.rejects(timely(readAssetForm_2(clone, 500)), RangeError);
+    await assert.rejects(timely(readAssetForm(clone, 500)), RangeError);
     assert.equal(original.bodyUsed, false);
     assert.equal(await ((await original.formData()).get("file") as File).text(), "preserved");
   } finally {
@@ -2644,7 +2644,7 @@ test("declared oversized uploads do not wait for an unresolved cleanup promise",
     }),
     duplex: "half",
   } as RequestInit);
-  await assert.rejects(timely(readAssetForm_2(req, 500)), RangeError);
+  await assert.rejects(timely(readAssetForm(req, 500)), RangeError);
   assert.equal(cancelled, true);
 });
 
@@ -2654,7 +2654,7 @@ test("streamed oversized cloned uploads reject while the other branch remains re
   const original = new Request("https://editor.example/upload", { method: "POST", body: form });
   const clone = original.clone();
   try {
-    await assert.rejects(timely(readAssetForm_2(clone, 500)), RangeError);
+    await assert.rejects(timely(readAssetForm(clone, 500)), RangeError);
     assert.equal(original.bodyUsed, false);
     assert.equal(await ((await original.formData()).get("file") as File).text(), "x".repeat(1000));
   } finally {
@@ -2673,7 +2673,7 @@ test("file uploads discard unsupported media types before reading the body", asy
       }, { highWaterMark: 0 }),
       duplex: "half",
     } as RequestInit);
-    assert.equal(await timely(readAssetForm_2(req, 4096)), null);
+    assert.equal(await timely(readAssetForm(req, 4096)), null);
     assert.equal(reads, 0);
     assert.equal(cancelled, true);
   }
@@ -2862,11 +2862,11 @@ describe("asset-picker-types", () => {
     ];
     initial.doc = { ...original, assets: Object.fromEntries(assets.map(a => [a.id, a])) };
     try {
-      const markup = renderToStaticMarkup(createElement_2(AssetGrid, { kind: "image", onPick() {} }));
+      const markup = renderToStaticMarkup(createElement(AssetGrid, { kind: "image", onPick() {} }));
       for (const name of ["photo.png", "logo.svg", "untyped.png"]) assert.ok(markup.includes(`data-tip="${name}"`), name);
       for (const name of ["styles.css", "app.js", "manual.pdf", "font.woff2", "movie.mp4", "sound.mp3"]) assert.ok(!markup.includes(`data-tip="${name}"`), name);
       for (const [kind, name] of [["video", "movie.mp4"], ["audio", "sound.mp3"]] as const) {
-        const media = renderToStaticMarkup(createElement_2(AssetGrid, { kind, onPick() {} }));
+        const media = renderToStaticMarkup(createElement(AssetGrid, { kind, onPick() {} }));
         assert.ok(media.includes(`data-tip="${name}"`));
         assert.ok(!media.includes('data-tip="photo.png"'));
       }
@@ -2876,7 +2876,7 @@ describe("asset-picker-types", () => {
 
 describe("image-picker-scope", () => {
   function fixture() {
-    const path = resolve_2("components/ImagePicker.tsx"), require = createRequire(path);
+    const path = resolve("components/ImagePicker.tsx"), require = createRequire(path);
     let query = "", assets: any = {};
     const mod = { exports: {} as any };
     new Function("require", "module", "exports", transformSync(readFileSync(path, "utf8"), { loader: "tsx", format: "cjs", jsx: "automatic" }).code)(

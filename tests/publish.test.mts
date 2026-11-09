@@ -7,37 +7,35 @@ import { createRequire, stripTypeScriptTypes } from "node:module";
 import { transformSync } from "./helpers/bundle";
 import * as React from "react";
 import { generateProject } from "../lib/generator";
-import * as files_2 from "../lib/publish-files";
-import * as files_3 from "../lib/publish-files";
 import * as helpers from "../lib/publish-files";
-import { GENERATED_MANIFEST_PATH as GENERATED_MANIFEST_PATH_2, parseGeneratedManifest as parseGeneratedManifest_2, GENERATED_MANIFEST_PATH as GENERATED_MANIFEST_PATH_3, DOC_PATH as DOC_PATH_2, isProtectedPath as isProtectedPath_2, isSafeCommitPath as isSafeCommitPath_2, conflictingCommitPaths as conflictingCommitPaths_2, parseGeneratedManifest as parseGeneratedManifest_3, planPublish as planPublish_2, keptTreeEntries as keptTreeEntries_2, protectedTreeEdits, serializeGeneratedManifest as serializeGeneratedManifest_2, GENERATED_MANIFEST_PATH as GENERATED_MANIFEST_PATH_4, serializeGeneratedManifest as serializeGeneratedManifest_3 } from "../lib/publish-files";
+import { GENERATED_MANIFEST_PATH, parseGeneratedManifest, DOC_PATH, isProtectedPath, isSafeCommitPath, conflictingCommitPaths, planPublish, keptTreeEntries, protectedTreeEdits, serializeGeneratedManifest } from "../lib/publish-files";
 import { type SiteDoc } from "../lib/types";
 import { type detectSvgFilters } from "../lib/assets";
 import { randomBytes, createHash } from "node:crypto";
 import { gitBlobRequestBody } from "../lib/github-blob";
 import { readActivity } from "../lib/activity";
 import * as preferences from "../lib/publish-preferences";
-import { readPublishedExportOptions, DEFAULT_PUBLISHED_EXPORT_OPTIONS as DEFAULT_PUBLISHED_EXPORT_OPTIONS_2, DEFAULT_PUBLISHED_EXPORT_OPTIONS as DEFAULT_PUBLISHED_EXPORT_OPTIONS_3, parsePublishedExportOptions, savePublishedExportOptions } from "../lib/publish-preferences";
-import { load as load_2, replacement as replacement_2, setup, sqlOf, isRoomLookup } from "./helpers/document-generation-api";
-import { useEditor as useEditor_2 } from "../lib/store";
+import { readPublishedExportOptions, DEFAULT_PUBLISHED_EXPORT_OPTIONS, parsePublishedExportOptions, savePublishedExportOptions } from "../lib/publish-preferences";
+import { load, replacement, setup, sqlOf, isRoomLookup } from "./helpers/document-generation-api";
+import { useEditor } from "../lib/store";
 import * as contract from "../lib/publish-preconditions";
 import * as preconditions from "../lib/publish-preconditions";
 import { advanceBranchRef } from "../lib/github";
 import { hasPublishCredentials, readRestoreJson, validatePublishDocument } from "../lib/publish-security";
 import { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited } from "../lib/api-json";
 import { tmpdir } from "node:os";
-import { join as join_2 } from "node:path";
+import { join } from "node:path";
 import { getDbFromBinding, type Db } from "../lib/db";
 import { nodeDatabase } from "../lib/node-storage";
 import { deleteSite, insertSite } from "../lib/sites";
-import { runChecks as runChecks_2, runChecks as runChecks_3 } from "../lib/generator/checks";
-import { loadDicts, translate as translate_2 } from "../lib/i18n";
+import { runChecks } from "../lib/generator/checks";
+import { loadDicts, translate } from "../lib/i18n";
 import { createInitialDoc, makeText } from "../lib/presets";
 import { renderToStaticMarkup } from "react-dom/server";
 import { loadGeneratedRoute } from "./helpers/generated-route";
 import { fetchRequestOf } from "../lib/fetch-request";
 import { validSiteDoc } from "../lib/doc-tree";
-import { exportLimitations as exportLimitations_2 } from "../lib/export-formats";
+import { exportLimitations } from "../lib/export-formats";
 import { validateImportedDoc } from "../lib/site-import-format";
 import { ZipBuilder } from "../lib/zip";
 import { hostingProjectName } from "../lib/publish-provider";
@@ -481,7 +479,7 @@ test("PWA retirement is included before edited-worker confirmation, and cancel p
     assert.deepEqual(commit.expected, f.writes[0].expected);
     assert.match(commit.files["public/sw.js"], /registration\.unregister\(\)/);
     assert.deepEqual(commit.keptPaths, ["manual.txt"]);
-    assert.ok(parseGeneratedManifest_2(commit.files[GENERATED_MANIFEST_PATH_2])!["public/sw.js"]);
+    assert.ok(parseGeneratedManifest(commit.files[GENERATED_MANIFEST_PATH])!["public/sw.js"]);
     assert.deepEqual(f.published, ["published"]);
   }
 });
@@ -497,7 +495,7 @@ test("actual publication retains retirement ownership across repeated off, absen
     assert.equal(f.waiting, false);
     const commit = f.writes.at(-1);
     assert.equal(commit.action, "commit");
-    const next = parseGeneratedManifest_2(commit.files[GENERATED_MANIFEST_PATH_2])!;
+    const next = parseGeneratedManifest(commit.files[GENERATED_MANIFEST_PATH])!;
     assert.ok(next["public/sw.js"]);
     if (pwa?.enabled) {
       assert.equal(commit.files["public/sw.js"], generateProject({ ...pwaDoc, pwa }).files["public/sw.js"]);
@@ -522,7 +520,7 @@ test("publication without destination ownership preserves a manual worker and do
     assert.equal(commit.action, "commit");
     assert.equal(commit.files["public/sw.js"], undefined);
     assert.deepEqual(commit.keptPaths, ["public/sw.js"]);
-    assert.equal(parseGeneratedManifest_2(commit.files[GENERATED_MANIFEST_PATH_2])!["public/sw.js"], undefined);
+    assert.equal(parseGeneratedManifest(commit.files[GENERATED_MANIFEST_PATH])!["public/sw.js"], undefined);
   }
 });
 
@@ -611,9 +609,9 @@ test("typed GitHub tree failures remain actionable in English without trusting r
 describe("publish-files", () => {
 describe("publish-files", () => {
   test("初回の公開は既存ファイルを保持し、重なるパスの上書きを知らせる", () => {
-    const plan = planPublish_2({ "app/page.tsx": "a", "notes.md": "b", ".github/workflows/ci.yml": "c" }, null, ["app/page.tsx"]);
+    const plan = planPublish({ "app/page.tsx": "a", "notes.md": "b", ".github/workflows/ci.yml": "c" }, null, ["app/page.tsx"]);
     assert.deepEqual(plan, { edited: [], clashing: ["app/page.tsx"], kept: { "notes.md": "b", ".github/workflows/ci.yml": "c" } });
-    assert.deepEqual(planPublish_2({}, null, ["app/page.tsx"]), { edited: [], clashing: [], kept: {} });
+    assert.deepEqual(planPublish({}, null, ["app/page.tsx"]), { edited: [], clashing: [], kept: {} });
   });
 
   test("手で追加したファイルは残し、直接編集された書き出しファイルは知らせる", () => {
@@ -622,37 +620,37 @@ describe("publish-files", () => {
       "app/layout.tsx": "same",
       "app/api/hello/route.ts": "mine",
       "_next/static/build.js": "static",
-      [DOC_PATH_2]: "doc",
+      [DOC_PATH]: "doc",
       "_tsumu/stray.json": "stray",
-      [GENERATED_MANIFEST_PATH_3]: "list",
+      [GENERATED_MANIFEST_PATH]: "list",
     };
-    const generated = { "app/page.tsx": "original", "app/layout.tsx": "same", [DOC_PATH_2]: "doc" };
-    const plan = planPublish_2(blobs, generated, ["app/page.tsx", "app/layout.tsx", DOC_PATH_2]);
+    const generated = { "app/page.tsx": "original", "app/layout.tsx": "same", [DOC_PATH]: "doc" };
+    const plan = planPublish(blobs, generated, ["app/page.tsx", "app/layout.tsx", DOC_PATH]);
     assert.deepEqual(plan.edited, ["app/page.tsx"]);
     assert.deepEqual(plan.clashing, []);
     assert.deepEqual(plan.kept, { "app/api/hello/route.ts": "mine", "_next/static/build.js": "static" });
-    const deleted = planPublish_2({}, {
-      "app/page.tsx": "page", "app/old.tsx": "retired", [DOC_PATH_2]: "doc",
-    }, ["app/page.tsx", "app/new.tsx", DOC_PATH_2]);
+    const deleted = planPublish({}, {
+      "app/page.tsx": "page", "app/old.tsx": "retired", [DOC_PATH]: "doc",
+    }, ["app/page.tsx", "app/new.tsx", DOC_PATH]);
     assert.deepEqual(deleted, { edited: ["app/page.tsx"], clashing: [], kept: {} });
   });
 
   test("Tsumu managed metadata is never preserved as a manually authored file", () => {
     const blobs = {
-      [DOC_PATH_2]: "document",
+      [DOC_PATH]: "document",
       "_tsumu/assets.json": "assets",
-      [GENERATED_MANIFEST_PATH_3]: "generated",
+      [GENERATED_MANIFEST_PATH]: "generated",
       "_next/static/app.js": "framework",
       "README.md": "manual",
     };
-    const plan = planPublish_2(blobs, null, [DOC_PATH_2, GENERATED_MANIFEST_PATH_3]);
+    const plan = planPublish(blobs, null, [DOC_PATH, GENERATED_MANIFEST_PATH]);
     assert.deepEqual(plan.kept, { "_next/static/app.js": "framework", "README.md": "manual" });
     assert.deepEqual(plan.clashing, []);
     assert.deepEqual(plan.edited, []);
   });
 
   test("手で追加したファイルと同じパスを書き出すときは上書きを知らせる", () => {
-    const plan = planPublish_2(
+    const plan = planPublish(
       { "app/about/page.tsx": "mine", "app/page.tsx": "g" },
       { "app/page.tsx": "g" },
       ["app/page.tsx", "app/about/page.tsx"]
@@ -662,37 +660,37 @@ describe("publish-files", () => {
   });
 
   test("前回書き出して今回は書き出さないファイル（削除したページ）は残さない", () => {
-    const plan = planPublish_2({ "app/old/page.tsx": "g" }, { "app/old/page.tsx": "g" }, ["app/page.tsx"]);
+    const plan = planPublish({ "app/old/page.tsx": "g" }, { "app/old/page.tsx": "g" }, ["app/page.tsx"]);
     assert.deepEqual(plan, { edited: [], clashing: [], kept: {} });
   });
 
   test("一覧は書き出して読み戻せ、壊れていれば null", () => {
     const files = { "b.ts": "2", "a.ts": "1" };
-    const text = serializeGeneratedManifest_2(files);
+    const text = serializeGeneratedManifest(files);
     assert.deepEqual(Object.keys(JSON.parse(text).files), ["a.ts", "b.ts"]);
-    assert.deepEqual(parseGeneratedManifest_3(text), files);
-    assert.equal(parseGeneratedManifest_3("{"), null);
-    assert.equal(parseGeneratedManifest_3("[]"), null);
-    assert.equal(parseGeneratedManifest_3('{"files":[]}'), null);
-    assert.equal(parseGeneratedManifest_3('{"files":{"a.ts":"1"}}'), null);
-    assert.equal(parseGeneratedManifest_3('{"version":2,"files":{"a.ts":"1"}}'), null);
-    assert.equal(parseGeneratedManifest_3('{"version":1,"files":{"../outside":"1"}}'), null);
-    assert.equal(parseGeneratedManifest_3('{"version":1,"files":{"a.ts":1}}'), null);
+    assert.deepEqual(parseGeneratedManifest(text), files);
+    assert.equal(parseGeneratedManifest("{"), null);
+    assert.equal(parseGeneratedManifest("[]"), null);
+    assert.equal(parseGeneratedManifest('{"files":[]}'), null);
+    assert.equal(parseGeneratedManifest('{"files":{"a.ts":"1"}}'), null);
+    assert.equal(parseGeneratedManifest('{"version":2,"files":{"a.ts":"1"}}'), null);
+    assert.equal(parseGeneratedManifest('{"version":1,"files":{"../outside":"1"}}'), null);
+    assert.equal(parseGeneratedManifest('{"version":1,"files":{"a.ts":1}}'), null);
   });
 
   test("コミットするパスは、リポジトリの外や別の場所を指せない", () => {
     for (const ok of ["app/page.tsx", "public/a b.png", ".well-known/security.txt",
       "_next/static/chunk.js", "_app/entry.js", "_headers", "_redirects"])
-      assert.ok(isSafeCommitPath_2(ok), ok);
+      assert.ok(isSafeCommitPath(ok), ok);
     for (const ng of ["", "/etc/passwd", "a/../b", "./a", "a//b", "a/", "a\\b"])
-      assert.ok(!isSafeCommitPath_2(ng), ng);
+      assert.ok(!isSafeCommitPath(ng), ng);
   });
 
   test(".github/ は書き出しに使わない場所として扱う", () => {
-    assert.ok(isProtectedPath_2(".github/workflows/deploy.yml"));
-    assert.ok(isProtectedPath_2(".GitHub/workflows/x.yml"));
-    assert.ok(!isProtectedPath_2(".githubx/a"));
-    assert.ok(!isProtectedPath_2("app/.github/a"));
+    assert.ok(isProtectedPath(".github/workflows/deploy.yml"));
+    assert.ok(isProtectedPath(".GitHub/workflows/x.yml"));
+    assert.ok(!isProtectedPath(".githubx/a"));
+    assert.ok(!isProtectedPath("app/.github/a"));
   });
 
   test("ロールバックは .github/ を戻さず、いまの先端のものを引き継ぐ", () => {
@@ -717,19 +715,19 @@ describe("publish-files", () => {
       { path: ".github/workflows/ci.yml", mode: "100644", type: "blob", sha: "workflow" },
     ];
     const blobs = Object.fromEntries(entries.map((entry) => [entry.path, entry.sha]));
-    const plan = planPublish_2(blobs, null, ["app/page.tsx"]);
-    assert.deepEqual(keptTreeEntries_2(entries, Object.keys(plan.kept)), entries);
-    assert.deepEqual(keptTreeEntries_2(entries, ["script.sh", "script.sh"]), [entries[0]]);
-    assert.deepEqual(keptTreeEntries_2(entries, []), []);
-    assert.equal(keptTreeEntries_2(entries, ["missing"]), null);
-    assert.equal(keptTreeEntries_2([{ path: "dir", mode: "040000", type: "tree", sha: "dir" }], ["dir"]), null);
+    const plan = planPublish(blobs, null, ["app/page.tsx"]);
+    assert.deepEqual(keptTreeEntries(entries, Object.keys(plan.kept)), entries);
+    assert.deepEqual(keptTreeEntries(entries, ["script.sh", "script.sh"]), [entries[0]]);
+    assert.deepEqual(keptTreeEntries(entries, []), []);
+    assert.equal(keptTreeEntries(entries, ["missing"]), null);
+    assert.equal(keptTreeEntries([{ path: "dir", mode: "040000", type: "tree", sha: "dir" }], ["dir"]), null);
   });
 
   test("detect file/directory prefix conflicts without rejecting ordinary siblings", () => {
-    assert.deepEqual(conflictingCommitPaths_2(["public/assets", "public/assets/logo.png"]), ["public/assets", "public/assets/logo.png"]);
-    assert.deepEqual(conflictingCommitPaths_2(["docs/guide.md", "docs"]), ["docs", "docs/guide.md"]);
-    assert.equal(conflictingCommitPaths_2(["public/a.png", "public/abc.png", "public/ab/b.png"]), null);
-    assert.equal(conflictingCommitPaths_2(["src/app/page.tsx", "src/app/layout.tsx"]), null);
+    assert.deepEqual(conflictingCommitPaths(["public/assets", "public/assets/logo.png"]), ["public/assets", "public/assets/logo.png"]);
+    assert.deepEqual(conflictingCommitPaths(["docs/guide.md", "docs"]), ["docs", "docs/guide.md"]);
+    assert.equal(conflictingCommitPaths(["public/a.png", "public/abc.png", "public/ab/b.png"]), null);
+    assert.equal(conflictingCommitPaths(["src/app/page.tsx", "src/app/layout.tsx"]), null);
   });
 });
 
@@ -767,8 +765,8 @@ async function fixture(t: Parameters<typeof setup>[0], operation: "production" |
     "./i18n-server": { serverTr: async () => (value: string) => value },
     "./db": db,
   };
-  const siteServer = load_2("../../lib/site-server.ts", common);
-  const server = load_2("../../lib/server.ts", {
+  const siteServer = load("../../lib/site-server.ts", common);
+  const server = load("../../lib/server.ts", {
     ...common, "../auth": { authConfigured: () => false }, "./anonymous": { anonymousAllowed: () => true },
   });
   let beforeRef: (() => Promise<void>) | undefined;
@@ -776,10 +774,10 @@ async function fixture(t: Parameters<typeof setup>[0], operation: "production" |
   const gh = async (path: string) => {
     if (path.startsWith("/git/ref/heads/")) return Response.json({ object: { sha: head } });
     if (path.startsWith("/git/trees/")) return Response.json({ tree: [
-      { path: GENERATED_MANIFEST_PATH_4, mode: "100644", type: "blob", sha: "generated-manifest" },
+      { path: GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "generated-manifest" },
     ] });
     if (path === "/git/blobs/generated-manifest") return Response.json({
-      content: Buffer.from(serializeGeneratedManifest_3({})).toString("base64"), encoding: "base64",
+      content: Buffer.from(serializeGeneratedManifest({})).toString("base64"), encoding: "base64",
     });
     if (path.startsWith("/git/commits/")) return Response.json({ tree: { sha: "old-tree" }, message: "Synthetic" });
     if (path === "/git/trees") return Response.json({ sha: "new-tree" });
@@ -795,7 +793,7 @@ async function fixture(t: Parameters<typeof setup>[0], operation: "production" |
   const conf = { repo: "synthetic/site", branch: target === "test" ? "preview" : "main", token: "synthetic" };
   const github = await import("../lib/github");
   const prefix = operation === "rollback" ? "../../../../lib/" : "../../../lib/";
-  const route = load_2(operation === "rollback" ? "../../app/api/publish/history/route.ts" : "../../app/api/publish/route.ts", {
+  const route = load(operation === "rollback" ? "../../app/api/publish/history/route.ts" : "../../app/api/publish/route.ts", {
     "next/server": { NextResponse },
     [prefix + "i18n-server"]: common["./i18n-server"],
     [prefix + "db"]: db,
@@ -828,7 +826,7 @@ for (const operation of ["production", "test", "rollback"] as const) {
     test(`${operation} bookkeeping stays with its original generation (${phase})`, async t => {
       const f = await fixture(t, operation);
       let newKey: string | undefined;
-      const replace = async () => { newKey = await f.replace("source", replacement_2); };
+      const replace = async () => { newKey = await f.replace("source", replacement); };
       if (phase === "ref") f.beforeRef(replace);
       if (phase === "activity" || phase === "preferences") {
         f.hooks.beforeExecute = async stmt => {
@@ -857,9 +855,9 @@ for (const operation of ["production", "test", "rollback"] as const) {
       } else {
         assert.ok(newKey);
         assert.notEqual(newKey, f.oldKey);
-        assert.deepEqual(await readPublishedExportOptions(f.rawDb, "source"), DEFAULT_PUBLISHED_EXPORT_OPTIONS_2);
+        assert.deepEqual(await readPublishedExportOptions(f.rawDb, "source"), DEFAULT_PUBLISHED_EXPORT_OPTIONS);
         assert.equal(published, null);
-        assert.deepEqual(JSON.parse(f.room(newKey).snapshot()!.body), replacement_2);
+        assert.deepEqual(JSON.parse(f.room(newKey).snapshot()!.body), replacement);
         if (operation !== "rollback" && phase !== "activity") assert.equal(result.optionsSaved, false);
       }
     });
@@ -871,7 +869,7 @@ test("destination lookup cannot pair replacement settings with an old generation
   f.hooks.afterExecute = async stmt => {
     if (isRoomLookup(stmt, "source")) {
       f.hooks.afterExecute = undefined;
-      await f.replace("source", replacement_2);
+      await f.replace("source", replacement);
     }
   };
   const response = await f.send();
@@ -882,7 +880,7 @@ test("destination lookup cannot pair replacement settings with an old generation
 
 describe("publish-history", () => {
   before(() => {
-    useEditor_2.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
@@ -982,7 +980,7 @@ function fixture(holdWrites = false, holdConfirmation = false) {
   // 実際の、読み込み中の操作のフックを、このレンダラーのフックの枠と実際のストアで実行する。
   // レンダラーの外で React を呼ばせることはしない。
   hooks.useLayoutEffect = hooks.useEffect;
-  const store = { useEditor: Object.assign((select: (state: ReturnType<typeof useEditor_2.getState>) => unknown) => select(useEditor_2.getState()), { getState: useEditor_2.getState }) };
+  const store = { useEditor: Object.assign((select: (state: ReturnType<typeof useEditor.getState>) => unknown) => select(useEditor.getState()), { getState: useEditor.getState }) };
   const pendingCode = transformSync(readFileSync(new URL("../lib/use-pending-import.ts", import.meta.url), "utf8"), { loader: "ts", format: "cjs" }).code;
   const pendingModule = { exports: {} as any };
   new Function("require", "module", "exports", pendingCode)(
@@ -1155,11 +1153,11 @@ test("real pending-import cleanup prevents a previous target's delayed restore",
   const f = fixture();
   f.reads[0].resolve(history("production")); await f.settle();
   await f.restore();
-  const before = useEditor_2.getState().doc;
+  const before = useEditor.getState().doc;
   f.select("test");
   f.reads[2].resolve(history("test")); await f.settle();
   f.reads[1].resolve({ ...before, siteName: "Obsolete backup" }); await f.settle();
-  assert.equal(useEditor_2.getState().doc, before);
+  assert.equal(useEditor.getState().doc, before);
   assert.match(f.text(), /test commit/);
   assert.equal(f.rollbackDisabled(), false);
   assert.deepEqual(f.alerts, []);
@@ -1184,7 +1182,7 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
   const calls: string[] = [];
   let entries = [
     { path: "manual.txt", mode: "100755", type: "blob", sha: "manual" },
-    { path: files_2.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "generated-manifest" },
+    { path: helpers.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "generated-manifest" },
   ];
   if (options.rollbackGeneratedFile) {
     entries.push({ path: "app/new.ts", mode: "100644", type: "blob", sha: "generated" });
@@ -1213,22 +1211,22 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
         tree: options.rollbackSourceHasDeletedManual && path.includes("old-tree")
           ? [
               { path: "manual-deleted.txt", mode: "100644", type: "blob", sha: "manual-deleted" },
-              { path: files_2.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "historical-manifest" },
+              { path: helpers.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "historical-manifest" },
             ]
           : options.rollbackSourceHasOldGenerated && path.includes("old-tree")
           ? [
               { path: "app/old.ts", mode: "100644", type: "blob", sha: "historical-generated" },
-              { path: files_2.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "historical-manifest" },
+              { path: helpers.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "historical-manifest" },
             ]
           : options.rollbackSourceContainsCredentials && path.includes("old-tree")
-          ? [{ path: files_2.DOC_PATH, mode: "100644", type: "blob", sha: "historic-secret" }]
+          ? [{ path: helpers.DOC_PATH, mode: "100644", type: "blob", sha: "historic-secret" }]
           : options.rollbackSourceHasOlderManual && path.includes("old-tree")
             ? [
                  { path: "manual.txt", mode: "100644", type: "blob", sha: "older" },
-                 { path: files_2.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "historical-manifest" },
+                 { path: helpers.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "historical-manifest" },
                ]
           : options.rollbackSourceMissingManual && path.includes("old-tree")
-             ? [{ path: files_2.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "historical-manifest" }]
+             ? [{ path: helpers.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "historical-manifest" }]
              : entries,
         ...(options.truncatedRollback ? { truncated: true } : {}),
       });
@@ -1237,13 +1235,13 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
         encoding: "base64",
       });
       if (path === "/git/blobs/historical-manifest") return NextResponse.json({
-        content: Buffer.from(files_2.serializeGeneratedManifest(
+        content: Buffer.from(helpers.serializeGeneratedManifest(
           options.rollbackSourceHasOldGenerated ? { "app/old.ts": "historical-generated" } : {},
         )).toString("base64"),
         encoding: "base64",
       });
       if (path === "/git/blobs/generated-manifest") return NextResponse.json({
-        content: Buffer.from(files_2.serializeGeneratedManifest({ "app/new.ts": "generated" })).toString("base64"),
+        content: Buffer.from(helpers.serializeGeneratedManifest({ "app/new.ts": "generated" })).toString("base64"),
         encoding: "base64",
       });
       if (path === "/git/trees") return NextResponse.json({ sha: "tree" });
@@ -1275,7 +1273,7 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
     "lib/db": { dbConfigured: () => false },
     "lib/publish-provider": { publishProvider: () => "github" },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
-    "lib/publish-files": files_2, "lib/publish-preconditions": contract, "lib/publish-preferences": preferences, "lib/publish-security": { hasPublishCredentials, validatePublishDocument },
+    "lib/publish-files": helpers, "lib/publish-preconditions": contract, "lib/publish-preferences": preferences, "lib/publish-security": { hasPublishCredentials, validatePublishDocument },
     "lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited },
     "lib/github-blob": { gitBlobRequestBody },
   };
@@ -1324,13 +1322,13 @@ test("a changed head rejects a stale kept-path plan before creating any tree", a
   const f = fixture();
   const snapshot = await (await f.post({ action: "tree" })).json();
   assert.equal(snapshot.head, old);
-  const plan = files_2.planPublish(snapshot.blobs, snapshot.generated, ["page.txt"]);
+  const plan = helpers.planPublish(snapshot.blobs, snapshot.generated, ["page.txt"]);
   f.addManual();
   assert.equal((await f.post({ action: "commit", files: { "page.txt": "p" }, expectedHead: snapshot.head, keptPaths: Object.keys(plan.kept) })).status, 409);
   assert.deepEqual(f.writes, []); assert.equal(f.recorded, 0); assert.equal(f.heads.main, newer);
   // 意図して再試行すると、新しいスナップショットを取り、新しく追加したファイルも含める。
   const fresh = await (await f.post({ action: "tree" })).json();
-  const retry = await f.post({ action: "commit", files: { "page.txt": "p" }, expectedHead: fresh.head, keptPaths: Object.keys(files_2.planPublish(fresh.blobs, fresh.generated, ["page.txt"]).kept) });
+  const retry = await f.post({ action: "commit", files: { "page.txt": "p" }, expectedHead: fresh.head, keptPaths: Object.keys(helpers.planPublish(fresh.blobs, fresh.generated, ["page.txt"]).kept) });
   assert.equal(retry.status, 200);
   assert.ok(f.writes.find(w => w.path === "/git/trees")!.body.tree.some((e: any) => e.path === "manual-new.txt"));
 });
@@ -1473,7 +1471,7 @@ test("rollback removes generated files that are absent from history but retains 
   const updated = f.writes.find(item => item.path === "/git/trees");
   assert.ok(updated);
   assert.ok(updated.body.tree.some((entry: any) => entry.path === "manual.txt"));
-  assert.ok(!updated.body.tree.some((entry: any) => entry.path === "app/new.ts" || entry.path === files_2.GENERATED_MANIFEST_PATH));
+  assert.ok(!updated.body.tree.some((entry: any) => entry.path === "app/new.ts" || entry.path === helpers.GENERATED_MANIFEST_PATH));
 });
 
 test("rollback cannot reactivate a historical document containing embedded API credentials", async () => {
@@ -1543,7 +1541,7 @@ const site = (name: string) => ({
 });
 
 async function withDatabase(run: (db: Db) => Promise<void>) {
-  const dir = mkdtempSync(join_2(tmpdir(), "tsumu-publish-options-"));
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-publish-options-"));
   const previous = process.env.TSUMU_DATA_DIR;
   process.env.TSUMU_DATA_DIR = dir;
   try {
@@ -1561,10 +1559,10 @@ async function withDatabase(run: (db: Db) => Promise<void>) {
 test("saved GitHub output formats persist per site in SQLite and are not part of SiteDoc", async () => withDatabase(async db => {
   const vue = { framework: "vue", language: "javascript", style: "tailwind" } as const;
   const html = { framework: "html", language: "javascript", style: "css" } as const;
-  assert.deepEqual(await readPublishedExportOptions(db, "alpha"), DEFAULT_PUBLISHED_EXPORT_OPTIONS_3);
+  assert.deepEqual(await readPublishedExportOptions(db, "alpha"), DEFAULT_PUBLISHED_EXPORT_OPTIONS);
   assert.equal(await savePublishedExportOptions(db, "alpha", vue), true);
   assert.deepEqual(await readPublishedExportOptions(db, "alpha"), vue);
-  assert.deepEqual(await readPublishedExportOptions(db, "beta"), DEFAULT_PUBLISHED_EXPORT_OPTIONS_3);
+  assert.deepEqual(await readPublishedExportOptions(db, "beta"), DEFAULT_PUBLISHED_EXPORT_OPTIONS);
   assert.equal(await savePublishedExportOptions(db, "beta", html), true);
   assert.deepEqual(await readPublishedExportOptions(db, "beta"), html);
   assert.equal(await savePublishedExportOptions(db, "alpha", html), true);
@@ -1583,7 +1581,7 @@ test("deletion removes persisted formats, and delayed writes cannot resurrect a 
   assert.equal(await savePublishedExportOptions(db, "alpha", selected), false);
   const rows = await db.execute("SELECT COUNT(*) AS n FROM site_publish_options WHERE site_id='alpha'");
   assert.equal(rows.rows[0].n, 0);
-  assert.deepEqual(await readPublishedExportOptions(db, "alpha"), DEFAULT_PUBLISHED_EXPORT_OPTIONS_3);
+  assert.deepEqual(await readPublishedExportOptions(db, "alpha"), DEFAULT_PUBLISHED_EXPORT_OPTIONS);
 }));
 
 test("invalid and incompatible published format settings cannot be accepted", () => {
@@ -1629,7 +1627,7 @@ function fixture(slug: string, redirectTo: string) {
   }
   return doc;
 }
-const errors = (doc: ReturnType<typeof fixture>) => runChecks_2(doc).filter(c => c.level === "error");
+const errors = (doc: ReturnType<typeof fixture>) => runChecks(doc).filter(c => c.level === "error");
 async function redirects(doc: ReturnType<typeof fixture>): Promise<Redirect[]> {
   const config = generateProject(doc).files["next.config.mjs"];
   return new Function(config.replace("export default nextConfig;", "return nextConfig;"))().redirects();
@@ -1746,7 +1744,7 @@ test("the self-loop error has an English translation with the page and destinati
   assert.ok(error);
   // runChecks の日本語の文から辞書のキーに戻し、実際の翻訳の経路を通す。
   const key = error.message.replace("Old URL", "{name}").replace("/about", "{destination}");
-  const translated = translate_2(await loadDicts("en"), key, { name: "Old URL", destination: "/about" });
+  const translated = translate(await loadDicts("en"), key, { name: "Old URL", destination: "/about" });
   assert.match(translated, /Old URL/);
   assert.match(translated, /\/about/);
   assert.match(translated, /redirect loop/);
@@ -1828,31 +1826,31 @@ test("partially intercepted parameter targets are conservatively left undecided"
 describe("publish-rollback", () => {
 // 実際のロールバック・スナップショット・公開のハンドラーの間で Git のオブジェクトを保ち、
 // 次の公開でファイルを削除するだけの所有のエラーも見えるようにする。
-function fixture(target: "production" | "test", manual: files_3.TreeEntry, historicalSha: string,
-  options: { historicalManual?: files_3.TreeEntry; extraManual?: files_3.TreeEntry[];
-    historicalExtra?: files_3.TreeEntry[]; historicalGenerated?: Record<string, string>;
+function fixture(target: "production" | "test", manual: helpers.TreeEntry, historicalSha: string,
+  options: { historicalManual?: helpers.TreeEntry; extraManual?: helpers.TreeEntry[];
+    historicalExtra?: helpers.TreeEntry[]; historicalGenerated?: Record<string, string>;
     failTreeAt?: number; failCommit?: boolean; ambiguousUpdate?: boolean;
     lateMove?: boolean; noSourceManifest?: boolean } = {}) {
   const { historicalManual } = options;
   const branch = target === "test" ? "preview" : "main";
   const expected = { site: "site", target, repo: "owner/site", branch, productionBranch: "main" };
   const blobs = new Map<string, string>();
-  const trees = new Map<string, files_3.TreeEntry[]>();
+  const trees = new Map<string, helpers.TreeEntry[]>();
   const commits = new Map<string, { tree: { sha: string }; message: string; parents: string[] }>();
   const sha = (value: unknown) => createHash("sha1").update(JSON.stringify(value)).digest("hex");
-  const blob = (path: string, content: string): files_3.TreeEntry => {
+  const blob = (path: string, content: string): helpers.TreeEntry => {
     const id = sha(content);
     blobs.set(id, content);
     return { path, mode: "100644", type: "blob", sha: id };
   };
-  const saveTree = (entries: files_3.TreeEntry[]) => {
-    assert.equal(files_3.conflictingCommitPaths(entries.map(entry => entry.path)), null);
+  const saveTree = (entries: helpers.TreeEntry[]) => {
+    assert.equal(helpers.conflictingCommitPaths(entries.map(entry => entry.path)), null);
     const id = sha(entries);
     trees.set(id, entries);
     return id;
   };
   // 再帰的な取得にはディレクトリも含め、保護した部分木の置き換えも再現する。
-  const recursiveTree = (entries: files_3.TreeEntry[]) => {
+  const recursiveTree = (entries: helpers.TreeEntry[]) => {
     const directories = new Set<string>();
     for (const entry of entries) {
       for (let slash = entry.path.indexOf("/"); slash !== -1; slash = entry.path.indexOf("/", slash + 1)) {
@@ -1872,19 +1870,19 @@ function fixture(target: "production" | "test", manual: files_3.TreeEntry, histo
     return id;
   };
   const generated = { path: "old-page.html", mode: "100644", type: "blob", sha: "generated-page" };
-  const oldManifest = files_3.serializeGeneratedManifest({
+  const oldManifest = helpers.serializeGeneratedManifest({
     ...(!historicalManual ? { [manual.path]: historicalSha } : {}), [generated.path]: generated.sha,
     ...options.historicalGenerated,
   });
   const source = saveCommit(saveTree([
     historicalManual ?? { ...manual, mode: "100644", type: "blob", sha: historicalSha }, generated,
     ...(options.historicalExtra ?? []),
-    ...(!options.noSourceManifest ? [blob(files_3.GENERATED_MANIFEST_PATH, oldManifest)] : []),
+    ...(!options.noSourceManifest ? [blob(helpers.GENERATED_MANIFEST_PATH, oldManifest)] : []),
   ]));
-  let head = saveCommit(saveTree([manual, ...(options.extraManual ?? []), blob(files_3.GENERATED_MANIFEST_PATH, files_3.serializeGeneratedManifest({}))]), [source]);
+  let head = saveCommit(saveTree([manual, ...(options.extraManual ?? []), blob(helpers.GENERATED_MANIFEST_PATH, helpers.serializeGeneratedManifest({}))]), [source]);
   const refs: string[] = [];
   let commitWrites = 0, recorded = 0;
-  const treeWrites: { base_tree?: string; tree: files_3.TreeEntry[] }[] = [];
+  const treeWrites: { base_tree?: string; tree: helpers.TreeEntry[] }[] = [];
   const gh = async (path: string, init?: RequestInit) => {
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
     if (path === `/git/ref/heads/${branch}`) return Response.json({ object: { sha: head } });
@@ -1913,7 +1911,7 @@ function fixture(target: "production" | "test", manual: files_3.TreeEntry, histo
       treeWrites.push(body);
       if (options.failTreeAt === treeWrites.length) return Response.json({}, { status: 503 });
       // 同じリクエストの中の親のパスと子のパスは、削除を含めても重ねない。
-      assert.equal(files_3.conflictingCommitPaths(body.tree.map((entry: files_3.TreeEntry) => entry.path)), null);
+      assert.equal(helpers.conflictingCommitPaths(body.tree.map((entry: helpers.TreeEntry) => entry.path)), null);
       const result = new Map((body.base_tree ? trees.get(body.base_tree)! : []).map(e => [e.path, e]));
       for (const entry of body.tree) {
         const replaced = [...result.keys()].filter(path => path === entry.path || path.startsWith(`${entry.path}/`));
@@ -1966,7 +1964,7 @@ function fixture(target: "production" | "test", manual: files_3.TreeEntry, histo
     "lib/db": { dbConfigured: () => false },
     "lib/publish-provider": { publishProvider: () => "github" },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
-    "lib/publish-files": files_3, "lib/publish-preconditions": preconditions, "lib/publish-preferences": preferences, "lib/publish-security": { hasPublishCredentials, validatePublishDocument },
+    "lib/publish-files": helpers, "lib/publish-preconditions": preconditions, "lib/publish-preferences": preferences, "lib/publish-security": { hasPublishCredentials, validatePublishDocument },
     "lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited },
     "lib/github-blob": { gitBlobRequestBody },
   };
@@ -1985,7 +1983,7 @@ function fixture(target: "production" | "test", manual: files_3.TreeEntry, histo
   return {
     source, refs, oldManifest, treeWrites,
     get currentHead() { return head; }, get commitWrites() { return commitWrites; }, get recorded() { return recorded; },
-    sourceManifest: () => blobs.get(trees.get(commits.get(source)!.tree.sha)!.find(e => e.path === files_3.GENERATED_MANIFEST_PATH)!.sha!),
+    sourceManifest: () => blobs.get(trees.get(commits.get(source)!.tree.sha)!.find(e => e.path === helpers.GENERATED_MANIFEST_PATH)!.sha!),
     entries: () => trees.get(commits.get(head)!.tree.sha)!,
     send: (body: object, history = false) => (history ? rollback : publish)(new Request("https://example.test", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ site: "site", target, expected, expectedHead: head,
@@ -2014,7 +2012,7 @@ for (const target of ["production", "test"] as const) {
       const snapshot = await preflight.json();
       const publication = await f.send({
         action: "commit", keptPaths: [],
-        files: { "new-page.html": "new", [files_3.GENERATED_MANIFEST_PATH]: files_3.serializeGeneratedManifest({ "new-page.html": "new" }) },
+        files: { "new-page.html": "new", [helpers.GENERATED_MANIFEST_PATH]: helpers.serializeGeneratedManifest({ "new-page.html": "new" }) },
       });
       assert.equal(publication.status, 200, await publication.text());
       assert.deepEqual(f.entries().find(e => e.path === path), manual, "the next publish must not delete the retained manual file");
@@ -2048,12 +2046,12 @@ for (const target of ["production", "test"] as const) {
       assert.deepEqual(f.entries().find(entry => entry.path === path), manual);
       for (const entry of extraManual) assert.deepEqual(f.entries().find(item => item.path === entry.path), entry);
       assert.ok(f.entries().some(entry => entry.path === "old-page.html"), "restore the historical generated site");
-      assert.equal(files_3.conflictingCommitPaths(f.entries().map(entry => entry.path)), null);
+      assert.equal(helpers.conflictingCommitPaths(f.entries().map(entry => entry.path)), null);
       assert.equal(f.treeWrites.length, 2, "prune the deleted historical manual path before its replacement");
       assert.deepEqual(f.treeWrites[0].tree, [{ ...historical, sha: null }]);
       const next = await f.send({ action: "commit", files: {
         "new-page.html": "new",
-        [files_3.GENERATED_MANIFEST_PATH]: files_3.serializeGeneratedManifest({ "new-page.html": "new" }),
+        [helpers.GENERATED_MANIFEST_PATH]: helpers.serializeGeneratedManifest({ "new-page.html": "new" }),
       } });
       assert.equal(next.status, 200, await next.text());
       assert.deepEqual(f.entries().find(entry => entry.path === path), manual);
@@ -2145,7 +2143,7 @@ test("rollback preserves siblings and protected subtrees through mixed nested pa
   assert.equal(f.refs.length, 1);
   assert.equal(f.treeWrites[0].tree.length, 3);
   assert.ok(f.treeWrites[0].tree.every(entry => entry.sha === null && entry.path.startsWith("nested/to-")));
-  assert.deepEqual(f.treeWrites[1].tree.filter(entry => files_3.isProtectedPath(entry.path)).map(entry => entry.path), [".github"]);
+  assert.deepEqual(f.treeWrites[1].tree.filter(entry => helpers.isProtectedPath(entry.path)).map(entry => entry.path), [".github"]);
   assert.equal(f.treeWrites[1].tree.some(entry => entry.path === stable.path), false);
 });
 
@@ -2160,7 +2158,7 @@ test("rollback preserves protected file and directory conversions while pruning 
     });
     const response = await f.send({ sha: f.source }, true);
     assert.equal(response.status, 200, await response.text());
-    assert.deepEqual(f.entries().filter(entry => files_3.isProtectedPath(entry.path)), [current]);
+    assert.deepEqual(f.entries().filter(entry => helpers.isProtectedPath(entry.path)), [current]);
     assert.equal(f.treeWrites.length, 2);
     assert.equal(f.commitWrites, 1);
     assert.equal(f.refs.length, 1);
@@ -2216,16 +2214,16 @@ for (const target of ["production", "test"] as const) {
       const manual = { path: "manual.sh", mode: "100755", type: "blob", sha: "manual" };
       const f = fixture(target, manual, "old");
       const before = f.currentHead;
-      const manifest = files_3.serializeGeneratedManifest({ "page.html": "page", [manual.path]: manual.sha });
+      const manifest = helpers.serializeGeneratedManifest({ "page.html": "page", [manual.path]: manual.sha });
       const output: Record<string, string> = { "page.html": "page" };
       const assetShas: Record<string, string> = {};
       if (transport === "inline") {
-        output[files_3.GENERATED_MANIFEST_PATH] = manifest;
+        output[helpers.GENERATED_MANIFEST_PATH] = manifest;
       } else {
-        const upload = await f.send({ action: "upload", path: files_3.GENERATED_MANIFEST_PATH,
+        const upload = await f.send({ action: "upload", path: helpers.GENERATED_MANIFEST_PATH,
           base64: Buffer.from(manifest).toString("base64") });
         assert.equal(upload.status, 200);
-        assetShas[files_3.GENERATED_MANIFEST_PATH] = (await upload.json()).sha;
+        assetShas[helpers.GENERATED_MANIFEST_PATH] = (await upload.json()).sha;
       }
       const response = await f.send({ action: "commit", files: output, assetShas, keptPaths: [manual.path] });
       assert.equal(response.status, 400, "ownership metadata must not turn a retained file into generated output");
@@ -2237,20 +2235,20 @@ for (const target of ["production", "test"] as const) {
 
       // 一覧を正しく直してから、2回公開する。手動で追加したファイルは両方のコミットで残り、
       // 1回目で書き出したものは取り除かれなければならない。
-      const validManifest = files_3.serializeGeneratedManifest({ "page.html": "page" });
+      const validManifest = helpers.serializeGeneratedManifest({ "page.html": "page" });
       if (transport === "inline") {
-        output[files_3.GENERATED_MANIFEST_PATH] = validManifest;
+        output[helpers.GENERATED_MANIFEST_PATH] = validManifest;
       } else {
-        const upload = await f.send({ action: "upload", path: files_3.GENERATED_MANIFEST_PATH,
+        const upload = await f.send({ action: "upload", path: helpers.GENERATED_MANIFEST_PATH,
           base64: Buffer.from(validManifest).toString("base64") });
         assert.equal(upload.status, 200);
-        assetShas[files_3.GENERATED_MANIFEST_PATH] = (await upload.json()).sha;
+        assetShas[helpers.GENERATED_MANIFEST_PATH] = (await upload.json()).sha;
       }
       const first = await f.send({ action: "commit", files: output, assetShas });
       assert.equal(first.status, 200, await first.text());
       const second = await f.send({ action: "commit", files: {
         "next.html": "next",
-        [files_3.GENERATED_MANIFEST_PATH]: files_3.serializeGeneratedManifest({ "next.html": "next" }),
+        [helpers.GENERATED_MANIFEST_PATH]: helpers.serializeGeneratedManifest({ "next.html": "next" }),
       } });
       assert.equal(second.status, 200, await second.text());
       assert.deepEqual(f.entries().find(entry => entry.path === manual.path), manual);
@@ -2263,11 +2261,11 @@ for (const target of ["production", "test"] as const) {
 test("publication rejects malformed manifests and claims outside its own output keys", async () => {
   const invalid = ["{", JSON.stringify({ version: 2, files: {} }),
     ...["missing.html", "toString", "__proto__"].map(path =>
-      files_3.serializeGeneratedManifest(Object.fromEntries([[path, "unwritten"]])))];
+      helpers.serializeGeneratedManifest(Object.fromEntries([[path, "unwritten"]])))];
   for (const manifest of invalid) {
     const f = fixture("production", { path: "manual.sh", mode: "100755", type: "blob", sha: "manual" }, "old");
     const response = await f.send({ action: "commit", files: {
-      "page.html": "page", [files_3.GENERATED_MANIFEST_PATH]: manifest,
+      "page.html": "page", [helpers.GENERATED_MANIFEST_PATH]: manifest,
     } });
     assert.equal(response.status, 400, manifest);
     assert.deepEqual(f.treeWrites, []);
@@ -2283,7 +2281,7 @@ test("a manifest may own inline and uploaded output, including an own prototype-
   const assetSha = (await upload.json()).sha;
   const response = await f.send({ action: "commit", files: {
     "page.html": "page", ["__proto__"]: "page data",
-    [files_3.GENERATED_MANIFEST_PATH]: files_3.serializeGeneratedManifest({
+    [helpers.GENERATED_MANIFEST_PATH]: helpers.serializeGeneratedManifest({
       "page.html": "page", ["__proto__"]: "data", "asset.txt": assetSha,
     }),
   }, assetShas: { "asset.txt": assetSha } });
@@ -2921,7 +2919,7 @@ function fixture() {
   return doc;
 }
 
-const errors = (doc: ReturnType<typeof fixture>) => runChecks_3(doc).filter((c) => c.level === "error");
+const errors = (doc: ReturnType<typeof fixture>) => runChecks(doc).filter((c) => c.level === "error");
 
 test("publish and export checks reject URLs that produce the same generated route", () => {
   for (const slug of ["about//team", "/about///team/", "about/./team", "about/../team"]) {
@@ -3063,12 +3061,12 @@ test("credential detection visits deep scripts and decoded query, form and JSON 
   ] as const) {
     const doc = siteWithFetch(target, undefined, body);
     assert.equal(hasPublishCredentials(doc), true);
-    assert.ok(exportLimitations_2(doc, "nextjs").some(reason => reason.includes("secret API key")));
+    assert.ok(exportLimitations(doc, "nextjs").some(reason => reason.includes("secret API key")));
   }
   assert.equal(hasPublishCredentials(siteWithFetch("//public.example/data?refresh_token=%7Btoken%7D",
     undefined, '{"id_token":"{identity}"}')), false);
   const slugReference = siteWithFetch(url + "?refresh_token=[slug]", undefined, '{"id_token":"[slug]"}');
-  assert.deepEqual(exportLimitations_2(slugReference, "nextjs"), []);
+  assert.deepEqual(exportLimitations(slugReference, "nextjs"), []);
   assert.equal(hasPublishCredentials(siteWithFetch(url + "?refresh_token=[slug]-suffix")), true);
   assert.equal(hasPublishCredentials(siteWithFetch(url, [{ name: "Authorization", value: "[slug]" }])), true);
   const doc = siteWithFetch(url + "?token=literal");
@@ -3119,7 +3117,7 @@ test("credential checks normalize header names exactly as executable fetch setti
     assert.equal(fetchRequestOf({ headers }, {})?.headers?.[name.trim()], "synthetic-credential");
     assert.equal(hasPublishCredentials(doc), true, name);
     for (const framework of ["nextjs", "react", "vue", "nuxt", "sveltekit", "html", "single-html"] as const) {
-      assert.ok(exportLimitations_2(doc, framework).length > 0, framework + ": " + name);
+      assert.ok(exportLimitations(doc, framework).length > 0, framework + ": " + name);
     }
   }
   assert.equal(hasPublishCredentials(siteWithFetch("https://public.example/data",
@@ -3207,7 +3205,7 @@ test("listStaticDeployments uses Workers-safe manual redirects and publish route
     class StubNextResponse extends Response {
       static json(value: unknown, init?: ResponseInit) { return new StubNextResponse(JSON.stringify(value), init); }
     }
-    const { POST } = load_2("../../app/api/publish/netlify/operations/route.ts", {
+    const { POST } = load("../../app/api/publish/netlify/operations/route.ts", {
       "next/server": { NextResponse: StubNextResponse },
       "../../../../../lib/server": { requireAuth: async () => null },
     }) as { POST: (req: Request) => Promise<Response> };

@@ -44,36 +44,52 @@ const cases: { name: string; field: FieldContent; requested: string; expected: s
   { name: "textarea line endings", field: { kind: "textarea", defaultValue: "initial" }, requested: "first\r\nsecond", expected: "first\nsecond", restored: "restored" },
 ];
 
-for (const preview of [true, false]) for (const entry of cases) {
-  test(`${preview ? "preview" : "exported"} scripts use native input values: ${entry.name}`, async ({ page }) => {
-    const doc = scriptInputValueDoc(entry.field, entry.requested, entry.restored);
-    const errors = await setup(page, preview, doc);
-    const before = await snapshot(page);
-    if (preview) await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
-    await value(page, entry.field.defaultValue!, 0);
-    await click(page, "assign-input");
-    await value(page, entry.expected, 1);
-    await click(page, "assign-input");
-    await click(page, "repeat-input");
-    await value(page, entry.expected, 1);
-    await click(page, "restore-input");
-    await value(page, entry.restored, 2);
-    await click(page, "restore-then-assign");
-    await value(page, entry.expected, 3);
-    await click(page, "restore-then-assign");
-    await value(page, entry.expected, 5);
-    // 通常の利用者の入力は元に戻る。色と範囲の欄は、それぞれ独自のネイティブの操作が必要なため、別に試す。
-    if (entry.field.inputType === "range") {
-      await page.locator("#entry").focus();
-      await page.locator("#entry").press("ArrowLeft");
-      await value(page, String(Number(entry.expected) - 5), 6);
-    } else if (entry.field.inputType !== "color") {
-      await page.locator("#entry").fill(entry.restored);
-      await page.locator("#entry").blur();
-      await value(page, entry.restored, 6);
+for (const preview of [true, false]) {
+  test(`${preview ? "preview" : "exported"} scripts use native input values across input types`, async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    if (preview) {
+      await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
     }
-    expect(await snapshot(page)).toEqual(before);
-    expect(errors).toEqual([]);
+    for (const entry of cases) {
+      await test.step(entry.name, async () => {
+        const doc = scriptInputValueDoc(entry.field, entry.requested, entry.restored);
+        if (preview) {
+          await mountEditor(page, doc);
+        } else {
+          const { html } = await publishedScriptInputValue(doc);
+          await page.setContent(html);
+          await page.addScriptTag({ content: scriptsFile(doc) });
+        }
+        await expect(page.locator("#entry")).toBeVisible();
+        const before = await snapshot(page);
+        if (preview) await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
+        await value(page, entry.field.defaultValue!, 0);
+        await click(page, "assign-input");
+        await value(page, entry.expected, 1);
+        await click(page, "assign-input");
+        await click(page, "repeat-input");
+        await value(page, entry.expected, 1);
+        await click(page, "restore-input");
+        await value(page, entry.restored, 2);
+        await click(page, "restore-then-assign");
+        await value(page, entry.expected, 3);
+        await click(page, "restore-then-assign");
+        await value(page, entry.expected, 5);
+        // 通常の利用者の入力は元に戻る。色と範囲の欄は、それぞれ独自のネイティブの操作が必要なため、別に試す。
+        if (entry.field.inputType === "range") {
+          await page.locator("#entry").focus();
+          await page.locator("#entry").press("ArrowLeft");
+          await value(page, String(Number(entry.expected) - 5), 6);
+        } else if (entry.field.inputType !== "color") {
+          await page.locator("#entry").fill(entry.restored);
+          await page.locator("#entry").blur();
+          await value(page, entry.restored, 6);
+        }
+        expect(await snapshot(page)).toEqual(before);
+        expect(errors).toEqual([]);
+      });
+    }
   });
 }
 
@@ -305,45 +321,62 @@ for (const edited of ["{missing}", ""]) test(`ScriptEditor free value ${JSON.str
   expect(errors).toEqual([]);
 });
 
-for (const preview of [true, false]) for (const options of [["A", "B"], ["A", "{empty}", "B"], []]) {
+for (const preview of [true, false]) {
   const label = preview ? "preview" : "exported";
-  test(`${label} preserves real empty choices and only fires changes for effective selections (${JSON.stringify(options)})`, async ({ page }) => {
-    const errors = await setup(page, preview, scriptSelectValueDoc(options));
-    const before = await snapshot(page);
-    if (preview) await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
-    const hasOptions = options.length > 0, emptyIndex = options.indexOf("{empty}") + 1;
-    let changes = 0;
-    await selection(page, hasOptions ? "B" : "", options.length, changes);
-    for (const action of ["missing-choice", "repeat-missing", "missing-choice"]) {
-      await click(page, action);
-      if (action === "missing-choice" && changes === 0 && hasOptions) changes++;
-      await selection(page, "", 0, changes);
+  test(`${label} preserves real empty choices and only fires changes for effective selections`, async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    if (preview) {
+      await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
     }
-    await click(page, "clear-choice");
-    if (emptyIndex) changes++;
-    await selection(page, "", emptyIndex, changes);
-    await click(page, "clear-choice");
-    await selection(page, "", emptyIndex, changes);
-    await click(page, "missing-then-empty");
-    if (emptyIndex) changes += 2;
-    await selection(page, "", emptyIndex, changes);
-    await click(page, "valid-choice");
-    if (hasOptions) changes++;
-    await selection(page, hasOptions ? "A" : "", hasOptions ? 1 : 0, changes);
-    await click(page, "valid-choice");
-    await selection(page, hasOptions ? "A" : "", hasOptions ? 1 : 0, changes);
-    await click(page, "valid-then-missing");
-    if (hasOptions) changes++;
-    await selection(page, "", 0, changes);
-    if (hasOptions) {
-      // 選択を解除した後も、ネイティブの選択肢は動き、余分な選択肢は増えない。
-      await page.locator("#choice").selectOption("B");
-      changes++;
-      await selection(page, "B", options.length, changes);
+    for (const options of [["A", "B"], ["A", "{empty}", "B"], []]) {
+      await test.step(JSON.stringify(options), async () => {
+        const doc = scriptSelectValueDoc(options);
+        if (preview) {
+          await mountEditor(page, doc);
+        } else {
+          const { html } = await publishedScriptSelectValue(doc);
+          await page.setContent(html);
+          await page.addScriptTag({ content: scriptsFile(doc) });
+        }
+        await expect(page.locator("#choice")).toBeVisible();
+        const before = await snapshot(page);
+        if (preview) await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
+        const hasOptions = options.length > 0, emptyIndex = options.indexOf("{empty}") + 1;
+        let changes = 0;
+        await selection(page, hasOptions ? "B" : "", options.length, changes);
+        for (const action of ["missing-choice", "repeat-missing", "missing-choice"]) {
+          await click(page, action);
+          if (action === "missing-choice" && changes === 0 && hasOptions) changes++;
+          await selection(page, "", 0, changes);
+        }
+        await click(page, "clear-choice");
+        if (emptyIndex) changes++;
+        await selection(page, "", emptyIndex, changes);
+        await click(page, "clear-choice");
+        await selection(page, "", emptyIndex, changes);
+        await click(page, "missing-then-empty");
+        if (emptyIndex) changes += 2;
+        await selection(page, "", emptyIndex, changes);
+        await click(page, "valid-choice");
+        if (hasOptions) changes++;
+        await selection(page, hasOptions ? "A" : "", hasOptions ? 1 : 0, changes);
+        await click(page, "valid-choice");
+        await selection(page, hasOptions ? "A" : "", hasOptions ? 1 : 0, changes);
+        await click(page, "valid-then-missing");
+        if (hasOptions) changes++;
+        await selection(page, "", 0, changes);
+        if (hasOptions) {
+          // 選択を解除した後も、ネイティブの選択肢は動き、余分な選択肢は増えない。
+          await page.locator("#choice").selectOption("B");
+          changes++;
+          await selection(page, "B", options.length, changes);
+        }
+        await expect(page.locator("#choice option")).toHaveCount(options.length);
+        expect(await snapshot(page)).toEqual(before);
+        expect(errors).toEqual([]);
+      });
     }
-    await expect(page.locator("#choice option")).toHaveCount(options.length);
-    expect(await snapshot(page)).toEqual(before);
-    expect(errors).toEqual([]);
   });
 }
 });

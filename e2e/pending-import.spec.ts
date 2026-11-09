@@ -45,7 +45,7 @@ async function startFont(page: Page) {
   await request.started;
   return request;
 }
-test("Google Fonts suggestions do not include arbitrary alphabetical catalog entries", async ({ page }) => {
+test("Font picker validates Google suggestions, Adobe setup help, supported font assets, invalid files, and non-English names", async ({ page }) => {
   await page.locator('[data-tip="フォントを追加"]').click();
   const results = page.getByRole("group", { name: "Google Fontsの検索結果" });
   await expect(results.getByRole("button")).toHaveCount(32);
@@ -53,6 +53,38 @@ test("Google Fonts suggestions do not include arbitrary alphabetical catalog ent
   await expect(results.getByRole("button", { name: /ABeeZee/ })).toHaveCount(0);
   await page.getByRole("searchbox", { name: "Google Fontsを検索" }).fill("ABeeZee");
   await expect(results.getByRole("button", { name: /ABeeZee/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "Adobe Fonts" }).click();
+  await expect(page.getByText("Webプロジェクトが未設定です。")).toHaveCount(0);
+  await expect(page.locator(".font-add-label-row")
+    .getByRole("button", { name: "Adobe Fontsの追加方法" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "ここ" }))
+    .toHaveAttribute("href", "https://fonts.adobe.com/my_fonts#web_projects-section");
+  await expect(page.getByRole("link", { name: "源ノ明朝" }))
+    .toHaveAttribute("href", "https://fonts.adobe.com/fonts/source-han-serif-japanese");
+
+  await page.getByRole("button", { name: "フォントファイル" }).click();
+  await page.locator("input[type=file][aria-label=\"フォントファイルを選択\"]").setInputFiles({
+    name: "invalid.woff2", mimeType: "font/woff2", buffer: Buffer.from("not-a-font"),
+  });
+  await expect(page.getByRole("alert")).toContainText("有効なWOFF2");
+  expect(Object.values((await doc(page)).assets)
+    .some((asset: any) => asset.name === "invalid.woff2")).toBe(false);
+
+  await page.evaluate(() => {
+    (window as any).importEditor.getState().updateDoc((d: any) => {
+      d.assets.font_existing = { id: "font_existing", name: "sample.woff2", mimeType: "font/woff2", dataUrl: "data:font/woff2;base64,d09GMgAAAAA=", width: 0, height: 0 };
+      d.assets.not_font = { id: "not_font", name: "sample.png", mimeType: "image/png", dataUrl: "data:image/png;base64,AAAA", width: 1, height: 1 };
+    });
+  });
+  await expect(page.locator(".font-add-asset-option")).toHaveCount(1);
+  await expect(page.locator(".font-add-asset-option")).toContainText("sample.woff2");
+  await expect(page.locator(".font-add-asset-option")).not.toContainText("sample.png");
+  await page.locator(".font-add-asset-option").filter({ hasText: "sample.woff2" }).click();
+  await page.locator("#uploaded-font-family").fill("日本語フォント");
+  await page.getByRole("button", { name: "追加", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("日本語など英語以外の文字は使用できません");
+  expect((await doc(page)).uploadedFonts).toBeUndefined();
 });
 
 test("Adobe Fonts lists published project families without requiring embed code", async ({ page }) => {
@@ -114,25 +146,6 @@ test("existing font assets can be registered and applied without uploading again
   }
 });
 
-test("non-English font family names show a dedicated error", async ({ page }) => {
-  await page.evaluate(() => {
-    (window as any).importEditor.getState().updateDoc((doc: any) => {
-      doc.assets.font_existing = {
-        id: "font_existing", name: "sample.woff2",
-        dataUrl: "data:font/woff2;base64,d09GMgAAAAA=",
-        mimeType: "font/woff2", width: 0, height: 0,
-      };
-    });
-  });
-  await page.locator('[data-tip="フォントを追加"]').click();
-  await page.getByRole("button", { name: "フォントファイル" }).click();
-  await page.locator(".font-add-asset-option").filter({ hasText: "sample.woff2" }).click();
-  await page.locator("#uploaded-font-family").fill("日本語フォント");
-  await page.getByRole("button", { name: "追加", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("日本語など英語以外の文字は使用できません");
-  expect((await doc(page)).uploadedFonts).toBeUndefined();
-});
-
 test("font picker uploads a WOFF2 file into Assets and selects it for registration", async ({ page }) => {
   await page.route("http://pending-import.test/api/assets", route =>
     route.fulfill({ status: 503, json: { error: "Storage not configured" } }));
@@ -174,43 +187,6 @@ test("font files can be dropped into the custom uploader", async ({ page }) => {
   await expect(page.locator(".font-add-asset-option[aria-pressed=true]")).toContainText("dropped.woff2");
 });
 
-test("invalid files do not enter Assets from the font picker", async ({ page }) => {
-  await page.locator('[data-tip="フォントを追加"]').click();
-  await page.getByRole("button", { name: "フォントファイル" }).click();
-  await page.locator("input[type=file][aria-label=\"フォントファイルを選択\"]").setInputFiles({
-    name: "invalid.woff2", mimeType: "font/woff2", buffer: Buffer.from("not-a-font"),
-  });
-  await expect(page.getByRole("alert")).toContainText("有効なWOFF2");
-  expect(Object.values((await doc(page)).assets)
-    .some((asset: any) => asset.name === "invalid.woff2")).toBe(false);
-});
-
-test("file font tab only offers supported font assets", async ({ page }) => {
-  await page.evaluate(() => {
-    (window as any).importEditor.getState().updateDoc((doc: any) => {
-      doc.assets.font_existing = { id: "font_existing", name: "sample.woff2", mimeType: "font/woff2", dataUrl: "data:font/woff2;base64,d09GMgAAAAA=", width: 0, height: 0 };
-      doc.assets.not_font = { id: "not_font", name: "sample.png", mimeType: "image/png", dataUrl: "data:image/png;base64,AAAA", width: 1, height: 1 };
-    });
-  });
-  await page.locator('[data-tip="フォントを追加"]').click();
-  await page.getByRole("button", { name: "フォントファイル" }).click();
-  await expect(page.locator(".font-add-asset-option")).toHaveCount(1);
-  await expect(page.locator(".font-add-asset-option")).toContainText("sample.woff2");
-  await expect(page.locator(".font-add-asset-option")).not.toContainText("sample.png");
-});
-
-test("Adobe Fonts places project setup help next to the ID label without redundant warnings", async ({ page }) => {
-  await page.locator('[data-tip="フォントを追加"]').click();
-  await page.getByRole("button", { name: "Adobe Fonts" }).click();
-  await expect(page.getByText("Webプロジェクトが未設定です。")).toHaveCount(0);
-  await expect(page.locator(".font-add-label-row")
-    .getByRole("button", { name: "Adobe Fontsの追加方法" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "ここ" }))
-    .toHaveAttribute("href", "https://fonts.adobe.com/my_fonts#web_projects-section");
-  await expect(page.getByRole("link", { name: "源ノ明朝" }))
-    .toHaveAttribute("href", "https://fonts.adobe.com/fonts/source-han-serif-japanese");
-});
-
 test("Adobe lookup failure is not called an expired subscription and does not require manual input", async ({ page }) => {
   await page.route("http://pending-import.test/api/fonts/adobe/status?**", (route) =>
     route.fulfill({ json: { status: "unknown", fonts: [] } }));
@@ -247,23 +223,7 @@ test("Existing Adobe fonts remain selectable when metadata API is unavailable", 
   ]);
 });
 
-test("Saved Adobe projects hide the ID field until + is selected", async ({ page }) => {
-  await page.evaluate(() => (window as any).importEditor.getState().updateDoc((d: any) => {
-    d.adobeFonts = [
-      { family: "poprumcute", kitId: "jys5tkg", loading: "dynamic" },
-    ];
-  }));
-  await page.locator('[data-tip="フォントを追加"]').click();
-  await page.getByRole("button", { name: "Adobe Fonts" }).click();
-  await expect(page.getByRole("textbox", { name: "WebプロジェクトIDまたはURL" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "jys5tkg", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Webプロジェクトを追加" }).click();
-  await expect(page.getByRole("textbox", { name: "WebプロジェクトIDまたはURL" })).toBeVisible();
-  await page.getByRole("button", { name: "jys5tkg", exact: true }).click();
-  await expect(page.getByRole("textbox", { name: "WebプロジェクトIDまたはURL" })).toHaveCount(0);
-});
-
-test("Removing an Adobe project clears its font registrations and applied font styles in one undo step", async ({ page }) => {
+test("Saved Adobe projects hide the ID field until + is selected and removing a project clears registrations in one undo step", async ({ page }) => {
   await page.evaluate(() => (window as any).importEditor.getState().updateDoc((d: any) => {
     d.adobeFonts = [
       { family: "poprumcute", kitId: "jys5tkg", loading: "dynamic" },
@@ -274,6 +234,13 @@ test("Removing an Adobe project clears its font registrations and applied font s
   }));
   await page.locator('[data-tip="フォントを追加"]').click();
   await page.getByRole("button", { name: "Adobe Fonts" }).click();
+  await expect(page.getByRole("textbox", { name: "WebプロジェクトIDまたはURL" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "jys5tkg", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Webプロジェクトを追加" }).click();
+  await expect(page.getByRole("textbox", { name: "WebプロジェクトIDまたはURL" })).toBeVisible();
+  await page.getByRole("button", { name: "jys5tkg", exact: true }).click();
+  await expect(page.getByRole("textbox", { name: "WebプロジェクトIDまたはURL" })).toHaveCount(0);
+
   const before = await doc(page);
   await page.getByRole("button", { name: "Webプロジェクト jys5tkg を削除" }).click();
   const confirm = page.getByRole("dialog", { name: "Adobe Webプロジェクトの削除" });

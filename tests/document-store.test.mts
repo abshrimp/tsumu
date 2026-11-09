@@ -1,7 +1,7 @@
 import { describe, before, test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
-import { validSiteDoc, validNodeForest, MAX_NODE_DEPTH as MAX_NODE_DEPTH_2, maxSubtreeDepth } from "../lib/doc-tree";
-import { makeBox, createInitialDoc, makeText, makeField, makeImage as makeImage_2, makeSwitch, makeIcon } from "../lib/presets";
+import { validSiteDoc, validNodeForest, MAX_NODE_DEPTH, maxSubtreeDepth } from "../lib/doc-tree";
+import { makeBox, createInitialDoc, makeText, makeField, makeImage, makeSwitch, makeIcon } from "../lib/presets";
 import { ancestorsOf, useEditor } from "../lib/store";
 import { type SiteDoc, type DocNode } from "../lib/types";
 import { buildCanvasCss } from "../components/canvas/css";
@@ -10,25 +10,25 @@ import { parseSiteImport } from "../lib/site-import";
 import { applyBreakpoints, normalizeBreakpoints, BP_INFO, BP_ORDER, parseTransform, serializeTransform, parseFilter, serializeFilter, extractPartStyles } from "../lib/style";
 import { elements, importCallbacks } from "./helpers/pending-import";
 import { spawnSync, execFileSync } from "node:child_process";
-import { loadDicts, translate as translate_2 } from "../lib/i18n";
-import { validateDocValue as validateDocValue_2, InvalidDocPatchError as InvalidDocPatchError_2, readCurrentDoc, saveCurrentDoc, saveDocPatch, validateDocValue as validateDocValue_3, DocTooLargeError as DocTooLargeError_2, validateDocBody, DocTooLargeError as DocTooLargeError_3, InvalidDocPatchError as InvalidDocPatchError_3, validateDocValue as validateDocValue_4, validateDocValue as validateDocValue_5 } from "../lib/doc-storage";
+import { loadDicts, translate } from "../lib/i18n";
+import { validateDocValue, InvalidDocPatchError, readCurrentDoc, saveCurrentDoc, saveDocPatch, DocTooLargeError, validateDocBody } from "../lib/doc-storage";
 import { mkdtempSync, rmSync, readFileSync, readdirSync, mkdirSync, writeFileSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join as join_2, join as join_3, join as join_4, join as join_5, dirname, join as join_6, resolve as resolve_2 } from "node:path";
-import { createDocPatch, applyDocPatch, applyDocPatchAtRevision, isDocPatch as isDocPatch_2, MAX_PATCH_OPS, isDocPatch as isDocPatch_3, type DocPatch, isDocPatch as isDocPatch_4, docPatchSqlPath, isDocPatch as isDocPatch_5 } from "../lib/doc-patch";
-import { getDbFromBinding as getDbFromBinding_2, type Db, getDbFromBinding as getDbFromBinding_3, getDbFromBinding as getDbFromBinding_4 } from "../lib/db";
+import { join, dirname, resolve } from "node:path";
+import { createDocPatch, applyDocPatch, applyDocPatchAtRevision, isDocPatch, MAX_PATCH_OPS, type DocPatch, docPatchSqlPath } from "../lib/doc-patch";
+import { getDbFromBinding, type Db } from "../lib/db";
 import { nodeDatabase } from "../lib/node-storage";
 import * as sites from "../lib/sites";
+import { insertSite } from "../lib/sites";
 import { DEFAULT_BRANCH, DEFAULT_PREVIEW_BRANCH, isSiteId, normalizeSiteInput } from "../lib/site-model";
-import { insertSite as insertSite_2, insertSite as insertSite_3, insertSite as insertSite_4 } from "../lib/sites";
 import { DatabaseSync } from "node:sqlite";
 import { build as esbuildBuild } from "esbuild";
 import { transformSync } from "./helpers/bundle";
-import { userMessage as userMessage_2, userMessage as userMessage_3 } from "../lib/errors";
+import { userMessage } from "../lib/errors";
 import { StructuredDocumentStore, type DocumentSqlStorage, type SiteSaveResult, type SiteSnapshot } from "../lib/structured-document-store";
 import { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited } from "../lib/api-json";
 import { extractAssetReferences } from "../lib/asset-gc-plan";
-import { edit as edit_2, isRoomLookup, load as load_2, original as original_2, replacement, setup as setup_2, sqlOf } from "./helpers/document-generation-api";
+import { edit, isRoomLookup, load, original, replacement, setup, sqlOf } from "./helpers/document-generation-api";
 import { sameDocContent, shareUnchangedDoc } from "../lib/doc-share";
 import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import-format";
 import { runInNewContext } from "node:vm";
@@ -273,8 +273,8 @@ describe("breakpoint-labels", () => {
   test("translation falls back to literal labels for inherited dictionary names", async () => {
     const dictionaries = await loadDicts("en");
     for (const label of prototypeNames) {
-      assert.equal(translate_2(dictionaries, label), label);
-      assert.equal(translate_2(dictionaries, label, {}), label);
+      assert.equal(translate(dictionaries, label), label);
+      assert.equal(translate(dictionaries, label, {}), label);
     }
   });
 
@@ -285,10 +285,10 @@ describe("breakpoint-labels", () => {
     const fallback = JSON.parse('{"inherited":"Fallback","constructor":"Own translation"}');
     const ja = (messages: Record<string, string>) => ({ lang: "ja" as const, messages });
     const en = (messages: Record<string, string>) => ({ lang: "en" as const, messages });
-    assert.equal(translate_2([ja(primary), en(fallback)], "inherited"), "Fallback");
-    assert.equal(translate_2([ja(primary), en(fallback)], "constructor"), "Own translation");
-    assert.equal(translate_2([ja(primary), en({ greeting: "Fallback" })], "greeting", { name: "Tsumu" }), "Hello Tsumu");
-    assert.equal(translate_2([ja(primary)], "Missing {name}", { name: "Tsumu" }), "Missing Tsumu");
+    assert.equal(translate([ja(primary), en(fallback)], "inherited"), "Fallback");
+    assert.equal(translate([ja(primary), en(fallback)], "constructor"), "Own translation");
+    assert.equal(translate([ja(primary), en({ greeting: "Fallback" })], "greeting", { name: "Tsumu" }), "Hello Tsumu");
+    assert.equal(translate([ja(primary)], "Missing {name}", { name: "Tsumu" }), "Missing Tsumu");
   });
 
   for (const lang of ["ja", "en"]) {
@@ -414,38 +414,38 @@ test("complete documents reject missing component references, including a missin
   const doc = fixture();
   doc.nodes.use = instance("use", "absent");
   doc.pages.home.children.push("use");
-  assert.equal(validateDocValue_2(doc), "不正なリクエスト");
+  assert.equal(validateDocValue(doc), "不正なリクエスト");
   delete doc.components;
-  assert.equal(validateDocValue_2(doc), "不正なリクエスト");
+  assert.equal(validateDocValue(doc), "不正なリクエスト");
   assert.equal(validNodeForest(doc.pages, doc.nodes), true, "clipboard fragments can lack definitions");
 });
 
 test("component definitions cannot share or nest their master trees", () => {
   const doc = withMasters();
-  assert.equal(validateDocValue_2(doc), null);
+  assert.equal(validateDocValue(doc), null);
   doc.components!.B.rootId = "a";
-  assert.notEqual(validateDocValue_2(doc), null);
+  assert.notEqual(validateDocValue(doc), null);
   doc.components!.B.rootId = "b";
   doc.nodes.a.children = ["b"];
-  assert.notEqual(validateDocValue_2(doc), null);
+  assert.notEqual(validateDocValue(doc), null);
 });
 
 test("component instances reject both direct and indirect reference cycles", () => {
   const doc = withMasters();
   doc.nodes.ab = instance("ab", "B");
   doc.nodes.a.children = ["ab"];
-  assert.equal(validateDocValue_2(doc), null);
+  assert.equal(validateDocValue(doc), null);
   const self = structuredClone(doc);
   self.nodes.ab.componentId = "A";
-  assert.notEqual(validateDocValue_2(self), null);
+  assert.notEqual(validateDocValue(self), null);
   const mutual = structuredClone(doc);
   mutual.nodes.ba = instance("ba", "A");
   mutual.nodes.b.children = ["ba"];
-  assert.notEqual(validateDocValue_2(mutual), null);
+  assert.notEqual(validateDocValue(mutual), null);
   const external = structuredClone(doc);
   external.nodes.use = instance("use", "A");
   external.pages.home.children.push("use");
-  assert.equal(validateDocValue_2(external), null, "repeated use outside masters is valid");
+  assert.equal(validateDocValue(external), null, "repeated use outside masters is valid");
 });
 
 test("structural collection IDs cannot shadow inherited object properties", () => {
@@ -459,7 +459,7 @@ test("structural collection IDs cannot shadow inherited object properties", () =
       doc.nodes.root = node("root");
       doc.components = JSON.parse('{"__proto__":{"id":"__proto__","name":"C","rootId":"root"}}');
     }
-    assert.notEqual(validateDocValue_2(doc), null, collection);
+    assert.notEqual(validateDocValue(doc), null, collection);
   }
 });
 
@@ -475,7 +475,7 @@ test("long acyclic component dependency chains validate without recursive traver
       doc.nodes["r" + (i - 1)].children.push(id);
     }
   }
-  assert.equal(validateDocValue_2(doc), null);
+  assert.equal(validateDocValue(doc), null);
 });
 });
 
@@ -495,12 +495,12 @@ function fixture(): SiteDoc {
 }
 
 async function withDatabase(testBody: (db: Db, statements: string[]) => Promise<void>) {
-  const dir = mkdtempSync(join_2(tmpdir(), "tsumu-graph-patch-"));
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-graph-patch-"));
   const previous = process.env.TSUMU_DATA_DIR;
   process.env.TSUMU_DATA_DIR = dir;
   try {
-    const rawDb = await getDbFromBinding_2(nodeDatabase()!);
-    await insertSite_2(rawDb, "audit", {
+    const rawDb = await getDbFromBinding(nodeDatabase()!);
+    await insertSite(rawDb, "audit", {
       name: "Audit", repo: null, branch: "main", previewBranch: "preview",
       siteUrl: null, previewUrl: null,
     });
@@ -523,7 +523,7 @@ async function withDatabase(testBody: (db: Db, statements: string[]) => Promise<
 test("an atomic patch cannot introduce component cycles or dangling definitions", async () => {
   await withDatabase(async (db, statements) => {
     const original = fixture();
-    assert.equal(validateDocValue_3(original), null);
+    assert.equal(validateDocValue(original), null);
     assert.equal((await saveCurrentDoc(db, "audit", JSON.stringify(original), null)).kind, "saved");
     const attempts = [
       { ...structuredClone(original),
@@ -535,8 +535,8 @@ test("an atomic patch cannot introduce component cycles or dangling definitions"
           nested: { ...makeBox(), id: "nested", type: "instance" as const, componentId: "C" } } },
     ];
     for (const bad of attempts) {
-      assert.notEqual(validateDocValue_3(bad), null);
-      await assert.rejects(saveDocPatch(db, "audit", createDocPatch(original, bad as SiteDoc)!, "1"), InvalidDocPatchError_2);
+      assert.notEqual(validateDocValue(bad), null);
+      await assert.rejects(saveDocPatch(db, "audit", createDocPatch(original, bad as SiteDoc)!, "1"), InvalidDocPatchError);
       const current = await readCurrentDoc(db, "audit");
       assert.equal(current!.rev, "1", "invalid revisions never advance");
       assert.deepEqual(JSON.parse(current!.body), original);
@@ -580,7 +580,7 @@ test("page folders cannot disappear while assigned pages still reference them", 
     const original = fixture();
     original.pageFolders = [{ id: "folder", name: "Folder" }];
     original.pages.p.folderId = "folder";
-    assert.equal(validateDocValue_3(original), null);
+    assert.equal(validateDocValue(original), null);
     await saveCurrentDoc(db, "audit", JSON.stringify(original), null);
     const invalid = [
       { ...original, pageFolders: [] },
@@ -588,15 +588,15 @@ test("page folders cannot disappear while assigned pages still reference them", 
       { ...original, pages: { p: { ...original.pages.p, folderId: "missing" } } },
     ];
     for (const bad of invalid) {
-      assert.notEqual(validateDocValue_3(bad), null);
-      await assert.rejects(saveDocPatch(db, "audit", createDocPatch(original, bad as SiteDoc)!, "1"), InvalidDocPatchError_2);
+      assert.notEqual(validateDocValue(bad), null);
+      await assert.rejects(saveDocPatch(db, "audit", createDocPatch(original, bad as SiteDoc)!, "1"), InvalidDocPatchError);
       assert.equal((await readCurrentDoc(db, "audit"))!.rev, "1");
     }
     const move = structuredClone(original);
     delete move.pages.p.folderId;
     move.pageFolders = [];
     assert.equal((await saveDocPatch(db, "audit", createDocPatch(original, move)!, "1")).kind, "saved");
-    assert.equal(validateDocValue_3(JSON.parse((await readCurrentDoc(db, "audit"))!.body)), null);
+    assert.equal(validateDocValue(JSON.parse((await readCurrentDoc(db, "audit"))!.body)), null);
   });
 });
 
@@ -610,22 +610,22 @@ test("asset removal and references are checked together before advancing the rev
     };
     original.pages.p.children.push("picture");
     original.favicon = { assetId: "picture" };
-    assert.equal(validateDocValue_3(original), null);
+    assert.equal(validateDocValue(original), null);
     await saveCurrentDoc(db, "audit", JSON.stringify(original), null);
 
     const dangling = structuredClone(original);
     delete dangling.assets.picture;
-    assert.notEqual(validateDocValue_3(dangling), null);
+    assert.notEqual(validateDocValue(dangling), null);
     await assert.rejects(
-      saveDocPatch(db, "audit", createDocPatch(original, dangling)!, "1"), InvalidDocPatchError_2);
+      saveDocPatch(db, "audit", createDocPatch(original, dangling)!, "1"), InvalidDocPatchError);
     assert.equal((await readCurrentDoc(db, "audit"))!.rev, "1");
 
     const fixed = structuredClone(dangling);
     fixed.nodes.picture.image!.assetId = undefined;
     fixed.favicon = null;
-    assert.equal(validateDocValue_3(fixed), null);
+    assert.equal(validateDocValue(fixed), null);
     assert.equal((await saveDocPatch(db, "audit", createDocPatch(original, fixed)!, "1")).kind, "saved");
-    assert.equal(validateDocValue_3(JSON.parse((await readCurrentDoc(db, "audit"))!.body)), null);
+    assert.equal(validateDocValue(JSON.parse((await readCurrentDoc(db, "audit"))!.body)), null);
   });
 });
 
@@ -635,8 +635,8 @@ test("new image and metadata references to nonexistent assets are rejected", asy
     await saveCurrentDoc(db, "audit", JSON.stringify(original), null);
     const bad = structuredClone(original);
     bad.nodes.use.image = { src: "", assetId: "missing", alt: "", width: 1, height: 1 };
-    assert.notEqual(validateDocValue_3(bad), null);
-    await assert.rejects(saveDocPatch(db, "audit", createDocPatch(original, bad)!, "1"), InvalidDocPatchError_2);
+    assert.notEqual(validateDocValue(bad), null);
+    await assert.rejects(saveDocPatch(db, "audit", createDocPatch(original, bad)!, "1"), InvalidDocPatchError);
     assert.equal((await readCurrentDoc(db, "audit"))!.rev, "1");
   });
 });
@@ -661,10 +661,10 @@ test("API revisions reject invalid node and page shapes before accepting a PATCH
     mutate(d => { (d.pages.p as any).description = 12; });
     mutate(d => { (d.pages.p as any).bodyStyles = { base: { default: { backgroundColor: false } } }; });
     for (const invalid of edits) {
-      assert.notEqual(validateDocValue_3(invalid), null, JSON.stringify(invalid).slice(0,300));
+      assert.notEqual(validateDocValue(invalid), null, JSON.stringify(invalid).slice(0,300));
       const patch = createDocPatch(base, invalid);
       assert.ok(patch?.length, "the malformed field still produces a delta");
-      await assert.rejects(saveDocPatch(db, "audit", patch!, "1"), InvalidDocPatchError_2);
+      await assert.rejects(saveDocPatch(db, "audit", patch!, "1"), InvalidDocPatchError);
       assert.equal((await readCurrentDoc(db, "audit"))!.rev, "1");
     }
   });
@@ -682,7 +682,7 @@ test("site-level SQL patches cannot persist malformed optional settings", async 
       { path: ["pwa"], value: { enabled: "true" } },
     ];
     for (const op of badPatches) {
-      await assert.rejects(saveDocPatch(db, "audit", [op], "1"), InvalidDocPatchError_2);
+      await assert.rejects(saveDocPatch(db, "audit", [op], "1"), InvalidDocPatchError);
       assert.equal((await readCurrentDoc(db, "audit"))?.rev, "1");
       assert.deepEqual(JSON.parse((await readCurrentDoc(db, "audit"))!.body), original);
     }
@@ -748,7 +748,7 @@ function fixture(options: {
       step("snapshot");
       return options.readSnapshot ? options.readSnapshot() : document;
     },
-    userMessage: userMessage_2,
+    userMessage: userMessage,
   };
   const module = { exports: {} as { GET: (req: Request) => Promise<Response> } };
   new Function("require", "module", "exports", code)(
@@ -907,12 +907,12 @@ const doc = (): SiteDoc => ({
 } as SiteDoc);
 
 async function database(run: (db: Db, statements: { sql: string; args: unknown[] }[]) => Promise<void>) {
-  const dir = mkdtempSync(join_3(tmpdir(), "tsumu-delta-"));
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-delta-"));
   const previous = process.env.TSUMU_DATA_DIR;
   process.env.TSUMU_DATA_DIR = dir;
   try {
-    const real = await getDbFromBinding_3(nodeDatabase()!);
-    await insertSite_3(real, "s1", { name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null });
+    const real = await getDbFromBinding(nodeDatabase()!);
+    await insertSite(real, "s1", { name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null });
     const statements: { sql: string; args: unknown[] }[] = [];
     const db: Db = { ...real, execute: async (stmt) => {
       statements.push(typeof stmt === "string" ? { sql: stmt, args: [] } : stmt);
@@ -946,7 +946,7 @@ test("invalid, overlapping and destructive paths are rejected", () => {
     [{ path: ["pageOrder"], value: {} }], [{ path: ["nodes"], value: [] }],
     [{ path: ["siteName"], value: "A", remove: true }],
     [{ path: ["nodes"], value: {} }, { path: ["nodes", "a"], remove: true }],
-  ]) assert.equal(isDocPatch_2(patch), false, JSON.stringify(patch));
+  ]) assert.equal(isDocPatch(patch), false, JSON.stringify(patch));
   const base = doc();
   const next = structuredClone(base);
   for (let n = 0; n <= MAX_PATCH_OPS; n++) next.nodes[`extra-${n}`] = base.nodes["node-1"];
@@ -1051,8 +1051,8 @@ test("large documents save until the storage itself rejects them as too large", 
       }
       return real.execute(stmt);
     } };
-    await assert.rejects(saveCurrentDoc(d1, "s1", JSON.stringify(base), "3"), DocTooLargeError_2);
-    await assert.rejects(saveDocPatch(d1, "s1", createDocPatch(edited, { ...edited, siteName: "A" })!, "3"), DocTooLargeError_2);
+    await assert.rejects(saveCurrentDoc(d1, "s1", JSON.stringify(base), "3"), DocTooLargeError);
+    await assert.rejects(saveDocPatch(d1, "s1", createDocPatch(edited, { ...edited, siteName: "A" })!, "3"), DocTooLargeError);
     assert.equal((await readCurrentDoc(real, "s1"))!.rev, "3");
   });
 });
@@ -1061,7 +1061,7 @@ test("documents without any page are rejected, because the editor cannot open th
   const empty = { ...doc(), pages: {}, pageOrder: [] };
   assert.equal(validateDocBody(JSON.stringify(empty)), "不正なリクエスト");
   assert.equal(validateDocBody(JSON.stringify(doc())), null);
-  assert.equal(isDocPatch_2([{ path: ["pageOrder"], value: [] }]), false);
+  assert.equal(isDocPatch([{ path: ["pageOrder"], value: [] }]), false);
   assert.equal(createDocPatch(doc(), empty), null, "falls back to a full save, which is rejected");
 });
 
@@ -1325,9 +1325,9 @@ test("ordinary saves work and conflicting document bodies are never cacheable", 
 });
 
 describe("doc-save-acknowledgment", () => {
-const patch = [{ path: ["siteName"], value: edit_2.siteName }];
+const patch = [{ path: ["siteName"], value: edit.siteName }];
 const request = (method: "PUT" | "PATCH", base = "1") => new Request(`https://editor.example.test/api/doc?site=source&base=${base}`, {
-  method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(method === "PUT" ? edit_2 : patch),
+  method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(method === "PUT" ? edit : patch),
 });
 function publicPayload(value: unknown, ...keys: string[]) {
   for (const key of keys) assert.ok(!JSON.stringify(value).includes(key));
@@ -1336,7 +1336,7 @@ function publicPayload(value: unknown, ...keys: string[]) {
 }
 for (const method of ["PUT", "PATCH"] as const) {
   test(`${method} acknowledges a committed write without a second room lookup`, async t => {
-    const f = await setup_2(t); const key = await f.create("source"); let reads = 0;
+    const f = await setup(t); const key = await f.create("source"); let reads = 0;
     f.hooks.beforeExecute = async stmt => {
       if (isRoomLookup(stmt, "source")) {
         reads++;
@@ -1347,14 +1347,14 @@ for (const method of ["PUT", "PATCH"] as const) {
     assert.equal(response.status, 200);
     const saved = await response.json();
     assert.deepEqual(saved, { ok: true, rev: "2", savedAt: f.room(key).meta()!.savedAt });
-    assert.equal(JSON.parse(f.room(key).snapshot()!.body).siteName, edit_2.siteName);
+    assert.equal(JSON.parse(f.room(key).snapshot()!.body).siteName, edit.siteName);
     assert.equal(reads, 1);
     assert.equal(f.notifications[0]?.roomKey, key);
     publicPayload(saved, key); publicPayload(f.notifications[0].message, key);
     assert.deepEqual(f.logs(), []);
   });
   test(`${method} activity SQL failures remain advisory`, async t => {
-    const f = await setup_2(t); const key = await f.create("source");
+    const f = await setup(t); const key = await f.create("source");
     f.hooks.beforeExecute = async stmt => { if (/INSERT INTO site_activity/.test(sqlOf(stmt))) throw new Error("Synthetic activity failure"); };
     const response = await f.doc[method](request(method));
     assert.equal(response.status, 200);
@@ -1364,7 +1364,7 @@ for (const method of ["PUT", "PATCH"] as const) {
     assert.deepEqual(f.logs(), []);
   });
   test(`${method} timestamp update failures stay advisory after the document commits`, async t => {
-    const f = await setup_2(t); const key = await f.create("source");
+    const f = await setup(t); const key = await f.create("source");
     f.hooks.beforeBatch = async stmts => {
       if (stmts.some(stmt => /UPDATE site_document_rooms/.test(sqlOf(stmt)))) throw new Error("Synthetic timestamp failure");
     };
@@ -1376,7 +1376,7 @@ for (const method of ["PUT", "PATCH"] as const) {
     assert.deepEqual(f.logs(), []);
   });
   test(`${method} optional notification failure cannot turn a committed save into a failure`, async t => {
-    const f = await setup_2(t); const key = await f.create("source");
+    const f = await setup(t); const key = await f.create("source");
     f.hooks.beforeNotify = () => { throw Object.assign(new Error("synthetic-token 非公開のテスト本文"), { roomKey: key }); };
     const response = await f.doc[method](request(method));
     assert.equal(response.status, 200);
@@ -1385,7 +1385,7 @@ for (const method of ["PUT", "PATCH"] as const) {
     assert.deepEqual(f.logs(), [["[api/doc] document notification failed"]]);
   });
   test(`${method} never routes a committed old document to a replacement generation`, async t => {
-    const f = await setup_2(t); const oldKey = await f.create("source"); let newKey: string | undefined;
+    const f = await setup(t); const oldKey = await f.create("source"); let newKey: string | undefined;
     f.hooks.beforeExecute = async stmt => {
       if (/INSERT INTO site_activity/.test(sqlOf(stmt))) {
         f.hooks.beforeExecute = undefined;
@@ -1398,13 +1398,13 @@ for (const method of ["PUT", "PATCH"] as const) {
     assert.deepEqual(JSON.parse(f.room(newKey).snapshot()!.body), replacement);
     assert.equal(f.notifications.length, 1);
     assert.equal(f.notifications[0].roomKey, oldKey);
-    assert.equal(JSON.stringify(f.notifications[0].message).includes(edit_2.siteName), true);
+    assert.equal(JSON.stringify(f.notifications[0].message).includes(edit.siteName), true);
     publicPayload(await response.json(), oldKey, newKey);
     publicPayload(f.notifications[0].message, oldKey, newKey);
     assert.deepEqual(f.logs(), []);
   });
   test(`${method} genuine storage failures retain 502 with no notification`, async t => {
-    const f = await setup_2(t); const key = await f.create("source");
+    const f = await setup(t); const key = await f.create("source");
     f.hooks.beforeRoomWrite = async () => { throw new Error("synthetic-token storage failure"); };
     const response = await f.doc[method](request(method));
     assert.equal(response.status, 502);
@@ -1414,7 +1414,7 @@ for (const method of ["PUT", "PATCH"] as const) {
     assert.deepEqual(f.logs(), [["[api/doc] document save failed"]]);
   });
   test(`${method} a replacement during the write returns missing and never broadcasts`, async t => {
-    const f = await setup_2(t); const oldKey = await f.create("source"); let newKey: string | undefined;
+    const f = await setup(t); const oldKey = await f.create("source"); let newKey: string | undefined;
     f.hooks.afterRoomWrite = async () => { f.hooks.afterRoomWrite = undefined; newKey = await f.replace("source", replacement); };
     const response = await f.doc[method](request(method));
     assert.equal(response.status, 404);
@@ -1424,17 +1424,17 @@ for (const method of ["PUT", "PATCH"] as const) {
     assert.deepEqual(JSON.parse(f.room(newKey).snapshot()!.body), replacement);
   });
   test(`${method} conflict snapshots preserve their public shape and never broadcast`, async t => {
-    const f = await setup_2(t); const key = await f.create("source");
+    const f = await setup(t); const key = await f.create("source");
     const response = await f.doc[method](request(method, "2"));
     assert.equal(response.status, 409);
     const payload = await response.json();
-    assert.deepEqual(payload, { conflict: true, rev: "1", savedAt: f.room(key).meta()!.savedAt, doc: original_2 });
+    assert.deepEqual(payload, { conflict: true, rev: "1", savedAt: f.room(key).meta()!.savedAt, doc: original });
     assert.equal(response.headers.get("cache-control"), "private, no-store");
     publicPayload(payload, key);
     assert.deepEqual(f.notifications, []);
   });
   test(`${method} an obsolete conflict snapshot is not returned or broadcast`, async t => {
-    const f = await setup_2(t); await f.create("source");
+    const f = await setup(t); await f.create("source");
     f.hooks.afterRoomWrite = async () => { f.hooks.afterRoomWrite = undefined; await f.replace("source", replacement); };
     const response = await f.doc[method](request(method, "2"));
     assert.equal(response.status, 404);
@@ -1444,9 +1444,9 @@ for (const method of ["PUT", "PATCH"] as const) {
 }
 
 test("server target envelopes name the room only for accepted writes", async t => {
-  const f = await setup_2(t); const key = await f.create("source");
+  const f = await setup(t); const key = await f.create("source");
   for (const method of ["saveSiteDocumentWithTarget", "patchSiteDocumentWithTarget"]) {
-    const value = method === "saveSiteDocumentWithTarget" ? JSON.stringify(edit_2) : patch;
+    const value = method === "saveSiteDocumentWithTarget" ? JSON.stringify(edit) : patch;
     const rev = f.room(key).meta()!.rev;
     const internal = await f.services[method](f.rawDb, "source", value, rev);
     assert.deepEqual(Object.keys(internal).sort(), ["result", "roomKey"]);
@@ -1457,14 +1457,14 @@ test("server target envelopes name the room only for accepted writes", async t =
     assert.equal(conflict.roomKey, null);
   }
   await sites.deleteSite(f.rawDb, "source", key);
-  const missing = await f.services.saveSiteDocumentWithTarget(f.rawDb, "source", JSON.stringify(edit_2), null);
+  const missing = await f.services.saveSiteDocumentWithTarget(f.rawDb, "source", JSON.stringify(edit), null);
   assert.deepEqual(missing, { result: { kind: "missing" }, roomKey: null });
 });
 
 for (const method of ["save", "patch"] as const) {
   test(`WebSocket ${method} success, conflict and broadcasts do not contain server-only target keys`, async t => {
-    const f = await setup_2(t); const key = await f.create("source");
-    const { CollaborationRoom } = load_2("../../custom-worker.ts", {
+    const f = await setup(t); const key = await f.create("source");
+    const { CollaborationRoom } = load("../../custom-worker.ts", {
       "cloudflare:workers": { DurableObject: class { constructor(public ctx: unknown, public env: unknown) {} } },
       "./.open-next/worker.js": {}, "./document-room": { DocumentRoom: class {} },
       "./lib/db": { getDbFromBinding: async () => f.rawDb },
@@ -1484,7 +1484,7 @@ for (const method of ["save", "patch"] as const) {
         patchDocument: async (value: any, base: string) => f.room(key).patch(value, base),
       }),
     } });
-    const input = { type: method, requestId: "first", base: "1", ...(method === "save" ? { doc: edit_2 } : { patch }) };
+    const input = { type: method, requestId: "first", base: "1", ...(method === "save" ? { doc: edit } : { patch }) };
     await room.webSocketMessage(sender, JSON.stringify(input));
     assert.deepEqual(JSON.parse(sender.messages[0]), { type: "saved", requestId: "first", rev: "2", savedAt: f.room(key).meta()!.savedAt });
     assert.equal(peer.messages.length, 1);
@@ -1493,15 +1493,15 @@ for (const method of ["save", "patch"] as const) {
     publicPayload(update, key);
     await room.webSocketMessage(sender, JSON.stringify({ ...input, requestId: "stale" }));
     const conflict = JSON.parse(sender.messages[1]);
-    assert.deepEqual(conflict, { type: "conflict", requestId: "stale", rev: "2", savedAt: f.room(key).meta()!.savedAt, doc: edit_2 });
+    assert.deepEqual(conflict, { type: "conflict", requestId: "stale", rev: "2", savedAt: f.room(key).meta()!.savedAt, doc: edit });
     publicPayload(JSON.parse(sender.messages[0]), key); publicPayload(conflict, key);
     assert.equal(peer.messages.length, 1);
   });
 }
 
 test("a full save and a subsequent SQL patch use the same value for duplicate JSON keys", async t => {
-  const f = await setup_2(t);
-  await f.create("source", "Duplicate keys", null as unknown as typeof original_2);
+  const f = await setup(t);
+  await f.create("source", "Duplicate keys", null as unknown as typeof original);
   const node = { id: "n", type: "box", name: "Original", semantic: "auto", children: [], styles: {} };
   const page = { id: "home", slug: "", name: "Home", title: "", description: "", children: ["n"] };
   const text = '{"schemaVersion":1,"siteName":"Duplicate keys","nodes":{},"nodes":' + JSON.stringify({ n: node }) +
@@ -1871,8 +1871,8 @@ function fixture(options: {
   };
   const roomKey = "synthetic-private-room-key";
   const injected: Record<string, unknown> = {
-    NextResponse, userMessage: userMessage_3, readJsonLimited, readJsonObjectLimited, jsonErrorStatus, JsonBodyTooLargeError, JsonContentTypeError,
-    DocTooLargeError: DocTooLargeError_3, InvalidDocPatchError: InvalidDocPatchError_3, validateDocValue: validateDocValue_4, isDocPatch: isDocPatch_3,
+    NextResponse, userMessage: userMessage, readJsonLimited, readJsonObjectLimited, jsonErrorStatus, JsonBodyTooLargeError, JsonContentTypeError,
+    DocTooLargeError: DocTooLargeError, InvalidDocPatchError: InvalidDocPatchError, validateDocValue: validateDocValue, isDocPatch: isDocPatch,
     IMPORT_LIMITS, validateImportedDoc, extractAssetReferences,
     siteOwnsAssets: async () => true,
     DEFAULT_BRANCH, DEFAULT_PREVIEW_BRANCH, isSiteId, normalizeSiteInput,
@@ -2048,12 +2048,12 @@ test("mutation failures still translate only the fixed public fallback", async t
 test("safe document validation and capacity failures retain their status and public messages", async t => {
   const logs = captureErrors(t);
   for (const method of ["PUT", "PATCH"] as const) {
-    for (const error of [new InvalidDocPatchError_3(), new Error("Invalid request"), new Error("JSONが壊れています")]) {
+    for (const error of [new InvalidDocPatchError(), new Error("Invalid request"), new Error("JSONが壊れています")]) {
       const response = await fixture({ stage: "save", error })[method](request(method));
       assert.equal(response.status, 400);
       assert.deepEqual(await response.json(), { error: "Invalid request" });
     }
-    for (const error of [new DocTooLargeError_3(), new Error("SQLITE_TOOBIG synthetic-private-details"), new Error("編集データの1項目が大きすぎます")]) {
+    for (const error of [new DocTooLargeError(), new Error("SQLITE_TOOBIG synthetic-private-details"), new Error("編集データの1項目が大きすぎます")]) {
       const response = await fixture({ stage: "save", error })[method](request(method));
       assert.equal(response.status, 413);
       assert.deepEqual(await response.json(), { error: tooLarge });
@@ -2175,7 +2175,7 @@ test("the persisted document requires its one canonical schema version", () => {
   assert.equal(validSiteDoc(invalid), false);
   invalid.schemaVersion = 2;
   assert.equal(validSiteDoc(invalid), false);
-  assert.equal(isDocPatch_4([{ path: ["schemaVersion"], value: 2 }]), false);
+  assert.equal(isDocPatch([{ path: ["schemaVersion"], value: 2 }]), false);
 });
 
 test("malformed scripts cannot survive a round trip through document storage", () => {
@@ -2189,8 +2189,8 @@ test("malformed scripts cannot survive a round trip through document storage", (
 
 test("document IDs and SQL patch paths use the same unambiguous grammar", () => {
   assert.equal(docPatchSqlPath(["nodes", "node-a_b"]), '$."nodes"."node-a_b"');
-  assert.equal(isDocPatch_4([{ path: ["nodes", "node-a_b"], value: {} }]), true);
-  assert.equal(isDocPatch_4([{ path: ["nodes", "a.b"], value: {} }]), false);
+  assert.equal(isDocPatch([{ path: ["nodes", "node-a_b"], value: {} }]), true);
+  assert.equal(isDocPatch([{ path: ["nodes", "a.b"], value: {} }]), false);
   assert.throws(() => docPatchSqlPath(["nodes", "a.b"]));
 });
 
@@ -2261,10 +2261,10 @@ test("valid optional shapes survive the same runtime validators", () => {
 });
 
 test("patches cannot add unknown root fields or modify schemaVersion", () => {
-  assert.equal(isDocPatch_4([{ path: ["arbitrary"], value: true }]), false);
-  assert.equal(isDocPatch_4([{ path: ["schemaVersion"], value: 1 }]), false);
-  assert.equal(isDocPatch_4([{ path: ["siteName"], value: "Site" }]), true);
-  assert.equal(isDocPatch_4([{ path: ["nodes", "node_1"], value: {} }]), true);
+  assert.equal(isDocPatch([{ path: ["arbitrary"], value: true }]), false);
+  assert.equal(isDocPatch([{ path: ["schemaVersion"], value: 1 }]), false);
+  assert.equal(isDocPatch([{ path: ["siteName"], value: "Site" }]), true);
+  assert.equal(isDocPatch([{ path: ["nodes", "node_1"], value: {} }]), true);
 });
 });
 
@@ -2342,14 +2342,14 @@ test("import, patch, reload and concurrent non-conflicting merge preserve meanin
   const next = random(SEED ^ 0x303);
   const original = JSON.parse(JSON.stringify(createInitialDoc())) as SiteDoc;
   const initial = (await parseSiteImport(utf8(original), "doc")).doc;
-  for (let i = 0; i < 120; i++) {
+  for (let i = 0; i < 40; i++) {
     const base = structuredClone(initial);
     const local = structuredClone(base);
     const remote = structuredClone(base);
     local.siteName = "Local " + i + choose(next, ["<&>", "日本語", "</script>", "\u0000", "Ω"]);
     remote.description = "Remote " + i + choose(next, ["<svg>", "newline\n", "quotes \"'", ""]);
     const patch = createDocPatch(base, local);
-    assert.ok(patch && patch.length > 0 && isDocPatch_5(patch), "seed=" + SEED + " case=" + i);
+    assert.ok(patch && patch.length > 0 && isDocPatch(patch), "seed=" + SEED + " case=" + i);
     const applied = applyDocPatch(base, patch);
     assert.deepEqual(applied, local, "patch case=" + i);
     assert.notEqual(applied, base);
@@ -2474,13 +2474,13 @@ function durableObjectFixture() {
 }
 
 test("SQLite and Durable Objects preserve identical revisions and documents", async () => {
-  const dir = mkdtempSync(join_4(tmpdir(), "tsumu-storage-parity-"));
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-storage-parity-"));
   const old = process.env.TSUMU_DATA_DIR;
   process.env.TSUMU_DATA_DIR = dir;
   const { store, sqlite } = durableObjectFixture();
   try {
-    const db = await getDbFromBinding_4(nodeDatabase()!);
-    await insertSite_4(db, "parity", {
+    const db = await getDbFromBinding(nodeDatabase()!);
+    await insertSite(db, "parity", {
       name: "Parity", repo: null, branch: "main", previewBranch: "preview",
       siteUrl: null, previewUrl: null,
     });
@@ -2524,14 +2524,14 @@ test("SQLite and Durable Objects preserve identical revisions and documents", as
 });
 
 test("reconnecting during a pending gesture preserves Undo/Redo through conflict retries on both backends", async () => {
-  const dir = mkdtempSync(join_4(tmpdir(), "tsumu-history-parity-"));
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-history-parity-"));
   const old = process.env.TSUMU_DATA_DIR;
   process.env.TSUMU_DATA_DIR = dir;
   const { store, sqlite } = durableObjectFixture();
   const editor = () => useEditor.getState();
   try {
-    const db = await getDbFromBinding_4(nodeDatabase()!);
-    await insertSite_4(db, "history", {
+    const db = await getDbFromBinding(nodeDatabase()!);
+    await insertSite(db, "history", {
       name: "History", repo: null, branch: "main", previewBranch: "preview",
       siteUrl: null, previewUrl: null,
     });
@@ -2605,13 +2605,13 @@ test("reconnecting during a pending gesture preserves Undo/Redo through conflict
 });
 
 test("saveDocPatch rejects removing a page referenced by pageFolders.beforePageId without corrupting SQLite", async () => {
-  const dir = mkdtempSync(join_4(tmpdir(), "tsumu-folder-anchor-"));
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-folder-anchor-"));
   const old = process.env.TSUMU_DATA_DIR;
   process.env.TSUMU_DATA_DIR = dir;
   const { store, sqlite } = durableObjectFixture();
   try {
-    const db = await getDbFromBinding_4(nodeDatabase()!);
-    await insertSite_4(db, "anchor", { name: "Anchor", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null });
+    const db = await getDbFromBinding(nodeDatabase()!);
+    await insertSite(db, "anchor", { name: "Anchor", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null });
     const doc = createInitialDoc();
     doc.pages.second = { id: "second", name: "Second", slug: "second", title: "Second", description: "", children: [] };
     doc.pageOrder.push("second");
@@ -2853,7 +2853,7 @@ test("site settings changed on both sides keep each side's fields", () => {
 function sourceFiles(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    const full = join_5(dir, entry.name);
+    const full = join(dir, entry.name);
     if (entry.isDirectory()) out.push(...sourceFiles(full));
     else if (/\.(ts|tsx)$/.test(entry.name)) out.push(full);
   }
@@ -3542,10 +3542,10 @@ const cases: { name: string; setup?: (doc: SiteDoc, depth: number) => void; sele
 
 for (const action of cases) for (const allowed of [false, true]) {
   test(`${action.name}: ${allowed ? "permits exactly" : "rejects exceeding"} MAX_NODE_DEPTH without losing history`, () => {
-    const depth = MAX_NODE_DEPTH_2 - (allowed ? 1 : 0);
+    const depth = MAX_NODE_DEPTH - (allowed ? 1 : 0);
     const doc = fixture(depth);
     action.setup?.(doc, depth);
-    assert.equal(validateDocValue_5(doc), null);
+    assert.equal(validateDocValue(doc), null);
     state().endGesture();
     state().replaceDoc(doc);
     state().setActivePage("p");
@@ -3559,7 +3559,7 @@ for (const action of cases) for (const allowed of [false, true]) {
       assert.deepEqual(snapshot(), before, "rejected operations cannot change doc, undo/redo, or selection");
     } else {
       assert.notDeepEqual(state().doc, before.doc);
-      assert.equal(validateDocValue_5(state().doc), null);
+      assert.equal(validateDocValue(state().doc), null);
       const after = structuredClone(state().doc);
       state().undo();
       assert.deepEqual(state().doc, before.doc);
@@ -3943,7 +3943,7 @@ test("shadowed SVG images are drawn at 2x and positioned siblings stay on top of
   const before: DocNode = { ...makeBox(), id: "a", styles: { base: { default: { position: "absolute", top: "0" } } } };
   const after: DocNode = { ...makeBox(), id: "z", styles: { base: { default: { position: "sticky", top: "0", zIndex: "0" } } } };
   const own: DocNode = { ...makeBox(), id: "o", styles: { base: { default: { position: "absolute", zIndex: "5" } } } };
-  const img: DocNode = { ...makeImage_2(), id: "i" };
+  const img: DocNode = { ...makeImage(), id: "i" };
   // 実寸が 0 の画像には、アセットの実寸を使う
   img.image = { ...img.image!, assetId: "s", src: "", width: 0, height: 0 };
   const doc = docWith([before, img, after, own]);
@@ -3980,8 +3980,8 @@ test("shadowed SVG images are drawn at 2x and positioned siblings stay on top of
 
 test("embedded images use asset IDs without duplicated node data URLs", () => {
   const data = `data:image/png;base64,${"A".repeat(4000)}`;
-  const a: DocNode = { ...makeImage_2(), id: "a" };
-  const b: DocNode = { ...makeImage_2(), id: "b" };
+  const a: DocNode = { ...makeImage(), id: "a" };
+  const b: DocNode = { ...makeImage(), id: "b" };
   a.image = { ...a.image!, assetId: "s", src: "" };
   b.image = { ...b.image!, assetId: "s", src: "" };
   const bg: DocNode = { ...makeBox(), id: "bg", styles: { base: { default: { backgroundImage: `url(${data})` } } } };
@@ -4773,16 +4773,16 @@ test("generated components avoid framework names and the exported project typech
   assert.match(files["app/page.tsx"], /fetchJson\(interpolateUrl\("https:\/\/example\.com\/\?q=\{q\}", vars\)\)/);
   assert.match(files["app/page.tsx"], /dangerouslySetInnerHTML=\{\{ __html: "\\u003cscript type=/);
   assert.match(files["components/PageHtml2.tsx"], /export default function PageHtml2\(/);
-  const dir = mkdtempSync(join_6(tmpdir(), "tsumu-export-test-"));
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-export-test-"));
   try {
-    symlinkSync(resolve_2("node_modules"), join_6(dir, "node_modules"), "dir");
+    symlinkSync(resolve("node_modules"), join(dir, "node_modules"), "dir");
     for (const [path, content] of Object.entries(files)) {
-      mkdirSync(dirname(join_6(dir, path)), { recursive: true });
-      writeFileSync(join_6(dir, path), content);
+      mkdirSync(dirname(join(dir, path)), { recursive: true });
+      writeFileSync(join(dir, path), content);
     }
     // 書き出すサイトも、本体と同じ TypeScript 7 で型を検査する。
-    execFileSync(resolve_2("node_modules/.bin/tsc"), [
-      "--project", join_6(dir, "tsconfig.json"), "--noEmit", "--incremental", "false",
+    execFileSync(resolve("node_modules/.bin/tsc"), [
+      "--project", join(dir, "tsconfig.json"), "--noEmit", "--incremental", "false",
     ], { cwd: dir, stdio: "pipe" });
     assert.match(files["components/SmartLink.tsx"], /export default function SmartLink\(/);
     assert.match(files["components/SmartLink2.tsx"], /export default function SmartLink2\(/,

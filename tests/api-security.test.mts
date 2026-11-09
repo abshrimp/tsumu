@@ -2,12 +2,12 @@ import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join as join_2, join as join_3, relative, resolve as resolve_2, join as join_4 } from "node:path";
-import { addAllowedEmail as addAllowedEmail_2, allowedEmails as allowedEmails_2, getAccountRole as getAccountRole_2, isAccountRole as isAccountRole_2, isEmailAllowed, listAllowedAccounts as listAllowedAccounts_2, removeAllowedEmail as removeAllowedEmail_2, updateAllowedAccountRole as updateAllowedAccountRole_2, addAllowedEmail as addAllowedEmail_3, removeAllowedEmail as removeAllowedEmail_3 } from "../lib/allowlist";
+import { join, relative, resolve } from "node:path";
+import { addAllowedEmail, allowedEmails, getAccountRole, isAccountRole, isEmailAllowed, listAllowedAccounts, removeAllowedEmail, updateAllowedAccountRole } from "../lib/allowlist";
 import { fileURLToPath, urlToHttpOptions } from "node:url";
 import { transformSync } from "./helpers/bundle";
 import { isValidEmail } from "../lib/email";
-import { anonymousAllowed as anonymousAllowed_2, anonymousHostAllowed as anonymousHostAllowed_2, isLoopbackHost } from "../lib/anonymous";
+import { anonymousAllowed, anonymousHostAllowed, isLoopbackHost } from "../lib/anonymous";
 import { createRequire, stripTypeScriptTypes } from "node:module";
 import { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited } from "../lib/api-json";
 import { parseActivityUser, type ActivityUser } from "../lib/activity";
@@ -16,14 +16,14 @@ import { AI_STREAM_TYPE, readAiResponse, type AiProgress } from "../lib/ai/progr
 import { type runAi } from "../lib/ai/run";
 import { authCallbacks } from "../lib/auth-policy";
 import { isCrossSiteWrite } from "../lib/csrf";
-import { NextRequest, NextResponse as NextResponse_2 } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { PassThrough } from "node:stream";
 import { type Rewrite, type Redirect } from "next/dist/lib/load-custom-routes";
 import { type FsOutput } from "next/dist/server/lib/router-utils/filesystem";
-import { generateProject as generateProject_2 } from "../lib/generator";
-import { runChecks as runChecks_2 } from "../lib/generator/checks";
+import { generateProject } from "../lib/generator";
+import { runChecks } from "../lib/generator/checks";
 import { type Page, type SiteDoc } from "../lib/types";
-import { assertPublicUrl, BlockedUrlError as BlockedUrlError_2, fetchPublic as fetchPublic_2, isPrivateHost, readTextLimited as readTextLimited_2, TooLargeError as TooLargeError_2 } from "../lib/safe-fetch";
+import { assertPublicUrl, BlockedUrlError, fetchPublic, isPrivateHost, readTextLimited, TooLargeError } from "../lib/safe-fetch";
 import { activeContentNames, isOwnClip, parseClipPayload } from "../lib/clip-transfer";
 import { normalizeSiteInput } from "../lib/site-model";
 import { githubClient } from "../lib/github";
@@ -31,23 +31,23 @@ import { makeBox } from "../lib/presets";
 
 describe("account-roles", () => {
 test("account roles are stored directly and updates take effect on the next check", async () => {
-  const dir = mkdtempSync(join_2(tmpdir(), "tsumu-roles-"));
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-roles-"));
   const original = { TSUMU_DATA_DIR: process.env.TSUMU_DATA_DIR, ALLOWED_EMAILS: process.env.ALLOWED_EMAILS };
   process.env.TSUMU_DATA_DIR = dir;
   process.env.ALLOWED_EMAILS = " Owner@Example.com ";
   try {
-    assert.deepEqual(allowedEmails_2(), ["owner@example.com"]);
-    assert.equal(await getAccountRole_2("owner@example.com"), "editor");
-    assert.equal(await getAccountRole_2("unknown@example.com"), null);
-    await addAllowedEmail_2("colleague@example.com", "viewer");
+    assert.deepEqual(allowedEmails(), ["owner@example.com"]);
+    assert.equal(await getAccountRole("owner@example.com"), "editor");
+    assert.equal(await getAccountRole("unknown@example.com"), null);
+    await addAllowedEmail("colleague@example.com", "viewer");
     assert.equal(await isEmailAllowed("colleague@example.com"), true, "viewers may still sign in");
-    assert.equal(await getAccountRole_2("colleague@example.com"), "viewer");
-    assert.deepEqual(await listAllowedAccounts_2(), [{ email: "colleague@example.com", role: "viewer" }]);
-    assert.equal(await updateAllowedAccountRole_2("colleague@example.com", "editor"), true);
-    assert.equal(await getAccountRole_2("colleague@example.com"), "editor");
-    assert.equal(await updateAllowedAccountRole_2("missing@example.com", "viewer"), false);
-    assert.equal(await removeAllowedEmail_2("colleague@example.com"), true);
-    assert.equal(await getAccountRole_2("colleague@example.com"), null);
+    assert.equal(await getAccountRole("colleague@example.com"), "viewer");
+    assert.deepEqual(await listAllowedAccounts(), [{ email: "colleague@example.com", role: "viewer" }]);
+    assert.equal(await updateAllowedAccountRole("colleague@example.com", "editor"), true);
+    assert.equal(await getAccountRole("colleague@example.com"), "editor");
+    assert.equal(await updateAllowedAccountRole("missing@example.com", "viewer"), false);
+    assert.equal(await removeAllowedEmail("colleague@example.com"), true);
+    assert.equal(await getAccountRole("colleague@example.com"), null);
     assert.equal(await isEmailAllowed("colleague@example.com"), false);
   } finally {
     for (const [name, value] of Object.entries(original)) {
@@ -60,25 +60,25 @@ test("account roles are stored directly and updates take effect on the next chec
 
 test("role values fail closed and cannot be confused with emails or other input shapes", async () => {
   for (const bad of [undefined, "", false, null, {}, [], "administrator", "Editor", 1]) {
-    assert.equal(isAccountRole_2(bad), false);
+    assert.equal(isAccountRole(bad), false);
   }
-  assert.equal(isAccountRole_2("editor"), true);
-  assert.equal(isAccountRole_2("viewer"), true);
-  assert.equal(await getAccountRole_2("invalid", [], async () => "editor"), null);
-  assert.equal(await getAccountRole_2("viewer@example.com", [], async () => { throw Error("offline"); }), null);
-  assert.equal(await getAccountRole_2("viewer@example.com", [], async () => "viewer"), "viewer");
-  assert.equal(await getAccountRole_2("owner@example.com", ["owner@example.com"], async () => "viewer"), "editor");
+  assert.equal(isAccountRole("editor"), true);
+  assert.equal(isAccountRole("viewer"), true);
+  assert.equal(await getAccountRole("invalid", [], async () => "editor"), null);
+  assert.equal(await getAccountRole("viewer@example.com", [], async () => { throw Error("offline"); }), null);
+  assert.equal(await getAccountRole("viewer@example.com", [], async () => "viewer"), "viewer");
+  assert.equal(await getAccountRole("owner@example.com", ["owner@example.com"], async () => "viewer"), "editor");
 });
 });
 
 describe("api-auth-runtime", () => {
 describe("api-auth-runtime", () => {
   const root = fileURLToPath(new URL("../", import.meta.url));
-  const apiDir = join_3(root, "app/api");
+  const apiDir = join(root, "app/api");
 
   function routes(dir: string): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-      const path = join_3(dir, entry.name);
+      const path = join(dir, entry.name);
       return entry.isDirectory() ? routes(path) :
         entry.isFile() && entry.name === "route.ts" ? [path] : [];
     });
@@ -179,10 +179,10 @@ describe("anonymous", () => {
   }
 
   test("ログインなしで開けるのは npm run dev か ALLOW_ANONYMOUS=true のときだけ", () => {
-    withEnv({ NODE_ENV: "production", ALLOW_ANONYMOUS: undefined }, () => assert.equal(anonymousAllowed_2(), false));
-    withEnv({ NODE_ENV: "production", ALLOW_ANONYMOUS: "1" }, () => assert.equal(anonymousAllowed_2(), false));
-    withEnv({ NODE_ENV: "production", ALLOW_ANONYMOUS: "true" }, () => assert.equal(anonymousAllowed_2(), true));
-    withEnv({ NODE_ENV: "development", ALLOW_ANONYMOUS: undefined }, () => assert.equal(anonymousAllowed_2(), true));
+    withEnv({ NODE_ENV: "production", ALLOW_ANONYMOUS: undefined }, () => assert.equal(anonymousAllowed(), false));
+    withEnv({ NODE_ENV: "production", ALLOW_ANONYMOUS: "1" }, () => assert.equal(anonymousAllowed(), false));
+    withEnv({ NODE_ENV: "production", ALLOW_ANONYMOUS: "true" }, () => assert.equal(anonymousAllowed(), true));
+    withEnv({ NODE_ENV: "development", ALLOW_ANONYMOUS: undefined }, () => assert.equal(anonymousAllowed(), true));
   });
 
   test("設定なしの npm run dev は localhost 宛てだけを受け付ける（DNS rebinding 対策）", () => {
@@ -193,23 +193,23 @@ describe("anonymous", () => {
       assert.equal(isLoopbackHost(host), false, host);
     }
     withEnv({ NODE_ENV: "development", ALLOW_ANONYMOUS: undefined }, () => {
-      assert.equal(anonymousHostAllowed_2("localhost:3000"), true);
-      assert.equal(anonymousHostAllowed_2("attacker.example:3000"), false);
-      assert.equal(anonymousHostAllowed_2(null), false);
+      assert.equal(anonymousHostAllowed("localhost:3000"), true);
+      assert.equal(anonymousHostAllowed("attacker.example:3000"), false);
+      assert.equal(anonymousHostAllowed(null), false);
     });
     // 明示したログインなしや、本番のビルドでは Host を制限しない（デモを公開するため）。
-    withEnv({ NODE_ENV: "development", ALLOW_ANONYMOUS: "true" }, () => assert.equal(anonymousHostAllowed_2("192.168.1.5:3000"), true));
-    withEnv({ NODE_ENV: "production", ALLOW_ANONYMOUS: "true" }, () => assert.equal(anonymousHostAllowed_2("demo.example"), true));
+    withEnv({ NODE_ENV: "development", ALLOW_ANONYMOUS: "true" }, () => assert.equal(anonymousHostAllowed("192.168.1.5:3000"), true));
+    withEnv({ NODE_ENV: "production", ALLOW_ANONYMOUS: "true" }, () => assert.equal(anonymousHostAllowed("demo.example"), true));
   });
 });
 
 describe("api-auth-coverage", () => {
   const root = fileURLToPath(new URL("../", import.meta.url));
-  const apiDir = join_3(root, "app/api");
+  const apiDir = join(root, "app/api");
 
   function routes(dir: string): string[] {
     return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-      const path = join_3(dir, entry.name);
+      const path = join(dir, entry.name);
       return entry.isDirectory() ? routes(path) : entry.isFile() && entry.name === "route.ts" ? [path] : [];
     });
   }
@@ -237,8 +237,8 @@ describe("api-auth-coverage", () => {
   });
 
   test("HTTP and WebSocket public entrypoints keep separate CSRF/origin checks", () => {
-    const proxy = readFileSync(join_3(root, "proxy.ts"), "utf8");
-    const worker = readFileSync(join_3(root, "custom-worker.ts"), "utf8");
+    const proxy = readFileSync(join(root, "proxy.ts"), "utf8");
+    const worker = readFileSync(join(root, "custom-worker.ts"), "utf8");
     assert.match(proxy, /pathname\.startsWith\("\/api\/"\)\s*&&\s*isCrossSiteWrite\s*\(/);
     assert.match(worker, /request\.headers\.get\("Origin"\)\s*!==\s*url\.origin/);
   });
@@ -246,7 +246,7 @@ describe("api-auth-coverage", () => {
 
 describe("allowed-accounts-lifecycle", () => {
   function fixture() {
-    const path = resolve_2("components/AllowedAccounts.tsx"), require = createRequire(path);
+    const path = resolve("components/AllowedAccounts.tsx"), require = createRequire(path);
     const cells: any[] = [], cleanups: any[] = [], calls: any[] = [], confirmations: any[] = [];
     let cursor = 0;
     const react = {
@@ -973,7 +973,7 @@ describe("api-json-lifecycle", () => {
 
 describe("auth-policy", () => {
 test("Google sign-in requires a verified profile email and checks live sessions against the allowlist", async () => {
-  const dir = mkdtempSync(join_4(tmpdir(), "tsumu-auth-"));
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-auth-"));
   const previous = { ALLOWED_EMAILS: process.env.ALLOWED_EMAILS, TSUMU_DATA_DIR: process.env.TSUMU_DATA_DIR };
   process.env.ALLOWED_EMAILS = " Owner@Example.com ";
   process.env.TSUMU_DATA_DIR = dir;
@@ -990,10 +990,10 @@ test("Google sign-in requires a verified profile email and checks live sessions 
     assert.equal(await signIn({ email: "stranger@example.com", email_verified: true }), false);
     assert.deepEqual(await session("owner@example.com"), { email: "owner@example.com" });
     assert.equal(await session(), null);
-    await addAllowedEmail_3("editor@example.com", "editor");
+    await addAllowedEmail("editor@example.com", "editor");
     assert.equal(await signIn({ email: "editor@example.com", email_verified: true }), true);
     assert.deepEqual(await session("editor@example.com"), { email: "editor@example.com" });
-    await removeAllowedEmail_3("editor@example.com");
+    await removeAllowedEmail("editor@example.com");
     assert.equal(await session("editor@example.com"), null, "an unexpired session is revoked on its next use");
     assert.equal(await signIn({ email: "editor@example.com", email_verified: true }), false);
     process.env.ALLOWED_EMAILS = "";
@@ -1353,7 +1353,7 @@ const code = transformSync(readFileSync(new URL("../proxy.ts", import.meta.url),
 function fixture(configured: boolean) {
   let sessionChecks = 0;
   const dependencies: Record<string, unknown> = {
-    "next/server": { NextResponse: NextResponse_2 },
+    "next/server": { NextResponse: NextResponse },
     "./auth": {
       authConfigured: () => configured,
       proxyAuth: async () => {
@@ -1433,8 +1433,8 @@ function fixture(pages = [page("home", "", { rewriteTo: "https://origin.example/
 
 function generated(doc: SiteDoc, target: "production" | "test" = "production") {
   const before = structuredClone(doc);
-  assert.deepEqual(runChecks_2(doc).filter(c => c.level === "error"), []);
-  const project = generateProject_2(doc, target);
+  assert.deepEqual(runChecks(doc).filter(c => c.level === "error"), []);
+  const project = generateProject(doc, target);
   const config: Config = new Function(project.files["next.config.mjs"].replace("export default nextConfig;", "return nextConfig;"))();
   assert.deepEqual(doc, before, "generation must not mutate the saved document");
   return { ...project, config };
@@ -1668,7 +1668,7 @@ describe("security", () => {
       "http://user:pass@example.com/",
     ];
     for (const url of blocked) {
-      await assert.rejects(assertPublicUrl(url), BlockedUrlError_2, url);
+      await assert.rejects(assertPublicUrl(url), BlockedUrlError, url);
     }
     assert.equal(isPrivateHost("example.com"), false);
     assert.equal(isPrivateHost("8.8.8.8"), false);
@@ -1683,7 +1683,7 @@ describe("security", () => {
       return new Response(null, { status: 302, headers: { location: "http://169.254.169.254/latest/meta-data/" } });
     }) as typeof fetch;
     try {
-      await assert.rejects(fetchPublic_2("http://93.184.215.14/", {}), BlockedUrlError_2);
+      await assert.rejects(fetchPublic("http://93.184.215.14/", {}), BlockedUrlError);
       assert.deepEqual(seen, ["http://93.184.215.14/"]);
     } finally {
       globalThis.fetch = realFetch;
@@ -1709,7 +1709,7 @@ describe("security", () => {
               status: 307, headers: { location },
             });
           }) as typeof fetch;
-          await assert.rejects(fetchPublic_2("https://93.184.215.14/start", init), BlockedUrlError_2);
+          await assert.rejects(fetchPublic("https://93.184.215.14/start", init), BlockedUrlError);
           assert.deepEqual(seen, ["https://93.184.215.14/start"]);
           assert.equal(cancelled, true);
         }
@@ -1736,7 +1736,7 @@ describe("security", () => {
           headers.set("Authorization", "Bearer secret");
           headers.set("Content-Type", "application/json");
         }
-        const res = await fetchPublic_2("https://93.184.215.14/start", {
+        const res = await fetchPublic("https://93.184.215.14/start", {
           headers, ...(sameOrigin ? { method: "POST", body: "{}" } : {}),
         });
         assert.equal(await res.text(), "ok");
@@ -1761,8 +1761,8 @@ describe("security", () => {
         c.close();
       },
     }));
-    await assert.rejects(readTextLimited_2(big, 4096), TooLargeError_2);
-    assert.equal(await readTextLimited_2(new Response("ok"), 4096), "ok");
+    await assert.rejects(readTextLimited(big, 4096), TooLargeError);
+    assert.equal(await readTextLimited(new Response("ok"), 4096), "ok");
   });
 
   test("pasted clipboard data that this editor did not write needs confirmation for HTML elements", () => {
@@ -1980,7 +1980,7 @@ describe("security", () => {
       "http://[fec0::1]/",
       "http://[0:0:0:0:0:0:0:1]/",
     ]) {
-      await assert.rejects(assertPublicUrl(url), BlockedUrlError_2, url);
+      await assert.rejects(assertPublicUrl(url), BlockedUrlError, url);
     }
     assert.equal(dynamicOrigin("http://[slug]/api"), true);
     assert.equal(dynamicOrigin("https://expected.com@[slug]/api"), true);
@@ -1996,7 +1996,7 @@ describe("security", () => {
       "http://:secret@example.com/",
       "http://[0:0:0:0:0:ffff:7f00:1]/",
     ]) {
-      await assert.rejects(assertPublicUrl(blocked), BlockedUrlError_2, blocked);
+      await assert.rejects(assertPublicUrl(blocked), BlockedUrlError, blocked);
     }
     assert.equal(isPrivateHost("api.example.com"), false);
   });

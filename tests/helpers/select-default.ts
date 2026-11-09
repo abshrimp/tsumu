@@ -27,10 +27,18 @@ import { createRoot } from "react-dom/client";
 
 import { useEditor } from "./lib/store";
 import { loadLocale } from "./lib/i18n";
+let root = null;
+let initialized = false;
 export async function mount(doc) {
-  await loadLocale();
+  if (!initialized) {
+    await loadLocale();
+    initialized = true;
+  }
   const { default: Canvas } = await import("./components/Canvas");
   const { default: SettingsPanel } = await import("./components/SettingsPanel");
+  root?.unmount();
+  useEditor.getState().setMode("design");
+  useEditor.getState().select(null);
   useEditor.getState().replaceDoc(doc);
   window.selectEditor = useEditor;
   function Example() {
@@ -41,7 +49,8 @@ export async function mount(doc) {
       <Canvas />
     </>;
   }
-  createRoot(document.getElementById("app")).render(<Example />);
+  root = createRoot(document.getElementById("app"));
+  root.render(<Example />);
 }
 `, resolveDir: resolve("."), loader: "tsx", sourcefile: "select-default-browser.tsx" },
     bundle: true, write: false, format: "iife", globalName: "fieldFixture", platform: "browser", jsx: "automatic",

@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import { systemTimeValues, systemVariable, SYSTEM_TIME_VARIABLE_NAMES, SYSTEM_BROWSER_VARIABLE_NAMES, SYSTEM_RANDOM_VARIABLE_NAMES } from "../lib/system-time";
 import { interpolate, lookupVar, VARS_RUNTIME, varText, isVarListShortcut, KEEP_ESCAPES, interpolateJson, interpolateUrl } from "../lib/vars";
 import * as dataHelpers from "../lib/data";
-import { varGroupsAt as varGroupsAt_2, varNamesAt as varNamesAt_2, obfuscateVarNames, pagePlan, previewDataVars as previewDataVars_2, compareValues, flattenFields, pageVariableIndex, setVarSource } from "../lib/data";
-import { createInitialDoc, makeText as makeText_2 } from "../lib/presets";
+import { varGroupsAt, varNamesAt, obfuscateVarNames, pagePlan, previewDataVars, compareValues, flattenFields, pageVariableIndex, setVarSource } from "../lib/data";
+import { createInitialDoc, makeText } from "../lib/presets";
 import { matchesValueCondition, parseValueLiteral } from "../lib/value-semantics";
 import { PAGE_STEP_RUNNER_SOURCE, runPurePageSteps } from "../lib/page-load-steps";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
-import { generateProject as generateProject_2 } from "../lib/generator";
+import { generateProject } from "../lib/generator";
 import { validDocumentScripts } from "../lib/document-validation";
 import { type ScriptStep } from "../lib/types";
 import { nativeDataModule } from "../lib/generator/native-data";
@@ -16,16 +16,15 @@ import { defaultTransform, type ValueTransform } from "../lib/script-model/compo
 import { runInNewContext } from "node:vm";
 import { transformSync } from "./helpers/bundle";
 import ts from "@typescript/typescript6";
-import { SCRIPT_RUNTIME as SCRIPT_RUNTIME_2 } from "../lib/script-runtime";
+import { SCRIPT_RUNTIME } from "../lib/script-runtime";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
-import * as React_2 from "react";
-import * as React_3 from "react";
+import * as React from "react";
 import { useEditor } from "../lib/store";
 import { varExplorerDoc } from "./helpers/var-explorer";
 import { canPickVariable, localVariableNames, variableChoiceSamples, singleValueReference } from "../lib/variable-choice";
-import { scriptDataPickerDoc as scriptDataPickerDoc_2 } from "./helpers/script-data-picker";
+import { scriptDataPickerDoc } from "./helpers/script-data-picker";
 import * as contexts from "../components/script-editor/context";
 import { PAGE_DATA_RUNTIME } from "../lib/generator/browser-data";
 
@@ -77,7 +76,7 @@ test("random values have documented types, boundaries, and are generated per rea
 test("advanced picker contains all built-ins, without mixing them into normal suggestions", () => {
   const doc = createInitialDoc();
   const pageId = doc.pageOrder[0];
-  const groups = varGroupsAt_2(doc, pageId, "");
+  const groups = varGroupsAt(doc, pageId, "");
   const builtin = groups.filter((group) => group.key === "system");
   assert.equal(builtin.length, 3);
   assert.ok(builtin.every((group) => group.advanced === true));
@@ -85,7 +84,7 @@ test("advanced picker contains all built-ins, without mixing them into normal su
   for (const name of [
     ...SYSTEM_TIME_VARIABLE_NAMES, ...SYSTEM_BROWSER_VARIABLE_NAMES, ...SYSTEM_RANDOM_VARIABLE_NAMES,
   ]) assert.ok(fields.has(name), name);
-  assert.ok(!varNamesAt_2(doc, pageId, "").some((name) => name.startsWith("system.")));
+  assert.ok(!varNamesAt(doc, pageId, "").some((name) => name.startsWith("system.")));
 });
 
 test("browser-only variables are undefined without a DOM, but timezone is available", () => {
@@ -242,7 +241,7 @@ test("removal works in the serialized page runner and is allowed in page-load sc
     { id: "load", trigger: "load", steps },
   ];
   assert.ok(pagePlan(doc, pageId).serverIds.has("remove"));
-  const generated = generateProject_2(doc).files["app/page.tsx"];
+  const generated = generateProject(doc).files["app/page.tsx"];
   assert.match(generated, /__runPurePageSteps/);
   assert.match(generated, /remove-list-item/);
 });
@@ -440,7 +439,7 @@ test("preview terminates and chains copies into nested variable paths", () => {
       { id: "end", kind: "set-var", into: "result", value: "{record.label}" },
     ] },
   ];
-  const preview = previewDataVars_2(doc, page.id);
+  const preview = previewDataVars(doc, page.id);
   assert.deepEqual(preview.record, { title: "ready", label: "ready" });
   assert.equal(preview.result, "ready");
   assert.deepEqual(preview.preserve, { title: "original" });
@@ -825,7 +824,7 @@ test("DOM runtime initializes live text from deeply nested server values", () =>
     querySelectorAll: (selector: string) => selector === "[data-live]" ? [output] : [],
     addEventListener() {}, removeEventListener() {},
   };
-  const dispose = runInNewContext(`(${SCRIPT_RUNTIME_2})({}).install(document, { value });`, {
+  const dispose = runInNewContext(`(${SCRIPT_RUNTIME})({}).install(document, { value });`, {
     document: root, value: deep, CSS: { escape: (value: string) => value },
     MutationObserver: class { observe() {} disconnect() {} },
     requestAnimationFrame() {},
@@ -857,7 +856,7 @@ function mount() {
   let current = root;
   let cursor = 0;
   const hooks = {
-    ...React_2,
+    ...React,
     useState(initial: any) {
       const i = cursor++, instance = current;
       if (!(i in instance.slots)) instance.slots[i] = typeof initial === "function" ? initial() : initial;
@@ -1064,10 +1063,10 @@ describe("variable-input", () => {
 const { scriptInputDoc, varNamesAt, varGroupsAt } = dataHelpers;
 const { Ctx, ScriptNodeCtx, ScriptStepCtx, LoopCtx } = contexts;
 
-function candidates(doc = scriptDataPickerDoc_2(), local: string[] = [], valueContext = "value") {
+function candidates(doc = scriptDataPickerDoc(), local: string[] = [], valueContext = "value") {
   const require = createRequire(resolve("components/script-editor/inputs.tsx"));
   const mod = { exports: {} as any };
-  const hooks = { ...React_3, useMemo: (fn: any) => fn(),
+  const hooks = { ...React, useMemo: (fn: any) => fn(),
     // 候補のテストでは、有効になった入力欄を再現する（本番の入力欄は、これを遅延して読み込む）。
     useState: () => [true, () => {}],
     useContext: (ctx: any) =>
@@ -1081,7 +1080,7 @@ function candidates(doc = scriptDataPickerDoc_2(), local: string[] = [], valueCo
 }
 
 test("real input excludes its new output from both names and Explorer extras without editing the document", () => {
-  const doc = scriptDataPickerDoc_2(), before = JSON.stringify(doc);
+  const doc = scriptDataPickerDoc(), before = JSON.stringify(doc);
   assert.ok(varNamesAt(doc, "p", "").includes("chosen"));
   const input = candidates(doc);
   assert.ok(!input.names.includes("chosen")); assert.ok(!input.extraNames.includes("chosen"));
@@ -1091,23 +1090,23 @@ test("real input excludes its new output from both names and Explorer extras wit
 });
 
 test("existing variable updates retain a prior producer and its old sample", () => {
-  const doc = scriptDataPickerDoc_2();
+  const doc = scriptDataPickerDoc();
   doc.pages.p.pageScripts![0].steps.splice(1, 0, { id: "prior", kind: "set-var", value: "{data.name}", into: "chosen" });
   assert.ok(candidates(doc).names.includes("chosen"));
   assert.equal(variableChoiceSamples(varGroupsAt(scriptInputDoc(doc, "value"), "p", "")).chosen, "Product");
 });
 
 test("same-name form and loop bindings remain available to an assignment", () => {
-  const doc = scriptDataPickerDoc_2();
-  doc.nodes.field = { ...makeText_2(""), id: "field", type: "field", attrId: "chosen", field: { kind: "input" } };
+  const doc = scriptDataPickerDoc();
+  doc.nodes.field = { ...makeText(""), id: "field", type: "field", attrId: "chosen", field: { kind: "input" } };
   doc.pages.p.children = ["field"];
   assert.ok(candidates(doc).names.includes("chosen"));
-  assert.ok(candidates(scriptDataPickerDoc_2(), ["chosen.detail"]).names.includes("chosen"));
-  assert.ok(candidates(scriptDataPickerDoc_2(), ["chosen.detail"]).names.includes("chosen.detail"));
+  assert.ok(candidates(scriptDataPickerDoc(), ["chosen.detail"]).names.includes("chosen"));
+  assert.ok(candidates(scriptDataPickerDoc(), ["chosen.detail"]).names.includes("chosen.detail"));
 });
 
 test("nested current producers are removed without losing enclosing or other branch bindings", () => {
-  const doc = scriptDataPickerDoc_2();
+  const doc = scriptDataPickerDoc();
   const step = doc.pages.p.pageScripts![0].steps.splice(1, 1)[0];
   doc.pages.p.pageScripts![0].steps.push({ id: "loop", kind: "repeat", times: 2, then: [
     { id: "prior", kind: "set-var", value: "{data.name}", into: "chosen" }, step,
@@ -1120,13 +1119,13 @@ test("nested current producers are removed without losing enclosing or other bra
 
 test("unified value candidates retain object roots while text still excludes them", () => {
   assert.ok(candidates().names.includes("data"));
-  assert.ok(!candidates(scriptDataPickerDoc_2(), [], "text").names.includes("data"));
+  assert.ok(!candidates(scriptDataPickerDoc(), [], "text").names.includes("data"));
 });
 
 function mountInput(eager: boolean) {
   const slots: any[] = []; let cursor = 0;
   const frames: (() => void)[] = [];
-  const hooks = { ...React_3, useId() { const i = cursor++; return slots[i] ??= `test-field-${i}`; }, useEffect() {}, useRef(initial: any) { return slots[cursor++] ??= { current: initial }; },
+  const hooks = { ...React, useId() { const i = cursor++; return slots[i] ??= `test-field-${i}`; }, useEffect() {}, useRef(initial: any) { return slots[cursor++] ??= { current: initial }; },
     useState(initial: any) { const i = cursor++; if (!(i in slots)) slots[i] = typeof initial === "function" ? initial() : initial;
       return [slots[i], (next: any) => { slots[i] = typeof next === "function" ? next(slots[i]) : next; }]; } };
   const require = createRequire(resolve("components/controls.tsx")); const mod = { exports: {} as any };
@@ -1197,11 +1196,11 @@ test("focus cannot reopen stale suggestions after filling a complete value or bl
 test("inline value choices include nested arrays and objects without leaking shadowed roots", () => {
   const input = candidates();
   for (const name of ["data.tags", "data.detail", "data.detail.title", "data.rows"]) assert.ok(input.names.includes(name), name);
-  const local = candidates(scriptDataPickerDoc_2(), ["data.local"]);
+  const local = candidates(scriptDataPickerDoc(), ["data.local"]);
   assert.ok(local.names.includes("data.local"));
   assert.ok(!local.names.includes("data.tags"));
   assert.ok(!local.names.includes("data.detail.title"));
-  assert.ok(!candidates(scriptDataPickerDoc_2(), [], "text").names.includes("data.detail"));
+  assert.ok(!candidates(scriptDataPickerDoc(), [], "text").names.includes("data.detail"));
 });
 });
 

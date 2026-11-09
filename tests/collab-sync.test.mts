@@ -1,11 +1,11 @@
 import { describe, before, test, afterEach, mock, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { readActivity, recordActivity, type ActivityKind } from "../lib/activity";
-import { edit, isRoomLookup, load, replacement, setup, sqlOf, original as original_2 } from "./helpers/document-generation-api";
+import { edit, isRoomLookup, load, replacement, setup, sqlOf, original } from "./helpers/document-generation-api";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join as join_2, join as join_3 } from "node:path";
-import { getDbFromBinding as getDbFromBinding_2, type Db, getDb, getDbFromBinding as getDbFromBinding_3, type D1LikeDatabase } from "../lib/db";
+import { join } from "node:path";
+import { getDbFromBinding, type Db, getDb, type D1LikeDatabase } from "../lib/db";
 import { nodeDatabase } from "../lib/node-storage";
 import { deleteSite, insertSite } from "../lib/sites";
 import { canReceiveCloudDoc, CLOUD_SAVE_DEBOUNCE_MS, scheduleCloudSave, sendCloudDoc, type CloudAutosave } from "../lib/cloud-save";
@@ -16,7 +16,7 @@ import { useEditor } from "../lib/store";
 import { type CollabServerMessage, type DocUpdatedMessage, type DocChangeMessage } from "../lib/collab";
 import { DatabaseSync } from "node:sqlite";
 import { StructuredDocumentStore, type DocumentSqlStorage } from "../lib/structured-document-store";
-import { publishDocUpdate, subscribeDocUpdates as subscribeDocUpdates_2 } from "../lib/collab-events";
+import { publishDocUpdate, subscribeDocUpdates } from "../lib/collab-events";
 import { mergeDocs, rebaseNodePatch } from "../lib/merge";
 import { type SiteDoc } from "../lib/types";
 import { createRequire } from "node:module";
@@ -127,11 +127,11 @@ for (const method of ["save", "patch"] as const) {
 
 describe("activity-storage", () => {
 async function database(run: (db: Db) => Promise<void>) {
-  const dir = mkdtempSync(join_2(tmpdir(), "tsumu-activity-"));
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-activity-"));
   const previous = process.env.TSUMU_DATA_DIR;
   process.env.TSUMU_DATA_DIR = dir;
   try {
-    const db = await getDbFromBinding_2(nodeDatabase()!);
+    const db = await getDbFromBinding(nodeDatabase()!);
     await insertSite(db, "site", { name: "Site", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null });
     await run(db);
   } finally {
@@ -932,7 +932,7 @@ async function fixture(t: TestContext) {
     },
   };
   const store = new StructuredDocumentStore(storage);
-  store.replace(JSON.stringify(original_2), null);
+  store.replace(JSON.stringify(original), null);
   const remote = {
     getSnapshot: async () => store.snapshot(),
     replaceDocument: async (raw: string, base: string | null) => store.replace(raw, base),
@@ -970,8 +970,8 @@ for (const scenario of ["load-props", "load-entry", "patch-props", "patch-node",
     const input = scenario.startsWith("load") ? { type: "load" }
       : scenario.startsWith("save") ? { type: "save", doc: edit, base: scenario.endsWith("conflict") ? "9" : "1" }
       : { type: "patch", base: scenario.endsWith("conflict") ? "9" : "1", patch:
-        scenario === "patch-node" ? [{ path: ["nodes", Object.keys(original_2.nodes)[0]], value: Object.values(original_2.nodes)[0] }]
-        : scenario === "patch-structural" ? [{ path: ["pages"], value: original_2.pages }] : patch };
+        scenario === "patch-node" ? [{ path: ["nodes", Object.keys(original.nodes)[0]], value: Object.values(original.nodes)[0] }]
+        : scenario === "patch-structural" ? [{ path: ["pages"], value: original.pages }] : patch };
     // ハンドラーの模擬の例外だけに頼らず、実際の保存の層で起きた例外を確かめる。
     const operation = () => input.type === "load" ? h.store.snapshot()
       : input.type === "save" ? h.store.replace(JSON.stringify(edit), input.base!)
@@ -987,7 +987,7 @@ for (const scenario of ["load-props", "load-entry", "patch-props", "patch-node",
 test("WebSocket preserves normal snapshots, saves, patches and conflicts", async t => {
   const h = await fixture(t);
   const first = await h.send({ type: "load" });
-  assert.equal(first.type, "snapshot"); assert.equal(first.requestId, "req-1"); assert.deepEqual(first.doc, original_2);
+  assert.equal(first.type, "snapshot"); assert.equal(first.requestId, "req-1"); assert.deepEqual(first.doc, original);
   const saved = await h.send({ type: "save", doc: edit, base: "1" });
   assert.equal(saved.type, "saved"); assert.equal(saved.rev, "2"); assert.equal(saved.requestId, "req-1");
   assert.deepEqual(JSON.parse(h.peer.messages[0]).doc, edit);
@@ -1056,11 +1056,11 @@ const message = (rev: string): DocUpdatedMessage => ({
 
 test("保存の通知は、同じサイトの購読者だけに届く", () => {
   const got: string[] = [];
-  const offA = subscribeDocUpdates_2("site-a", (m, raw) => {
+  const offA = subscribeDocUpdates("site-a", (m, raw) => {
     got.push(`a:${m.rev}`);
     assert.equal(JSON.parse(raw).rev, m.rev);
   });
-  const offB = subscribeDocUpdates_2("site-b", (m) => got.push(`b:${m.rev}`));
+  const offB = subscribeDocUpdates("site-b", (m) => got.push(`b:${m.rev}`));
   publishDocUpdate("site-a", message("1"));
   publishDocUpdate("site-c", message("2"));
   assert.deepEqual(got, ["a:1"]);
@@ -1070,10 +1070,10 @@ test("保存の通知は、同じサイトの購読者だけに届く", () => {
 
 test("購読をやめたら届かず、1つの購読者の失敗はほかに影響しない", () => {
   const got: string[] = [];
-  const off1 = subscribeDocUpdates_2("s", () => {
+  const off1 = subscribeDocUpdates("s", () => {
     throw new Error("closed");
   });
-  const off2 = subscribeDocUpdates_2("s", (m) => got.push(m.rev));
+  const off2 = subscribeDocUpdates("s", (m) => got.push(m.rev));
   publishDocUpdate("s", message("1"));
   off2();
   publishDocUpdate("s", message("2"));
@@ -1230,7 +1230,7 @@ function loadHandler(path: string, mocks: Record<string, unknown>): any {
 }
 
 async function withAllowlist(run: () => Promise<void>) {
-  const dir = mkdtempSync(join_3(tmpdir(), "tsumu-collab-auth-"));
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-collab-auth-"));
   const previous = { TSUMU_DATA_DIR: process.env.TSUMU_DATA_DIR, ALLOWED_EMAILS: process.env.ALLOWED_EMAILS };
   process.env.TSUMU_DATA_DIR = dir;
   process.env.ALLOWED_EMAILS = "owner@example.com";
@@ -1382,7 +1382,7 @@ test("WebSocket patch saves broadcast deltas to all authorized peers", async () 
       "./.open-next/worker.js": {},
     });
     const d1 = d1Binding();
-    const db = await getDbFromBinding_3(d1);
+    const db = await getDbFromBinding(d1);
     const roomKey = (await insertSite(db, "s1", { name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null }, "owner@example.com"))!;
     await db.execute({ sql: "INSERT INTO site_members(site_id,email,role) VALUES(?,?,'editor')", args: ["s1", "editor@example.com"] });
     const base = createInitialDoc();
@@ -1491,7 +1491,7 @@ test("open WebSockets lose read, write and broadcast access when their account i
       "./.open-next/worker.js": {},
     });
     const d1 = d1Binding();
-    const db = await getDbFromBinding_3(d1);
+    const db = await getDbFromBinding(d1);
     const roomKey = (await insertSite(db, "s1", {
       name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,
     }, "owner@example.com"))!;
@@ -1554,7 +1554,7 @@ test("a disconnected saving sender does not prevent persistence, activity or pee
       "./.open-next/worker.js": {},
     });
     const d1 = d1Binding();
-    const db = await getDbFromBinding_3(d1);
+    const db = await getDbFromBinding(d1);
     const roomKey = (await insertSite(db, "s1", { name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null }, "owner@example.com"))!;
     await db.execute({ sql: "INSERT INTO site_members(site_id,email,role) VALUES(?,?,'editor')", args: ["s1", "editor@example.com"] });
     let base = createInitialDoc();

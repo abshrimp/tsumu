@@ -1,8 +1,8 @@
 import { describe, before, afterEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
-import { useComments, openPostedComment, closeCommentIfOpen as closeCommentIfOpen_2 } from "../lib/comment-store";
+import { useComments, openPostedComment, closeCommentIfOpen } from "../lib/comment-store";
 import * as comments from "../lib/comments";
-import { applyCommentAction, type CommentAction as CommentAction_2, type CommentThread, parseCommentAction as parseCommentAction_2, MAX_COMMENT_LENGTH as MAX_COMMENT_LENGTH_2, type CommentAction as CommentAction_3, COMMENT_PAGE_SIZE, listCommentPage as listCommentPage_2, parseCommentCursor as parseCommentCursor_2, runCommentAction as runCommentAction_2, listCommentPage as listCommentPage_3, parseCommentCursor as parseCommentCursor_3, parseCommentAction as parseCommentAction_3, runCommentAction as runCommentAction_3, type CommentAction as CommentAction_4, type CommentAction as CommentAction_5 } from "../lib/comments";
+import { applyCommentAction, type CommentAction, type CommentThread, parseCommentAction, MAX_COMMENT_LENGTH, COMMENT_PAGE_SIZE, listCommentPage, parseCommentCursor, runCommentAction } from "../lib/comments";
 import { readFileSync, mkdtempSync, rmSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 import { transformSync } from "./helpers/bundle";
@@ -25,7 +25,7 @@ import { storageKey } from "../lib/storage-keys";
 import { homeSiteFixture } from "./helpers/home-site-storage";
 
 describe("comment-client-order", () => {
-const create = (id: string): CommentAction_2 => ({ action: "create", id, pageId: "page", nodeId: null, x: .5, y: .5, bp: "base", body: id });
+const create = (id: string): CommentAction => ({ action: "create", id, pageId: "page", nodeId: null, x: .5, y: .5, bp: "base", body: id });
 const threads = (...ids: string[]) => ids.reduce((all, id, i) => applyCommentAction(all, create(id), null, i + 1), [] as CommentThread[]);
 function deferred<T>() { let resolve!: (v: T) => void; const promise = new Promise<T>((r) => { resolve = r; }); return { promise, resolve }; }
 function reset() { useComments.setState({ threadUnavailable: false, focusedThread: null, cursor: null, previousCursors: [], nextCursor: null, total: 0, unresolvedCount: 0, saving: false, active: false, store: "server", threads: [], loading: false, error: null, openId: null, draft: null }); }
@@ -76,7 +76,7 @@ test("overlapping polls retain the newest response and its loading state", async
 test("writes are serialized and a poll during them cannot restore an intermediate snapshot", async () => {
   reset();
   const responses = [deferred<Response>(), deferred<Response>()];
-  const actions: CommentAction_2[] = []; let reads = 0;
+  const actions: CommentAction[] = []; let reads = 0;
   mock.method(globalThis, "fetch", async (_url, init) => {
     if (!init?.method) { reads++; return Response.json(pageData([])); }
     const index = actions.length; actions.push(JSON.parse(String(init.body)));
@@ -245,7 +245,7 @@ for (const newerSelection of ["thread", "draft", "closed"] as const) test(`a com
 test("a completed deletion does not close a different thread opened while saving", async () => {
   reset(); useComments.setState({ threads: threads("one", "two") }); useComments.getState().open("one");
   const response = deferred<Response>(); mock.method(globalThis, "fetch", async () => response.promise);
-  const submitted = useComments.getState().run({ action: "delete-thread", threadId: "one" }).then(ok => { if (ok) closeCommentIfOpen_2("one"); });
+  const submitted = useComments.getState().run({ action: "delete-thread", threadId: "one" }).then(ok => { if (ok) closeCommentIfOpen("one"); });
   await Promise.resolve(); useComments.getState().open("two");
   response.resolve(Response.json(pageData(["two"]))); await submitted;
   assert.equal(useComments.getState().openId, "two"); assert.equal(useComments.getState().focusedThread?.id, "two");
@@ -757,9 +757,9 @@ test("the API returns generic 409 conflicts, 200 for identical retries and the e
 
 describe("comment-local-storage", () => {
 const key = "tsumu-comments-v1:local-comments";
-const create = (id: string): CommentAction_3 => ({ action: "create", id, pageId: "p", nodeId: null, x: .5, y: .5, bp: "base", body: id });
+const create = (id: string): CommentAction => ({ action: "create", id, pageId: "p", nodeId: null, x: .5, y: .5, bp: "base", body: id });
 const initial = applyCommentAction([], create("existing"), null, 1);
-const actions: CommentAction_3[] = [
+const actions: CommentAction[] = [
   create("new"),
   { action: "reply", threadId: "existing", id: "reply", body: "Reply" },
   { action: "edit", messageId: "existing-0", body: "Edited" },
@@ -861,11 +861,11 @@ test("an absent local list still accepts the first comment and preserves later q
 });
 
 
-for (const action of [create("long"), { action: "reply", threadId: "existing", id: "long-reply", body: "" }, { action: "edit", messageId: "existing-0", body: "" }] as CommentAction_3[]) {
+for (const action of [create("long"), { action: "reply", threadId: "existing", id: "long-reply", body: "" }, { action: "edit", messageId: "existing-0", body: "" }] as CommentAction[]) {
   test(`${action.action} rejects oversize bodies instead of truncating or storing them locally`, async () => {
-    const oversized = { ...action, body: "x".repeat(MAX_COMMENT_LENGTH_2 + 1) } as CommentAction_3;
-    assert.equal(parseCommentAction_2(oversized), null);
-    assert.ok(parseCommentAction_2({ ...action, body: "x".repeat(MAX_COMMENT_LENGTH_2) }));
+    const oversized = { ...action, body: "x".repeat(MAX_COMMENT_LENGTH + 1) } as CommentAction;
+    assert.equal(parseCommentAction(oversized), null);
+    assert.ok(parseCommentAction({ ...action, body: "x".repeat(MAX_COMMENT_LENGTH) }));
     const storage = setup("local", null);
     assert.equal(await useComments.getState().run(oversized), false);
     assert.equal(storage.writes(), 0); assert.equal(storage.memory.get(key), JSON.stringify(initial));
@@ -944,46 +944,46 @@ async function database(run: (db: Db) => Promise<void>) {
   }
 }
 async function create(db: Db, id: string, at: number, site = "site") {
-  await runCommentAction_2(db, site, { action: "create", id, pageId: "p", nodeId: null, x: .5, y: .5, bp: "base", body: id }, null, at);
+  await runCommentAction(db, site, { action: "create", id, pageId: "p", nodeId: null, x: .5, y: .5, bp: "base", body: id }, null, at);
 }
 
 test("the 1001st thread is visible and every older thread remains reachable", async () => database(async db => {
   for (let i = 0; i <= COMMENT_PAGE_SIZE; i++) await create(db, `c${String(i).padStart(4, "0")}`, i + 1);
-  await runCommentAction_2(db, "site", { action: "resolve", threadId: "c0000", resolved: true }, null, 2000);
-  const first = await listCommentPage_2(db, "site");
+  await runCommentAction(db, "site", { action: "resolve", threadId: "c0000", resolved: true }, null, 2000);
+  const first = await listCommentPage(db, "site");
   assert.equal(first.threads.length, COMMENT_PAGE_SIZE); assert.equal(first.threads[0].id, "c1000");
   assert.equal(first.total, 1001); assert.equal(first.unresolvedCount, 1000); assert.ok(first.nextCursor);
-  const older = await listCommentPage_2(db, "site", parseCommentCursor_2(first.nextCursor));
+  const older = await listCommentPage(db, "site", parseCommentCursor(first.nextCursor));
   assert.deepEqual(older.threads.map(t => t.id), ["c0000"]); assert.equal(older.nextCursor, null);
   assert.equal(new Set([...first.threads, ...older.threads].map(t => t.id)).size, 1001);
   assert.equal(older.total, 1001); assert.equal(older.unresolvedCount, 1000);
   await create(db, "newest", 3000);
-  assert.equal((await listCommentPage_2(db, "site")).threads[0].id, "newest");
+  assert.equal((await listCommentPage(db, "site")).threads[0].id, "newest");
 }));
 
 test("tied timestamps and deleted cursor rows do not skip or duplicate older comments", async () => database(async db => {
   for (let i = 0; i < COMMENT_PAGE_SIZE + 2; i++) await create(db, `t${String(i).padStart(4, "0")}`, 10);
-  const first = await listCommentPage_2(db, "site");
-  const cursor = parseCommentCursor_2(first.nextCursor)!;
-  await runCommentAction_2(db, "site", { action: "delete-thread", threadId: cursor.id }, null);
+  const first = await listCommentPage(db, "site");
+  const cursor = parseCommentCursor(first.nextCursor)!;
+  await runCommentAction(db, "site", { action: "delete-thread", threadId: cursor.id }, null);
   await create(db, "z_new", 10);
-  const next = await listCommentPage_2(db, "site", cursor);
+  const next = await listCommentPage(db, "site", cursor);
   assert.deepEqual(next.threads.map(t => t.id), ["t0001", "t0000"]);
   assert.equal(next.nextCursor, null);
-  const end = await listCommentPage_2(db, "site", { createdAt: 10, id: "t0000" });
+  const end = await listCommentPage(db, "site", { createdAt: 10, id: "t0000" });
   assert.deepEqual(end.threads, []); assert.equal(end.nextCursor, null);
 }));
 
 test("off-batch focus is independent, site-scoped, current, and explicitly absent after deletion", async () => database(async db => {
   await create(db, "old", 1); await create(db, "new", 2); await create(db, "private", 3, "other");
   const cursor = { createdAt: 2, id: "new" };
-  const page = await listCommentPage_2(db, "site", cursor, "new");
+  const page = await listCommentPage(db, "site", cursor, "new");
   assert.deepEqual(page.threads.map(t => t.id), ["old"]); assert.equal(page.focusedThread?.id, "new");
-  assert.equal((await listCommentPage_2(db, "site", cursor, "private")).focusedThread, null);
-  await runCommentAction_2(db, "site", { action: "reply", threadId: "new", id: "reply", body: "Reply" }, null, 4);
-  assert.deepEqual((await listCommentPage_2(db, "site", cursor, "new")).focusedThread?.messages.map(m => m.body), ["new", "Reply"]);
-  await runCommentAction_2(db, "site", { action: "delete-thread", threadId: "new" }, null);
-  assert.equal((await listCommentPage_2(db, "site", cursor, "new")).focusedThread, null);
+  assert.equal((await listCommentPage(db, "site", cursor, "private")).focusedThread, null);
+  await runCommentAction(db, "site", { action: "reply", threadId: "new", id: "reply", body: "Reply" }, null, 4);
+  assert.deepEqual((await listCommentPage(db, "site", cursor, "new")).focusedThread?.messages.map(m => m.body), ["new", "Reply"]);
+  await runCommentAction(db, "site", { action: "delete-thread", threadId: "new" }, null);
+  assert.equal((await listCommentPage(db, "site", cursor, "new")).focusedThread, null);
 }));
 
 test("message reads exclude other batches and sites, except the requested focused thread", async () => database(async db => {
@@ -993,42 +993,42 @@ test("message reads exclude other batches and sites, except the requested focuse
     const result = await db.batch(statements);
     returned = result[1].rows.map(r => String(r.thread_id)); return result;
   } };
-  await listCommentPage_2(tracked, "site", { createdAt: 2, id: "new" }); assert.deepEqual(returned, ["old"]);
-  await listCommentPage_2(tracked, "site", { createdAt: 2, id: "new" }, "new"); assert.deepEqual(returned, ["old", "new"]);
-  await listCommentPage_2(tracked, "site", null, "private"); assert.deepEqual(returned, ["old", "new"]);
+  await listCommentPage(tracked, "site", { createdAt: 2, id: "new" }); assert.deepEqual(returned, ["old"]);
+  await listCommentPage(tracked, "site", { createdAt: 2, id: "new" }, "new"); assert.deepEqual(returned, ["old", "new"]);
+  await listCommentPage(tracked, "site", null, "private"); assert.deepEqual(returned, ["old", "new"]);
 }));
 
 test("cursor parsing rejects malformed, unsafe and injectable values", () => {
-  for (const value of [null, "", "-1:x", "1.5:x", "NaN:x", "1:", "1:x' OR 1=1", "9007199254740992:x", `1:${"x".repeat(65)}`]) assert.equal(parseCommentCursor_2(value), null);
-  assert.deepEqual(parseCommentCursor_2("0:a_B-1"), { createdAt: 0, id: "a_B-1" });
+  for (const value of [null, "", "-1:x", "1.5:x", "NaN:x", "1:", "1:x' OR 1=1", "9007199254740992:x", `1:${"x".repeat(65)}`]) assert.equal(parseCommentCursor(value), null);
+  assert.deepEqual(parseCommentCursor("0:a_B-1"), { createdAt: 0, id: "a_B-1" });
 });
 
 
 test("the original message stays first when a reply has the same timestamp", async () => database(async db => {
   await create(db, "z_thread", 1);
-  await runCommentAction_2(db, "site", { action: "reply", threadId: "z_thread", id: "a_reply", body: "Reply" }, { email: "other@example.com", name: null, image: null }, 1);
-  assert.deepEqual((await listCommentPage_2(db, "site")).threads[0].messages.map(m => m.id), ["z_thread-0", "a_reply"]);
+  await runCommentAction(db, "site", { action: "reply", threadId: "z_thread", id: "a_reply", body: "Reply" }, { email: "other@example.com", name: null, image: null }, 1);
+  assert.deepEqual((await listCommentPage(db, "site")).threads[0].messages.map(m => m.id), ["z_thread-0", "a_reply"]);
 }));
 
 
 test("a same-time reply cannot claim ownership and delete the original author's thread", async () => database(async db => {
   const owner = { email: "owner@example.com", name: null, image: null };
   const replier = { email: "replier@example.com", name: null, image: null };
-  await runCommentAction_2(db, "site", { action: "create", id: "thread", pageId: "p", nodeId: null, x: .5, y: .5, bp: "base", body: "Original" }, owner, 1);
-  await runCommentAction_2(db, "site", { action: "reply", threadId: "thread", id: "reply", body: "Reply" }, replier, 1);
-  assert.equal(await runCommentAction_2(db, "site", { action: "delete-thread", threadId: "thread" }, replier), false);
-  assert.equal((await listCommentPage_2(db, "site")).threads[0].messages[0].author.email, owner.email);
-  assert.equal(await runCommentAction_2(db, "site", { action: "delete-thread", threadId: "thread" }, owner), true);
+  await runCommentAction(db, "site", { action: "create", id: "thread", pageId: "p", nodeId: null, x: .5, y: .5, bp: "base", body: "Original" }, owner, 1);
+  await runCommentAction(db, "site", { action: "reply", threadId: "thread", id: "reply", body: "Reply" }, replier, 1);
+  assert.equal(await runCommentAction(db, "site", { action: "delete-thread", threadId: "thread" }, replier), false);
+  assert.equal((await listCommentPage(db, "site")).threads[0].messages[0].author.email, owner.email);
+  assert.equal(await runCommentAction(db, "site", { action: "delete-thread", threadId: "thread" }, owner), true);
 }));
 });
 
 describe("comment-storage", () => {
 const author = { email: "author@example.com", name: "Author", image: null };
-const create: CommentAction_4 = {
+const create: CommentAction = {
   action: "create", id: "thread", pageId: "page", nodeId: null, x: 0.5, y: 0.5,
   bp: "base", body: "Original",
 };
-const reply: CommentAction_4 = { action: "reply", threadId: "thread", id: "reply", body: "Reply" };
+const reply: CommentAction = { action: "reply", threadId: "thread", id: "reply", body: "Reply" };
 
 async function database(run: (db: Db) => Promise<void>) {
   const dir = mkdtempSync(join(tmpdir(), "tsumu-comments-"));
@@ -1054,15 +1054,15 @@ async function assertEmpty(db: Db) {
 
 test("comment creation requires an explicit current breakpoint ID", () => {
   for (const bp of [undefined, null, "", 123, "x".repeat(41)]) {
-    assert.equal(parseCommentAction_3({ ...create, bp }), null);
+    assert.equal(parseCommentAction({ ...create, bp }), null);
   }
-  assert.deepEqual(parseCommentAction_3(create), create);
+  assert.deepEqual(parseCommentAction(create), create);
 });
 
 test("a late comment creation cannot recreate data for a deleted site", async () => {
   await database(async (db) => {
     await deleteSite(db, "site");
-    assert.equal(await runCommentAction_3(db, "site", create, author), "site-missing");
+    assert.equal(await runCommentAction(db, "site", create, author), "site-missing");
     await assertEmpty(db);
   });
 });
@@ -1081,17 +1081,17 @@ function api(db: Db) {
   const siteIdOf = load("../lib/site-server.ts", "siteIdOf", { NextResponse, serverTr, isSiteId });
   const post = load("../app/api/comments/route.ts", "POST", {
     NextResponse, serverTr, siteIdOf, userMessage, JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited,
-    listCommentPage: listCommentPage_3, parseCommentCursor: parseCommentCursor_3, parseCommentAction: parseCommentAction_3, runCommentAction: runCommentAction_3,
+    listCommentPage: listCommentPage, parseCommentCursor: parseCommentCursor, parseCommentAction: parseCommentAction, runCommentAction: runCommentAction,
     requireAuth: async (mode?: "editor-user") => mode === "editor-user" ? author : null, requireSiteAccess: async () => null,
     dbConfigured: () => true, getDb: async () => db,
     dbUnavailable: () => { throw new Error("Unexpected fallback"); },
   }) as (req: Request) => Promise<Response>;
-  return (site = "site", action: CommentAction_4 = create, contentType = "application/json") => post(new Request(`https://example.com/api/comments?site=${encodeURIComponent(site)}`, { method: "POST", headers: { "Content-Type": contentType }, body: JSON.stringify(action) }));
+  return (site = "site", action: CommentAction = create, contentType = "application/json") => post(new Request(`https://example.com/api/comments?site=${encodeURIComponent(site)}`, { method: "POST", headers: { "Content-Type": contentType }, body: JSON.stringify(action) }));
 }
 
 test("the API stores the identity that authorized the new comment", async () => database(async db => {
   assert.equal((await api(db)()).status, 200);
-  const [thread] = (await listCommentPage_3(db, "site")).threads;
+  const [thread] = (await listCommentPage(db, "site")).threads;
   assert.deepEqual(thread.messages[0].author, author);
 }));
 
@@ -1131,7 +1131,7 @@ test("the API still creates a discussion for an existing site and rejects invali
 for (const target of ["thread", "site"] as const) {
   test("a reply racing with " + target + " deletion leaves no orphaned message", async () => {
     await database(async (db) => {
-      await runCommentAction_3(db, "site", create, author, 1);
+      await runCommentAction(db, "site", create, author, 1);
       let intercepted = false;
       const racingDb: Db = {
         ...db,
@@ -1140,11 +1140,11 @@ for (const target of ["thread", "site"] as const) {
           assert.equal(intercepted, false);
           intercepted = true;
           if (target === "site") await deleteSite(db, "site");
-          else await runCommentAction_3(db, "site", { action: "delete-thread", threadId: "thread" }, author, 2);
+          else await runCommentAction(db, "site", { action: "delete-thread", threadId: "thread" }, author, 2);
           return db.batch(statements);
         },
       };
-      assert.equal(await runCommentAction_3(racingDb, "site", reply, author, 3), "missing");
+      assert.equal(await runCommentAction(racingDb, "site", reply, author, 3), "missing");
       assert.equal(intercepted, true);
       await assertEmpty(db);
     });
@@ -1153,30 +1153,30 @@ for (const target of ["thread", "site"] as const) {
 
 test("comment creation and replies still persist, and retries cannot duplicate replies", async () => {
   await database(async (db) => {
-    assert.equal(await runCommentAction_3(db, "site", create, author, 1), true);
-    assert.equal(await runCommentAction_3(db, "site", reply, author, 2), true);
-    assert.equal(await runCommentAction_3(db, "site", reply, author, 3), true);
-    const threads = (await listCommentPage_3(db, "site")).threads;
+    assert.equal(await runCommentAction(db, "site", create, author, 1), true);
+    assert.equal(await runCommentAction(db, "site", reply, author, 2), true);
+    assert.equal(await runCommentAction(db, "site", reply, author, 3), true);
+    const threads = (await listCommentPage(db, "site")).threads;
     assert.equal(threads.length, 1);
     assert.deepEqual(threads[0].messages.map((m) => m.body), ["Original", "Reply"]);
     assert.equal(threads[0].updatedAt, 2);
-    assert.equal(await runCommentAction_3(db, "other-site", { ...reply, id: "wrong-site" }, author, 4), "missing");
+    assert.equal(await runCommentAction(db, "other-site", { ...reply, id: "wrong-site" }, author, 4), "missing");
     assert.equal((await db.execute("SELECT COUNT(*) AS n FROM comment_messages")).rows[0].n, 2);
   });
 });
 
 for (const timing of ["before lookup", "before write"] as const) {
   test(`editing a comment deleted ${timing} cannot falsely report success`, async () => database(async db => {
-    await runCommentAction_3(db, "site", create, author, 1);
-    await runCommentAction_3(db, "site", reply, author, 2);
-    if (timing === "before lookup") await runCommentAction_3(db, "site", { action: "delete-message", messageId: "reply" }, author, 3);
+    await runCommentAction(db, "site", create, author, 1);
+    await runCommentAction(db, "site", reply, author, 2);
+    if (timing === "before lookup") await runCommentAction(db, "site", { action: "delete-message", messageId: "reply" }, author, 3);
     const wrapped: Db = { ...db, batch: async statements => {
-      if (timing === "before write") await runCommentAction_3(db, "site", { action: "delete-message", messageId: "reply" }, author, 3);
+      if (timing === "before write") await runCommentAction(db, "site", { action: "delete-message", messageId: "reply" }, author, 3);
       return db.batch(statements);
     } };
-    const result = await runCommentAction_3(wrapped, "site", { action: "edit", messageId: "reply", body: "Unsaved edit" }, author, 4);
+    const result = await runCommentAction(wrapped, "site", { action: "edit", messageId: "reply", body: "Unsaved edit" }, author, 4);
     assert.equal(result, "message-missing");
-    const [thread] = (await listCommentPage_3(db, "site")).threads;
+    const [thread] = (await listCommentPage(db, "site")).threads;
     assert.equal(thread.messages.length, 1);
     assert.equal(thread.messages[0].body, "Original");
     assert.equal(thread.updatedAt, 3, "failed edit must not bump the surviving discussion");
@@ -1192,38 +1192,38 @@ test("the API distinguishes a deleted edit target from an unauthorized author", 
 
 test("thread deletion rechecks the current first author's authority inside the write transaction", async () => database(async db => {
   const other = { email: "other@example.com", name: "Other", image: null };
-  await runCommentAction_3(db, "site", create, author, 100);
-  await runCommentAction_3(db, "site", reply, other, 200);
+  await runCommentAction(db, "site", create, author, 100);
+  await runCommentAction(db, "site", reply, other, 200);
   let raced = false;
   const racingDb: Db = { ...db, batch: async statements => {
     if (!raced) {
       raced = true;
-      assert.equal(await runCommentAction_3(db, "site", { action: "delete-message", messageId: "thread-0" }, author, 300), true);
+      assert.equal(await runCommentAction(db, "site", { action: "delete-message", messageId: "thread-0" }, author, 300), true);
     }
     return db.batch(statements);
   } };
-  assert.equal(await runCommentAction_3(racingDb, "site", { action: "delete-thread", threadId: "thread" }, author, 400), false);
-  const threads = (await listCommentPage_3(db, "site")).threads;
+  assert.equal(await runCommentAction(racingDb, "site", { action: "delete-thread", threadId: "thread" }, author, 400), false);
+  const threads = (await listCommentPage(db, "site")).threads;
   assert.equal(threads.length, 1); assert.deepEqual(threads[0].messages.map(m => m.id), ["reply"]);
-  assert.equal(await runCommentAction_3(db, "site", { action: "delete-thread", threadId: "thread" }, other, 500), true);
+  assert.equal(await runCommentAction(db, "site", { action: "delete-thread", threadId: "thread" }, other, 500), true);
   await assertEmpty(db);
-  assert.equal(await runCommentAction_3(db, "site", { action: "delete-thread", threadId: "thread" }, other, 600), true, "already removed threads remain idempotent");
+  assert.equal(await runCommentAction(db, "site", { action: "delete-thread", threadId: "thread" }, other, 600), true, "already removed threads remain idempotent");
 }));
 
 test("a delayed message deletion cannot delete a replacement message owned by another author", async () => database(async db => {
   const other = { email: "other@example.com", name: "Other", image: null };
-  await runCommentAction_3(db, "site", create, author, 100);
+  await runCommentAction(db, "site", create, author, 100);
   let raced = false;
   const racingDb: Db = { ...db, batch: async statements => {
     if (!raced) {
       raced = true;
-      await runCommentAction_3(db, "site", { action: "delete-thread", threadId: "thread" }, author, 200);
-      await runCommentAction_3(db, "site", { ...create, body: "Replacement" }, other, 300);
+      await runCommentAction(db, "site", { action: "delete-thread", threadId: "thread" }, author, 200);
+      await runCommentAction(db, "site", { ...create, body: "Replacement" }, other, 300);
     }
     return db.batch(statements);
   } };
-  assert.equal(await runCommentAction_3(racingDb, "site", { action: "delete-message", messageId: "thread-0" }, author, 400), false);
-  const threads = (await listCommentPage_3(db, "site")).threads;
+  assert.equal(await runCommentAction(racingDb, "site", { action: "delete-message", messageId: "thread-0" }, author, 400), false);
+  const threads = (await listCommentPage(db, "site")).threads;
   assert.equal(threads.length, 1);
   assert.equal(threads[0].updatedAt, 300, "a rejected delete must not bump the replacement thread");
   assert.equal(threads[0].messages[0].body, "Replacement");
@@ -1345,10 +1345,10 @@ const other = { ...source, id: "other", name: "Other" };
 const listKey = storageKey("sites-v1");
 const commentKey = siteKey(storageKey("comments-v1"), source.id);
 const markerKey = siteKey(storageKey("site-deleted-v1"), source.id);
-const create = (id: string): CommentAction_5 => ({ action: "create", id, pageId: "p", nodeId: null, x: .5, y: .5, bp: "base", body: id });
+const create = (id: string): CommentAction => ({ action: "create", id, pageId: "p", nodeId: null, x: .5, y: .5, bp: "base", body: id });
 const initial = applyCommentAction(applyCommentAction([], create("existing"), null, 1), create("second"), null, 2);
 const draft = { pageId: "p", nodeId: null, x: .5, y: .5, bp: "base" };
-const actions: CommentAction_5[] = [create("new"),
+const actions: CommentAction[] = [create("new"),
   { action: "reply", threadId: "existing", id: "reply", body: "Reply" },
   { action: "edit", messageId: "existing-0", body: "Edited" },
   { action: "resolve", threadId: "existing", resolved: true },

@@ -7,7 +7,7 @@ import { prepareExportProject } from "../lib/export-formats";
 import { type ExportFormat } from "../lib/generator/export-options";
 import { addPwaRetirementWorker } from "../lib/publish-pwa";
 import { parseGeneratedManifest, planPublish, serializeGeneratedManifest } from "../lib/publish-files";
-import type { SiteDoc } from "../lib/types";
+import { type SiteDoc } from "../lib/types";
 
 const doc: SiteDoc = {
   schemaVersion: 1, siteName: "PWA lifecycle", nodes: {}, assets: {}, pageOrder: ["home"],

@@ -1,13 +1,13 @@
 import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
 import * as clips from "../lib/clip-transfer";
-import { buildClipPayload as buildClipPayload_2, parseClipPayload, buildClipPayload as buildClipPayload_3, remapAssetIds, type ClipPayload, buildClipPayload as buildClipPayload_4, clipboardPayload as clipboardPayload_2, clipHtml, readSystemClipPayload, writeClipPayload, buildClipPayload as buildClipPayload_5 } from "../lib/clip-transfer";
+import { buildClipPayload, parseClipPayload, remapAssetIds, type ClipPayload, clipboardPayload, clipHtml, readSystemClipPayload, writeClipPayload } from "../lib/clip-transfer";
 import { closeDialog, useDialogs } from "../lib/dialog";
 import { validSiteDoc, MAX_NODE_DEPTH } from "../lib/doc-tree";
 import { isHiddenAt, resolveStyles } from "../lib/style";
 import { makeBox, makeImage, makeText, createInitialDoc } from "../lib/presets";
-import { useEditor as useEditor_2, useEditor as useEditor_3, useEditor as useEditor_4, useEditor as useEditor_5, componentsReachable, useEditor as useEditor_6, useEditor as useEditor_7, useEditor as useEditor_8, componentOf, useEditor as useEditor_9, useEditor as useEditor_10 } from "../lib/store";
-import { type SiteDoc, SELF_TARGET, type ScriptStep, type DocNode as DocNode_2, type DocNode as DocNode_3 } from "../lib/types";
+import { useEditor, componentsReachable, componentOf } from "../lib/store";
+import { type SiteDoc, SELF_TARGET, type ScriptStep, type DocNode } from "../lib/types";
 import { assetSrc, mediaSrc } from "../lib/assets";
 import { renderAnchorExport } from "./helpers/instance-anchor";
 import { validateDocValue } from "../lib/doc-storage";
@@ -22,7 +22,7 @@ import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSyn
 import { createRequire } from "node:module";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve as resolve_2, resolve as resolve_3 } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { transformSync } from "./helpers/bundle";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -36,12 +36,12 @@ import { dispatchTextPaste } from "../e2e/helpers/text-paste";
 
 describe("clipboard-breakpoints", () => {
   before(() => {
-    useEditor_2.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
   });
-const state = () => useEditor_2.getState();
+const state = () => useEditor.getState();
 function source(): SiteDoc {
   return {
     schemaVersion: 1, siteName: "Source", assets: {}, pageOrder: ["p"],
@@ -97,7 +97,7 @@ test("pasted nested masters map reversed breakpoint names without changing exist
   };
   original.pages.p.children = ["instance"];
   assert.ok(validSiteDoc(original));
-  const payload = buildClipPayload_2(original, { nodes: [original.nodes.instance], rootIds: ["instance"] });
+  const payload = buildClipPayload(original, { nodes: [original.nodes.instance], rootIds: ["instance"] });
   payload.site = "another-site";
   const snapshot = structuredClone(payload);
   const destination = structuredClone(original);
@@ -156,7 +156,7 @@ test("clipboard without required breakpoint metadata is rejected without alterin
   const original = source();
   original.nodes.box.styles = { base: { default: { color: "red" } } };
   delete original.nodes.box.hiddenOn;
-  const payload = buildClipPayload_2(original, { nodes: [original.nodes.box], rootIds: ["box"] });
+  const payload = buildClipPayload(original, { nodes: [original.nodes.box], rootIds: ["box"] });
   const malformed = structuredClone(payload) as Partial<typeof payload>;
   delete malformed.breakpoints;
   assert.equal(parseClipPayload(JSON.stringify(malformed)), null);
@@ -176,7 +176,7 @@ for (const metadata of [false, true]) {
   for (const hiddenOn of ["phone", { phone: true }, [42]]) {
     test(`malformed visibility is rejected without mutation (metadata: ${metadata}, value: ${JSON.stringify(hiddenOn)})`, () => {
       const original = source();
-      const raw = buildClipPayload_2(original, { nodes: [structuredClone(original.nodes.box)], rootIds: ["box"] });
+      const raw = buildClipPayload(original, { nodes: [structuredClone(original.nodes.box)], rootIds: ["box"] });
       if (!metadata) delete (raw as Partial<typeof raw>).breakpoints;
       Object.assign(raw.nodes[0], { hiddenOn });
       assert.equal(parseClipPayload(JSON.stringify(raw)), null);
@@ -220,13 +220,13 @@ test("base-only clipboard can cross different width configurations without chang
 
 describe("clipboard-history", () => {
   before(() => {
-    useEditor_3.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
   });
 describe("clipboard-history", () => {
-  const state = () => useEditor_3.getState();
+  const state = () => useEditor.getState();
   function fixture(): SiteDoc {
     return {
       siteName: "Clipboard history", assets: {}, pageOrder: ["p"],
@@ -419,18 +419,18 @@ describe("clipboard-asset-remap", () => {
     source.nodes = { source: root, child };
     source.pages[source.pageOrder[0]].children = [root.id];
     source.assets.node = { id: "node", name: "source.png", path: "assets/source.png", width: 10, height: 10 };
-    const payload = buildClipPayload_3(source, { nodes: [root, child], rootIds: [root.id] });
+    const payload = buildClipPayload(source, { nodes: [root, child], rootIds: [root.id] });
     payload.site = "other-site";
     const destination = createInitialDoc();
     destination.assets.node = { id: "node", name: "destination.png", path: "assets/destination.png", width: 10, height: 10 };
     const before = structuredClone(destination);
-    useEditor_3.getState().replaceDoc(destination);
-    useEditor_3.getState().setActivePage(destination.pageOrder[0]);
-    useEditor_3.getState().select(null);
+    useEditor.getState().replaceDoc(destination);
+    useEditor.getState().setActivePage(destination.pageOrder[0]);
+    useEditor.getState().select(null);
     const parsed = parseClipPayload(JSON.stringify(payload));
     assert.ok(parsed);
-    useEditor_3.getState().pasteClipboard(parsed);
-    const state = useEditor_3.getState();
+    useEditor.getState().pasteClipboard(parsed);
+    const state = useEditor.getState();
     const pasted = state.doc;
     const copied = pasted.nodes[state.selection!];
     assert.equal(copied.id, state.selection);
@@ -443,15 +443,15 @@ describe("clipboard-asset-remap", () => {
     assert.deepEqual(pasted.assets.node, before.assets.node);
     assert.equal(validSiteDoc(pasted), true);
     state.undo();
-    assert.deepEqual(useEditor_3.getState().doc, before);
-    useEditor_3.getState().redo();
-    assert.deepEqual(useEditor_3.getState().doc, pasted);
+    assert.deepEqual(useEditor.getState().doc, before);
+    useEditor.getState().redo();
+    assert.deepEqual(useEditor.getState().doc, pasted);
     assert.deepEqual(destination, before);
   });
 });
 
 describe("clipboard-destination-safety", () => {
-  const state = () => useEditor_3.getState();
+  const state = () => useEditor.getState();
   const node = (id: string, children: string[] = []) => ({ ...makeBox(), id, children });
   const doc = (): SiteDoc => ({
     schemaVersion: 1, siteName: "Test", assets: {}, pageOrder: ["p"],
@@ -469,7 +469,7 @@ describe("clipboard-destination-safety", () => {
     };
     d.pages.p.children = ["ai"];
     d.components = { A: { id: "A", name: "A", rootId: "am" }, B: { id: "B", name: "B", rootId: "bm" } };
-    const p = buildClipPayload_3(d, { nodes: [d.nodes.ai], rootIds: ["ai"] });
+    const p = buildClipPayload(d, { nodes: [d.nodes.ai], rootIds: ["ai"] });
     p.assets.incoming = { id: "incoming", name: "image.png", path: "assets/image.png", width: 1, height: 1 };
     p.customFonts = [{ family: "Imported Font", weights: ["400"] }];
     return p;
@@ -567,12 +567,12 @@ describe("clipboard-tree-validation", () => {
         p.components.second = { id: "second", name: "Second", rootId: kind === "shared-master" ? "master" : "child" };
       }
       if (kind === "missing-master") p.components.card = { id: "card", name: "Card", rootId: "missing" };
-      useEditor_3.getState().replaceDoc(emptyDoc());
-      const before = useEditor_3.getState().doc;
+      useEditor.getState().replaceDoc(emptyDoc());
+      const before = useEditor.getState().doc;
       const parsed = parseClipPayload(JSON.stringify(p));
-      if (parsed) useEditor_3.getState().pasteClipboard(parsed);
+      if (parsed) useEditor.getState().pasteClipboard(parsed);
       assert.equal(parsed, null);
-      assert.equal(useEditor_3.getState().doc, before);
+      assert.equal(useEditor.getState().doc, before);
     });
   }
 
@@ -588,7 +588,7 @@ describe("clipboard-tree-validation", () => {
       outer: { id: "outer", name: "Outer", rootId: "outerMaster" },
       inner: { id: "inner", name: "Inner", rootId: "innerMaster" },
     };
-    const p = buildClipPayload_3(doc, { nodes: [doc.nodes.outer], rootIds: ["outer"] });
+    const p = buildClipPayload(doc, { nodes: [doc.nodes.outer], rootIds: ["outer"] });
     assert.deepEqual(parseClipPayload(JSON.stringify(p)), p);
   });
 
@@ -620,7 +620,7 @@ describe("clipboard-value-validation", () => {
     doc.nodes[node.id] = node;
     doc.pages[doc.pageOrder[0]].children = [node.id];
     doc.assets.picture = { id: "picture", name: "picture.png", path: "assets/picture.png", width: 10, height: 10 };
-    return buildClipPayload_3(doc, { nodes: [node], rootIds: [node.id] });
+    return buildClipPayload(doc, { nodes: [node], rootIds: [node.id] });
   }
 
   test("clipboard rejects invalid render and script values before they can enter the document", () => {
@@ -676,14 +676,14 @@ describe("clipboard-value-validation", () => {
       const p = payload();
       change(p);
       const doc = createInitialDoc();
-      useEditor_3.getState().replaceDoc(doc);
-      const before = useEditor_3.getState();
+      useEditor.getState().replaceDoc(doc);
+      const before = useEditor.getState();
       const parsed = parseClipPayload(JSON.stringify(p));
-      if (parsed) useEditor_3.getState().pasteClipboard(parsed);
+      if (parsed) useEditor.getState().pasteClipboard(parsed);
       assert.equal(parsed, null);
-      assert.equal(useEditor_3.getState().doc, before.doc);
-      assert.equal(useEditor_3.getState().past, before.past);
-      assert.equal(useEditor_3.getState().selectedIds, before.selectedIds);
+      assert.equal(useEditor.getState().doc, before.doc);
+      assert.equal(useEditor.getState().past, before.past);
+      assert.equal(useEditor.getState().selectedIds, before.selectedIds);
     }
   });
 
@@ -692,19 +692,19 @@ describe("clipboard-value-validation", () => {
     const parsed = parseClipPayload(JSON.stringify(p));
     assert.deepEqual(parsed, p);
     const doc = createInitialDoc();
-    useEditor_3.getState().replaceDoc(doc);
-    useEditor_3.getState().setActivePage(doc.pageOrder[0]);
-    useEditor_3.getState().select(null);
-    useEditor_3.getState().pasteClipboard(parsed!);
-    const pasted = useEditor_3.getState().doc;
-    const selected = pasted.nodes[useEditor_3.getState().selection!];
+    useEditor.getState().replaceDoc(doc);
+    useEditor.getState().setActivePage(doc.pageOrder[0]);
+    useEditor.getState().select(null);
+    useEditor.getState().pasteClipboard(parsed!);
+    const pasted = useEditor.getState().doc;
+    const selected = pasted.nodes[useEditor.getState().selection!];
     assert.equal(selected.image?.assetId, "picture");
     assert.deepEqual(pasted.assets.picture, p.assets.picture);
     assert.equal(validSiteDoc(pasted), true);
-    useEditor_3.getState().undo();
-    assert.deepEqual(useEditor_3.getState().doc, doc);
-    useEditor_3.getState().redo();
-    assert.deepEqual(useEditor_3.getState().doc, pasted);
+    useEditor.getState().undo();
+    assert.deepEqual(useEditor.getState().doc, doc);
+    useEditor.getState().redo();
+    assert.deepEqual(useEditor.getState().doc, pasted);
   });
 });
 });
@@ -716,7 +716,7 @@ function fixture() {
     pages: { p: { id: "p", name: "Home", title: "", slug: "", description: "", children: ["n"] } },
     nodes: { n: { ...makeBox(), id: "n", text: { content: "  2 < 3 && 5 > 4\n<br> は文字です  ", heading: 0 } } },
   };
-  return buildClipPayload_4(doc, { nodes: [doc.nodes.n], rootIds: ["n"] });
+  return buildClipPayload(doc, { nodes: [doc.nodes.n], rootIds: ["n"] });
 }
 
 test("clipboard HTML round-trips structured content through a standard MIME type", () => {
@@ -725,16 +725,16 @@ test("clipboard HTML round-trips structured content through a standard MIME type
   assert.match(html, /data-tsumu-clipboard=/);
   assert.match(html, /  2 &lt; 3 &amp;&amp; 5 &gt; 4\n&lt;br&gt; は文字です  <\/span>/);
   const data = { getData: (type: string) => type === "text/html" ? "<html><body>" + html + "</body></html>" : "" };
-  assert.deepEqual(clipboardPayload_2(data)?.payload, payload);
-  assert.equal(clipboardPayload_2(data)?.raw, JSON.stringify(payload));
-  assert.equal(clipboardPayload_2({ getData: (type: string) => type === "text/html" ? '<span data-tsumu-clipboard="%invalid"></span>' : "" }), null);
-  assert.equal(clipboardPayload_2({ getData: () => "<span>Ordinary HTML</span>" }), null);
-  assert.equal(clipboardPayload_2({ getData: () => "a".repeat(48 * 1024 * 1024 + 1) }), null);
+  assert.deepEqual(clipboardPayload(data)?.payload, payload);
+  assert.equal(clipboardPayload(data)?.raw, JSON.stringify(payload));
+  assert.equal(clipboardPayload({ getData: (type: string) => type === "text/html" ? '<span data-tsumu-clipboard="%invalid"></span>' : "" }), null);
+  assert.equal(clipboardPayload({ getData: () => "<span>Ordinary HTML</span>" }), null);
+  assert.equal(clipboardPayload({ getData: () => "a".repeat(48 * 1024 * 1024 + 1) }), null);
 });
 
 test("clipboard reads a valid explicitly supplied editor MIME payload", () => {
   const payload = fixture();
-  assert.deepEqual(clipboardPayload_2({ getData: (type: string) =>
+  assert.deepEqual(clipboardPayload({ getData: (type: string) =>
     type === "application/x-tsumu+json" ? JSON.stringify(payload) : "" })?.payload, payload);
   assert.equal(parseClipPayload(JSON.stringify({ ...payload, breakpoints: undefined })), null);
 });
@@ -771,7 +771,7 @@ test("copy uses ClipboardItem without the deprecated DOM copy command", async ()
     assert.ok(formats);
     assert.equal(await formats!["text/plain"].text(), payload.nodes[0].text!.content);
     const html = await formats!["text/html"].text();
-    assert.deepEqual(clipboardPayload_2({ getData: (type: string) =>
+    assert.deepEqual(clipboardPayload({ getData: (type: string) =>
       type === "text/html" ? "<body>" + html + "</body>" : "" })?.payload, payload);
     assert.equal(html, clipHtml(JSON.stringify(payload), payload.nodes[0].text!.content));
   } finally {
@@ -852,7 +852,7 @@ test("multiple asynchronous node copies finish in copy order before context past
 
 describe("clone-condition-targets", () => {
   before(() => {
-    useEditor_4.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
@@ -900,29 +900,29 @@ for (const operation of ["duplicate", "paste", "insert", "detach"] as const) {
       original.nodes.instance = { ...makeBox(), id: "instance", attrId: "placed-card", type: "instance", componentId: "card" };
       original.pages.p.children = ["instance", "outside"];
     }
-    useEditor_4.getState().replaceDoc(original);
-    useEditor_4.getState().setActivePage("p");
-    if (operation === "duplicate") useEditor_4.getState().duplicateNode("group");
+    useEditor.getState().replaceDoc(original);
+    useEditor.getState().setActivePage("p");
+    if (operation === "duplicate") useEditor.getState().duplicateNode("group");
     else if (operation === "paste") {
-      useEditor_4.getState().copyNode("group");
-      useEditor_4.getState().select(null);
-      useEditor_4.getState().pasteClipboard();
+      useEditor.getState().copyNode("group");
+      useEditor.getState().select(null);
+      useEditor.getState().pasteClipboard();
     } else if (operation === "insert") {
       const clones = structuredClone([original.nodes.group, ...children(original, "group")]);
       for (const node of clones) {
         node.id += "-insert";
         node.children = node.children.map(id => id + "-insert");
       }
-      useEditor_4.getState().insertNodes(clones, "group-insert", { kind: "page", id: "p" });
-    } else useEditor_4.getState().detachInstance("instance");
-    const { doc, selection, past } = useEditor_4.getState();
+      useEditor.getState().insertNodes(clones, "group-insert", { kind: "page", id: "p" });
+    } else useEditor.getState().detachInstance("instance");
+    const { doc, selection, past } = useEditor.getState();
     assert.equal(past.length, 1);
     assertTargets(doc, selection!);
     assert.deepEqual(doc.nodes.button, original.nodes.button, "the source script must remain unchanged");
-    useEditor_4.getState().undo();
-    assert.deepEqual(useEditor_4.getState().doc, original);
-    useEditor_4.getState().redo();
-    assert.deepEqual(useEditor_4.getState().doc, doc);
+    useEditor.getState().undo();
+    assert.deepEqual(useEditor.getState().doc, original);
+    useEditor.getState().redo();
+    assert.deepEqual(useEditor.getState().doc, doc);
   });
 }
 
@@ -952,22 +952,22 @@ test("AI clone replay rewrites nested joined targets while retaining external an
     assert.deepEqual(step.conditions.map(c => c.and), [true, false, true]);
   });
   assert.equal(count, 2);
-  useEditor_4.getState().replaceDoc(original);
-  useEditor_4.getState().updateDoc(doc => applyAiEdits(doc, context, result.applied));
-  assert.deepEqual(buildAiContext(useEditor_4.getState().doc, context.target).doc, server);
-  assert.deepEqual(useEditor_4.getState().doc.nodes.button, original.nodes.button);
-  useEditor_4.getState().undo();
-  assert.deepEqual(useEditor_4.getState().doc, original);
+  useEditor.getState().replaceDoc(original);
+  useEditor.getState().updateDoc(doc => applyAiEdits(doc, context, result.applied));
+  assert.deepEqual(buildAiContext(useEditor.getState().doc, context.target).doc, server);
+  assert.deepEqual(useEditor.getState().doc.nodes.button, original.nodes.button);
+  useEditor.getState().undo();
+  assert.deepEqual(useEditor.getState().doc, original);
 });
 
 // 共有のプレビューのランタイムと、機能を削った公開用のランタイムを実行する。
 // 置き換えるのは DOM の検索とイベントの配線だけで、条件と動作は実際のものを使う。
 for (const published of [false, true]) {
   test(`${published ? "published" : "preview"} cloned condition reads the cloned checkbox`, () => {
-    useEditor_4.getState().replaceDoc(fixture());
-    useEditor_4.getState().setActivePage("p");
-    useEditor_4.getState().duplicateNode("group");
-    const { doc, selection } = useEditor_4.getState();
+    useEditor.getState().replaceDoc(fixture());
+    useEditor.getState().setActivePage("p");
+    useEditor.getState().duplicateNode("group");
+    const { doc, selection } = useEditor.getState();
     const [button, first, second, result] = children(doc, selection!);
     const listeners = new Map<string, (event: unknown) => void>();
     const checkbox = (checked: boolean) => ({ checked, matches: () => true });
@@ -1012,13 +1012,13 @@ for (const published of [false, true]) {
 
 describe("component-clone", () => {
   before(() => {
-    useEditor_5.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
   });
 function fixture(): SiteDoc {
-  const child: DocNode_2 = {
+  const child: DocNode = {
     ...makeBox(), id: "child", attrId: "target", text: { content: "{target}", heading: 0 },
     link: { kind: "url", url: "#target" },
     scripts: [{ id: "script", trigger: "click", steps: [
@@ -1035,20 +1035,20 @@ function fixture(): SiteDoc {
 
 for (const operation of ["duplicate", "paste", "insert"] as const) {
   test(`${operation} while editing an unused component avoids master ID collisions`, () => {
-    useEditor_5.getState().replaceDoc(fixture());
-    useEditor_5.getState().setActivePage("p");
-    useEditor_5.getState().setEditingComponent("c");
-    const original = structuredClone(useEditor_5.getState().doc);
-    if (operation === "duplicate") useEditor_5.getState().duplicateNode("child");
+    useEditor.getState().replaceDoc(fixture());
+    useEditor.getState().setActivePage("p");
+    useEditor.getState().setEditingComponent("c");
+    const original = structuredClone(useEditor.getState().doc);
+    if (operation === "duplicate") useEditor.getState().duplicateNode("child");
     else if (operation === "paste") {
-      useEditor_5.getState().copyNode("child");
-      useEditor_5.getState().select("root");
-      useEditor_5.getState().pasteClipboard();
+      useEditor.getState().copyNode("child");
+      useEditor.getState().select("root");
+      useEditor.getState().pasteClipboard();
     } else {
       const clone = { ...structuredClone(original.nodes.child), id: "new" };
-      useEditor_5.getState().insertNodes([clone], "new", { kind: "node", id: "root" });
+      useEditor.getState().insertNodes([clone], "new", { kind: "node", id: "root" });
     }
-    const state = useEditor_5.getState();
+    const state = useEditor.getState();
     const clone = state.doc.nodes[state.selection!];
     assert.equal(clone.attrId, "target-2");
     assert.equal(clone.text?.content, "{target-2}");
@@ -1056,10 +1056,10 @@ for (const operation of ["duplicate", "paste", "insert"] as const) {
     assert.equal(clone.scripts?.[0].steps[0].kind === "open-url" ? clone.scripts[0].steps[0].url : undefined, "#target-2");
     assert.notEqual(clone.scripts?.[0].id, "script");
     assert.deepEqual(state.doc.nodes.child, original.nodes.child);
-    useEditor_5.getState().undo();
-    assert.deepEqual(useEditor_5.getState().doc, original);
-    useEditor_5.getState().redo();
-    assert.equal(useEditor_5.getState().doc.nodes[clone.id].attrId, "target-2");
+    useEditor.getState().undo();
+    assert.deepEqual(useEditor.getState().doc, original);
+    useEditor.getState().redo();
+    assert.equal(useEditor.getState().doc.nodes[clone.id].attrId, "target-2");
   });
 }
 
@@ -1070,31 +1070,31 @@ test("detaching a nested instance checks IDs against the edited component", () =
   doc.nodes.instance = { ...makeBox(), id: "instance", type: "instance", componentId: "inner" };
   doc.nodes.root.children.push("instance");
   stateReset(doc);
-  const original = structuredClone(useEditor_5.getState().doc);
-  useEditor_5.getState().detachInstance("instance");
-  const state = useEditor_5.getState();
+  const original = structuredClone(useEditor.getState().doc);
+  useEditor.getState().detachInstance("instance");
+  const state = useEditor.getState();
   const detached = state.doc.nodes[state.selection!];
   assert.equal(detached.attrId, "inner-2");
   assert.equal(detached.type, "box");
   assert.ok(state.doc.nodes.root.children.includes(detached.id));
   assert.equal(state.doc.nodes.instance, undefined);
   assert.deepEqual(state.doc.nodes.innerRoot, original.nodes.innerRoot);
-  useEditor_5.getState().undo();
-  assert.deepEqual(useEditor_5.getState().doc, original);
-  useEditor_5.getState().redo();
-  assert.equal(useEditor_5.getState().doc.nodes[detached.id].attrId, "inner-2");
+  useEditor.getState().undo();
+  assert.deepEqual(useEditor.getState().doc, original);
+  useEditor.getState().redo();
+  assert.equal(useEditor.getState().doc.nodes[detached.id].attrId, "inner-2");
 });
 
 function stateReset(doc: SiteDoc) {
-  useEditor_5.getState().replaceDoc(doc);
-  useEditor_5.getState().setActivePage("p");
-  useEditor_5.getState().setEditingComponent("c");
+  useEditor.getState().replaceDoc(doc);
+  useEditor.getState().setActivePage("p");
+  useEditor.getState().setEditingComponent("c");
 }
 });
 
 describe("component-cycle-placement", () => {
   before(() => {
-    useEditor_6.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
@@ -1124,34 +1124,34 @@ function fixture(): SiteDoc {
 test("moving an existing component instance into a dependent master cannot create a cycle", () => {
   const original = fixture();
   assert.equal(validateDocValue(original), null);
-  useEditor_6.getState().replaceDoc(original);
-  const before = useEditor_6.getState();
-  useEditor_6.getState().moveNode("outside", { kind: "node", id: "b" }, 0);
-  assert.equal(useEditor_6.getState().doc, original, "the invalid drag must not change the document");
-  assert.deepEqual(useEditor_6.getState().past, before.past);
-  assert.deepEqual(useEditor_6.getState().future, before.future);
+  useEditor.getState().replaceDoc(original);
+  const before = useEditor.getState();
+  useEditor.getState().moveNode("outside", { kind: "node", id: "b" }, 0);
+  assert.equal(useEditor.getState().doc, original, "the invalid drag must not change the document");
+  assert.deepEqual(useEditor.getState().past, before.past);
+  assert.deepEqual(useEditor.getState().future, before.future);
 });
 
 test("inserting an instance that recursively references the destination master is rejected", () => {
   const original = fixture();
-  useEditor_6.getState().replaceDoc(original);
+  useEditor.getState().replaceDoc(original);
   const added = instance("new-instance", "A");
-  useEditor_6.getState().insertNodes([added], added.id, { kind: "node", id: "b" });
-  assert.equal(useEditor_6.getState().doc, original);
-  assert.ok(!useEditor_6.getState().doc.nodes[added.id]);
+  useEditor.getState().insertNodes([added], added.id, { kind: "node", id: "b" });
+  assert.equal(useEditor.getState().doc, original);
+  assert.ok(!useEditor.getState().doc.nodes[added.id]);
 });
 
 test("noncyclic moves and inserts remain undoable", () => {
   const original = fixture();
-  useEditor_6.getState().replaceDoc(original);
-  useEditor_6.getState().moveNode("ordinary", { kind: "node", id: "b" }, 0);
-  assert.equal(validateDocValue(useEditor_6.getState().doc), null);
-  assert.deepEqual(useEditor_6.getState().doc.nodes.b.children, ["ordinary"]);
+  useEditor.getState().replaceDoc(original);
+  useEditor.getState().moveNode("ordinary", { kind: "node", id: "b" }, 0);
+  assert.equal(validateDocValue(useEditor.getState().doc), null);
+  assert.deepEqual(useEditor.getState().doc.nodes.b.children, ["ordinary"]);
   const next = instance("new-independent", "B");
-  useEditor_6.getState().insertNodes([next], next.id, { kind: "page", id: "p" });
-  assert.equal(validateDocValue(useEditor_6.getState().doc), null);
-  useEditor_6.getState().undo();
-  assert.equal(useEditor_6.getState().doc.nodes[next.id], undefined);
+  useEditor.getState().insertNodes([next], next.id, { kind: "page", id: "p" });
+  assert.equal(validateDocValue(useEditor.getState().doc), null);
+  useEditor.getState().undo();
+  assert.equal(useEditor.getState().doc.nodes[next.id], undefined);
 });
 
 test("long acyclic component chains are traversed iteratively", () => {
@@ -1169,17 +1169,17 @@ test("long acyclic component chains are traversed iteratively", () => {
 
 test("inserting an instance with no definition cannot corrupt an ordinary page", () => {
   const original = fixture();
-  useEditor_6.getState().replaceDoc(original);
+  useEditor.getState().replaceDoc(original);
   const invalid = instance("missing-definition", "missing-component");
-  useEditor_6.getState().insertNodes([invalid], invalid.id, { kind: "page", id: "p" });
-  assert.equal(useEditor_6.getState().doc, original);
-  assert.ok(!useEditor_6.getState().doc.nodes[invalid.id]);
+  useEditor.getState().insertNodes([invalid], invalid.id, { kind: "page", id: "p" });
+  assert.equal(useEditor.getState().doc, original);
+  assert.ok(!useEditor.getState().doc.nodes[invalid.id]);
 });
 });
 
 describe("component-import-collisions", () => {
   before(() => {
-    useEditor_7.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
@@ -1198,22 +1198,22 @@ function original(): SiteDoc {
   };
 }
 function open(doc: SiteDoc) {
-  useEditor_7.getState().replaceDoc(doc);
-  useEditor_7.getState().setActivePage("home");
-  useEditor_7.getState().select(null);
-  useEditor_7.getState().setEditingComponent(null);
+  useEditor.getState().replaceDoc(doc);
+  useEditor.getState().setActivePage("home");
+  useEditor.getState().select(null);
+  useEditor.getState().setEditingComponent(null);
 }
 function forkWithComponent() {
   const destination = original();
   open(structuredClone(destination));
-  useEditor_7.getState().updateDoc((doc) => {
+  useEditor.getState().updateDoc((doc) => {
     doc.nodes.text.text!.content = "Imported master content";
     doc.nodes.shared.link = { kind: "page", pageId: "about" };
   });
-  useEditor_7.getState().createComponent("shared");
-  const source = useEditor_7.getState().doc;
+  useEditor.getState().createComponent("shared");
+  const source = useEditor.getState().doc;
   const instance = source.nodes[source.pages.home.children[0]];
-  const payload = buildClipPayload_5(source, { nodes: [structuredClone(instance)], rootIds: [instance.id] });
+  const payload = buildClipPayload(source, { nodes: [structuredClone(instance)], rootIds: [instance.id] });
   return { destination, source, payload, componentId: instance.componentId! };
 }
 const importedText = (doc: SiteDoc, componentId: string) =>
@@ -1226,9 +1226,9 @@ for (const operation of ["paste", "copy page"] as const) {
     const sourceBefore = structuredClone(source);
     const payloadBefore = structuredClone(payload);
     open(destination);
-    if (operation === "paste") useEditor_7.getState().pasteClipboard(payload);
-    else useEditor_7.getState().updateDoc((doc) => { applyPagePayload(doc, buildPagePayload(source, ["home", "about"])); });
-    const pasted = useEditor_7.getState().doc;
+    if (operation === "paste") useEditor.getState().pasteClipboard(payload);
+    else useEditor.getState().updateDoc((doc) => { applyPagePayload(doc, buildPagePayload(source, ["home", "about"])); });
+    const pasted = useEditor.getState().doc;
     const root = pasted.nodes[pasted.components![componentId].rootId];
     assert.notEqual(root.id, "shared");
     assert.notEqual(root.children[0], "text");
@@ -1244,16 +1244,16 @@ for (const operation of ["paste", "copy page"] as const) {
       assert.equal(root.link!.pageId, copiedAbout, "relink the remapped imported master, not the destination node");
     }
     const snapshot = structuredClone(pasted);
-    useEditor_7.getState().undo();
-    assert.deepEqual(useEditor_7.getState().doc, destination);
-    useEditor_7.getState().redo();
-    assert.deepEqual(useEditor_7.getState().doc, snapshot);
-    useEditor_7.getState().updateNode(importedText(snapshot, componentId).id, {
+    useEditor.getState().undo();
+    assert.deepEqual(useEditor.getState().doc, destination);
+    useEditor.getState().redo();
+    assert.deepEqual(useEditor.getState().doc, snapshot);
+    useEditor.getState().updateNode(importedText(snapshot, componentId).id, {
       text: { content: "Edit imported master", heading: 0 },
     });
-    assert.equal(useEditor_7.getState().doc.nodes.text.text!.content, "Destination original");
-    useEditor_7.getState().deleteComponent(componentId);
-    const after = useEditor_7.getState().doc;
+    assert.equal(useEditor.getState().doc.nodes.text.text!.content, "Destination original");
+    useEditor.getState().deleteComponent(componentId);
+    const after = useEditor.getState().doc;
     assert.deepEqual(after.nodes.shared, originalNodes.shared);
     assert.deepEqual(after.nodes.text, originalNodes.text);
     assert.ok(after.pages.home.children.includes("shared"));
@@ -1272,28 +1272,28 @@ test("a colliding descendant is remapped even when its new master root does not 
   payload.assets["incoming-asset"] = { id: "incoming-asset", name: "photo.png", path: "assets/photo.png", width: 1, height: 1 };
   destination.assets["existing-asset"] = { ...payload.assets["incoming-asset"], id: "existing-asset" };
   open(destination);
-  useEditor_7.getState().pasteClipboard(payload);
-  const pasted = useEditor_7.getState().doc;
+  useEditor.getState().pasteClipboard(payload);
+  const pasted = useEditor.getState().doc;
   assert.equal(pasted.components![componentId].rootId, "new-root");
   assert.notEqual(pasted.nodes["new-root"].children[0], "text");
   assert.equal(importedText(pasted, componentId).text!.content, "Imported master content");
   assert.equal(importedText(pasted, componentId).image!.assetId, "existing-asset");
   assert.equal(pasted.nodes.text.text!.content, "Destination original");
-  useEditor_7.getState().deleteComponent(componentId);
-  assert.equal(useEditor_7.getState().doc.nodes.text.text!.content, "Destination original");
+  useEditor.getState().deleteComponent(componentId);
+  assert.equal(useEditor.getState().doc.nodes.text.text!.content, "Destination original");
 });
 
 test("nested imported components isolate both masters and preserve instance references", () => {
   const { destination, source } = forkWithComponent();
   open(source);
-  useEditor_7.getState().createComponent("text");
-  const nestedSource = useEditor_7.getState().doc;
+  useEditor.getState().createComponent("text");
+  const nestedSource = useEditor.getState().doc;
   const instance = nestedSource.nodes[nestedSource.pages.home.children[0]];
   const outerId = instance.componentId!;
-  const payload = buildClipPayload_5(nestedSource, { nodes: [instance], rootIds: [instance.id] });
+  const payload = buildClipPayload(nestedSource, { nodes: [instance], rootIds: [instance.id] });
   open(destination);
-  useEditor_7.getState().pasteClipboard(payload);
-  const pasted = useEditor_7.getState().doc;
+  useEditor.getState().pasteClipboard(payload);
+  const pasted = useEditor.getState().doc;
   const outerRoot = pasted.nodes[pasted.components![outerId].rootId];
   const innerInstance = pasted.nodes[outerRoot.children[0]];
   assert.equal(innerInstance.type, "instance");
@@ -1301,10 +1301,10 @@ test("nested imported components isolate both masters and preserve instance refe
   assert.notEqual(outerRoot.id, "shared");
   assert.notEqual(innerRoot.id, "text");
   assert.equal(innerRoot.text!.content, "Imported master content");
-  useEditor_7.getState().deleteComponent(outerId);
-  useEditor_7.getState().deleteComponent(innerInstance.componentId!);
-  assert.deepEqual(useEditor_7.getState().doc.nodes.shared, destination.nodes.shared);
-  assert.deepEqual(useEditor_7.getState().doc.nodes.text, destination.nodes.text);
+  useEditor.getState().deleteComponent(outerId);
+  useEditor.getState().deleteComponent(innerInstance.componentId!);
+  assert.deepEqual(useEditor.getState().doc.nodes.shared, destination.nodes.shared);
+  assert.deepEqual(useEditor.getState().doc.nodes.text, destination.nodes.text);
 });
 
 test("an existing component is reused without replacing its master or importing orphan source nodes", () => {
@@ -1315,9 +1315,9 @@ test("an existing component is reused without replacing its master or importing 
   payload.componentNodes.find((n) => n.id === "shared")!.children.push("source-only");
   const before = structuredClone(destination);
   open(destination);
-  useEditor_7.getState().pasteClipboard(payload);
-  const pasted = useEditor_7.getState().doc;
-  assert.equal(pasted.nodes[useEditor_7.getState().selection!].componentId, componentId);
+  useEditor.getState().pasteClipboard(payload);
+  const pasted = useEditor.getState().doc;
+  assert.equal(pasted.nodes[useEditor.getState().selection!].componentId, componentId);
   assert.deepEqual(pasted.components, before.components);
   for (const [id, node] of Object.entries(before.nodes)) assert.deepEqual(pasted.nodes[id], node);
   assert.equal(pasted.nodes["source-only"], undefined);
@@ -1326,12 +1326,12 @@ test("an existing component is reused without replacing its master or importing 
 test("a new outer component reuses an existing nested master without importing its source edits", () => {
   const { source } = forkWithComponent();
   open(source);
-  useEditor_7.getState().createComponent("text");
-  const nestedSource = useEditor_7.getState().doc;
+  useEditor.getState().createComponent("text");
+  const nestedSource = useEditor.getState().doc;
   const instance = nestedSource.nodes[nestedSource.pages.home.children[0]];
   const outerId = instance.componentId!;
   const innerId = nestedSource.nodes[nestedSource.nodes.shared.children[0]].componentId!;
-  const payload = buildClipPayload_5(nestedSource, { nodes: [instance], rootIds: [instance.id] });
+  const payload = buildClipPayload(nestedSource, { nodes: [instance], rootIds: [instance.id] });
   const destination = structuredClone(nestedSource);
   delete destination.components![outerId];
   delete destination.nodes[instance.id];
@@ -1339,8 +1339,8 @@ test("a new outer component reuses an existing nested master without importing i
   destination.nodes.text.text!.content = "Keep destination nested master";
   const before = structuredClone(destination);
   open(destination);
-  useEditor_7.getState().pasteClipboard(payload);
-  const pasted = useEditor_7.getState().doc;
+  useEditor.getState().pasteClipboard(payload);
+  const pasted = useEditor.getState().doc;
   const outer = pasted.nodes[pasted.components![outerId].rootId];
   assert.notEqual(outer.id, "shared");
   assert.notEqual(outer.children[0], destination.nodes.shared.children[0]);
@@ -1348,8 +1348,8 @@ test("a new outer component reuses an existing nested master without importing i
   assert.deepEqual(pasted.components![innerId], before.components![innerId]);
   assert.equal(Object.keys(pasted.nodes).length, Object.keys(before.nodes).length + 3);
   for (const [id, node] of Object.entries(before.nodes)) assert.deepEqual(pasted.nodes[id], node);
-  useEditor_7.getState().deleteComponent(outerId);
-  assert.deepEqual(useEditor_7.getState().doc.nodes, before.nodes);
+  useEditor.getState().deleteComponent(outerId);
+  assert.deepEqual(useEditor.getState().doc.nodes, before.nodes);
 });
 
 test("page copy relinks nested scripts on imported remapped masters only", () => {
@@ -1388,8 +1388,8 @@ test("editing or deleting an imported master's scripts cannot change the destina
   payload.componentNodes.find((node) => node.id === "text")!.scripts = structuredClone(scripts);
   const payloadBefore = structuredClone(payload);
   open(destination);
-  useEditor_7.getState().pasteClipboard(payload);
-  const pasted = useEditor_7.getState().doc;
+  useEditor.getState().pasteClipboard(payload);
+  const pasted = useEditor.getState().doc;
   const imported = importedText(pasted, componentId);
   const originalIds = new Set([scripts[0].id]);
   walkSteps(scripts[0].steps, (step) => originalIds.add(step.id));
@@ -1399,14 +1399,14 @@ test("editing or deleting an imported master's scripts cannot change the destina
   // スクリプトの画面が使う操作を通して、元のブロックが変更も削除もされないことを確かめる。
   const ids = pageNodeIds(pasted, "home");
   const importedScript = imported.scripts![0];
-  useEditor_7.getState().updateDoc((doc) => applyPageScripts(doc, "home", ids,
+  useEditor.getState().updateDoc((doc) => applyPageScripts(doc, "home", ids,
     mapStep(pageScriptsOf(doc, ids, "home"), importedScript.steps[0].id,
       (step) => step.kind === "repeat" ? { ...step, times: 3 } : step)));
-  assert.deepEqual(useEditor_7.getState().doc.nodes.text.scripts, scripts);
-  useEditor_7.getState().updateDoc((doc) => applyPageScripts(doc, "home", ids,
+  assert.deepEqual(useEditor.getState().doc.nodes.text.scripts, scripts);
+  useEditor.getState().updateDoc((doc) => applyPageScripts(doc, "home", ids,
     removeKeys(pageScriptsOf(doc, ids, "home"), [`script:${importedScript.id}`])));
-  assert.deepEqual(useEditor_7.getState().doc.nodes.text.scripts, scripts);
-  assert.equal(useEditor_7.getState().doc.nodes[imported.id].scripts, undefined);
+  assert.deepEqual(useEditor.getState().doc.nodes.text.scripts, scripts);
+  assert.equal(useEditor.getState().doc.nodes[imported.id].scripts, undefined);
   assert.deepEqual(payload, payloadBefore);
 });
 
@@ -1422,9 +1422,9 @@ test("cross-site paste preserves a separately edited master despite colliding co
   const sourceBefore = structuredClone(payload);
 
   open(destination);
-  useEditor_7.getState().pasteClipboard(payload);
-  const pasted = useEditor_7.getState().doc;
-  const instance = pasted.nodes[useEditor_7.getState().selection!];
+  useEditor.getState().pasteClipboard(payload);
+  const pasted = useEditor.getState().doc;
+  const instance = pasted.nodes[useEditor.getState().selection!];
   const importedComponentId = instance.componentId!;
   assert.notEqual(importedComponentId, componentId);
   assert.equal(importedText(pasted, componentId).text!.content, "Destination fork");
@@ -1432,10 +1432,10 @@ test("cross-site paste preserves a separately edited master despite colliding co
   assert.deepEqual(pasted.components![componentId], before.components![componentId]);
   assert.deepEqual(pasted.nodes[masterRoot], before.nodes[masterRoot]);
   assert.deepEqual(payload, sourceBefore);
-  useEditor_7.getState().undo();
-  assert.deepEqual(useEditor_7.getState().doc, before);
-  useEditor_7.getState().redo();
-  assert.equal(importedText(useEditor_7.getState().doc, importedComponentId).text!.content, "Imported master content");
+  useEditor.getState().undo();
+  assert.deepEqual(useEditor.getState().doc, before);
+  useEditor.getState().redo();
+  assert.equal(importedText(useEditor.getState().doc, importedComponentId).text!.content, "Imported master content");
 });
 
 test("page copy remaps conflicting components without changing destination masters", () => {
@@ -1460,8 +1460,8 @@ test("page copy remaps conflicting components without changing destination maste
 test("page copy remaps nested conflicting components and their instance references", () => {
   const { source } = forkWithComponent();
   open(source);
-  useEditor_7.getState().createComponent("text");
-  const copiedSource = useEditor_7.getState().doc;
+  useEditor.getState().createComponent("text");
+  const copiedSource = useEditor.getState().doc;
   const originalOuterId = copiedSource.nodes[copiedSource.pages.home.children[0]].componentId!;
   const originalOuterRoot = copiedSource.components![originalOuterId].rootId;
   const originalInnerId = copiedSource.nodes[copiedSource.nodes[originalOuterRoot].children[0]].componentId!;
@@ -1482,7 +1482,7 @@ test("page copy remaps nested conflicting components and their instance referenc
 
 describe("component-list-export", () => {
   before(() => {
-    useEditor_8.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
@@ -1491,19 +1491,19 @@ const require = createRequire(import.meta.url);
 const { parse } = require("next/dist/compiled/node-html-parser");
 const compiledUi = new Map<string, string>();
 function loadUi(file: string, direct = false) {
-  const path = resolve_2(file), local = createRequire(path), mod = { exports: {} as any };
+  const path = resolve(file), local = createRequire(path), mod = { exports: {} as any };
   let code = compiledUi.get(path);
   if (code === undefined) {
     code = transformSync(readFileSync(path, "utf8"), { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
     compiledUi.set(path, code);
   }
   new Function("require", "module", "exports", code)((id: string) => id.endsWith("/lib/store")
-    ? { ...local(id), useEditor: (select: any) => select(useEditor_8.getState()) }
+    ? { ...local(id), useEditor: (select: any) => select(useEditor.getState()) }
     : direct && id === "react" ? { ...React, useState: (value: unknown) => [value, () => {}] } : local(id), mod, mod.exports);
   return mod.exports;
 }
 function convert(doc: SiteDoc, nodeId = "card") {
-  useEditor_8.getState().replaceDoc(doc); useEditor_8.getState().setActivePage("p"); useEditor_8.getState().select(nodeId);
+  useEditor.getState().replaceDoc(doc); useEditor.getState().setActivePage("p"); useEditor.getState().select(nodeId);
   // 設定の画面の実際のボタンを取り出し、その onClick から store の操作を呼ぶ。
   const tree = loadUi("components/SettingsPanel.tsx", true).default({ nodeId });
   const find = (el: any): any => {
@@ -1512,10 +1512,10 @@ function convert(doc: SiteDoc, nodeId = "card") {
   };
   const button = find(tree); assert.ok(button, "SettingsPanel offers component conversion");
   button.props.onClick();
-  return useEditor_8.getState().doc;
+  return useEditor.getState().doc;
 }
 function canvas(doc: SiteDoc) {
-  useEditor_8.getState().replaceDoc(doc);
+  useEditor.getState().replaceDoc(doc);
   const { VarsCtx } = require("../components/canvas/render");
   const { NodeView } = loadUi("components/canvas/NodeView.tsx"), plan = pagePlan(doc, "p");
   return renderToStaticMarkup(React.createElement(VarsCtx.Provider, { value: {
@@ -1535,10 +1535,10 @@ test("SettingsPanel component conversion retains nested list rows in Canvas and 
   assert.deepEqual(after.nodes.tags, before.nodes.tags);
   assert.deepEqual(before, original, "conversion never mutates its input");
   assert.deepEqual(details(await publishedComponentList(after)), ["Detail First:red", "Detail First:blue", "Detail Second:green", "Detail Second:yellow"]);
-  const past = useEditor_8.getState().past.length;
-  useEditor_8.getState().undo(); assert.deepEqual(useEditor_8.getState().doc, before);
-  useEditor_8.getState().redo(); assert.deepEqual(useEditor_8.getState().doc, after);
-  assert.equal(useEditor_8.getState().past.length, past);
+  const past = useEditor.getState().past.length;
+  useEditor.getState().undo(); assert.deepEqual(useEditor.getState().doc, before);
+  useEditor.getState().redo(); assert.deepEqual(useEditor.getState().doc, after);
+  assert.equal(useEditor.getState().past.length, past);
   const reloaded = JSON.parse(JSON.stringify(after));
   assert.deepEqual(details(canvas(reloaded)), details(await publishedComponentList(reloaded)));
   const saved = structuredClone(after);
@@ -1713,11 +1713,11 @@ test("converted server and client list projects typecheck", () => {
   doc.pageOrder.push("client");
   const { files } = generateProject(doc), dir = mkdtempSync(join(tmpdir(), "tsumu-component-list-types-"));
   try {
-    symlinkSync(resolve_2("node_modules"), join(dir, "node_modules"), "dir");
+    symlinkSync(resolve("node_modules"), join(dir, "node_modules"), "dir");
     for (const [path, content] of Object.entries(files)) {
       mkdirSync(dirname(join(dir, path)), { recursive: true }); writeFileSync(join(dir, path), content);
     }
-    execFileSync(resolve_2("node_modules/.bin/tsc"), ["--project", join(dir, "tsconfig.json"), "--noEmit", "--incremental", "false"], { cwd: dir, stdio: "pipe" });
+    execFileSync(resolve("node_modules/.bin/tsc"), ["--project", join(dir, "tsconfig.json"), "--noEmit", "--incremental", "false"], { cwd: dir, stdio: "pipe" });
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 });
@@ -1805,7 +1805,7 @@ test("large documents with many masters retain correct ownership and no mutation
 });
 
 describe("component-preview", () => {
-function renderRoot(patch: Partial<DocNode_3>, preview = true) {
+function renderRoot(patch: Partial<DocNode>, preview = true) {
   const filename = new URL("../components/canvas/NodeView.tsx", import.meta.url);
   const require = createRequire(filename);
   const { VarsCtx } = require("./render");
@@ -1875,7 +1875,7 @@ test("component editing stays selectable without activating master links", () =>
 
 describe("detach-integrity", () => {
   before(() => {
-    useEditor_9.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
@@ -1890,9 +1890,9 @@ test('detaching preserves independently configured visibility and identity', () 
       instance: { ...makeBox(), id: 'instance', type: 'instance', componentId: 'c', name: 'Footer card', hiddenOn: ['sm'], locked: true },
     },
   };
-  useEditor_9.getState().replaceDoc(doc);
-  useEditor_9.getState().detachInstance('instance');
-  const after = useEditor_9.getState().doc;
+  useEditor.getState().replaceDoc(doc);
+  useEditor.getState().detachInstance('instance');
+  const after = useEditor.getState().doc;
   const detached = after.nodes[after.pages.p.children[0]];
   assert.deepEqual(new Set(detached.hiddenOn), new Set(['lg', 'sm']));
   assert.equal(detached.name, 'Footer card');
@@ -1913,9 +1913,9 @@ test('detach keeps the instance anchor and redirects master references without a
     },
   };
   const before = structuredClone(doc);
-  useEditor_9.getState().replaceDoc(doc);
-  useEditor_9.getState().detachInstance('instance');
-  const after = useEditor_9.getState().doc;
+  useEditor.getState().replaceDoc(doc);
+  useEditor.getState().detachInstance('instance');
+  const after = useEditor.getState().doc;
   const root = after.nodes[after.pages.p.children[0]];
   assert.equal(root.attrId, 'footer-card');
   assert.equal(root.text!.content, '{footer-card}');
@@ -1930,10 +1930,10 @@ test('detach keeps the instance anchor and redirects master references without a
   assert.deepEqual(after.nodes.master, before.nodes.master);
   assert.deepEqual(after.nodes.other, before.nodes.other);
   assert.deepEqual(doc, before);
-  useEditor_9.getState().undo();
-  assert.deepEqual(useEditor_9.getState().doc, before);
-  useEditor_9.getState().redo();
-  assert.deepEqual(useEditor_9.getState().doc, after);
+  useEditor.getState().undo();
+  assert.deepEqual(useEditor.getState().doc, before);
+  useEditor.getState().redo();
+  assert.deepEqual(useEditor.getState().doc, after);
 });
 
 test('detach without an instance anchor keeps normal clone ID collision handling', () => {
@@ -1947,9 +1947,9 @@ test('detach without an instance anchor keeps normal clone ID collision handling
       other: { ...makeBox(), id: 'other', type: 'instance', componentId: 'c' },
     },
   };
-  useEditor_9.getState().replaceDoc(doc);
-  useEditor_9.getState().detachInstance('instance');
-  const after = useEditor_9.getState().doc;
+  useEditor.getState().replaceDoc(doc);
+  useEditor.getState().detachInstance('instance');
+  const after = useEditor.getState().doc;
   assert.equal(after.nodes[after.pages.p.children[0]].attrId, 'card-2');
 });
 
@@ -1969,12 +1969,12 @@ test('detach in an unused component preserves instance settings and avoids edite
       instance: { ...makeBox(), id: 'instance', type: 'instance', componentId: 'inner', attrId: 'nested-anchor', name: 'Nested card', locked: true, hiddenOn: ['sm'] },
     },
   };
-  useEditor_9.getState().replaceDoc(doc);
-  useEditor_9.getState().setActivePage('p');
-  useEditor_9.getState().setEditingComponent('outer');
-  const before = structuredClone(useEditor_9.getState().doc);
-  useEditor_9.getState().detachInstance('instance');
-  const after = useEditor_9.getState().doc;
+  useEditor.getState().replaceDoc(doc);
+  useEditor.getState().setActivePage('p');
+  useEditor.getState().setEditingComponent('outer');
+  const before = structuredClone(useEditor.getState().doc);
+  useEditor.getState().detachInstance('instance');
+  const after = useEditor.getState().doc;
   const root = after.nodes[after.nodes.outerRoot.children[0]];
   const child = after.nodes[root.children[0]];
   assert.equal(root.attrId, 'nested-anchor');
@@ -1986,16 +1986,16 @@ test('detach in an unused component preserves instance settings and avoids edite
   assert.deepEqual(after.nodes.innerRoot, before.nodes.innerRoot);
   assert.deepEqual(after.nodes.sibling, before.nodes.sibling);
   assert.equal(after.nodes.instance, undefined);
-  useEditor_9.getState().undo();
-  assert.deepEqual(useEditor_9.getState().doc, before);
-  useEditor_9.getState().redo();
-  assert.deepEqual(useEditor_9.getState().doc, after);
+  useEditor.getState().undo();
+  assert.deepEqual(useEditor.getState().doc, before);
+  useEditor.getState().redo();
+  assert.deepEqual(useEditor.getState().doc, after);
 });
 });
 
 describe("editor-paste-scope", () => {
   before(() => {
-    useEditor_10.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
@@ -2003,12 +2003,12 @@ describe("editor-paste-scope", () => {
 // 実際の Editor の paste の effect を動かす。DOM への伝播とネイティブの貼り付けは、E2E でも確かめる。
 function mount(context: "design" | "preview" | "modal" | "script" | "leaving" = "design", active = false) {
   const node = { ...makeText("Copied text"), id: "a", ...(active ? { type: "code" as const, code: { html: "<script>window.pasted = true</script>" } } : {}) };
-  useEditor_10.getState().replaceDoc({ siteName: "Paste scope", assets: {}, pageOrder: ["p"], pages: {
+  useEditor.getState().replaceDoc({ siteName: "Paste scope", assets: {}, pageOrder: ["p"], pages: {
     p: { id: "p", name: "P", slug: "", title: "", description: "", children: ["a"] },
   }, nodes: { a: node } });
-  useEditor_10.getState().select("a");
-  useEditor_10.getState().setMode(context === "preview" ? "preview" : "design");
-  const payload = JSON.stringify(clips.buildClipPayload(useEditor_10.getState().doc, { nodes: [node], rootIds: ["a"] }));
+  useEditor.getState().select("a");
+  useEditor.getState().setMode(context === "preview" ? "preview" : "design");
+  const payload = JSON.stringify(clips.buildClipPayload(useEditor.getState().doc, { nodes: [node], rootIds: ["a"] }));
   const source = readFileSync("components/Editor.tsx", "utf8");
   const start = source.indexOf("    const pending = new Set<ReturnType<typeof startImageInsertion>>();");
   const end = source.indexOf("  }, [initialLoadComplete]);", start);
@@ -2020,7 +2020,7 @@ function mount(context: "design" | "preview" | "modal" | "script" | "leaving" = 
   let reads = 0, uploads = 0, cancelled = 0;
   const mod = { exports: {} as any };
   const globals = {
-    useEditor: useEditor_10,
+    useEditor: useEditor,
     window: { addEventListener: (type: string, fn: any) => handlers.set(type, fn), removeEventListener: (type: string) => handlers.delete(type) },
     document: { querySelector: (selector: string) => {
       assert.equal(selector, ".se-backdrop, .modal-backdrop:not(.is-leaving)");
@@ -2040,13 +2040,13 @@ function mount(context: "design" | "preview" | "modal" | "script" | "leaving" = 
     userMessage: () => "error",
   };
   new Function("require", "module", "exports", ...Object.keys(globals), code)(
-    createRequire(resolve_3("package.json")), mod, mod.exports, ...Object.values(globals),
+    createRequire(resolve("package.json")), mod, mod.exports, ...Object.values(globals),
   );
   const cleanup = mod.exports.attach();
   return {
     notices, cleanup, confirmations,
     counts: () => ({ reads, uploads, cancelled }),
-    snapshot: () => structuredClone({ doc: useEditor_10.getState().doc, past: useEditor_10.getState().past, future: useEditor_10.getState().future }),
+    snapshot: () => structuredClone({ doc: useEditor.getState().doc, past: useEditor.getState().past, future: useEditor.getState().future }),
     paste(kind: "elements" | "artwork", target = { tagName: "BODY", isContentEditable: false }) {
       let prevented = false;
       handlers.get("paste")!({ target, preventDefault: () => { prevented = true; }, clipboardData: {
@@ -2080,8 +2080,8 @@ for (const context of ["design", "leaving"] as const) test(`${context}: normal e
   const after = f.snapshot();
   assert.equal(Object.keys(after.doc.nodes).length, 2);
   assert.equal(after.past.length, before.past.length + 1);
-  useEditor_10.getState().undo(); assert.deepEqual(useEditor_10.getState().doc, before.doc);
-  useEditor_10.getState().redo(); assert.deepEqual(useEditor_10.getState().doc, after.doc);
+  useEditor.getState().undo(); assert.deepEqual(useEditor.getState().doc, before.doc);
+  useEditor.getState().redo(); assert.deepEqual(useEditor.getState().doc, after.doc);
   f.cleanup();
 });
 test("design artwork paste still starts an insertion and cancels it on unmount", () => {
@@ -2096,28 +2096,28 @@ test("design artwork paste still starts an insertion and cancels it on unmount",
 for (const change of ["unchanged", "undo", "replace", "edit", "selection", "page", "preview", "script", "unmount", "newer", "decline"] as const) {
   test(`active clipboard confirmation does not outlive ${change}`, async () => {
     const f = mount("design", true);
-    useEditor_10.getState().updateDoc(d => { d.siteName = "Edited"; });
+    useEditor.getState().updateDoc(d => { d.siteName = "Edited"; });
     f.paste("elements");
     assert.equal(f.confirmations.length, 1);
-    if (change === "undo") useEditor_10.getState().undo();
-    if (change === "replace") useEditor_10.getState().replaceDoc(structuredClone(useEditor_10.getState().doc));
-    if (change === "edit") useEditor_10.getState().updateDoc(d => { d.siteName = "Remote change"; });
-    if (change === "selection") useEditor_10.getState().select(null);
-    if (change === "page") useEditor_10.getState().setActivePage("other");
-    if (change === "preview") useEditor_10.getState().setMode("preview");
-    if (change === "script") useEditor_10.getState().openScriptEditor({ focusNodeId: "a" });
+    if (change === "undo") useEditor.getState().undo();
+    if (change === "replace") useEditor.getState().replaceDoc(structuredClone(useEditor.getState().doc));
+    if (change === "edit") useEditor.getState().updateDoc(d => { d.siteName = "Remote change"; });
+    if (change === "selection") useEditor.getState().select(null);
+    if (change === "page") useEditor.getState().setActivePage("other");
+    if (change === "preview") useEditor.getState().setMode("preview");
+    if (change === "script") useEditor.getState().openScriptEditor({ focusNodeId: "a" });
     if (change === "unmount") f.cleanup();
     if (change === "newer") f.paste("elements");
     const before = f.snapshot();
     f.confirmations[0](change !== "decline");
     await new Promise(resolve => setImmediate(resolve));
     if (change === "unchanged") {
-      assert.equal(Object.keys(useEditor_10.getState().doc.nodes).length, 2);
-      useEditor_10.getState().undo();
-      assert.deepEqual(useEditor_10.getState().doc, before.doc);
+      assert.equal(Object.keys(useEditor.getState().doc.nodes).length, 2);
+      useEditor.getState().undo();
+      assert.deepEqual(useEditor.getState().doc, before.doc);
     } else assert.deepEqual(f.snapshot(), before);
     f.cleanup();
-    useEditor_10.getState().openScriptEditor(null);
+    useEditor.getState().openScriptEditor(null);
   });
 }
 });

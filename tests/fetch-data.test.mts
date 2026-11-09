@@ -20,8 +20,7 @@ import { PAGE_TARGET, type ScriptStep, type SiteDoc } from "../lib/types";
 import { makeText, makeBox } from "../lib/presets";
 import * as scriptContexts from "../components/script-editor/context";
 import { scriptsFile } from "../lib/script-runtime";
-import * as source_2 from "../lib/safe-fetch";
-import * as source_3 from "../lib/safe-fetch";
+import * as safeFetch from "../lib/safe-fetch";
 import { SAFE_FETCH_SOURCE } from "../lib/generator/safe-fetch-source";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
@@ -986,7 +985,7 @@ const generatedModule = { exports: {} };
 new Function("module", "exports", transformSync(SAFE_FETCH_SOURCE, {
   loader: "ts", format: "cjs",
 }).code)(generatedModule, generatedModule.exports);
-const runtimes = { source: source_2, generated: generatedModule.exports as typeof source_2 };
+const runtimes = { source: safeFetch, generated: generatedModule.exports as typeof safeFetch };
 
 // 複製した Response は tee を使う。片方の枝を取り消すと、読まれていないもう一方の枝を待つ。
 // 検証が終わるまでその枝を残し、後始末でデッドロックが隠れないようにする。
@@ -1107,7 +1106,7 @@ const generatedModule = { exports: {} };
 new Function("module", "exports", transformSync(SAFE_FETCH_SOURCE, {
   loader: "ts", format: "cjs",
 }).code)(generatedModule, generatedModule.exports);
-const runtimes = { source: source_3, generated: generatedModule.exports as typeof source_3 };
+const runtimes = { source: safeFetch, generated: generatedModule.exports as typeof safeFetch };
 
 const nativeTargets = {
   "Node IPv4": "https://8.8.8.8/data",

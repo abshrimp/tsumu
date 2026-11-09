@@ -2,14 +2,14 @@ import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { exportLimitations, exportScopeDoc, generateExportProject, prepareExportProject } from "../lib/export-formats";
 import { makeBox, makeText, createInitialDoc } from "../lib/presets";
-import { type SiteDoc, type ScriptStep, type Script as Script_2, type DocNode, type EmbedContent } from "../lib/types";
+import { type SiteDoc, type ScriptStep, type Script, type DocNode, type EmbedContent } from "../lib/types";
 import { BlockedUrlError, assertPublicUrl, isPrivateHost } from "../lib/safe-fetch";
-import vm, { runInNewContext as runInNewContext_2, runInNewContext as runInNewContext_3, runInNewContext as runInNewContext_4 } from "node:vm";
-import { parse as parse_2 } from "acorn";
+import vm, { runInNewContext } from "node:vm";
+import { parse } from "acorn";
 import { transformSync, buildSync } from "./helpers/bundle";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join as join_2, dirname, join as join_3, resolve as resolve_2, join as join_4, resolve as resolve_3 } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, symlinkSync, rmSync } from "node:fs";
 import { SAFE_FETCH_SOURCE } from "../lib/generator/safe-fetch-source";
 import { codeLiteral } from "../lib/generator/code-literal";
@@ -30,10 +30,10 @@ import { generateStandaloneHtml } from "../lib/generator/html-export";
 import { assetSrc } from "../lib/assets";
 import { isSiteLang, pageLangOf, SITE_LANGS, siteLangOf } from "../lib/site-lang";
 import { useEditor } from "../lib/store";
-import { buildComponentNames, buildAssetNames as buildAssetNames_2, buildClassNames } from "../lib/generator/names";
+import { buildComponentNames, buildAssetNames, buildClassNames } from "../lib/generator/names";
 import { pageNodeIds } from "../lib/script";
 import { execFileSync } from "node:child_process";
-import { createElement as createElement_2, createElement as createElement_3 } from "react";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { anchorFixture, renderAnchorExport } from "./helpers/instance-anchor";
 import { parseFragment, type DefaultTreeAdapterTypes as Html } from "parse5";
@@ -862,7 +862,7 @@ describe("export-regex-complexity", () => {
 
   /** この形式で、コードの生成と機能の削除の後に残った評価器を取り出す。 */
   function emittedEvaluator(source: string): string {
-    const pending: unknown[] = [parse_2(source, { ecmaVersion: "latest", sourceType: "module" })];
+    const pending: unknown[] = [parse(source, { ecmaVersion: "latest", sourceType: "module" })];
     while (pending.length) {
       const value = pending.pop();
       if (!value || typeof value !== "object") continue;
@@ -1890,7 +1890,7 @@ describe("generator-name-allocation", () => {
   });
 
   test("asset names preserve case, extensions and authored suffix collisions", () => {
-    assert.deepEqual([...buildAssetNames_2(fixture([
+    assert.deepEqual([...buildAssetNames(fixture([
       "logo.png", "LOGO.png", "logo-2.png", "logo.png", "logo.PNG", "logo-3.PNG", "logo.jpg",
     ])).values()], [
       "logo.png", "LOGO-2.png", "logo-2-2.png", "logo-3.png", "logo-4.PNG", "logo-3-2.PNG", "logo.jpg",
@@ -1912,7 +1912,7 @@ describe("generator-name-allocation", () => {
     assert.equal(new Set(classes.values()).size, 25000);
     assert.equal(classes.get("0"), "box");
     assert.equal(classes.get("24999"), "box-25000");
-    const assets = buildAssetNames_2(fixture(Array<string>(1000).fill("logo.png")));
+    const assets = buildAssetNames(fixture(Array<string>(1000).fill("logo.png")));
     assert.equal(new Set(assets.values()).size, 1000);
     assert.equal(assets.get("999"), "logo-1000.png");
     const components = buildComponentNames(fixture(Array<string>(1000).fill("Hero")));
@@ -1948,7 +1948,7 @@ describe("live-navigation", () => {
       removeEventListener: () => {},
     };
     let observedOptions: unknown;
-    runInNewContext_2(files['public/scripts.js'], {
+    runInNewContext(files['public/scripts.js'], {
       document: root, CSS: { escape: (s: string) => s }, location: { search: '' }, URLSearchParams,
       MutationObserver: class { constructor(fn: () => void) { mutation = fn; } observe(_root: unknown, options: unknown) { observedOptions = options; } disconnect() {} },
       requestAnimationFrame: (fn: () => void) => frames.push(fn),
@@ -2042,8 +2042,8 @@ describe("instance-clone-anchors", () => {
 
 describe("generator-script-query", () => {
   const require = createRequire(import.meta.url);
-  const script = (steps: Script_2["steps"]): Script_2 => ({ id: "s", trigger: "click", steps });
-  function fixture(s: Script_2, pageScript = false): SiteDoc {
+  const script = (steps: Script["steps"]): Script => ({ id: "s", trigger: "click", steps });
+  function fixture(s: Script, pageScript = false): SiteDoc {
     const node = { ...makeBox(), id: "button", ...(pageScript ? {} : { scripts: [s] }) };
     return {
       siteName: "Query test", assets: {}, nodes: { button: node }, pageOrder: ["p"],
@@ -2114,9 +2114,9 @@ describe("published-instance-anchor", () => {
     const state = { doc, mode: "preview", selectedIds: [], editingText: null };
     new Function("require", "module", "exports", nodeViewCode)((name: string) =>
       name === "../../lib/store" ? { useEditor: (select: any) => select(state) } : nodeViewRequire(name), mod, mod.exports);
-    return renderToStaticMarkup(createElement_2(VarsCtx.Provider, {
+    return renderToStaticMarkup(createElement(VarsCtx.Provider, {
       value: { preview: true, pageVars: {}, clientVars: new Set(), fieldValues: {}, refresh: () => {} },
-    }, createElement_2(mod.exports.NodeView, { id, isTop: true })));
+    }, createElement(mod.exports.NodeView, { id, isTop: true })));
   }
 
   test("page instance anchors match preview, remain independent, and restore the master layout", () => {
@@ -2179,14 +2179,14 @@ describe("published-instance-anchor", () => {
 
   test("the generated anchored project passes TypeScript checking", () => {
     const { files } = generateProject(anchorFixture());
-    const dir = mkdtempSync(join_3(tmpdir(), "tsumu-instance-anchor-"));
+    const dir = mkdtempSync(join(tmpdir(), "tsumu-instance-anchor-"));
     try {
-      symlinkSync(resolve_2("node_modules"), join_3(dir, "node_modules"), "dir");
+      symlinkSync(resolve("node_modules"), join(dir, "node_modules"), "dir");
       for (const [path, content] of Object.entries(files)) {
-        mkdirSync(dirname(join_3(dir, path)), { recursive: true });
-        writeFileSync(join_3(dir, path), content);
+        mkdirSync(dirname(join(dir, path)), { recursive: true });
+        writeFileSync(join(dir, path), content);
       }
-      execFileSync(resolve_2("node_modules/.bin/tsc"), ["--project", join_3(dir, "tsconfig.json"), "--noEmit", "--incremental", "false"], { cwd: dir, stdio: "pipe" });
+      execFileSync(resolve("node_modules/.bin/tsc"), ["--project", join(dir, "tsconfig.json"), "--noEmit", "--incremental", "false"], { cwd: dir, stdio: "pipe" });
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
@@ -2786,7 +2786,7 @@ describe("native-page-language", () => {
     const callback = /useHead\((\(\) => \(\{[\s\S]*?\}\))\);/.exec(source)?.[1];
     assert.ok(callback);
     const selected: any = { value: { title: "Home", description: "Japanese", language: "ja" } };
-    const head = runInNewContext_3(callback, { selected });
+    const head = runInNewContext(callback, { selected });
     assert.equal(head().htmlAttrs?.lang, "ja");
     selected.value = { title: "English", description: "English page", language: "en-GB" };
     assert.equal(head().htmlAttrs?.lang, "en-GB");
@@ -2797,9 +2797,9 @@ describe("native-page-language", () => {
     const files = generateExportProject(doc, "sveltekit").files;
     assert.ok(files["src/hooks.server.js"]);
     const routes: any = { URLSearchParams };
-    runInNewContext_3(files["src/lib/site-routes.js"].replace(/\bexport /g, "") + "\nglobalThis.selectPage = selectPage;", routes);
+    runInNewContext(files["src/lib/site-routes.js"].replace(/\bexport /g, "") + "\nglobalThis.selectPage = selectPage;", routes);
     const context: any = { selectPage: routes.selectPage };
-    runInNewContext_3(files["src/hooks.server.js"].replace(/^import .*;\n/m, "").replace(/\bexport /g, "") + "\nglobalThis.handle = handle;", context);
+    runInNewContext(files["src/hooks.server.js"].replace(/^import .*;\n/m, "").replace(/\bexport /g, "") + "\nglobalThis.handle = handle;", context);
     for (const [path, lang] of [["/", "ja"], ["/english", "en-GB"], ["/missing", "ja"]]) {
       const html = await context.handle({ event: { url: new URL(path, "https://example.com") },
         resolve: (_: unknown, options: any) => options.transformPageChunk({ html: files["src/app.html"], done: true }) });
@@ -2818,7 +2818,7 @@ describe("native-page-language", () => {
     const effect = /\$effect\((\(\) => \{ document\.documentElement\.lang = data\.language; \})\);/.exec(source)?.[1];
     assert.ok(effect);
     const context: any = { data: { language: "ja" }, document: { documentElement: { lang: "" } } };
-    const apply = runInNewContext_3(effect, context);
+    const apply = runInNewContext(effect, context);
     apply(); assert.equal(context.document.documentElement.lang, "ja");
     context.data = { language: "en-GB" };
     apply(); assert.equal(context.document.documentElement.lang, "en-GB");
@@ -2845,23 +2845,23 @@ describe("react-export-script-types", () => {
         assert.match(app, withScripts ? /const scripts[^=]*=\s*\["\/pwa\.js"\]/ : /const scripts[^=]*=\s*\[\]/);
         assert.equal(Boolean(project.files["public/pwa.js"]), withScripts);
 
-        const folder = mkdtempSync(join_4(tmpdir(), "tsumu-react-script-types-"));
+        const folder = mkdtempSync(join(tmpdir(), "tsumu-react-script-types-"));
         try {
           for (const [name, source] of Object.entries(project.files)) {
-            const path = join_4(folder, name);
+            const path = join(folder, name);
             mkdirSync(dirname(path), { recursive: true });
             writeFileSync(path, source);
           }
-          symlinkSync(resolve_3("node_modules"), join_4(folder, "node_modules"), "junction");
+          symlinkSync(resolve("node_modules"), join(folder, "node_modules"), "junction");
           if (language === "typescript") {
             const config = JSON.parse(project.files["tsconfig.json"]);
             // Vite そのものには依存せず、出力した React のソースのすべてを、strict の設定で検証する。
             config.compilerOptions.types = ["node"];
             config.include = ["src"];
-            writeFileSync(join_4(folder, "src/css.d.ts"), 'declare module "*.css";\n');
-            writeFileSync(join_4(folder, "tsconfig.json"), JSON.stringify(config));
+            writeFileSync(join(folder, "src/css.d.ts"), 'declare module "*.css";\n');
+            writeFileSync(join(folder, "tsconfig.json"), JSON.stringify(config));
             try {
-              execFileSync(resolve_3("node_modules/.bin/tsc"), ["--project", folder], { encoding: "utf8" });
+              execFileSync(resolve("node_modules/.bin/tsc"), ["--project", folder], { encoding: "utf8" });
             } catch (cause) {
               const error = cause as { stdout?: string; stderr?: string; message?: string };
               assert.fail("Generated React failed strict TypeScript checking:\n" +
@@ -2870,8 +2870,8 @@ describe("react-export-script-types", () => {
           } else {
             assert.doesNotMatch(app, /const scripts\s*:/);
             buildSync({
-              entryPoints: [join_4(folder, "src/main.jsx")],
-              bundle: true, write: false, outdir: join_4(folder, "dist"), jsx: "automatic",
+              entryPoints: [join(folder, "src/main.jsx")],
+              bundle: true, write: false, outdir: join(folder, "dist"), jsx: "automatic",
             });
           }
         } finally {
@@ -2912,9 +2912,9 @@ describe("react-export-literal-boundaries", () => {
         { framework: "react", language, style: "css", scope: "project" });
       const source = project.files["src/pages/Page0." + (language === "typescript" ? "tsx" : "jsx")];
       const { code } = transformSync(source, { loader: "tsx", format: "cjs", jsx: "automatic" });
-      const module = { exports: {} as { default: () => ReturnType<typeof createElement_3> } };
+      const module = { exports: {} as { default: () => ReturnType<typeof createElement> } };
       new Function("require", "module", "exports", code)(require, module, module.exports);
-      const fragment = parseFragment(renderToStaticMarkup(createElement_3(module.exports.default)));
+      const fragment = parseFragment(renderToStaticMarkup(createElement(module.exports.default)));
       const textOf = (node: Html.Node): string => "value" in node ? node.value :
         "childNodes" in node ? node.childNodes.map(textOf).join("") : "";
       const byId = new Map<string, Html.Node>();
@@ -2981,7 +2981,7 @@ describe("vue-ssr-metadata", () => {
     const begin=source.indexOf("async function handle(req, res) {");
     const end=source.indexOf("const server =",begin);
     assert.ok(begin>=0&&end>begin);
-    const handle=runInNewContext_3(source.slice(begin,end)+"\nhandle",{
+    const handle=runInNewContext(source.slice(begin,end)+"\nhandle",{
       URL,console,process:{env:{}},production:false,templateFile:"index.html",
       readFile:async()=>files["index.html"],
       vite:{ssrLoadModule:async()=>({render}),transformIndexHtml:async(_path:string,html:string)=>html,ssrFixStacktrace(){}},
@@ -3034,7 +3034,7 @@ describe("nuxt-route-status", () => {
   for (const language of ['javascript','typescript'] as const) {
     const files=generateExportProject(doc,{framework:'nuxt',language,scope:'project'}).files;
     const routes:any={URLSearchParams};
-    runInNewContext_3(files['app/generated/site-routes.js'].replace(/\bexport /g,'')+'\nglobalThis.selectPage=selectPage;',routes);
+    runInNewContext(files['app/generated/site-routes.js'].replace(/\bexport /g,'')+'\nglobalThis.selectPage=selectPage;',routes);
     const source=files['app/pages/index.vue'];
     assert.equal(source,files['app/pages/[...slug].vue']);
     const setup=source.slice(source.indexOf('const route ='),source.indexOf('</script>'));
@@ -3051,7 +3051,7 @@ describe("nuxt-route-status", () => {
         useAsyncData:async(_key:any,fn:()=>Promise<any>)=>({data:{value:await fn()}}),
         loadPageData:async()=>({}),
       };
-      const id=await runInNewContext_3(js,context);
+      const id=await runInNewContext(js,context);
       return {status:event?.status,id};
     }
     test(`Nuxt ${language} unknown and unpublished paths return HTTP 404`,async()=>{
@@ -3203,12 +3203,12 @@ describe("export-query-condition-parity", () => {
 describe("native-url-parity", () => {
 const { parse } = createRequire(import.meta.url)("next/dist/compiled/node-html-parser");
 const module = { exports: {} as any };
-runInNewContext_4(transformSync(nativeDataModule(), { format: "cjs" }).code, { module });
+runInNewContext(transformSync(nativeDataModule(), { format: "cjs" }).code, { module });
 const native = module.exports;
 const start = PAGE_DATA_RUNTIME.indexOf("  function interpolate(");
 const end = PAGE_DATA_RUNTIME.indexOf("  function jsonBody(", start);
 assert.ok(start >= 0 && end > start);
-const browserInterpolate = runInNewContext_4(PAGE_DATA_RUNTIME.slice(start, end) + "\ninterpolate", { read: lookupVar, text: varText });
+const browserInterpolate = runInNewContext(PAGE_DATA_RUNTIME.slice(start, end) + "\ninterpolate", { read: lookupVar, text: varText });
 
 test("native links encode variable query/path components like Canvas and Next", () => {
   for (const value of ["a&admin=true#x", "my photo?.png", "日本/旅", "100%", '"quoted"', ""]) {
@@ -3330,13 +3330,13 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
   const queryLine = files["app/pages/index.vue"].match(/^const query = computed\(\(\) => (.+)\);$/m)?.[1];
   assert.ok(queryLine);
   const routesMod = { exports: {} as any };
-  runInNewContext_4(transformSync(files["app/generated/site-routes.js"], { format: "cjs" }).code, { module: routesMod, URLSearchParams });
+  runInNewContext(transformSync(files["app/generated/site-routes.js"], { format: "cjs" }).code, { module: routesMod, URLSearchParams });
   const dataMod = { exports: {} as any };
-  runInNewContext_4(transformSync(files["app/generated/site-data.js"], { format: "cjs" }).code, { module: dataMod, URLSearchParams, URL, fetch });
+  runInNewContext(transformSync(files["app/generated/site-data.js"], { format: "cjs" }).code, { module: dataMod, URLSearchParams, URL, fetch });
   for (const fullPath of ["/?q=alpha?beta", "/?tab=details#section", "/?q=alpha?beta#section", "/?q=a%3Fb%23c", "/?q=a+b&tag=one&tag=two", "/#section?not=a-query", "/"]) {
     test(`Nuxt query loader agrees with server URL parsing: ${fullPath}`, async () => {
       const expected = new URL(fullPath, "https://example.com").searchParams;
-      const query = runInNewContext_4(queryLine, { route: { fullPath }, requestUrl: new URL("https://example.com"), URLSearchParams, URL });
+      const query = runInNewContext(queryLine, { route: { fullPath }, requestUrl: new URL("https://example.com"), URLSearchParams, URL });
       assert.deepEqual([...query.entries()], [...expected.entries()]);
       assert.equal(routesMod.exports.selectPage("/", query)?.id, routesMod.exports.selectPage("/", expected)?.id);
       const values = await dataMod.exports.loadPageData({ steps: [] }, query);
@@ -3418,7 +3418,7 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     }
     const source = generateExportProject(doc, framework).files[nativePagePath(framework)];
     const optionTags = [...source.matchAll(/<option\b([^>]*)>/g)].map(m => m[1]);
-    const evaluate = (code: string) => runInNewContext_4(code, { ...native, scope: sample.scope, row0: sample.row });
+    const evaluate = (code: string) => runInNewContext(code, { ...native, scope: sample.scope, row0: sample.row });
     const selectedFlags = optionTags.map(attrs => {
       const dynamic = framework === "sveltekit" ? /selected=\{(.*)\}/.exec(attrs)?.[1] : /:selected="([^"]*)"/.exec(attrs)?.[1];
       if (dynamic) {

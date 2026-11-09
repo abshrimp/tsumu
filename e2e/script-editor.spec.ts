@@ -45,7 +45,7 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('.se-steps[data-list="root"]')).toBeVisible();
 });
 
-test("a script is built by choosing a trigger, an element on the page, and actions", async ({ page }) => {
+test("a script is built by filtering valid actions in the picker and adding steps", async ({ page }) => {
   for (const key of ["show", "wait", "if", "dialog"]) await addAction(page, key);
   expect(await kinds(page)).toBe("show,wait,if,dialog");
   // まだ決めていない欄があるカードには印が付き、スクリプトの状態にも数が出る
@@ -60,9 +60,7 @@ test("a script is built by choosing a trigger, an element on the page, and actio
   await gap.locator(".se-gap-btn").click();
   await page.locator('.se-picker [data-action="scroll-to"]').click();
   expect(await kinds(page)).toBe("show,scroll-to,wait,if,dialog");
-});
 
-test("the picker only offers actions that work at that place and closes on Escape", async ({ page }) => {
   await page.locator('.se-steps[data-list="root"] > .se-add').click();
   await page.locator(".se-picker input").fill("くり返");
   await expect(page.locator('.se-picker [data-action="break-loop"]')).toHaveAttribute("aria-disabled", "true");
@@ -77,7 +75,9 @@ test("cards are reordered by dragging the card, into branches too, and Escape ca
   const center = async (selector: string) => {
     // 並べ替えた直後は、カードが新しい位置へ動くアニメーションの途中なので、終わってから測る
     await page.waitForFunction(() =>
-      document.querySelector(".se-flow")!.getAnimations({ subtree: true }).every((animation) => animation.playState !== "running"));
+      document.querySelector(".se-flow")!.getAnimations({ subtree: true })
+        .filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity)
+        .every((animation) => animation.playState !== "running"));
     const box = (await page.locator(selector).first().boundingBox())!;
     return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   };
@@ -144,7 +144,19 @@ test("action menus copy, cut and paste blocks, including after undo and redo", a
   await expect.poll(() => kinds(page)).toBe("show,wait,show");
 });
 
-test("selected cards accept clipboard events without intercepting text fields", async ({ page }) => {
+test("completing an open-page script keeps it open and selected cards accept clipboard events", async ({ page }) => {
+  await addAction(page, "open-page");
+  await expect(page.locator(".se-status")).not.toHaveClass(/is-ready/);
+  await page.locator('.se-card[data-step-kind="open-page"] select').nth(1).selectOption({ index: 1 });
+  // ボックスでは保存するとリンクになり ID が変わるが、開いていたスクリプトは開いたままにする
+  await expect(page.locator(".se-when")).toBeVisible();
+  await expect(page.locator('.se-card[data-step-kind="open-page"]')).toHaveCount(1);
+  await expect(page.locator(".se-status")).toHaveClass(/is-ready/);
+
+  await rootCards(page).first().click({ position: { x: 5, y: 4 } });
+  await page.keyboard.press("Backspace");
+  await expect(rootCards(page)).toHaveCount(0);
+
   await addAction(page, "show");
   await addAction(page, "wait");
   const first = rootCards(page).first();
@@ -222,7 +234,7 @@ test("unset action fields allow copying and pasting the containing block without
   await expect.poll(() => kinds(page)).toBe("copy,show");
 });
 
-test("real keyboard shortcuts copy and paste an unset target picker block", async ({ page, context }) => {
+test("real keyboard shortcuts copy unset target pickers and selects while filled text retains native copy", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await addAction(page, "show");
   await addAction(page, "wait");
@@ -252,10 +264,12 @@ test("real keyboard shortcuts copy and paste an unset target picker block", asyn
 
   await page.keyboard.press("ControlOrMeta+z");
   await expect.poll(() => kinds(page)).toBe("show,show,wait");
-});
 
-test("real keyboard shortcuts copy an unset select while filled text retains native copy", async ({ page, context }) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await rootCards(page).first().click({ position: { x: 5, y: 4 } });
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Backspace");
+  await expect(rootCards(page)).toHaveCount(0);
+
   await addAction(page, "open-page");
   await addAction(page, "copy");
   const select = rootCards(page).first().locator("select.se-in.is-empty").first();
@@ -274,14 +288,4 @@ test("real keyboard shortcuts copy an unset select while filled text retains nat
   await expect.poll(async () => page.evaluate(() => navigator.clipboard.readText())).toBe("example");
   await textInput.press("ControlOrMeta+v");
   await expect.poll(() => kinds(page)).toBe("open-page,open-page,copy");
-});
-
-test("a script that only opens a page is complete as soon as the page is chosen", async ({ page }) => {
-  await addAction(page, "open-page");
-  await expect(page.locator(".se-status")).not.toHaveClass(/is-ready/);
-  await page.locator('.se-card[data-step-kind="open-page"] select').nth(1).selectOption({ index: 1 });
-  // ボックスでは保存するとリンクになり ID が変わるが、開いていたスクリプトは開いたままにする
-  await expect(page.locator(".se-when")).toBeVisible();
-  await expect(page.locator('.se-card[data-step-kind="open-page"]')).toHaveCount(1);
-  await expect(page.locator(".se-status")).toHaveClass(/is-ready/);
 });

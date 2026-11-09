@@ -39,11 +39,19 @@ import { createRoot } from "react-dom/client";
 import { useEditor } from "./lib/store";
 const css = ${JSON.stringify(readEditorCss())};
 import { loadLocale } from "./lib/i18n";
+let root = null;
+let initialized = false;
 export async function mount(doc) {
-  await loadLocale();
+  if (!initialized) {
+    await loadLocale();
+    const style = document.createElement("style"); style.textContent = css; document.head.append(style);
+    initialized = true;
+  }
   const { default: ScriptEditor } = await import("./components/ScriptEditor");
   const { default: Canvas } = await import("./components/Canvas");
-  const style = document.createElement("style"); style.textContent = css; document.head.append(style);
+  root?.unmount();
+  useEditor.getState().setMode("design");
+  useEditor.getState().select(null);
   useEditor.getState().replaceDoc(doc);
   window.selectScriptEditor = useEditor;
   function Example() {
@@ -56,7 +64,8 @@ export async function mount(doc) {
       {editing && <ScriptEditor focusNodeId="assign-choice" focusScriptId="assign-choice-script" onClose={() => setEditing(false)} />}
     </>;
   }
-  createRoot(document.getElementById("app")).render(<Example />);
+  root = createRoot(document.getElementById("app"));
+  root.render(<Example />);
 }
 `, resolveDir: resolve("."), loader: "tsx", sourcefile: "script-select-value-browser.tsx" },
     loader: { ".css": "text" }, bundle: true, write: false, format: "iife", globalName: "fieldFixture", platform: "browser", jsx: "automatic",

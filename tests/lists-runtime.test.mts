@@ -1,11 +1,11 @@
 import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
 import * as React from "react";
-import { createElement as createElement_2 } from "react";
+import { createElement } from "react";
 import { createRequire } from "node:module";
 import { renderToStaticMarkup } from "react-dom/server";
-import { pageArrays, pagePlan as pagePlan_2, pageVariableIndex, previewDataVars, pagePlan as pagePlan_3, filterItems, type ListOp, pagePlan as pagePlan_4, findItemsCandidates, pagePlan as pagePlan_5, scopeAt, pagePlan as pagePlan_6 } from "../lib/data";
-import { makeBox as makeBox_2, makeText } from "../lib/presets";
+import { pageArrays, pagePlan, pageVariableIndex, previewDataVars, filterItems, type ListOp, findItemsCandidates, scopeAt } from "../lib/data";
+import { makeBox, makeText } from "../lib/presets";
 import { SCRIPT_RUNTIME, scriptsFile } from "../lib/script-runtime";
 import { useEditor } from "../lib/store";
 import { Ctx, type EdCtx } from "../components/script-editor/context";
@@ -59,7 +59,7 @@ test('the real settings and script controls configure the nested source and brow
   assert.equal(parse(control).querySelector(".se-value-choice input")?.getAttribute("value"), "{response}");
   assert.equal((step as { value: string }).value, "{response}");
   assert.match(control, /value="items"/);
-  assert.ok(pagePlan_2(doc, 'p').clientVars.has('items'));
+  assert.ok(pagePlan(doc, 'p').clientVars.has('items'));
 });
 
 for (const component of [false, true]) test(`${component ? 'component' : 'plain'} browser-loaded parent: own nested rows, scripts, operations and repeated loading`, async () => {
@@ -93,7 +93,7 @@ test('three nested levels preserve inner names, primitive values, scripts and un
   const doc = clientNestedDoc();
   const items = [{ name: 'Outer', tags: [{ name: 'Inner', label: 'tag', values: [0, false, 'quoted " {literal}'] }] }];
   doc.nodes.row.children.push('values');
-  doc.nodes.values = { ...makeBox_2(), id: 'values', type: 'list', list: { from: 'values' }, children: ['value'] };
+  doc.nodes.values = { ...makeBox(), id: 'values', type: 'list', list: { from: 'values' }, children: ['value'] };
   doc.nodes.value = { ...makeText('{name}:{label}:{値}'), id: 'value', attrId: 'value' };
   const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));
   const template = runtime.root.querySelector('[data-tpl]')!.textContent;
@@ -361,7 +361,7 @@ function fixture(sample: readonly unknown[]) {
   const require = createRequire(resolve("components/canvas/NodeView.tsx"));
   const { VarsCtx } = require("./render");
   const render = (preview = true) => {
-    const plan = pagePlan_3(state().doc, "p");
+    const plan = pagePlan(state().doc, "p");
     return renderToStaticMarkup(React.createElement(VarsCtx.Provider, { value: {
       pageVars: previewDataVars(state().doc, "p"), preview, fieldValues: {},
       clientVars: plan.clientVars, listOps: plan.listOps, setFieldValue() {}, refresh() {}, navigate() {},
@@ -543,11 +543,11 @@ function canvasMarkup(doc: SiteDoc, preview = true) {
   const code = transformSync(readFileSync(file, "utf8"), { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
   new Function("require", "module", "exports", code)((id: string) => id.endsWith("/lib/store")
     ? { ...local(id), useEditor: (select: any) => select(useEditor.getState()) } : local(id), mod, mod.exports);
-  const { VarsCtx } = local("./render"), plan = pagePlan_4(doc, "p");
-  return renderToStaticMarkup(createElement_2(VarsCtx.Provider, { value: {
+  const { VarsCtx } = local("./render"), plan = pagePlan(doc, "p");
+  return renderToStaticMarkup(createElement(VarsCtx.Provider, { value: {
     pageVars: previewDataVars(doc, "p"), preview, fieldValues: {}, clientVars: plan.clientVars, listOps: plan.listOps,
     setFieldValue() {}, refresh() {}, navigate() {},
-  } }, doc.pages.p.children.map(id => createElement_2(mod.exports.NodeView, { id, key: id, isTop: true }))));
+  } }, doc.pages.p.children.map(id => createElement(mod.exports.NodeView, { id, key: id, isTop: true }))));
 }
 
 // 実際の React の出力を読み、ランタイムが使う DOM の操作だけを再現する。
@@ -610,8 +610,8 @@ function runtime(html: string, source: string) {
 
 test("the nested source is a real named page array offered by ScriptEditor's ArraySelect", () => {
   const doc = nestedOperationsDoc();
-  const html = renderToStaticMarkup(createElement_2(Ctx.Provider, { value: { arrays: pageArrays(doc, "p") } as EdCtx },
-    createElement_2(ArraySelect, { value: "", onChange() {} })));
+  const html = renderToStaticMarkup(createElement(Ctx.Provider, { value: { arrays: pageArrays(doc, "p") } as EdCtx },
+    createElement(ArraySelect, { value: "", onChange() {} })));
   assert.match(html, /class="[^"]*se-list-choice/);
   assert.match(html, /aria-haspopup="listbox"/);
   assert.doesNotMatch(html, /見つかりません/);
@@ -705,7 +705,7 @@ function fixture() {
   const require = createRequire(resolve("components/canvas/NodeView.tsx"));
   const { VarsCtx } = require("./render");
   const preview = () => {
-    const plan = pagePlan_5(state().doc, "p");
+    const plan = pagePlan(state().doc, "p");
     const html = renderToStaticMarkup(React.createElement(VarsCtx.Provider, { value: {
       pageVars: previewDataVars(state().doc, "p"), preview: true, fieldValues: {},
       clientVars: plan.clientVars, listOps: plan.listOps, setFieldValue() {}, refresh() {}, navigate() {},
@@ -812,7 +812,7 @@ function render(preview = true) {
   const code = transformSync(readFileSync(file, "utf8"), { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
   new Function("require", "module", "exports", code)((id: string) => id.endsWith("/lib/store")
     ? { ...require(id), useEditor: (select: any) => select(useEditor.getState()) } : require(id), mod, mod.exports);
-  const { VarsCtx } = require("./render"), plan = pagePlan_6(doc, "p");
+  const { VarsCtx } = require("./render"), plan = pagePlan(doc, "p");
   return renderToStaticMarkup(React.createElement(VarsCtx.Provider, { value: {
     pageVars: previewDataVars(doc, "p"), preview, fieldValues: {}, clientVars: plan.clientVars, listOps: plan.listOps,
     setFieldValue() {}, refresh() {}, navigate() {},

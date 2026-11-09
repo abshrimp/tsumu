@@ -26,7 +26,7 @@ import { applyPagePayload, buildPagePayload, copyPagesToSite } from "../lib/page
 import { queryCopyFixture, renderQueryCopyExport } from "./helpers/page-copy-query";
 import { previewNavigationFixture, previewQueryDoc, publishedQueryPage } from "./helpers/preview-query-navigation";
 import { readFileSync } from "node:fs";
-import { resolve as resolve_2, dirname, posix } from "node:path";
+import { resolve, dirname, posix } from "node:path";
 import { runInNewContext } from "node:vm";
 import { makeSample, previewDataVars } from "../lib/data";
 import { previewRefreshDoc, previewRows } from "./helpers/preview-refresh";
@@ -1412,7 +1412,7 @@ function mount(initialMode: EditorMode = "preview", doc = previewRefreshDoc()) {
   const fetch = (_url: string, options: RequestInit) => new Promise<Response>((finish, fail) => {
     requests.push({ input: JSON.parse(String(options.body)), signal: options.signal, finish, fail });
   });
-  const require = createRequire(resolve_2("components/canvas/useCanvasData.ts"));
+  const require = createRequire(resolve("components/canvas/useCanvasData.ts"));
   const module = { exports: {} as any };
   const code = transformSync(readFileSync("components/canvas/useCanvasData.ts", "utf8"), { loader: "ts", format: "cjs" }).code;
   new Function("require", "module", "exports", "fetch", code)(

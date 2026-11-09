@@ -2,12 +2,9 @@ import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { resolve as resolve_2, resolve as resolve_3 } from "node:path";
+import { resolve } from "node:path";
 import { transformSync } from "./helpers/bundle";
-import * as React_2 from "react";
-import * as React_3 from "react";
-import * as React_4 from "react";
-import * as React_5 from "react";
+import * as React from "react";
 import { useEditor } from "../lib/store";
 import { commitFieldsDoc } from "./helpers/commit-fields";
 import { runInNewContext } from "node:vm";
@@ -45,7 +42,7 @@ function mount(kind: "input" | "textarea", extra: Record<string, unknown> = {}) 
   const element = { value: useEditor.getState().doc.pages.p[field] };
   const document = { activeElement: element as typeof element | null };
   const hooks = {
-    ...React_2,
+    ...React,
     useId() { const i = cursor++; return slots[i] ??= `test-field-${i}`; },
     useRef(initial: unknown) { return slots[cursor++] ??= { current: initial }; },
     useEffect(effect: () => void, deps: unknown[]) {
@@ -57,7 +54,7 @@ function mount(kind: "input" | "textarea", extra: Record<string, unknown> = {}) 
     },
   };
   const mod = { exports: {} as any };
-  const require = createRequire(resolve_2("components/controls.tsx"));
+  const require = createRequire(resolve("components/controls.tsx"));
   const source = transformSync(readFileSync("components/controls.tsx", "utf8"), {
     loader: "tsx", jsx: "automatic", format: "cjs",
   }).code;
@@ -483,7 +480,7 @@ describe("input-default", () => {
   function canvasData() {
     const slots: any[] = [];
     let cursor = 0;
-    const hooks = { ...React_3,
+    const hooks = { ...React,
       useMemo: (fn: () => unknown) => fn(), useCallback: (fn: unknown) => fn, useEffect() {},
       useRef: (value: unknown) => ({ current: value }),
       useState(initial: unknown) {
@@ -492,7 +489,7 @@ describe("input-default", () => {
         return [slots[at], (next: any) => { slots[at] = typeof next === "function" ? next(slots[at]) : next; }];
       },
     };
-    const file = resolve_3("components/canvas/useCanvasData.ts");
+    const file = resolve("components/canvas/useCanvasData.ts");
     const require = createRequire(file), mod = { exports: {} as any };
     const code = transformSync(readFileSync(file, "utf8"), { loader: "ts", format: "cjs" }).code;
     new Function("require", "module", "exports", code)((id: string) => id === "react" ? hooks : id === "../../lib/store" ? { useEditor: Object.assign((pick: any) => pick(useEditor.getState()), useEditor) } : require(id), mod, mod.exports);
@@ -932,7 +929,7 @@ function mount() {
   let element: any;
   const window = { location: { pathname: "/search", search: "" }, addEventListener() {}, removeEventListener() {} };
   const hooks = {
-    ...React_4,
+    ...React,
     useRef: () => ref,
     useEffect(fn: typeof effect, deps: unknown[]) {
       if (!previousDeps || deps.some((value, index) => value !== previousDeps![index])) {
@@ -983,7 +980,7 @@ function mount() {
   function render(search: string, pathname = "/search") {
     effect = undefined;
     window.location = { search, pathname };
-    element = Component({ children: React_4.createElement("input", { name: "q" }) });
+    element = Component({ children: React.createElement("input", { name: "q" }) });
     element.props.ref.current = form;
     const visit = (node: any) => {
       if (!node || typeof node !== "object") return;
@@ -1122,7 +1119,7 @@ describe("search-form-values", () => {
       }
     }
     const overrides: Record<string, unknown> = {
-      react: { ...React_5, useRef: () => ref, useEffect: (fn: typeof effect) => { effect = fn; } },
+      react: { ...React, useRef: () => ref, useEffect: (fn: typeof effect) => { effect = fn; } },
       "next/navigation": {
         useRouter: () => ({ replace: (url: string) => navigations.push(url) }),
         usePathname: () => window.location.pathname,
@@ -1207,7 +1204,7 @@ describe("search-form-radio-values", () => {
         const form = { elements: radios, dispatchEvent() {} };
         const ref = { current: form };
         const effects: (() => void)[] = [];
-        const hooks = { ...React_5, useRef: () => ref, useEffect: (fn: () => void) => effects.push(fn) };
+        const hooks = { ...React, useRef: () => ref, useEffect: (fn: () => void) => effects.push(fn) };
         const window = { location: { pathname: "/", search: `?mode=${selected}` }, addEventListener() {}, removeEventListener() {} };
         const module = { exports: {} as any };
         const compiled = transformSync(source, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;

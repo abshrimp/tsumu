@@ -2,7 +2,7 @@ import { describe, before, test, afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { resolve as resolve_2, resolve as resolve_3, resolve as resolve_4, resolve as resolve_5, resolve as resolve_6, resolve as resolve_7, resolve as resolve_8, resolve as resolve_9, resolve as resolve_10, resolve as resolve_11, resolve as resolve_12, resolve as resolve_13 } from "node:path";
+import { resolve } from "node:path";
 import { transformSync } from "./helpers/bundle";
 import { cssAssetReferences } from "../lib/css-assets";
 import { searchSiteBody } from "../lib/body-search";
@@ -15,12 +15,12 @@ import { generateSiteCss } from "../lib/generator/css";
 import { generateProject } from "../lib/generator";
 import { defaultAudioDoc, audioSource } from "./helpers/default-audio";
 import * as React from "react";
-import { createElement as createElement_2 } from "react";
+import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { buildClassNames } from "../lib/generator/names";
 import { makeBox, makeSwitch, createInitialDoc, makeMedia, makeText } from "../lib/presets";
 import { canvasFallbackDrop } from "../lib/canvas-drop";
-import { useEditor as useEditor_2, useEditor as useEditor_3, useEditor as useEditor_4, useEditor as useEditor_5, useEditor as useEditor_6, useEditor as useEditor_7, useEditor as useEditor_8, useEditor as useEditor_9 } from "../lib/store";
+import { useEditor } from "../lib/store";
 import { type UseCanvasDragDeps } from "../components/canvas/useCanvasDrag";
 import { runInNewContext } from "node:vm";
 import { SCRIPT_RUNTIME } from "../lib/script-runtime";
@@ -61,7 +61,7 @@ import { loadGeneratedRoute } from "./helpers/generated-route";
 describe("background-image-controls", () => {
 function render(image: string, assets = {}) {
   const writes: Record<string, string | null>[] = [];
-  const path = resolve_2("components/style-panel/BackgroundSec.tsx");
+  const path = resolve("components/style-panel/BackgroundSec.tsx");
   const require = createRequire(path);
   const mod = { exports: {} as any };
   const doc = { assets };
@@ -482,7 +482,7 @@ describe("instance-visibility", () => {
     new Function("require", "module", "exports", code)((id: string) =>
       id === "../../lib/store" ? { useEditor: (select: any) => select(state) } : localRequire(id),
       mod, mod.exports);
-    const html = renderToStaticMarkup(createElement_2(mod.exports.NodeView, { id: "visible", isTop: true }));
+    const html = renderToStaticMarkup(createElement(mod.exports.NodeView, { id: "visible", isTop: true }));
     assert.match(html, /data-node="visible"/);
     assert.match(html, /data-ghost="innerRoot" data-instance-node="nested"/);
     assert.equal((html.match(/<div/g) ?? []).length, 2);
@@ -503,7 +503,7 @@ describe("instance-visibility", () => {
       cache.set(file, mod.exports);
       return mod.exports;
     };
-    return { html: renderToStaticMarkup(createElement_2(load("app/page.tsx").default)), css: files["styles/site.css"], files };
+    return { html: renderToStaticMarkup(createElement(load("app/page.tsx").default)), css: files["styles/site.css"], files };
   }
 
   test("published instances forward independent visibility onto the component root", () => {
@@ -531,7 +531,7 @@ describe("instance-visibility", () => {
 
 describe("canvas-drop", () => {
   before(() => {
-    useEditor_2.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
@@ -563,7 +563,7 @@ function fixture(master = true, children = ["a", "b", "c"]): SiteDoc {
 }
 
 function moveOnBlank(ids: string[], master = true) {
-  const state = useEditor_2.getState();
+  const state = useEditor.getState();
   const drop = canvasFallbackDrop(
     state.doc,
     master ? state.doc.components!.comp : null,
@@ -602,10 +602,10 @@ const cases = [
 
 for (const { ids, expected } of cases) {
   test(`blank master drop appends ${ids.join(",")} in document order`, () => {
-    useEditor_2.getState().replaceDoc(fixture());
+    useEditor.getState().replaceDoc(fixture());
     moveOnBlank(ids);
-    assert.deepEqual(useEditor_2.getState().doc.nodes.root.children, expected);
-    assert.deepEqual(useEditor_2.getState().doc.pages.p.children, []);
+    assert.deepEqual(useEditor.getState().doc.nodes.root.children, expected);
+    assert.deepEqual(useEditor.getState().doc.pages.p.children, []);
   });
 }
 
@@ -613,26 +613,26 @@ test("blank master drop moves a nested child to the end and can undo", () => {
   const doc = fixture();
   doc.nodes.d = { ...makeBox(), id: "d" };
   doc.nodes.a.children = ["d"];
-  useEditor_2.getState().replaceDoc(doc);
-  const before = structuredClone(useEditor_2.getState().doc);
+  useEditor.getState().replaceDoc(doc);
+  const before = structuredClone(useEditor.getState().doc);
   moveOnBlank(["d"]);
-  assert.deepEqual(useEditor_2.getState().doc.nodes.root.children, ["a", "b", "c", "d"]);
-  assert.deepEqual(useEditor_2.getState().doc.nodes.a.children, []);
-  useEditor_2.getState().undo();
-  assert.deepEqual(useEditor_2.getState().doc, before);
+  assert.deepEqual(useEditor.getState().doc.nodes.root.children, ["a", "b", "c", "d"]);
+  assert.deepEqual(useEditor.getState().doc.nodes.a.children, []);
+  useEditor.getState().undo();
+  assert.deepEqual(useEditor.getState().doc, before);
 });
 
 test("blank page drop still appends", () => {
-  useEditor_2.getState().replaceDoc(fixture(false));
+  useEditor.getState().replaceDoc(fixture(false));
   moveOnBlank(["a"], false);
-  assert.deepEqual(useEditor_2.getState().doc.pages.p.children, ["b", "c", "a"]);
+  assert.deepEqual(useEditor.getState().doc.pages.p.children, ["b", "c", "a"]);
 });
 
 test("blank master drop cannot move the master root into itself", () => {
-  useEditor_2.getState().replaceDoc(fixture());
-  const before = structuredClone(useEditor_2.getState().doc);
+  useEditor.getState().replaceDoc(fixture());
+  const before = structuredClone(useEditor.getState().doc);
   moveOnBlank(["root"]);
-  assert.deepEqual(useEditor_2.getState().doc, before);
+  assert.deepEqual(useEditor.getState().doc, before);
 });
 
 test("missing fallback destinations remain harmless", () => {
@@ -641,27 +641,27 @@ test("missing fallback destinations remain harmless", () => {
   for (const component of [null, missing]) {
     const drop = canvasFallbackDrop(doc, component, "missing");
     assert.equal(drop.index, 0);
-    useEditor_2.getState().replaceDoc(doc);
-    const before = structuredClone(useEditor_2.getState().doc);
-    useEditor_2.getState().moveNodes(["a"], drop.parent, drop.index);
-    assert.deepEqual(useEditor_2.getState().doc, before);
+    useEditor.getState().replaceDoc(doc);
+    const before = structuredClone(useEditor.getState().doc);
+    useEditor.getState().moveNodes(["a"], drop.parent, drop.index);
+    assert.deepEqual(useEditor.getState().doc, before);
   }
 });
 });
 
 describe("canvas-move-lifecycle", () => {
   before(() => {
-    useEditor_3.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
   });
-const hookPath = resolve_3("components/canvas/useCanvasDrag.ts");
+const hookPath = resolve("components/canvas/useCanvasDrag.ts");
 const requireHookImport = createRequire(hookPath);
 const hookCode = transformSync(readFileSync(hookPath, "utf8"), { loader: "ts", format: "cjs" }).code;
 const loadHook = new Function("require", "module", "exports", "window", "document", "getComputedStyle", hookCode);
 
-const state = () => useEditor_3.getState();
+const state = () => useEditor.getState();
 const snapshot = () => structuredClone({ doc: state().doc, past: state().past, future: state().future });
 
 // 実際のフックと実際のストアを使う。DOM の寸法とフックの描画だけを固定し、ブラウザの操作は e2e で確かめる。
@@ -691,7 +691,7 @@ function mount() {
   };
   const mod = { exports: {} as any };
   loadHook(
-    (id: string) => id === "react" ? hooks : id === "../../lib/store" ? { ...requireHookImport(id), useEditor: useEditor_3 } :
+    (id: string) => id === "react" ? hooks : id === "../../lib/store" ? { ...requireHookImport(id), useEditor: useEditor } :
       id === "../../lib/image-drop" ? { useImageDrop: () => ({ uploading: false, dropFiles() {} }) } : requireHookImport(id),
     mod, mod.exports, win, doc, () => ({ display: "block", flexDirection: "column" }),
   );
@@ -808,12 +808,12 @@ for (const active of [false, true]) {
         if (change === "replace") state().replaceDoc(canvasMoveDoc());
         if (change === "remote") { const doc = structuredClone(state().doc); doc.nodes.b.name = "Remote"; state().applyRemoteDoc(doc); }
         if (change === "edit") state().updateNode("b", { name: "Newer edit" });
-        if (change === "component") useEditor_3.setState({ editingComponentId: "component" });
+        if (change === "component") useEditor.setState({ editingComponentId: "component" });
         if (change === "mode") state().setMode("preview");
         if (change === "breakpoint") state().setBreakpoint("sm");
         if (change === "style") state().setStyleState("hover");
         if (change === "selection") state().selectMany(["b", "c"], "b");
-        if (change === "primary") useEditor_3.setState({ selection: "b" });
+        if (change === "primary") useEditor.setState({ selection: "b" });
         if (change === "text") state().setEditingText("b");
         const before = snapshot();
         assert.equal(m.moveState.current, null); assert.equal(m.moveDropRef.current, null); assert.equal(m.ui.drag, null);
@@ -900,7 +900,7 @@ test("release coordinates replace the last preview and repeated pointerdown cann
 test("unrelated store updates do not invalidate movement", () => {
   const m = mount();
   try {
-    m.start(); useEditor_3.setState({ cloudState: "saved" });
+    m.start(); useEditor.setState({ cloudState: "saved" });
     assert.ok(m.ui.drag); m.pointer("pointerup", { buttons: 0 });
     assert.deepEqual(state().doc.pages.p.children, ["b", "c", "a"]);
   } finally { m.close(); }
@@ -909,12 +909,12 @@ test("unrelated store updates do not invalidate movement", () => {
 
 describe("canvas-node-resize-lifecycle", () => {
   before(() => {
-    useEditor_4.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
   });
-const state = () => useEditor_4.getState();
+const state = () => useEditor.getState();
 const width = () => state().doc.nodes.a.styles.base?.default?.width;
 
 function mount() {
@@ -943,13 +943,13 @@ function mount() {
     useRef: (value: unknown) => refs[refIndex++] ?? (refs[refIndex - 1] = { current: value }),
     useLayoutEffect: (fn: () => () => void) => { if (!mounted) cleanups.push(fn()); },
   };
-  const path = resolve_4("components/canvas/useCanvasDrag.ts");
+  const path = resolve("components/canvas/useCanvasDrag.ts");
   const require = createRequire(path);
   const mod = { exports: {} as any };
   const code = transformSync(readFileSync(path, "utf8"), { loader: "ts", format: "cjs" }).code;
   new Function("require", "module", "exports", "window", "document", code)((id: string) => {
     if (id === "react") return hooks;
-    if (id === "../../lib/store") return { ...require(id), useEditor: useEditor_4 };
+    if (id === "../../lib/store") return { ...require(id), useEditor: useEditor };
     if (id === "../../lib/image-drop") return { useImageDrop: () => ({ uploading: false, dropFiles() {} }) };
     return require(id);
   }, mod, mod.exports, win, doc);
@@ -1078,7 +1078,7 @@ test("Shift-resizing a zero-width node never writes Infinity or NaN CSS", () => 
 
 describe("canvas-preview-lifecycle", () => {
   before(() => {
-    useEditor_5.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
@@ -1105,10 +1105,10 @@ function fixtureDoc(): SiteDoc {
 // React のスケジュール、データの取得、ホストの DOM だけ。React の差分の反映と
 // ネイティブのイベントの配信は、ブラウザのテストで確かめる。
 function mount(initialPage = "a", doc = fixtureDoc()) {
-  useEditor_5.getState().replaceDoc(doc);
-  useEditor_5.getState().setActivePage(initialPage);
-  useEditor_5.getState().setMode("preview");
-  useEditor_5.getState().setBreakpoint("base");
+  useEditor.getState().replaceDoc(doc);
+  useEditor.getState().setActivePage(initialPage);
+  useEditor.getState().setMode("preview");
+  useEditor.getState().setBreakpoint("base");
   let cursor = 0;
   const slots: any[] = [], effects: (() => void)[] = [];
   const hooks = {
@@ -1154,15 +1154,15 @@ function mount(initialPage = "a", doc = fixtureDoc()) {
     fieldValues: {}, pageVars: {}, fieldVarNodes: [],
     setFieldValues: noop, setClientValues: noop, setLiveSamples: noop,
     setLiveTotals: noop, setFullData: noop, refreshData: noop,
-    navigateTo: (url: string) => calls.push(url), setActivePage: useEditor_5.getState().setActivePage,
+    navigateTo: (url: string) => calls.push(url), setActivePage: useEditor.getState().setActivePage,
     plan: { clientVars: new Set(), listOps: {}, serverIds: new Set() },
   };
-  const require = createRequire(resolve_5("components/Canvas.tsx"));
+  const require = createRequire(resolve("components/Canvas.tsx"));
   const mod = { exports: {} as any };
   const code = transformSync(readFileSync("components/Canvas.tsx", "utf8"), { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
   new Function("require", "module", "exports", code)((id: string) => {
     if (id === "react") return hooks;
-    if (id === "../lib/store") return { useEditor: Object.assign((select: any) => select(useEditor_5.getState()), useEditor_5) };
+    if (id === "../lib/store") return { useEditor: Object.assign((select: any) => select(useEditor.getState()), useEditor) };
     if (id === "./canvas/useCanvasData") return { useCanvasData: () => data };
     if (id === "./canvas/useHtmlPreview") return { useHtmlPreview: () => ({ html: "" }) };
     if (id === "./canvas/useCanvasDrag") return { useCanvasDrag: () => ({ dropHandlers: {} }) };
@@ -1204,7 +1204,7 @@ function mount(initialPage = "a", doc = fixtureDoc()) {
   render();
   return {
     calls, render, counts: () => ({ installs, disposals }),
-    page(id: string) { useEditor_5.getState().setActivePage(id); render(); },
+    page(id: string) { useEditor.getState().setActivePage(id); render(); },
     async finishWaits() {
       const pending = [...timers.values()]; timers.clear(); pending.forEach(fn => fn());
       await new Promise<void>(done => setImmediate(done));
@@ -1216,13 +1216,13 @@ function mount(initialPage = "a", doc = fixtureDoc()) {
 test("each visual page visit runs its load scripts, including a return visit", () => {
   const m = mount();
   try {
-    const before = useEditor_5.getState();
+    const before = useEditor.getState();
     assert.deepEqual(m.calls, ["/a-load"]);
     m.page("b"); m.page("a");
     assert.deepEqual(m.calls, ["/a-load", "/b-load", "/a-load"]);
-    assert.equal(useEditor_5.getState().doc, before.doc);
-    assert.equal(useEditor_5.getState().past, before.past);
-    assert.equal(useEditor_5.getState().future, before.future);
+    assert.equal(useEditor.getState().doc, before.doc);
+    assert.equal(useEditor.getState().past, before.past);
+    assert.equal(useEditor.getState().future, before.future);
   } finally { m.close(); }
 });
 
@@ -1256,9 +1256,9 @@ for (const special of ["html", "redirect", "rewrite"]) {
 test("same-page document, viewport and selection changes do not replay load scripts", () => {
   const m = mount();
   try {
-    useEditor_5.getState().updatePage("a", { title: "Edited title" }); m.render();
-    useEditor_5.getState().setBreakpoint("sm"); m.render();
-    useEditor_5.getState().select(null); m.render();
+    useEditor.getState().updatePage("a", { title: "Edited title" }); m.render();
+    useEditor.getState().setBreakpoint("sm"); m.render();
+    useEditor.getState().select(null); m.render();
     assert.deepEqual(m.calls, ["/a-load"]);
     assert.deepEqual(m.counts(), { installs: 1, disposals: 0 });
   } finally { m.close(); }
@@ -1267,9 +1267,9 @@ test("same-page document, viewport and selection changes do not replay load scri
 test("same-page conversion to HTML and undo replace the runtime owner", () => {
   const m = mount();
   try {
-    useEditor_5.getState().updatePage("a", { rawHtml: "<p>HTML</p>" }); m.render();
+    useEditor.getState().updatePage("a", { rawHtml: "<p>HTML</p>" }); m.render();
     assert.deepEqual(m.counts(), { installs: 1, disposals: 1 });
-    useEditor_5.getState().undo(); m.render();
+    useEditor.getState().undo(); m.render();
     assert.deepEqual(m.calls, ["/a-load", "/a-load"]);
   } finally { m.close(); }
 });
@@ -1353,7 +1353,7 @@ describe("inline-grid-layout", () => {
   function render(section: "BoxSec" | "LayoutSec", styles: Record<string, string>) {
     const writes: any[] = [];
     const node = { ...makeBox(), styles: { base: { default: styles } } };
-    const path = resolve_6(`components/style-panel/${section}.tsx`);
+    const path = resolve(`components/style-panel/${section}.tsx`);
     const require = createRequire(path);
     const mod = { exports: {} as any };
     const code = transformSync(readFileSync(path, "utf8"), { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
@@ -1395,7 +1395,7 @@ describe("spacing-shorthand-preservation", () => {
   function render(section: "BoxSec" | "LayoutSec", styles: Record<string, string>) {
     const writes: any[] = [];
     const node = { ...makeBox(), styles: { base: { default: styles } } };
-    const path = resolve_6(`components/style-panel/${section}.tsx`);
+    const path = resolve(`components/style-panel/${section}.tsx`);
     const require = createRequire(path);
     const mod = { exports: {} as any };
     const code = transformSync(readFileSync(path, "utf8"), { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
@@ -1500,7 +1500,7 @@ describe("color-hex-alpha", () => {
 });
 
 describe("opacity-control", () => {
-  const boxSecPath = resolve_6("components/style-panel/BoxSec.tsx");
+  const boxSecPath = resolve("components/style-panel/BoxSec.tsx");
   const boxSecRequire = createRequire(boxSecPath);
   const boxSecCode = transformSync(readFileSync(boxSecPath, "utf8"), { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
 
@@ -1597,7 +1597,7 @@ describe("opacity-control", () => {
 
   {
     let values: Record<string, string> = {}, zWrites: Record<string, string | null>[] = [];
-    const posRequire = createRequire(resolve_6("components/style-panel/PositionSec.tsx"));
+    const posRequire = createRequire(resolve("components/style-panel/PositionSec.tsx"));
     const posMod = { exports: {} as any };
     const posSource = transformSync(readFileSync("components/style-panel/PositionSec.tsx", "utf8") + "\nexport { ZIndexControl };", { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
     new Function("require", "module", "exports", posSource)((id: string) => {
@@ -1620,7 +1620,7 @@ describe("opacity-control", () => {
 describe("position-border-controls", () => {
   function render(file: string, name: string, base: Record<string, string>, props = {}, bp = "base", state = "hover") {
     const node = { ...makeBox(), styles: { base: { default: base } } };
-    const writes: any[] = [], path = resolve_6(`components/style-panel/${file}.tsx`), require = createRequire(path);
+    const writes: any[] = [], path = resolve(`components/style-panel/${file}.tsx`), require = createRequire(path);
     const mod = { exports: {} as any }, doc = { nodes: { [node.id]: node }, assets: {}, pages: {}, pageOrder: [] };
     const code = transformSync(readFileSync(path, "utf8"), { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
     new Function("require", "module", "exports", code)((id: string) => {
@@ -1706,7 +1706,7 @@ describe("shadow-length-units", () => {
   // 付く px の接尾辞を見逃してしまう。
   function renderShadow(prop: "boxShadow" | "textShadow") {
     const writes: any[] = [];
-    const path = resolve_6("components/style-panel/EffectsSec.tsx");
+    const path = resolve("components/style-panel/EffectsSec.tsx");
     const require = createRequire(path);
     const mod = { exports: {} as any };
     const code = transformSync(readFileSync(path, "utf8"), { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
@@ -1737,7 +1737,7 @@ describe("shadow-length-units", () => {
 });
 
 describe("dialog-focus", () => {
-const path = resolve_7("components/DialogHost.tsx");
+const path = resolve("components/DialogHost.tsx");
 const require = createRequire(path);
 const code = transformSync(readFileSync(path, "utf8"), { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
 const loadDialogHost = new Function("require", "module", "exports", "window", "document", "HTMLElement", code);
@@ -1978,7 +1978,7 @@ describe("effect-hover-clear", () => {
 function renderEffects(node: any, bp = "base", state = "default") {
   const writes: any[] = [];
   const doc = { nodes: { [node.id]: node }, pages: {}, pageOrder: [] };
-  const path = resolve_8("components/style-panel/EffectsSec.tsx");
+  const path = resolve("components/style-panel/EffectsSec.tsx");
   const require = createRequire(path);
   const mod = { exports: {} as any };
   const code = transformSync(readFileSync(path, "utf8"), { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
@@ -2049,7 +2049,7 @@ test("right-click reset retains inheritance semantics", () => {
 describe("explicit-style-mode", () => {
 function render(file: string, name: string, base: Record<string, string>, props = {}, bp = "base", state = "hover") {
   const node = { ...makeBox(), styles: { base: { default: base } } };
-  const writes: any[] = [], path = resolve_9(`components/style-panel/${file}.tsx`), require = createRequire(path);
+  const writes: any[] = [], path = resolve(`components/style-panel/${file}.tsx`), require = createRequire(path);
   const mod = { exports: {} as any }, doc = { nodes: { [node.id]: node }, assets: {}, pages: {}, pageOrder: [] };
   const code = transformSync(readFileSync(path, "utf8"), { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
   new Function("require", "module", "exports", code)((id: string) => {
@@ -2123,7 +2123,7 @@ test("clearing the hover image picker removes the image; group reset restores in
 });
 
 describe("filter-controls-preservation", () => {
-const effectsPath = resolve_10("components/style-panel/EffectsSec.tsx");
+const effectsPath = resolve("components/style-panel/EffectsSec.tsx");
 const effectsRequire = createRequire(effectsPath);
 const effectsCode = transformSync(readFileSync(effectsPath, "utf8"), { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
 
@@ -2253,7 +2253,7 @@ test("contains-any matches overlapping list values and rejects disjoint values",
 
 describe("image-drop", () => {
   before(() => {
-    useEditor_6.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
@@ -2269,7 +2269,7 @@ function fixture(): SiteDoc {
     components: { comp: { id: "comp", name: "Component", rootId: "root" } },
   };
 }
-const state = () => useEditor_6.getState();
+const state = () => useEditor.getState();
 const originalFetch = globalThis.fetch;
 const originalImage = globalThis.Image;
 const pending: ((ok?: boolean) => void)[] = [];
@@ -2498,9 +2498,9 @@ test("invalid files or destinations do not steal selection from an earlier valid
 
 for (const reason of ["unmount", "undo", "deleted target"] as const) {
   test(`${reason} releases the pending store subscription before the network completes`, async () => {
-    const subscribe = useEditor_6.subscribe;
+    const subscribe = useEditor.subscribe;
     let subscriptions = 0;
-    useEditor_6.subscribe = (listener) => {
+    useEditor.subscribe = (listener) => {
       subscriptions++;
       const unsubscribe = subscribe(listener);
       let listening = true;
@@ -2521,7 +2521,7 @@ for (const reason of ["unmount", "undo", "deleted target"] as const) {
       task.cancel();
       assert.equal(subscriptions, 0, "settling and repeated cancellation are safe");
       assert.equal(Object.keys(state().doc.assets).length, 1, "completed upload is retained without a live subscription");
-    } finally { useEditor_6.subscribe = subscribe; }
+    } finally { useEditor.subscribe = subscribe; }
   });
 }
 
@@ -2710,17 +2710,17 @@ test("a destination deepened during upload retains the asset without inserting a
 
 describe("image-source-commit", () => {
   before(() => {
-    useEditor_7.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
   });
-const require = createRequire(resolve_11("components/SettingsPanel.tsx"));
+const require = createRequire(resolve("components/SettingsPanel.tsx"));
 const mod = { exports: {} as any };
 const source = transformSync(readFileSync("components/SettingsPanel.tsx", "utf8"), { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
 new Function("require", "module", "exports", source)((id: string) => {
   if (id === "react") return { ...React, useState: (value: unknown) => [value, () => {}] };
-  if (id === "../lib/store") return { ...require(id), useEditor: Object.assign((select: any) => select(useEditor_7.getState()), useEditor_7) };
+  if (id === "../lib/store") return { ...require(id), useEditor: Object.assign((select: any) => select(useEditor.getState()), useEditor) };
   return require(id);
 }, mod, mod.exports);
 const findSource = (tree: any): any => {
@@ -2738,20 +2738,20 @@ for (const asset of [false, true]) test(`image source ${asset ? "preserves an un
   const node = { ...makeBox(), id: "image", type: "image" as const, image };
   doc.nodes.image = node;
   doc.pages[doc.pageOrder[0]].children = [node.id];
-  useEditor_7.getState().replaceDoc(doc);
+  useEditor.getState().replaceDoc(doc);
   const field = findSource(mod.exports.default({ nodeId: "image" }));
   assert.ok(field);
   assert.equal(field.type, VarInput);
   field.props.onCommit("  ");
   if (asset) {
-    assert.deepEqual(useEditor_7.getState().doc.nodes.image.image, image);
-    assert.equal(useEditor_7.getState().past.length, 0);
+    assert.deepEqual(useEditor.getState().doc.nodes.image.image, image);
+    assert.equal(useEditor.getState().past.length, 0);
   } else {
-    assert.deepEqual(useEditor_7.getState().doc.nodes.image.image, { ...image, src: "", assetId: undefined, assetSuffix: undefined });
-    useEditor_7.getState().undo();
-    assert.deepEqual(useEditor_7.getState().doc.nodes.image.image, image);
-    useEditor_7.getState().redo();
-    assert.equal(useEditor_7.getState().doc.nodes.image.image?.src, "");
+    assert.deepEqual(useEditor.getState().doc.nodes.image.image, { ...image, src: "", assetId: undefined, assetSuffix: undefined });
+    useEditor.getState().undo();
+    assert.deepEqual(useEditor.getState().doc.nodes.image.image, image);
+    useEditor.getState().redo();
+    assert.equal(useEditor.getState().doc.nodes.image.image?.src, "");
   }
 });
 });
@@ -2893,17 +2893,17 @@ test("source alternatives relocate on restore and participate in publication che
 
 describe("media-source-commit", () => {
   before(() => {
-    useEditor_8.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
   });
-const require = createRequire(resolve_12("components/SettingsPanel.tsx"));
+const require = createRequire(resolve("components/SettingsPanel.tsx"));
 const mod = { exports: {} as any };
 const source = transformSync(readFileSync("components/SettingsPanel.tsx", "utf8"), { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
 new Function("require", "module", "exports", source)((id: string) => {
   if (id === "react") return { ...React, useState: (value: unknown) => [value, () => {}] };
-  if (id === "../lib/store") return { ...require(id), useEditor: Object.assign((select: any) => select(useEditor_8.getState()), useEditor_8) };
+  if (id === "../lib/store") return { ...require(id), useEditor: Object.assign((select: any) => select(useEditor.getState()), useEditor) };
   return require(id);
 }, mod, mod.exports);
 const findSource = (tree: any): any => {
@@ -2919,24 +2919,24 @@ for (const kind of ["video", "audio"] as const) test(`${kind} source only commit
   const node = { ...makeBox(), id: "media", type: "media" as const, media: { kind, src: "/api/assets/file?path=movie", assetId: "movie", assetSuffix: "#t=4", sources: [{src:"alternative.mp4"}], loop: true } };
   doc.nodes.media = node;
   doc.pages[doc.pageOrder[0]].children = [node.id];
-  useEditor_8.getState().replaceDoc(doc);
+  useEditor.getState().replaceDoc(doc);
   const field = findSource(mod.exports.default({ nodeId: "media" }));
   assert.ok(field);
   // CommitInput については、操作していないときの blur、外からの更新、履歴の再生を、commit-fields.test.mts で確かめる。
   field.props.onBlur?.({ target: { value: "" } });
-  assert.deepEqual(useEditor_8.getState().doc.nodes.media.media, node.media, "untouched empty asset placeholder must preserve the selected asset");
+  assert.deepEqual(useEditor.getState().doc.nodes.media.media, node.media, "untouched empty asset placeholder must preserve the selected asset");
   assert.equal(field.type, CommitInput);
   assert.equal(field.props.value, "");
   assert.equal(field.props.onBlur, undefined, "no unconditional blur write can detach the asset");
   field.props.onCommit(" https://example.test/media ");
-  assert.deepEqual(useEditor_8.getState().doc.nodes.media.media, { kind, src: "https://example.test/media", assetId: undefined, assetSuffix: undefined, sources: undefined, loop: true });
-  useEditor_8.getState().undo();
-  assert.deepEqual(useEditor_8.getState().doc.nodes.media.media, node.media);
-  useEditor_8.getState().redo();
+  assert.deepEqual(useEditor.getState().doc.nodes.media.media, { kind, src: "https://example.test/media", assetId: undefined, assetSuffix: undefined, sources: undefined, loop: true });
+  useEditor.getState().undo();
+  assert.deepEqual(useEditor.getState().doc.nodes.media.media, node.media);
+  useEditor.getState().redo();
   const changed = findSource(mod.exports.default({ nodeId: "media" }));
   assert.equal(changed.props.value, "https://example.test/media");
   changed.props.onCommit("");
-  assert.equal(useEditor_8.getState().doc.nodes.media.media?.src, "");
+  assert.equal(useEditor.getState().doc.nodes.media.media?.src, "");
 });
 });
 
@@ -3272,12 +3272,12 @@ test("failed SVG downloads are not cached and are retried on the next export", a
 
 describe("text-style-confirmation", () => {
   before(() => {
-    useEditor_9.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
   });
-const state = () => useEditor_9.getState();
+const state = () => useEditor.getState();
 const selected = () => ({ nodeId: "a", start: 5, end: 9, text: "echo" });
 function fixture() {
   state().replaceDoc(textStyleConfirmationDoc());
@@ -3430,7 +3430,7 @@ describe("typography-clamp-transition", () => {
 function renderTypography(node: any, bp = "sm", state = "default") {
   const writes: any[] = [];
   const doc = { nodes: { [node.id]: node }, pages: {}, pageOrder: [] };
-  const path = resolve_13("components/style-panel/TypographySec.tsx");
+  const path = resolve("components/style-panel/TypographySec.tsx");
   const require = createRequire(path);
   const mod = { exports: {} as any };
   const code = transformSync(readFileSync(path, "utf8"), { loader: "tsx", format: "cjs", jsx: "automatic" }).code;

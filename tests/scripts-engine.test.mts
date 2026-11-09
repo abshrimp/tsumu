@@ -1,9 +1,9 @@
-import test_2, { describe, before, test } from "node:test";
+import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { makeText, createInitialDoc, makeBox } from "../lib/presets";
 import { SCRIPT_RUNTIME, scriptsFile } from "../lib/script-runtime";
 import { publishedClientNested, clientNestedCanvas, loadNestedUi, clientNestedDoc } from "./helpers/client-nested-lists";
-import { clientScriptFixture as fixture_2 } from "./helpers/client-script-scope";
+import { clientScriptFixture } from "./helpers/client-script-scope";
 import { listRuntimeDom } from "./helpers/list-runtime-dom";
 import { createRequire } from "node:module";
 import { clientLiteralAttributesDoc, literalItems, literalText, literalSource, literalEmbed } from "./helpers/client-literal-attributes";
@@ -23,12 +23,12 @@ import { matchesValueCondition, setVarPath, withinScriptValueLimit } from "../li
 import { Script as JsScript, runInNewContext } from "node:vm";
 import { compileScripts, cloneSteps, scriptTargetIds, pageScriptsOf, withPageScripts, type PageScript } from "../lib/script";
 import { ACTIONS, findActions } from "../components/script-editor/catalog";
-import { type ScriptStep, type ScriptTrigger, type SiteDoc, type Page, type DocNode as DocNode_2, type FieldContent, PAGE_TARGET, type Script } from "../lib/types";
+import { type ScriptStep, type ScriptTrigger, type SiteDoc, type Page, type DocNode, type FieldContent, PAGE_TARGET, type Script } from "../lib/types";
 import { transformSync } from "./helpers/bundle";
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join as join_2, resolve as resolve_2, resolve as resolve_3 } from "node:path";
+import { join, resolve } from "node:path";
 import { runPurePageSteps } from "../lib/page-load-steps";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
 import { generateProject } from "../lib/generator";
@@ -59,7 +59,7 @@ describe("client-script-scope", () => {
   });
 describe("client-script-scope", () => {
   for (const component of [false, true]) test(`${component ? 'component' : 'plain'} script references use the clicked row without reinterpreting data`, async () => {
-    const { doc, items } = fixture_2(component);
+    const { doc, items } = clientScriptFixture(component);
     const html = await publishedClientNested(doc, 'app/page.tsx', items);
     assert.ok(!html.includes('UNUSED_SERVER_PRIVATE'));
     const runtime = listRuntimeDom(html, scriptsFile(doc));
@@ -78,7 +78,7 @@ describe("client-script-scope", () => {
   });
 
   test('script values read live browser variables and fields at execution and encode URL data once', async () => {
-    const { doc, items } = fixture_2();
+    const { doc, items } = clientScriptFixture();
     doc.nodes.act.scripts![0].steps.push(
       { id: 'live', kind: 'set-var', value: '{name}|{counter}|{entry}|\\{name}', into: 'chosen' },
       { id: 'url', kind: 'open-url', url: '/products/{name}?q={entry}', newTab: true },
@@ -114,7 +114,7 @@ describe("client-script-scope", () => {
       { name: '', profile: {}, tags: [{ label: 'empty' }] },
       { 'profile.label': 'Literal {name}', tags: [{ label: 'dotted' }] },
     ];
-    const { doc } = fixture_2(false, items);
+    const { doc } = clientScriptFixture(false, items);
     doc.pages.p.pageScripts![0].steps.push({ id: 'profile', kind: 'set-var', value: '{response.0.profile}', into: 'profile' });
     doc.nodes.act.scripts![0].steps = [
       { id: 'value', kind: 'set-var', value: '{name}|{profile.label}', into: 'chosen' },
@@ -138,7 +138,7 @@ describe("client-script-scope", () => {
   });
 
   test('a loop scope overrides the clicked row while non-loop references keep the row scope', async () => {
-    const { doc, items } = fixture_2();
+    const { doc, items } = clientScriptFixture();
     items[1].tags[0].loopItems = [{ label: 'Loop' }] as any;
     doc.nodes.act.scripts![0].steps.push({ id: 'loop-input', kind: 'set-var', value: '{loopItems}', into: 'loopItems' });
     doc.nodes.act.scripts![0].steps.push({ id: 'loop', kind: 'for-each', array: 'loopItems', then: [
@@ -156,7 +156,7 @@ describe("client-script-scope", () => {
     const items = values.map((payload, i) => ({ name: `Row ${i}`, payload, tags: [{ label: `Tag ${i}` }] }));
     items.push({ name: 'Fallback', tags: [{ label: 'Fallback' }] } as any);
     values.push(values[3]);
-    const { doc } = fixture_2(false, items);
+    const { doc } = clientScriptFixture(false, items);
     doc.pages.p.pageScripts![0].steps.push({ id: 'payload', kind: 'set-var', value: '{response.3.payload}', into: 'payload' });
     doc.nodes.act.scripts![0].steps = [
       { id: 'raw', kind: 'set-var', value: '{payload}', into: 'rawChosen' },
@@ -186,7 +186,7 @@ describe("client-script-scope", () => {
 
 
   test('script execution preserves neighboring text, image, link and initialized field carriers', async () => {
-    const { doc, items } = fixture_2();
+    const { doc, items } = clientScriptFixture();
     doc.nodes.entry = { ...makeText(''), id: 'entry', attrId: 'entry', type: 'field', field: { kind: 'input', inputType: 'text', defaultValue: '{name}', placeholder: 'Find {name}' } };
     doc.nodes.link = { ...makeText('Open {name}'), id: 'link', attrId: 'link', link: { kind: 'url', url: '/rows/{name}' } };
     doc.nodes.picture = { ...makeText(''), id: 'picture', attrId: 'picture', type: 'image', image: { src: '/images/{name}.png', alt: 'Row', width: 20, height: 20 } };
@@ -852,12 +852,12 @@ const filtered: Item[] = ${expression};
 `;
   // TypeScript 7 は、古い JS のコンパイラーの API を公開せず、ネイティブの CLI を使う。
   // 出力した式は、実際のプロジェクトのコンパイラーで確かめる。
-  const folder = mkdtempSync(join_2(tmpdir(), "tsumu-generated-filter-"));
+  const folder = mkdtempSync(join(tmpdir(), "tsumu-generated-filter-"));
   try {
-    const sourceFile = join_2(folder, "generated.ts");
+    const sourceFile = join(folder, "generated.ts");
     writeFileSync(sourceFile, source, "utf8");
     try {
-      execFileSync(resolve_2(process.cwd(), "node_modules/.bin/tsc"), [
+      execFileSync(resolve(process.cwd(), "node_modules/.bin/tsc"), [
         "--ignoreConfig", "--noEmit", "--strict", "--skipLibCheck", "--target", "es2022",
         "--lib", "es2022", sourceFile,
       ], { cwd: process.cwd(), encoding: "utf8" });
@@ -1229,10 +1229,10 @@ test("generated recipe evaluator narrows its discriminated result under strict T
   });
   const generated = generateProject(doc).files["lib/value-recipe.ts"];
   assert.ok(generated);
-  const folder = mkdtempSync(join_2(tmpdir(), "tsumu-generated-recipe-"));
+  const folder = mkdtempSync(join(tmpdir(), "tsumu-generated-recipe-"));
   try {
-    const recipeFile = join_2(folder, "value-recipe.ts");
-    const consumerFile = join_2(folder, "consumer.ts");
+    const recipeFile = join(folder, "value-recipe.ts");
+    const consumerFile = join(folder, "consumer.ts");
     writeFileSync(recipeFile, generated, "utf8");
     writeFileSync(consumerFile, `import { evaluateValueRecipe } from "./value-recipe";
 const vars: Record<string, unknown> = {};
@@ -1242,7 +1242,7 @@ else if (result.kind === "missing") vars.count = undefined;
 else vars.error = result.code;
 `, "utf8");
     try {
-      execFileSync(resolve_2(process.cwd(), "node_modules/.bin/tsc"), [
+      execFileSync(resolve(process.cwd(), "node_modules/.bin/tsc"), [
         "--ignoreConfig", "--noEmit", "--strict", "--skipLibCheck", "--target", "es2022",
         "--module", "esnext", "--moduleResolution", "bundler", "--lib", "es2022",
         consumerFile,
@@ -2402,7 +2402,7 @@ test("gte/lte list-display filters yield identical browser and SSR results", asy
 });
 
 describe("script-field-index", () => {
-function node(id: string, attrId: string, field?: FieldContent): DocNode_2 {
+function node(id: string, attrId: string, field?: FieldContent): DocNode {
   return {
     ...makeBox(),
     id,
@@ -2522,7 +2522,7 @@ const script = (): PageScript => ({
 const ids = (steps: ScriptStep[]): unknown[] => steps.map((step) =>
   "then" in step ? [step.id, ids(step.then), ...(step.kind === "if" && step.else ? [ids(step.else)] : [])] : step.id);
 
-test_2("moving a step keeps the rest in order and can cross into a branch", () => {
+test("moving a step keeps the rest in order and can cross into a branch", () => {
   const scripts = [script()];
   const from = findStepLoc(scripts[0], "e")!;
   const moved = moveSteps(scripts, from, new Set(["e"]), { list: "if:then", beforeId: "c" });
@@ -2532,7 +2532,7 @@ test_2("moving a step keeps the rest in order and can cross into a branch", () =
   assert.deepEqual(ids(scripts[0].steps), ["a", ["if", ["b", "c"], []], ["loop", ["d"]], "e"], "the source is not mutated");
 });
 
-test_2("a drop that changes nothing returns the same array, so no history entry is made", () => {
+test("a drop that changes nothing returns the same array, so no history entry is made", () => {
   const scripts = [script()];
   const from = findStepLoc(scripts[0], "a")!;
   assert.equal(moveSteps(scripts, from, new Set(["a"]), { list: "root", beforeId: "if" }), scripts);
@@ -2540,20 +2540,20 @@ test_2("a drop that changes nothing returns the same array, so no history entry 
   assert.equal(moveSteps(scripts, last, new Set(["e"]), { list: "root", beforeId: null }), scripts);
 });
 
-test_2("a container cannot be dropped inside itself", () => {
+test("a container cannot be dropped inside itself", () => {
   const scripts = [script()];
   const from = findStepLoc(scripts[0], "if")!;
   assert.equal(moveSteps(scripts, from, new Set(["if"]), { list: "if:then", beforeId: null }), scripts);
 });
 
-test_2("several selected steps move together and keep their relative order", () => {
+test("several selected steps move together and keep their relative order", () => {
   const scripts = [script()];
   const from = findStepLoc(scripts[0], "a")!;
   const moved = moveSteps(scripts, from, new Set(["a", "e"]), { list: "loop:then", beforeId: null });
   assert.deepEqual(ids(moved[0].steps), [["if", ["b", "c"], []], ["loop", ["d", "a", "e"]]]);
 });
 
-test_2("keyboard reordering moves one position within the same list and stops at the ends", () => {
+test("keyboard reordering moves one position within the same list and stops at the ends", () => {
   const scripts = [script()];
   const down = nudgeStep(scripts, findStepLoc(scripts[0], "a")!, 1);
   assert.deepEqual(ids(down[0].steps).slice(0, 2), [["if", ["b", "c"], []], "a"]);
@@ -2561,14 +2561,14 @@ test_2("keyboard reordering moves one position within the same list and stops at
   assert.equal(nudgeStep(scripts, findStepLoc(scripts[0], "d")!, 1), scripts);
 });
 
-test_2("only lists inside a repeat accept the action that stops repeating", () => {
+test("only lists inside a repeat accept the action that stops repeating", () => {
   const item = script();
   assert.equal(listInsideLoop(item, "root"), false);
   assert.equal(listInsideLoop(item, "if:then"), false);
   assert.equal(listInsideLoop(item, "loop:then"), true);
 });
 
-test_2("unfinished actions are reported with what to do next, and finished ones are not", () => {
+test("unfinished actions are reported with what to do next, and finished ones are not", () => {
   assert.ok(stepIssue({ id: "x", kind: "show", target: "" }));
   assert.equal(stepIssue({ id: "x", kind: "show", target: "menu" }), null);
   assert.ok(stepIssue({ id: "x", kind: "open-page", pageId: "" }));
@@ -2580,7 +2580,7 @@ test_2("unfinished actions are reported with what to do next, and finished ones 
   assert.deepEqual([pending.ready, pending.pending], [false, 1]);
 });
 
-test_2("pasted actions get new IDs and land after the selection, or at the end of the open script", () => {
+test("pasted actions get new IDs and land after the selection, or at the end of the open script", () => {
   const scripts = [script()];
   const copied = copyScriptBlocks(scripts, ["step:if"])!;
   assert.deepEqual(ids(copied.steps), [["if", ["b", "c"], []]]);
@@ -2594,7 +2594,7 @@ test_2("pasted actions get new IDs and land after the selection, or at the end o
 });
 
 
-test_2("script operations never modify a second script with the same action IDs", () => {
+test("script operations never modify a second script with the same action IDs", () => {
   const first = { ...script(), id: "first", steps: [wait("shared"), wait("first-only")] };
   const second = { ...script(), id: "second", steps: [wait("shared"), wait("second-only")] };
   const originals = [first, second];
@@ -2622,7 +2622,7 @@ test_2("script operations never modify a second script with the same action IDs"
   assert.deepEqual(originals[0], first);
 });
 
-test_2("pasting uses document order even when actions were selected in reverse order", () => {
+test("pasting uses document order even when actions were selected in reverse order", () => {
   const scripts = [script()];
   const copied = copyScriptBlocks(scripts, ["step:a"])!;
   const result = pasteScriptBlocks(scripts, ["step:e", "step:a"], copied, "s")!;
@@ -2632,7 +2632,7 @@ test_2("pasting uses document order even when actions were selected in reverse o
   assert.notEqual(result.scripts[0].steps.at(-1)?.id, "a");
 });
 
-test_2("pasting after a selected parent stays outside its nested branch", () => {
+test("pasting after a selected parent stays outside its nested branch", () => {
   const scripts = [script()];
   const copied = copyScriptBlocks(scripts, ["step:a"])!;
   const result = pasteScriptBlocks(scripts, ["step:if", "step:c"], copied, "s")!;
@@ -2640,7 +2640,7 @@ test_2("pasting after a selected parent stays outside its nested branch", () => 
   assert.deepEqual(ids(scripts[0].steps), ["a", ["if", ["b", "c"], []], ["loop", ["d"]], "e"]);
 });
 
-test_2("pasting does not use a selection from another script", () => {
+test("pasting does not use a selection from another script", () => {
   const scripts = [script(), { ...script(), id: "other", steps: [wait("only")] }];
   const copied = copyScriptBlocks(scripts, ["step:a"])!;
   const result = pasteScriptBlocks(scripts, ["step:e"], copied, "other")!;
@@ -2649,7 +2649,7 @@ test_2("pasting does not use a selection from another script", () => {
   assert.equal(result.scripts[1].steps[1].id, result.selection[0].slice(5));
 });
 
-test_2("external script clipboard records must have valid nested structure", () => {
+test("external script clipboard records must have valid nested structure", () => {
   const copied = copyScriptBlocks([script()], ["step:if"])!;
   assert.equal(isScriptBlockClipboard(JSON.parse(JSON.stringify(copied))), true);
   assert.equal(isScriptBlockClipboard({ ...copied, steps: [{ id: "bad", kind: "if" }] }), false);
@@ -2659,7 +2659,7 @@ test_2("external script clipboard records must have valid nested structure", () 
   assert.equal(isScriptBlockClipboard({ v: 1, scripts: [], steps: [{ id: "a", kind: "if", then: [{ id: "b", kind: "wait", then: [] }] }] }), false);
 });
 
-test_2("unconfigured script steps keep their empty fields when copied and pasted", () => {
+test("unconfigured script steps keep their empty fields when copied and pasted", () => {
   const source = script();
   source.steps = [
     { id: "unset-copy", kind: "copy", value: "" },
@@ -2684,7 +2684,7 @@ test_2("unconfigured script steps keep their empty fields when copied and pasted
   assert.ok(pasted.scripts[0].steps.every((step, i, all) => all.findIndex((item) => item.id === step.id) === i));
 });
 
-test_2("scripts are stored on their trigger element or on the page, without layout data", () => {
+test("scripts are stored on their trigger element or on the page, without layout data", () => {
   const pageId = "home";
   const doc = {
     siteName: "Test",
@@ -3271,7 +3271,7 @@ function canvasData(doc = scriptSelectValueDoc()) {
       return [slots[at], (next: any) => { slots[at] = typeof next === "function" ? next(slots[at]) : next; }];
     },
   };
-  const file = resolve_3("components/canvas/useCanvasData.ts");
+  const file = resolve("components/canvas/useCanvasData.ts");
   const require = createRequire(file), mod = { exports: {} as any };
   const code = transformSync(readFileSync(file, "utf8"), { loader: "ts", format: "cjs" }).code;
   new Function("require", "module", "exports", code)((id: string) => id === "react" ? hooks : id === "../../lib/store" ? { useEditor: Object.assign((pick: any) => pick(useEditor.getState()), useEditor) } : require(id), mod, mod.exports);

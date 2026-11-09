@@ -2,175 +2,175 @@
   "files": {
     "e2e/ai-chat-history.spec.ts": [
       8,
-      8355
+      9227
     ],
     "e2e/asset-confirmation.spec.ts": [
-      38,
-      27574
+      33,
+      21500
     ],
     "e2e/canvas-move-lifecycle.spec.ts": [
       21,
-      26604
+      22475
     ],
     "e2e/client-nested-lists.spec.ts": [
       20,
-      36164
+      36511
     ],
     "e2e/clipboard-artwork.spec.ts": [
       17,
-      28000
+      38100
     ],
     "e2e/comment-local-storage.spec.ts": [
       9,
-      35000
+      34400
     ],
     "e2e/comments.spec.ts": [
       10,
-      42000
+      30100
     ],
     "e2e/commit-fields.spec.ts": [
       14,
-      34478
+      30500
     ],
     "e2e/component-list-export.spec.ts": [
       5,
-      8260
+      5505
     ],
     "e2e/deleted-comments.spec.ts": [
       10,
-      48000
+      76600
     ],
     "e2e/dialog-focus.spec.ts": [
       20,
-      24204
+      17729
     ],
     "e2e/editor-bootstrap.spec.ts": [
-      14,
-      42293
+      15,
+      43698
     ],
     "e2e/editor-paste-scope.spec.ts": [
       6,
-      18000
+      16500
     ],
     "e2e/editor.spec.ts": [
       21,
-      93000
+      93100
     ],
     "e2e/export-dialog.spec.ts": [
       5,
-      25000
+      22446
     ],
     "e2e/fetch-refetch.spec.ts": [
       19,
-      21353
+      20595
     ],
     "e2e/frame-resize.spec.ts": [
       24,
-      23004
+      32338
     ],
     "e2e/home-site-storage.spec.ts": [
-      14,
-      15300
+      15,
+      14063
     ],
     "e2e/html-import-lifecycle.spec.ts": [
       17,
-      14268
+      13823
     ],
     "e2e/html-to-site-import.spec.ts": [
       15,
-      28098
+      25500
     ],
     "e2e/image-drop.spec.ts": [
       34,
-      43259
+      39800
     ],
     "e2e/input-default.spec.ts": [
-      28,
-      40289
+      14,
+      18500
     ],
     "e2e/local-save-status.spec.ts": [
       7,
-      37500
+      37700
     ],
     "e2e/mcp.spec.ts": [
       3,
-      7000
+      7200
     ],
     "e2e/number-field.spec.ts": [
       21,
-      18016
+      19869
     ],
     "e2e/page-folder-merge.spec.ts": [
       8,
-      19933
+      19856
     ],
     "e2e/page-kind-confirmation.spec.ts": [
       15,
-      22093
+      20852
     ],
     "e2e/pending-import.spec.ts": [
-      30,
-      19900
+      25,
+      16800
     ],
     "e2e/preview-refresh.spec.ts": [
       10,
-      27300
+      39600
     ],
     "e2e/publish-modal.spec.ts": [
-      7,
-      37000
+      9,
+      47200
     ],
     "e2e/script-data-picker.spec.ts": [
       17,
-      25000
+      23379
     ],
     "e2e/script-editor.spec.ts": [
-      10,
-      33400
+      7,
+      45000
     ],
     "e2e/script-input-value.spec.ts": [
-      30,
-      25904
+      12,
+      13500
     ],
     "e2e/script-runtime-browser.spec.ts": [
       19,
-      6000
+      6404
     ],
     "e2e/script-variable-change-trigger.spec.ts": [
       17,
-      18898
+      21092
     ],
     "e2e/search-form-navigation.spec.ts": [
       1,
-      22000
+      808
     ],
     "e2e/search-form-values.spec.ts": [
       6,
-      6452
+      5589
     ],
     "e2e/site-bootstrap.spec.ts": [
-      24,
-      50163
+      25,
+      48500
     ],
     "e2e/site-file-import.spec.ts": [
-      15,
-      22268
+      14,
+      52983
     ],
     "e2e/style-controls.spec.ts": [
       17,
-      18000
+      16733
     ],
     "e2e/text-editing.spec.ts": [
       9,
-      49800
+      49700
     ],
     "e2e/text-style-confirmation.spec.ts": [
       14,
-      30500
+      24700
     ],
     "e2e/zip-css.spec.ts": [
       16,
-      7672
+      7553
     ]
   }
 }

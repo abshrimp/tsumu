@@ -2,22 +2,22 @@ import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { cssUsesAssetUrl, replaceCssAssetUrls, escapeStyleContent, rewriteCssAssetUrls, cssAssetReferences } from "../lib/css-assets";
 import { replaceEmbeddedAsset, assetSrc, mediaSrc, withSignedAssetUrls } from "../lib/assets";
-import { createCssValueResolver, rewriteHtmlAssetUrls as rewriteHtmlAssetUrls_2 } from "../lib/generator/css";
+import { createCssValueResolver, rewriteHtmlAssetUrls } from "../lib/generator/css";
 import { makeBox, createInitialDoc, makeIcon, makeCode } from "../lib/presets";
 import { type SiteDoc, type Asset, type HtmlZipPage, type DocNode } from "../lib/types";
 import { assetUsage } from "../lib/asset-usage";
 import { buildClipPayload, parseClipPayload, mergeClipDeps, remapAssetIds } from "../lib/clip-transfer";
 import { buildPagePayload, applyPagePayload } from "../lib/page-transfer";
 import { generateProject } from "../lib/generator";
-import { useEditor as useEditor_2, useEditor as useEditor_3, useEditor as useEditor_4, useEditor as useEditor_5 } from "../lib/store";
-import { encodedCssAssetDoc, emptyAssetDestination, escapedPictureCss, escapedPictureUrl, picture as picture_2, setAssetCss, sparePicture, type CssLocation } from "./helpers/encoded-css-assets";
+import { useEditor } from "../lib/store";
+import { encodedCssAssetDoc, emptyAssetDestination, escapedPictureCss, escapedPictureUrl, picture, setAssetCss, sparePicture, type CssLocation } from "./helpers/encoded-css-assets";
 import { expandZipCss } from "../lib/html-css-import";
 import { requireEditableHtmlContent } from "../lib/html-file-import";
 import { type HtmlConversion, convertHtmlToSite } from "../lib/html-to-site";
 import { ZipArchive, ZipBuilder, type ZipEntry } from "../lib/zip";
 import { EDITABLE_ASSETS_PATH, EDITABLE_DOC_PATH, parseSiteImport, restoreImportAssets } from "../lib/site-import";
 import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import-format";
-import { parse as parse_2, serializeOuter, type DefaultTreeAdapterTypes as Html } from "parse5";
+import { parse, serializeOuter, type DefaultTreeAdapterTypes as Html } from "parse5";
 import { generateExportProject, prepareExportProject } from "../lib/export-formats";
 import { tr } from "../lib/i18n";
 import { elements, importCallbacks } from "./helpers/pending-import";
@@ -36,7 +36,7 @@ import { sanitizeImportedInlineIcons, sanitizeImportedSvg } from "../lib/importe
 import { validSiteDoc } from "../lib/doc-tree";
 import { submissionAttributes, submissionProps } from "../lib/imported-form";
 import { importedAttributes, importedClass } from "../lib/imported-html-attrs";
-import { openImportZip as openImportZip_2 } from "../lib/zip-directory";
+import { openImportZip } from "../lib/zip-directory";
 import { attachZipDependencies, exportZipStylesheet, zipAssetClosure, zipCssPreviewUrls, zipCssUrl, zipStylesheet } from "../lib/zip-css";
 import { resolveZipReference, zipDependency } from "../lib/zip-references";
 
@@ -125,7 +125,7 @@ test("export preserves imported ZIP queries without replacing longer CSS URLs or
 
 describe("encoded-css-assets", () => {
   before(() => {
-    useEditor_2.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
@@ -134,7 +134,7 @@ const locations: CssLocation[] = ["node.styles", "node.customCss", "page.bodySty
 const ids = (assets: object) => Object.keys(assets).sort();
 function assertExport(doc: Parameters<typeof generateProject>[0]) {
   const result = generateProject(doc);
-  assert.equal(result.remoteAssets["public/assets/hero.png"], picture_2.path);
+  assert.equal(result.remoteAssets["public/assets/hero.png"], picture.path);
   assert.match(result.files["styles/site.css"], /\/assets\/hero\.png/);
   assert.doesNotMatch(result.files["styles/site.css"], /api\/assets\/file/);
 }
@@ -151,15 +151,15 @@ for (const location of locations) {
       setAssetCss(doc, location, css);
       const before = structuredClone(doc);
       const usage = assetUsage(doc);
-      assert.equal(usage.get(picture_2.id), 1);
+      assert.equal(usage.get(picture.id), 1);
       assert.equal(usage.has(sparePicture.id), false);
       for (const id of ids(doc.assets)) if (!usage.has(id)) delete doc.assets[id];
-      assert.deepEqual(ids(doc.assets), [picture_2.id]);
+      assert.deepEqual(ids(doc.assets), [picture.id]);
       const payload = buildPagePayload(doc, ["p"]);
-      assert.deepEqual(ids(payload.deps.assets), [picture_2.id]);
+      assert.deepEqual(ids(payload.deps.assets), [picture.id]);
       const target = emptyAssetDestination();
       applyPagePayload(target, payload);
-      assert.deepEqual(target.assets[picture_2.id], picture_2);
+      assert.deepEqual(target.assets[picture.id], picture);
       assertExport(target);
       if (syntax === "proxyQuery") assert.match(generateProject(target).files["styles/site.css"], /hero\.png\?v=1#icon/);
       assert.deepEqual(doc.nodes, before.nodes);
@@ -174,24 +174,24 @@ for (const location of ["node.styles", "node.customCss"] as const) {
       const doc = encodedCssAssetDoc(location, nested);
       const rootIds = doc.pages.p.children;
       const payload = buildClipPayload(doc, { nodes: rootIds.map((id) => structuredClone(doc.nodes[id])), rootIds });
-      assert.deepEqual(ids(payload.assets), [picture_2.id]);
+      assert.deepEqual(ids(payload.assets), [picture.id]);
       if (nested) assert.deepEqual(ids(payload.components), ["inner", "outer"]);
       const target = emptyAssetDestination();
-      const state = () => useEditor_2.getState();
+      const state = () => useEditor.getState();
       state().replaceDoc(target);
       state().setActivePage("dest");
       state().select(null);
       state().setEditingComponent(null);
       state().pasteClipboard(payload);
       const pasted = structuredClone(state().doc);
-      assert.deepEqual(ids(pasted.assets), [picture_2.id]);
+      assert.deepEqual(ids(pasted.assets), [picture.id]);
       assertExport(pasted);
       assert.deepEqual(Object.values(state().doc.nodes).find((node) => node.name === "Picture")?.customCss, doc.nodes.box.customCss);
       state().undo();
       assert.deepEqual(state().doc, target);
       state().redo();
       assert.deepEqual(state().doc, pasted);
-      assert.deepEqual(doc.assets[picture_2.id], picture_2);
+      assert.deepEqual(doc.assets[picture.id], picture);
       const pageTarget = emptyAssetDestination();
       applyPagePayload(pageTarget, buildPagePayload(doc, ["p"]));
       assertExport(pageTarget);
@@ -201,26 +201,26 @@ for (const location of ["node.styles", "node.customCss"] as const) {
 
 test("CSS occurrences count once per node or page and retain all source aliases and fragments", () => {
   const doc = encodedCssAssetDoc("node.styles");
-  doc.assets.alias = { ...picture_2, id: "alias" };
-  doc.assets.fragment = { ...picture_2, id: "fragment", path: undefined, dataUrl: `${assetSrc(picture_2)}#icon` };
+  doc.assets.alias = { ...picture, id: "alias" };
+  doc.assets.fragment = { ...picture, id: "fragment", path: undefined, dataUrl: `${assetSrc(picture)}#icon` };
   doc.nodes.box.customCss = `background: ${escapedPictureCss}; mask: url("${escapedPictureUrl}#icon");`;
-  doc.nodes.box.image = { src: "", assetId: picture_2.id, alt: "", width: 10, height: 10 };
+  doc.nodes.box.image = { src: "", assetId: picture.id, alt: "", width: 10, height: 10 };
   doc.pages.p.bodyStyles = { base: { default: { background: `${escapedPictureCss}, ${escapedPictureCss}` } } };
   const usage = assetUsage(doc);
-  assert.equal(usage.get(picture_2.id), 3);
+  assert.equal(usage.get(picture.id), 3);
   assert.equal(usage.get("alias"), 2);
   assert.equal(usage.get("fragment"), 1);
-  assert.deepEqual(ids(buildPagePayload(doc, ["p"]).deps.assets), ["alias", picture_2.id, "fragment"].sort());
+  assert.deepEqual(ids(buildPagePayload(doc, ["p"]).deps.assets), ["alias", picture.id, "fragment"].sort());
 });
 
 test("escaped stylesheet discovery retains ZIP transitive dependencies", () => {
   const doc = encodedCssAssetDoc("node.customCss");
   doc.assets.asset_stylesheet_789 = { id: "asset_stylesheet_789", name: "sheet.css", path: "assets/sheet.css", width: 0, height: 0, mimeType: "text/css", zip: {
-    version: 1, group: "archive", path: "sheet.css", stylesheet: { source: "body { background: url(hero.png) }", references: [{ url: "hero.png", assetId: picture_2.id, suffix: "" }] },
+    version: 1, group: "archive", path: "sheet.css", stylesheet: { source: "body { background: url(hero.png) }", references: [{ url: "hero.png", assetId: picture.id, suffix: "" }] },
   } };
   doc.nodes.box.customCss = String.raw`@import "\2f api/assets/file?path=assets%2Fsheet.css";`;
-  assert.deepEqual([...assetUsage(doc).keys()].sort(), [picture_2.id, "asset_stylesheet_789"].sort());
-  assert.deepEqual(ids(buildPagePayload(doc, ["p"]).deps.assets), [picture_2.id, "asset_stylesheet_789"].sort());
+  assert.deepEqual([...assetUsage(doc).keys()].sort(), [picture.id, "asset_stylesheet_789"].sort());
+  assert.deepEqual(ids(buildPagePayload(doc, ["p"]).deps.assets), [picture.id, "asset_stylesheet_789"].sort());
 });
 
 test("CSS discovery does not treat escaped strings, comments or unrelated URL prefixes as dependencies", () => {
@@ -240,11 +240,11 @@ test("conservative ID and URL text fallbacks remain in HTML, scripts and CSS com
   for (const field of ["html", "script", "comment"] as const) {
     const doc = encodedCssAssetDoc("node.customCss");
     delete doc.nodes.box.customCss;
-    if (field === "html") doc.pages.p.rawHtml = `<img src="${assetSrc(picture_2)}">`;
-    if (field === "script") doc.pages.p.scripts = [{ id: "s", trigger: "load", steps: [{ id: "step", kind: "open-url", url: assetSrc(picture_2) }] }];
-    if (field === "comment") doc.nodes.box.customCss = `/* ${picture_2.id} */`;
-    assert.equal(assetUsage(doc).get(picture_2.id), 1);
-    assert.deepEqual(ids(buildPagePayload(doc, ["p"]).deps.assets), [picture_2.id]);
+    if (field === "html") doc.pages.p.rawHtml = `<img src="${assetSrc(picture)}">`;
+    if (field === "script") doc.pages.p.scripts = [{ id: "s", trigger: "load", steps: [{ id: "step", kind: "open-url", url: assetSrc(picture) }] }];
+    if (field === "comment") doc.nodes.box.customCss = `/* ${picture.id} */`;
+    assert.equal(assetUsage(doc).get(picture.id), 1);
+    assert.deepEqual(ids(buildPagePayload(doc, ["p"]).deps.assets), [picture.id]);
   }
 });
 
@@ -253,7 +253,7 @@ test("page copy includes only selected page CSS and clipboard copy omits page-on
   doc.pages.other = { id: "other", name: "Other", slug: "other", title: "", description: "", children: [], bodyStyles: { base: { default: { backgroundImage: `url("\\2f ${assetSrc(sparePicture).slice(1)}")` } } } };
   doc.pageOrder.push("other");
   assert.deepEqual(ids(buildClipPayload(doc, { nodes: [doc.nodes.box], rootIds: ["box"] }).assets), []);
-  assert.deepEqual(ids(buildPagePayload(doc, ["p"]).deps.assets), [picture_2.id]);
+  assert.deepEqual(ids(buildPagePayload(doc, ["p"]).deps.assets), [picture.id]);
   assert.deepEqual(ids(buildPagePayload(doc, ["other"]).deps.assets), [sparePicture.id]);
 });
 
@@ -270,11 +270,11 @@ test("optional and sparse CSS fields do not change empty payloads", () => {
 test("proxy queries prefer exact sources and do not match data URL prefixes", () => {
   const doc = encodedCssAssetDoc("node.customCss");
   const exact = "asset_exact_query_789";
-  doc.assets[exact] = { ...picture_2, id: exact, path: undefined, dataUrl: `${assetSrc(picture_2)}&v=1` };
+  doc.assets[exact] = { ...picture, id: exact, path: undefined, dataUrl: `${assetSrc(picture)}&v=1` };
   doc.nodes.box.customCss = `background: url("${escapedPictureUrl}&v=1");`;
   assert.deepEqual([...assetUsage(doc).keys()], [exact]);
   assert.deepEqual(ids(buildPagePayload(doc, ["p"]).deps.assets), [exact]);
-  doc.assets = { [picture_2.id]: { ...picture_2, path: undefined, dataUrl: "data:image/png;base64,AQID" } };
+  doc.assets = { [picture.id]: { ...picture, path: undefined, dataUrl: "data:image/png;base64,AQID" } };
   doc.nodes.box.customCss = String.raw`background: url("\64 ata:image/png;base64,AQID&v=1");`;
   assert.equal(assetUsage(doc).size, 0);
   assert.deepEqual(ids(buildPagePayload(doc, ["p"]).deps.assets), []);
@@ -474,7 +474,7 @@ describe("html-import-code-boundaries", () => {
 // ツリーを使う。この準備に必要な DOM の操作だけを合わせる。CSSOM と、結果の書き出しの実行は、
 // ブラウザのテストで確かめる。
 function importHtml(source: string) {
-  const tree = parse_2(source, { scriptingEnabled: false });
+  const tree = parse(source, { scriptingEnabled: false });
   class NodeAdapter {
     readonly childNodes: NodeAdapter[];
     constructor(readonly node: Html.Node, readonly parentElement: NodeAdapter | null = null) {
@@ -539,7 +539,7 @@ for (const wrapper of ["noscript", "math"]) {
         "preserve the fallback in its original context");
 
       const output = generateExportProject(doc, "html").files["index.html"];
-      const tree = parse_2(output); // 公開した文書では、スクリプトが有効になっている。
+      const tree = parse(output); // 公開した文書では、スクリプトが有効になっている。
       const active: string[] = [];
       const visit = (node: Html.Node) => {
         if ("tagName" in node && node.namespaceURI === "http://www.w3.org/1999/xhtml" &&
@@ -567,12 +567,12 @@ test("HTML import preserves intentional page scripts and active styles for publi
 
 describe("html-import-lifecycle", () => {
   before(() => {
-    useEditor_3.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
   });
-const state = () => useEditor_3.getState();
+const state = () => useEditor.getState();
 const tick = () => new Promise((r) => setImmediate(r));
 const original = "<p>Original</p>";
 const imported = '<link rel="stylesheet" href="tsumu-zip-css:css">';
@@ -1770,7 +1770,7 @@ test("restoring a backup sanitizes inline SVG without changing other editable pr
 
 describe("imported-asset-copy", () => {
   before(() => {
-    useEditor_4.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
@@ -1819,7 +1819,7 @@ test("clipboard paste retains ZIP module dependencies through undo and redo", ()
   const payload = buildClipPayload(doc, { nodes: [code], rootIds: [code.id] });
   const before = structuredClone(payload);
   const target = createInitialDoc();
-  const state = () => useEditor_4.getState();
+  const state = () => useEditor.getState();
   state().replaceDoc(target);
   state().setActivePage(target.pageOrder[0]);
   state().select(null);
@@ -2050,7 +2050,7 @@ test("localized ZIP module paths remain directories and relative browser imports
 
 describe("imported-html-attrs", () => {
   before(() => {
-    useEditor_5.setState({
+    useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
@@ -2120,7 +2120,7 @@ test("form attributes retain native defaults and apply only to their controls", 
 });
 
 test("duplicating a form keeps its label, form owner and ARIA references with the copy", () => {
-  const editor = useEditor_5.getState();
+  const editor = useEditor.getState();
   editor.replaceDoc({
     siteName: "Forms", assets: {}, pageOrder: ["p"],
     pages: { p: { id: "p", name: "Home", slug: "", title: "", description: "", children: ["form", "help"] } },
@@ -2134,7 +2134,7 @@ test("duplicating a form keeps its label, form owner and ARIA references with th
   });
   editor.setActivePage("p");
   editor.duplicateNode("form");
-  const { doc, selection } = useEditor_5.getState();
+  const { doc, selection } = useEditor.getState();
   const form = doc.nodes[selection!];
   const [label, field] = form.children.map(id => doc.nodes[id]);
   assert.notEqual(field.attrId, doc.nodes.email.attrId);
@@ -2166,7 +2166,7 @@ test("ZIP extraction round-trips bounded random bytes and rejects undersized out
       .file("index.html", "<main>valid</main>")
       .file("assets/random.bin", payload)
       .toBytes({ compression: i % 2 ? "DEFLATE" : "STORE" });
-    const parsed = await openImportZip_2(zipped, 200);
+    const parsed = await openImportZip(zipped, 200);
     const inspected = inspectHtmlZip(parsed);
     assert.equal(inspected.htmlEntry.name, "index.html");
     assert.deepEqual(await readZipEntryLimited(parsed.file("assets/random.bin")!, payload.length), payload,
@@ -2217,7 +2217,7 @@ test("archive path normalization is rejected across editable and raw HTML entry 
       .file("index.html", "<main>ok</main>")
       .file(path, "unsafe")
       .toBytes();
-    const zip = await openImportZip_2(html, 200);
+    const zip = await openImportZip(html, 200);
     assert.throws(() => inspectHtmlZip(zip), /unsafe path/,
       "seed=" + SEED + " HTML path=" + i);
     const editable = await new ZipBuilder()
@@ -2237,7 +2237,7 @@ test("archive path normalization is rejected across editable and raw HTML entry 
       .file(names[0], "first")
       .file(names[1], "second")
       .toBytes();
-    const parsed = await openImportZip_2(html, 200);
+    const parsed = await openImportZip(html, 200);
     assert.throws(() => inspectHtmlZip(parsed), /duplicate file paths/);
   }
 });
@@ -2641,8 +2641,8 @@ test("exported ZIP assets retain queries in CSS and serialized HTML", () => {
   const names = new Map([["logo", "logo.svg"]]);
   const resolveValue = createCssValueResolver(doc, names);
   assert.equal(resolveValue("backgroundImage", `url('${proxy}&v=1#icon')`), "url('/assets/logo.svg?v=1#icon')");
-  assert.equal(rewriteHtmlAssetUrls_2(doc, `<img src="${proxy}&amp;v=1&amp;theme=dark#icon">`, names), '<img src="/assets/logo.svg?v=1&amp;theme=dark#icon">');
-  assert.equal(rewriteHtmlAssetUrls_2(doc, `<img src="${proxy}#icon">`, names), '<img src="/assets/logo.svg#icon">');
+  assert.equal(rewriteHtmlAssetUrls(doc, `<img src="${proxy}&amp;v=1&amp;theme=dark#icon">`, names), '<img src="/assets/logo.svg?v=1&amp;theme=dark#icon">');
+  assert.equal(rewriteHtmlAssetUrls(doc, `<img src="${proxy}#icon">`, names), '<img src="/assets/logo.svg#icon">');
 });
 
 test("archive directory names are literal, not URL-encoded", () => {

@@ -54,21 +54,35 @@ const cases: { name: string; field: FieldContent; expected: string; query?: stri
   { name: "textarea line endings", field: { kind: "textarea", defaultValue: "first\r\nsecond" }, expected: "first\nsecond" },
 ];
 
-for (const entry of cases) test(`initial input agrees between Canvas and generated output: ${entry.name}`, async ({ page }) => {
-  const doc = inputDefaultDoc(entry.field, entry.query);
-  const errors = await setup(page, doc);
-  const before = await snapshot(page);
-  await expect(setting(page, "初期値")).toHaveValue(entry.field.defaultValue?.replace(/\r?\n/g, "") ?? "");
-  await expect(page.locator("#result")).toHaveText("value=[{entry}]; changes={changes}");
-  await toggle(page);
-  await value(page, entry.expected);
-  expect(await snapshot(page)).toEqual(before);
-  await toggle(page);
-  await toggle(page);
-  await value(page, entry.expected);
-  expect(await snapshot(page)).toEqual(before);
-  await published(page, doc, entry.expected);
-  expect(errors).toEqual([]);
+test("initial input agrees between Canvas and generated output across input types", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.setContent('<html><body><div id="app" style="width:1200px;height:850px"></div></body></html>');
+  const publishedPage = await page.context().newPage();
+  publishedPage.on("pageerror", (error) => errors.push(error.message));
+  try {
+    for (const entry of cases) {
+      await test.step(entry.name, async () => {
+        const doc = inputDefaultDoc(entry.field, entry.query);
+        await mountEditor(page, doc);
+        await expect(page.locator("#entry")).toBeVisible();
+        const before = await snapshot(page);
+        await expect(setting(page, "初期値")).toHaveValue(entry.field.defaultValue?.replace(/\r?\n/g, "") ?? "");
+        await expect(page.locator("#result")).toHaveText("value=[{entry}]; changes={changes}");
+        await toggle(page);
+        await value(page, entry.expected);
+        expect(await snapshot(page)).toEqual(before);
+        await toggle(page);
+        await toggle(page);
+        await value(page, entry.expected);
+        expect(await snapshot(page)).toEqual(before);
+        await published(publishedPage, doc, entry.expected);
+        expect(errors).toEqual([]);
+      });
+    }
+  } finally {
+    await publishedPage.close();
+  }
 });
 
 test("SettingsPanel edits preserve raw defaults and history while preview respects native initial values", async ({ page }) => {
@@ -241,21 +255,39 @@ test("removing every option exposes no value and index zero", async ({ page }) =
   expect(errors).toEqual([]);
 });
 
-for (const [name, doc, value, index] of [
-  ["valid default", selectDefaultDoc(), "B", 2],
-  ["omitted default", selectDefaultDoc({ defaultValue: undefined }), "A", 1],
-  ["resolved valid default", selectDefaultDoc({ options: ["{a}", "{b}"].map((value) => ({ label: value, value })), defaultValue: "{selected}" }, "a=A&b=B&selected=B"), "B", 2],
-  ["resolved missing default", selectDefaultDoc({ options: ["{a}", "{b}"].map((value) => ({ label: value, value })), defaultValue: "{selected}" }, "a=A&b=C&selected=B"), "A", 1],
-  ["resolved empty first option", selectDefaultDoc({ options: ["{empty}", "B"].map((value) => ({ label: value, value })), defaultValue: "C" }, "empty="), "", 1],
-  ["resolved empty default", selectDefaultDoc({ options: ["A", "{empty}"].map((value) => ({ label: value, value })), defaultValue: "{empty}" }, "empty="), "", 2],
-] as const) test(`${name} agrees between preview and the generated site`, async ({ page }) => {
-  const { errors, snapshot } = await setup(page, doc);
-  const before = await snapshot();
-  await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
-  await selection(page, value, index);
-  expect(await snapshot()).toEqual(before);
-  await published(page, doc, value, index);
-  expect(errors).toEqual([]);
+test("default and dynamic select options agree between preview and the generated site", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
+  const snapshot = () => page.evaluate(() => {
+    const { doc, past, future } = (window as any).selectEditor.getState();
+    return { doc, past, future };
+  });
+  const publishedPage = await page.context().newPage();
+  publishedPage.on("pageerror", (error) => errors.push(error.message));
+  try {
+    for (const [name, doc, value, index] of [
+      ["valid default", selectDefaultDoc(), "B", 2],
+      ["omitted default", selectDefaultDoc({ defaultValue: undefined }), "A", 1],
+      ["resolved valid default", selectDefaultDoc({ options: ["{a}", "{b}"].map((value) => ({ label: value, value })), defaultValue: "{selected}" }, "a=A&b=B&selected=B"), "B", 2],
+      ["resolved missing default", selectDefaultDoc({ options: ["{a}", "{b}"].map((value) => ({ label: value, value })), defaultValue: "{selected}" }, "a=A&b=C&selected=B"), "A", 1],
+      ["resolved empty first option", selectDefaultDoc({ options: ["{empty}", "B"].map((value) => ({ label: value, value })), defaultValue: "C" }, "empty="), "", 1],
+      ["resolved empty default", selectDefaultDoc({ options: ["A", "{empty}"].map((value) => ({ label: value, value })), defaultValue: "{empty}" }, "empty="), "", 2],
+    ] as const) {
+      await test.step(name, async () => {
+        await mountEditor(page, doc);
+        await expect(page.locator("#choice")).toBeVisible();
+        const before = await snapshot();
+        await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
+        await selection(page, value, index);
+        expect(await snapshot()).toEqual(before);
+        await published(publishedPage, doc, value, index);
+        expect(errors).toEqual([]);
+      });
+    }
+  } finally {
+    await publishedPage.close();
+  }
 });
 });
 
