@@ -137,10 +137,10 @@ export function validNodeForest(pages: Record<string, unknown>, nodes: Record<st
       const id = pending.pop()!;
       const node = nodes[id] as Record<string, unknown>;
       if (node.type === "instance") dependencies.get(owner)!.add(node.componentId as string);
-      pending.push(...edges.get(id)!);
+      for (const child of edges.get(id)!) pending.push(child);
     }
   }
-  const incoming = new Map([...dependencies.keys()].map(id => [id, 0]));
+  const incoming = new Map<string, number>([...dependencies.keys()].map(id => [id, 0] as const));
   for (const targets of dependencies.values()) {
     for (const id of targets) incoming.set(id, incoming.get(id)! + 1);
   }

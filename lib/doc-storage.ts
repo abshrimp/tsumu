@@ -47,7 +47,7 @@ export function validateDocValue(parsed: unknown): string | null {
     return "不正なリクエスト";
   }
   if (!Object.entries(parsed.assets).every(([id, a]) => validAssetEntry(id, a)) ||
-      !validNodeForest(parsed.pages, parsed.nodes, parsed.components)) return "不正なリクエスト";
+      !validNodeForest(parsed.pages, parsed.nodes, parsed.components ?? {})) return "不正なリクエスト";
   const order = parsed.pageOrder;
   const pages = parsed.pages as Record<string, unknown>;
   if (new Set(order).size !== order.length ||
