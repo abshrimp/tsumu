@@ -128,3 +128,25 @@
 
 - 既に発行された署名URLは、有効期限内はBearer URLとして機能する。許可アカウントを削除しても署名URLは期限まで独立して有効。プレビューがCookieを送れない設計上の制約があり、失効条件・期限変更は仕様決定を要する。署名鍵をローテートすると既発行URLは無効になる。
 - Cloudflare Workersのリクエスト頻度制限や実OAuth/Cookie属性は本番相当の動的試験が必要。
+
+
+## 四次監査：認証済みGET応答のキャッシュ（2026-11-09）
+
+| ID | 重要度 | 発見・影響 | 対応と検証 |
+| --- | --- | --- | --- |
+| AUD-A-009 | Low（多層配備時の防御不足） | アカウント管理、サイト一覧・設定、コメント、操作履歴、アセット使用量、文書バックアップ、認証確認のGET応答に `Cache-Control` が明示されていなかった。標準のNext.js/Workers構成で実際に共有キャッシュへ保存された事実は未確認だが、外部CDNのキャッシュ規則が変更されても認証済みデータを再利用させないよう明示すべき。 | `private, no-store` を各成功レスポンスへ付与。バックアップは一覧JSONと保存済み文書本文の両方を対象とする。 `tests/private-api-cache.test.mts` で全9ルート・バックアップ本文を実行して確認。 |
+
+変更対象:
+- `app/api/allowed-users/route.ts`
+- `app/api/status/route.ts`
+- `app/api/sites/route.ts`
+- `app/api/sites/[id]/route.ts`
+- `app/api/comments/route.ts`
+- `app/api/activity/route.ts`
+- `app/api/assets/route.ts`
+- `app/api/doc/backups/route.ts`
+- `app/api/collab/authorize/route.ts`
+
+`/api/assets/file` は元から `private, no-store` を指定している。Bの`/api/doc`、Gの`/api/publish`系列など他担当のGETルートはMへ横断確認を依頼した。また、`lib/errors.ts` の例外文表示を日本語文字の有無だけで判断している点は共有のエラー応答ポリシーとしてMに報告した。日本語を含むデバッグ例外がAPIに流れた場合の情報漏洩リスクを解消したと主張しない。
+
+テストの成功は、未検証の配備環境・認可トークンの失効・キャッシュ規則を含めて脆弱性不存在を示すものではない。
