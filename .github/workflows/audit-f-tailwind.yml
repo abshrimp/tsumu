@@ -1,4 +1,4 @@
-name: Audit F - Tailwind Export Builds
+name: Audit F - Extra Style Export Builds
 
 on:
   pull_request:
@@ -23,14 +23,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  tailwind-build:
+  extra-style-build:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
-        framework: [nextjs, react, vue, sveltekit]
-        language: [typescript, javascript]
+        include:
+          - { framework: nextjs, style: tailwind, language: typescript }
+          - { framework: nextjs, style: tailwind, language: javascript }
+          - { framework: react, style: tailwind, language: typescript }
+          - { framework: react, style: tailwind, language: javascript }
+          - { framework: vue, style: tailwind, language: typescript }
+          - { framework: vue, style: tailwind, language: javascript }
+          - { framework: sveltekit, style: tailwind, language: typescript }
+          - { framework: sveltekit, style: tailwind, language: javascript }
+          - { framework: vue, style: css-modules, language: typescript }
+          - { framework: vue, style: css-modules, language: javascript }
+          - { framework: nuxt, style: css-modules, language: typescript }
+          - { framework: nuxt, style: css-modules, language: javascript }
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: actions/setup-node@v7.1.0
@@ -39,8 +50,8 @@ jobs:
           cache: npm
       - run: npm install --global npm@12.2.1
       - run: npm ci
-      - name: Generate Tailwind site
-        run: node --import tsx scripts/smoke-export-build.mts ${{ matrix.framework }} ${{ matrix.language }} tailwind
+      - name: Generate alternate-style site
+        run: node --import tsx scripts/smoke-export-build.mts ${{ matrix.framework }} ${{ matrix.language }} ${{ matrix.style }}
       - name: Build and audit independent generated project
         working-directory: .generated-export-smoke
         run: |
