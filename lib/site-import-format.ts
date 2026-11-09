@@ -42,7 +42,7 @@ function validImportedNode(value: unknown): boolean {
       typeof value.name !== "string" || !nodeSemantics.has(value.semantic as string) ||
       !validStyles(value.styles)) return false;
   if (value.text != null && (!isImportObject(value.text) ||
-      typeof value.text.content !== "string" || !Number.isInteger(value.text.heading) ||
+      typeof value.text.content !== "string" || typeof value.text.heading !== "number" || !Number.isInteger(value.text.heading) ||
       (value.text.heading as number) < 0 || (value.text.heading as number) > 6)) return false;
   if (value.link != null && (!isImportObject(value.link) ||
       !["url", "page"].includes(value.link.kind as string) ||
