@@ -142,3 +142,37 @@ This is a later checkpoint. Earlier rows above remain historical snapshots; they
 - G [#29](https://github.com/abshrimp/tsumu/pull/29) remains unmerged despite 14 green checks because an isolated GitHub publishing/restore smoke and independent safety review are outstanding.
 - M [#32](https://github.com/abshrimp/tsumu/pull/32) remains draft pending integrated-main CI, final audit coverage and a verified CodeQL/Dependabot alert backlog. The absence of security alerts is not inferred from green workflows.
 
+
+## M final-gate preparation checkpoint — 2026-11-09, after #26 integration
+
+This section supersedes none of the earlier point-in-time records. Base `main`
+was verified as `63df277bcade99a699b23d5f555232053c932ea1`.
+The three remaining audit PRs are being updated in their existing branches.
+
+| PR | Scope / observed HEAD | Evidence at this checkpoint | Remaining gate |
+| --- | --- | --- | --- |
+| [#29](https://github.com/abshrimp/tsumu/pull/29) | G / `d933b16295515238ed1c3dab23796b6083d1f084` | **14/14 exact-HEAD green**, including 4 E2E shards, Workers build and CodeQL; #26 main integrated; additional SVG restore / no-store / manual deletion tests | Dedicated non-production real GitHub publish→manual edit/delete→rollback→restore smoke; separate human/independent reviewer; publish credential scope verification |
+| [#30](https://github.com/abshrimp/tsumu/pull/30) | F / updated after `58f8b29e3029a44303cb87fb0dbb2e7dc60c511c` | Previously **27/27 green** at older SHA; after main merge, credential-output blocking (AUD-F-018), shared Canvas/generated CSS validator and additional tests were added | Re-evaluate **new final HEAD**; confirm behavior change denying inline auth in server-side Next.js exports; independent review; verify generated artifact security and CSS parity |
+| [#32](https://github.com/abshrimp/tsumu/pull/32) | M / branch refreshed from integrated `main` | Prior `c88c847af795ae0bce83ff0154132ab0eacf969f` showed **14/14 green**; the refreshed branch must pass its own exact-HEAD checks | Reconcile audit findings with merged final main, get separate review, verify open high/critical CodeQL and dependency alerts, and rerun integrated-main CI |
+
+**Security and functionality policy:** F's `hasPublishCredentials` scan now applies
+to *all* generated formats, including Next.js SSR source and editable ZIPs;
+this prevents known hardcoded credentials from being exported while preserving
+fetch blocks within the editor. This is an **observable export behavior change**;
+it is not a replacement secret-reference model and must be explicitly reviewed.
+No silent legacy compatibility path was introduced. Custom arbitrary code and
+unknown credential patterns still need operator scrutiny.
+
+**Branch protection:** Active `main` Ruleset `26794696` requires ten Actions
+contexts (check; E2E shards 1–4; five generated-format builds), non-fast-forward
+protection and CodeQL scanning at a high-or-higher alert threshold. GitHub's
+required human approval count is zero, but the audit plan independently requires
+a separate review, and none is recorded on #29/#30/#32. The full open CodeQL and
+Dependabot alert inventory could not be retrieved through this integration and
+therefore remains **unknown**, not cleared.
+
+**Merge policy:** G→F→M remains the intended dependency order. Refresh the
+moving PR heads and verify all required contexts **again** before any merge.
+Then verify the integrated `main` at its new commit rather than treating
+the individual PR results as proof of cross-area correctness. Record any
+unavailable real-provider testing as incomplete; do not test on production data.
