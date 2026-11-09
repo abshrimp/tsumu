@@ -33,7 +33,9 @@ function mount() {
   new Function("require", "module", "exports", "window", "document", code)(
     (id: string) => id === "react" ? { useEffect: (fn: () => () => void) => cleanups.push(fn()) } : require(id),
     module, module.exports, win,
-    { querySelector: (selector: string) => selector.includes("dialog-backdrop") ? ui.dialog : ui.popover },
+    { querySelector: (selector: string) =>
+      (selector.includes("dialog-backdrop") && ui.dialog) ||
+      (selector.includes("[data-se-popover]") && ui.popover) },
   );
   module.exports.useScriptEditorKeys({
     dragRef: { current: null }, latest,
