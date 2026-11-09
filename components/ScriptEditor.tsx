@@ -510,7 +510,7 @@ function ScriptEditorInner({
     return scripts;
   }, [scripts, drag?.payload]);
 
-  const ctx: EdCtx = useMemo(() => ({
+  const ctx = useMemo<EdCtx>(() => ({
     doc,
     pageId: activePageId,
     scriptRootIds: extraRootsKey ? extraRootsKey.split(",") : [],
