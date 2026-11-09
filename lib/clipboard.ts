@@ -16,6 +16,9 @@ export function sanitizeClipboardSvg(source: string): string {
   const cleaned = DOMPurify.sanitize(raw, {
     RETURN_DOM: true,
     USE_PROFILES: { svg: true, svgFilters: true },
+    // Figma can place artwork in <defs> and render it with <use href="#...">.
+    // DOMPurify omits <use> by default; enforce fragment-only references below.
+    ADD_TAGS: ["use"],
     FORBID_TAGS: [
       "script", "foreignObject", "iframe", "object", "embed", "applet",
       "meta", "link", "base", "set", "animate", "animateMotion", "animateTransform",
@@ -48,6 +51,7 @@ export function sanitizeClipboardSvg(source: string): string {
 
   const safeDataImage = /^data:image\/(?:png|jpe?g|gif|webp|avif|bmp)[;,]/i;
   for (const element of [svg, ...Array.from(svg.querySelectorAll("*"))]) {
+    const isUse = element.localName.toLowerCase() === "use";
     for (const attr of Array.from(element.attributes)) {
       const name = attr.name.toLowerCase();
       const value = attr.value.trim();
@@ -57,12 +61,19 @@ export function sanitizeClipboardSvg(source: string): string {
       } else if (name === "style") {
         element.setAttribute(attr.name, safeCss(value));
       } else if (name === "href" || name === "xlink:href" || name === "src") {
-        if (!value.startsWith("#") && !safeDataImage.test(value)) {
+        // <use> must never load another SVG document, even a data: image.
+        // Only references to IDs inside this sanitized SVG are permitted.
+        if (isUse ? !/^#[A-Za-z0-9_.:-]+$/.test(value)
+          : !value.startsWith("#") && !safeDataImage.test(value)) {
           element.removeAttribute(attr.name);
         }
       } else if (/(?:javascript|vbscript|data):/i.test(compact)) {
         element.removeAttribute(attr.name);
       }
+    }
+    // A <use> with no local target renders nothing and need not survive.
+    if (isUse && !element.getAttribute("href") && !element.getAttribute("xlink:href")) {
+      element.remove();
     }
   }
   svg.querySelectorAll("style").forEach((style) => {
