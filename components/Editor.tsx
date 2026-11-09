@@ -205,6 +205,8 @@ export default function Editor({ onReady }: EditorProps = {}) {
   const cloudDirty = useRef(false);
   /** 初回同期が完了する前の編集も未保存として残す。 */
   const observedDoc = useRef(doc);
+  /** Hydration is a baseline read, not a new user edit. */
+  const initialBrowserDocObserved = useRef(false);
   /** 最後に同期した版の識別子（自分の保存分を見分ける） */
   const lastSyncedRev = useRef<string | null>(null);
   /** 最後に同期した時点のドキュメント（三方向マージのベース） */
@@ -568,6 +570,12 @@ export default function Editor({ onReady }: EditorProps = {}) {
     await hydrateBrowserDoc();
     const s = useEditor.getState();
     const localBeforeLoad = s.doc;
+    // IndexedDB hydration changes the store reference, but is not an unsynced edit.
+    // Observe it before reconciliation, without clearing a genuine unsynced flag.
+    if (!initialBrowserDocObserved.current) {
+      observedDoc.current = localBeforeLoad;
+      initialBrowserDocObserved.current = true;
+    }
     cloudReady.current = false;
     if (cloudTimer.current) clearTimeout(cloudTimer.current);
     s.setCloud("checking");
@@ -724,14 +732,18 @@ export default function Editor({ onReady }: EditorProps = {}) {
     return () => window.removeEventListener("cloud-sync-retry", onRetry);
   }, [syncFromServer, retrySaveNow]);
 
-  // 変更をサーバーへ自動保存（800msデバウンス）
-  useEffect(() => scheduleCloudSave({
-    observedDoc, cloudReady, cloudDirty, skipNextCloudSave, cloudTimer, activeCloudSave,
-    cloudSaveQueued, lastSyncedRev, lastSyncedDoc, retrySaveAfterEdit,
-    getState: useEditor.getState, saveCloudDoc, setUnsyncedFlag,
-    requestRetry: () => setSaveRetry((n) => n + 1),
-    retryLater: retrySaveLater,
-  }, doc), [doc, saveCloudDoc, saveRetry, retrySaveLater]);
+  // 変更をサーバーへ自動保存（800msデバウンス）。
+  // 起動時のIndexedDB読込とサーバーからの初期取得は、ユーザー編集ではない。
+  useEffect(() => {
+    if (!initialLoadComplete) return;
+    return scheduleCloudSave({
+      observedDoc, cloudReady, cloudDirty, skipNextCloudSave, cloudTimer, activeCloudSave,
+      cloudSaveQueued, lastSyncedRev, lastSyncedDoc, retrySaveAfterEdit,
+      getState: useEditor.getState, saveCloudDoc, setUnsyncedFlag,
+      requestRetry: () => setSaveRetry((n) => n + 1),
+      retryLater: retrySaveLater,
+    }, doc);
+  }, [doc, initialLoadComplete, saveCloudDoc, saveRetry, retrySaveLater]);
 
   // 回線が戻ったら待たずに保存し直す。保存できたら、自動の保存し直しを取りやめて間隔を最初に戻す
   useEffect(() => {
