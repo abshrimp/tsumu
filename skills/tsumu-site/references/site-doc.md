@@ -17,7 +17,7 @@ The importer accepts both an ordinary `SiteDoc` and the following wrapper:
 }
 ```
 
-The wrapper's `version` identifies the portable file contract. It must be revised with explicit conversion rules if an incompatible document shape or encoding is introduced. Plain `SiteDoc` JSON is treated as the current direct form. `payload` decompresses to the same `SiteDoc` structure described below. Unknown versions or codecs are rejected rather than guessed.
+The wrapper's `version` identifies the portable file contract. Only version `1` with `gzip+base64` is accepted. Plain `SiteDoc` JSON uses the same canonical schema. The `payload` decompresses to the `SiteDoc` structure described below. Unknown versions or codecs are rejected.
 
 Use this Python recipe when generating a standalone `doc.json`:
 
@@ -28,7 +28,7 @@ import json
 
 # doc is a complete SiteDoc dictionary.
 
-All editable documents use the single current schema (`schemaVersion: 1`). A document without this exact value is invalid and must be converted before import.
+All editable documents use the single canonical schema (`schemaVersion: 1`). Imports reject documents that do not match this schema.
 plain = json.dumps(doc, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
 packed = json.dumps({
     "format": "tsumu-doc",

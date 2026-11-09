@@ -47,10 +47,10 @@ Build artifacts and editor data are not part of a source release.
 
 ## Data formats
 
-The initial public format uses:
+The editable document format is the canonical `SiteDoc` with `schemaVersion: 1`.
+Browser storage uses `tsumu-` keys, clipboard data uses
+`application/x-tsumu+json`, and exported ZIPs store editing data and
+publish metadata in `_tsumu/`. Imports require this same document schema.
 
-- `tsumu-` keys for browser storage,
-- `application/x-tsumu+json` for clipboard data, and
-- `_tsumu/` for publish metadata and for the editing data in exported zips.
-
-It doesn't import or migrate formats from predecessor applications. Normal Tsumu document backups, restoring, undo and rolling back to a published version all remain supported.
+Document backups, restoring, undo, and rolling back to a published version
+remain supported.

@@ -200,3 +200,27 @@ test("API revisions reject invalid node and page shapes before accepting a PATCH
     }
   });
 });
+
+test("site-level SQL patches cannot persist malformed optional settings", async () => {
+  await withDatabase(async db => {
+    const original = fixture();
+    assert.equal((await saveCurrentDoc(db, "audit", JSON.stringify(original), null)).kind, "saved");
+    const badPatches = [
+      { path: ["baseWidth"], value: "1280" },
+      { path: ["dataRevalidate"], value: -1 },
+      { path: ["siteUrl"], value: 404 },
+      { path: ["customFonts"], value: [{ family: "Example", weights: [400] }] },
+      { path: ["pwa"], value: { enabled: "true" } },
+    ];
+    for (const op of badPatches) {
+      await assert.rejects(saveDocPatch(db, "audit", [op], "1"), InvalidDocPatchError);
+      assert.equal((await readCurrentDoc(db, "audit"))?.rev, "1");
+      assert.deepEqual(JSON.parse((await readCurrentDoc(db, "audit"))!.body), original);
+    }
+    const ok = await saveDocPatch(db, "audit", [
+      { path: ["baseWidth"], value: 1280 },
+    ], "1");
+    assert.equal(ok.kind, "saved");
+    assert.equal(JSON.parse((await readCurrentDoc(db, "audit"))!.body).baseWidth, 1280);
+  });
+});
