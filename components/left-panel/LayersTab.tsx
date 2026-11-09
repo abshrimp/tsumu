@@ -5,9 +5,9 @@
  */
 
 import { isEnterKey } from "../../lib/keys";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { LoaderCircle, Pencil } from "lucide-react";
-import { ancestorsOf, collectDescendants, findParentOf, useEditor } from "../../lib/store";
+import { ancestorsOf, collectDescendants, useEditor } from "../../lib/store";
 import { BODY_NODE_ID } from "../../lib/types";
 import { canContainElements, resolveTag } from "../../lib/tags";
 import { useImageDrop } from "../../lib/image-drop";
@@ -25,10 +25,13 @@ import {
   type DropPos,
 } from "./drag";
 import { storageKey } from "../../lib/storage-keys";
+import { layerWindow, LAYER_ROW_HEIGHT, visibleLayerRows } from "../../lib/layers-visible";
 
 function LayerRow({
   id,
   depth,
+  isTop,
+  visibleIds,
   drag,
   setDrag,
   collapsed,
@@ -36,9 +39,12 @@ function LayerRow({
 }: {
   id: string;
   depth: number;
+  isTop: boolean;
+  /** Complete visual order, including rows outside the mounted window. */
+  visibleIds: readonly string[];
   drag: DragState;
   setDrag: (d: DragState) => void;
-  collapsed: Set<string>;
+  collapsed: ReadonlySet<string>;
   toggleCollapsed: (id: string) => void;
 }) {
   const doc = useEditor((s) => s.doc);
@@ -62,7 +68,6 @@ function LayerRow({
     ? []
     : BP_ORDER.filter((b) => isHiddenAt(node, b));
 
-  const isTop = findParentOf(doc, id)?.kind === "page";
   const tag = resolveTag(node, isTop);
   const hasChildren = node.children.length > 0;
   const isCollapsed = collapsed.has(id);
@@ -101,13 +106,9 @@ function LayerRow({
           }
           // Shift: 主選択からクリックした行まで、表示中の行を範囲選択
           const anchor = useEditor.getState().selection;
-          const rows = e.shiftKey
-            ? Array.from(
-                e.currentTarget.parentElement?.querySelectorAll<HTMLElement>(
-                  "[data-layer]"
-                ) ?? []
-              ).map((el) => el.dataset.layer!)
-            : [];
+          // Virtualization only mounts nearby rows: select across the full visible
+          // hierarchy, including rows currently outside the viewport.
+          const rows = e.shiftKey ? visibleIds : [];
           const from = anchor ? rows.indexOf(anchor) : -1;
           const to = rows.indexOf(id);
           if (from < 0 || to < 0) {
@@ -298,18 +299,6 @@ function LayerRow({
           ]}
         />
       )}
-      {!isCollapsed &&
-        node.children.map((childId) => (
-          <LayerRow
-            key={childId}
-            id={childId}
-            depth={depth + 1}
-            drag={drag}
-            setDrag={setDrag}
-            collapsed={collapsed}
-            toggleCollapsed={toggleCollapsed}
-          />
-        ))}
     </>
   );
 }
@@ -346,6 +335,71 @@ export function LayersTab() {
     }
   }, [collapsedState]);
   const listRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const editingComp = editingComponentId ? doc.components?.[editingComponentId] : null;
+  const rootIds = editingComp
+    ? [editingComp.rootId]
+    : (doc.pages[activePageId]?.children ?? []);
+  const page = doc.pages[activePageId];
+
+  const visibleLayers = useMemo(
+    () => visibleLayerRows(
+      doc,
+      editingComponentId || !collapsed.has(BODY_NODE_ID) ? rootIds : [],
+      collapsed,
+      editingComp ? 0 : 1,
+      !editingComp,
+    ),
+    // rootIds and editingComp are derived from these document and UI values.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [doc, activePageId, editingComponentId, collapsed]
+  );
+  const visibleIds = useMemo(() => visibleLayers.map((row) => row.id), [visibleLayers]);
+  const [windowRange, setWindowRange] = useState({ start: 0, end: 48 });
+  const editingMaster = !!editingComp;
+
+  // The outer panel owns scrolling. Account for the body row and any headers
+  // before converting its scrollTop to a row index.
+  const updateViewport = useCallback(() => {
+    const panel = panelRef.current;
+    const list = listRef.current;
+    if (!panel || !list) return;
+    const listTop = list.getBoundingClientRect().top -
+      panel.getBoundingClientRect().top + panel.scrollTop + 6 +
+      (editingMaster ? 0 : LAYER_ROW_HEIGHT);
+    const next = layerWindow(visibleLayers.length, panel.scrollTop - listTop, panel.clientHeight);
+    setWindowRange((prev) =>
+      prev.start === next.start && prev.end === next.end ? prev : next);
+  }, [editingMaster, visibleLayers.length]);
+
+  useLayoutEffect(() => {
+    updateViewport();
+    const panel = panelRef.current;
+    if (!panel) return;
+    const observer = new ResizeObserver(updateViewport);
+    observer.observe(panel);
+    return () => observer.disconnect();
+  }, [updateViewport, uploading]);
+
+  const scrolledSelection = useRef<string | null>(revealedSelection);
+  useLayoutEffect(() => {
+    if (!selection || scrolledSelection.current === selection) return;
+    const index = visibleIds.indexOf(selection);
+    const panel = panelRef.current;
+    const list = listRef.current;
+    if (index < 0 || !panel || !list) return;
+    const listTop = list.getBoundingClientRect().top -
+      panel.getBoundingClientRect().top + panel.scrollTop + 6 +
+      (editingMaster ? 0 : LAYER_ROW_HEIGHT);
+    const rowTop = listTop + index * LAYER_ROW_HEIGHT;
+    const rowBottom = rowTop + LAYER_ROW_HEIGHT;
+    if (rowTop < panel.scrollTop) panel.scrollTop = rowTop;
+    else if (rowBottom > panel.scrollTop + panel.clientHeight) {
+      panel.scrollTop = rowBottom - panel.clientHeight;
+    }
+    scrolledSelection.current = selection;
+    updateViewport();
+  }, [selection, visibleIds, editingMaster, updateViewport]);
 
   // 要素を選択したら、折りたたまれた祖先を展開して行が見える位置までスクロールする
   //（パネルを開き直しただけのときは、同じ選択でもう一度展開しない）
@@ -361,21 +415,8 @@ export function LayersTab() {
         ? new Set([...prev].filter((id) => !hidden.includes(id)))
         : prev
     );
-    const raf = requestAnimationFrame(() => {
-      listRef.current
-        ?.querySelector(`[data-layer="${CSS.escape(selection)}"]`)
-        ?.scrollIntoView({ block: "nearest" });
-    });
-    return () => cancelAnimationFrame(raf);
   }, [selection]);
 
-  const editingComp = editingComponentId
-    ? doc.components?.[editingComponentId]
-    : null;
-  const rootIds = editingComp
-    ? [editingComp.rootId]
-    : (doc.pages[activePageId]?.children ?? []);
-  const page = doc.pages[activePageId];
   if (!page) return null;
 
   const toggleCollapsed = (id: string) => {
@@ -390,6 +431,8 @@ export function LayersTab() {
   return (
     <div
       className={`panel-body${drag.files && !drag.overId ? " is-file-over" : ""}`}
+      ref={panelRef}
+      onScroll={updateViewport}
       data-tutorial="layers-panel"
       // 行は dragover を止めるので、パネルでは先に受け取ってスクロールする
       onDragOverCapture={(e) => {
@@ -481,18 +524,27 @@ export function LayersTab() {
             {tr("「追加」タブから置けます。")}
           </div>
         )}
-        {(editingComp || !collapsed.has(BODY_NODE_ID)) &&
-          rootIds.map((id) => (
-            <LayerRow
-              key={id}
-              id={id}
-              depth={editingComp ? 0 : 1}
-              drag={drag}
-              setDrag={setDrag}
-              collapsed={collapsed}
-              toggleCollapsed={toggleCollapsed}
-            />
-          ))}
+        {visibleLayers.length > 0 && (
+          <>
+            <div aria-hidden="true" style={{ height: windowRange.start * LAYER_ROW_HEIGHT }} />
+            {visibleLayers.slice(windowRange.start, windowRange.end).map((row) => (
+              <LayerRow
+                key={row.id}
+                id={row.id}
+                depth={row.depth}
+                isTop={row.isTop}
+                visibleIds={visibleIds}
+                drag={drag}
+                setDrag={setDrag}
+                collapsed={collapsed}
+                toggleCollapsed={toggleCollapsed}
+              />
+            ))}
+            <div aria-hidden="true" style={{
+              height: Math.max(0, visibleLayers.length - windowRange.end) * LAYER_ROW_HEIGHT,
+            }} />
+          </>
+        )}
       </div>
     </div>
   );
