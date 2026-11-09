@@ -168,17 +168,46 @@ export function collectDescendants(doc: SiteDoc, nodeId: string): string[] {
  */
 export function componentsReachable(doc: SiteDoc, compIds: Iterable<string>): Set<string> {
   const out = new Set<string>();
-  const visit = (cid: string) => {
+  const pending = [...compIds];
+  // Component graphs can be far deeper than ordinary node trees. Avoid
+  // recursion even when every component in the document is individually valid.
+  for (let cid = pending.pop(); cid !== undefined; cid = pending.pop()) {
     const comp = doc.components?.[cid];
-    if (!comp || out.has(cid)) return;
+    if (!comp || out.has(cid)) continue;
     out.add(cid);
     for (const id of collectDescendants(doc, comp.rootId)) {
       const n = doc.nodes[id];
-      if (n?.type === "instance" && n.componentId) visit(n.componentId);
+      if (n?.type === "instance" && n.componentId) pending.push(n.componentId);
     }
-  };
-  for (const cid of compIds) visit(cid);
+  }
   return out;
+}
+
+/** Moving/inserting an instance into a master cannot make it render itself. */
+function canPlaceComponentNodes(
+  doc: SiteDoc,
+  parent: ParentRef,
+  rootIds: readonly string[],
+  inputNodes: Record<string, DocNode> = doc.nodes,
+): boolean {
+  const owner = parent.kind === "node" ? componentOf(doc, parent.id) : null;
+  if (!owner) return true;
+  const referenced = new Set<string>();
+  const pending = [...rootIds];
+  const seen = new Set<string>();
+  while (pending.length) {
+    const id = pending.pop()!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const node = inputNodes[id];
+    if (!node) return false;
+    if (node.type === "instance") {
+      if (!node.componentId || !doc.components?.[node.componentId]) return false;
+      referenced.add(node.componentId);
+    }
+    pending.push(...node.children);
+  }
+  return !componentsReachable(doc, referenced).has(owner);
 }
 
 /**
@@ -1418,7 +1447,9 @@ export const useEditor = create<EditorStore>((set, get) => {
       const doc = get().doc;
       if (parent.kind === "page" ? !doc.pages[parent.id] : !doc.nodes[parent.id]) return;
       const parentDepth = parent.kind === "page" ? 0 : ancestorsOf(doc, parent.id).length + 1;
-      if (parentDepth + maxSubtreeDepth(Object.fromEntries(nodes.map(node => [node.id, node])), [rootId]) > MAX_NODE_DEPTH) return;
+      const inserted = Object.fromEntries(nodes.map(node => [node.id, node])) as Record<string, DocNode>;
+      if (parentDepth + maxSubtreeDepth(inserted, [rootId]) > MAX_NODE_DEPTH ||
+          !canPlaceComponentNodes(doc, parent, [rootId], inserted)) return;
       get().updateDoc((doc) => {
         refreshEditorClones(doc, nodes);
         for (const n of nodes) doc.nodes[n.id] = n;
@@ -1562,7 +1593,8 @@ export const useEditor = create<EditorStore>((set, get) => {
         return;
       }
       const parentDepth = parent.kind === "page" ? 0 : ancestorsOf(doc, parent.id).length + 1;
-      if (parentDepth + maxSubtreeDepth(doc.nodes, ids) > MAX_NODE_DEPTH) return;
+      if (parentDepth + maxSubtreeDepth(doc.nodes, ids) > MAX_NODE_DEPTH ||
+          !canPlaceComponentNodes(doc, parent, ids)) return;
       ids.sort((a, b) =>
         comparePosition(treePosition(doc, a), treePosition(doc, b))
       );
