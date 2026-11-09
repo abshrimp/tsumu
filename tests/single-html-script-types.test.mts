@@ -30,3 +30,10 @@ test("single HTML preserves non-executable script type data blocks without fetch
     assert.equal(result.files["index.html"], html);
   }
 });
+
+for (const type of legacyTypes) {
+  test(`single HTML accepts fetched script MIME ${type}`, async () => {
+    const result = await toSingleHtmlProject({ files: { "index.html": '<script src="https://cdn.example/script.js"></script>' }, binaries: {}, remoteAssets: {} }, async () => new Response("globalThis.answer = 42;", { headers: { "Content-Type": type } }));
+    assert.ok(result.files["index.html"].includes(`data:${type};base64,`));
+  });
+}
