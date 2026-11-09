@@ -4378,6 +4378,13 @@ textarea {
   flex-direction: column;
 }
 
+/* Rows outside the viewport are represented by measured-height placeholders.
+   Keep the mounted rows in the same column layout as an ordinary step list. */
+.se-virtual-chunk {
+  display: flex;
+  flex-direction: column;
+}
+
 /* 1行のブロック */
 
 .se-blk {
@@ -4397,7 +4404,11 @@ textarea {
 .se-stack .se-item + .se-item > .se-blk,
 .se-stack .se-item + .se-item > .se-c > .se-c-head,
 .se-hat + .se-list > .se-item:first-of-type > .se-blk,
-.se-hat + .se-list > .se-item:first-of-type > .se-c > .se-c-head {
+.se-hat + .se-list > .se-item:first-of-type > .se-c > .se-c-head,
+.se-stack .se-virtual-chunk + .se-virtual-chunk > .se-item:first-child > .se-blk,
+.se-stack .se-virtual-chunk + .se-virtual-chunk > .se-item:first-child > .se-c > .se-c-head,
+.se-hat + .se-list > .se-slot + .se-virtual-chunk > .se-item:first-child > .se-blk,
+.se-hat + .se-list > .se-slot + .se-virtual-chunk > .se-item:first-child > .se-c > .se-c-head {
   border-top: 1px solid var(--border);
 }
 
