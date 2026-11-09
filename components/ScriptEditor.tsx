@@ -203,6 +203,22 @@ function ScriptEditorInner({
   const arrays = useMemo(() => pageArrays(doc, activePageId), [doc, activePageId]);
   const samples = useMemo(() => previewDataVars(doc, activePageId), [doc, activePageId]);
   const variableIndex = useMemo(() => pageVariableIndex(doc, activePageId), [doc, activePageId]);
+  // All transform blocks share the same source values. Building a fresh object
+  // of every page variable for each block made large workspaces quadratic.
+  const transformSources = useMemo(() => {
+    const values: Record<string, unknown> = {};
+    for (const [name, value] of Object.entries(samples)) {
+      if (!name.startsWith("#")) Object.defineProperty(values, name, {
+        value, enumerable: true, configurable: true, writable: true,
+      });
+    }
+    for (const name of variableIndex.names) {
+      if (!Object.hasOwn(values, name)) Object.defineProperty(values, name, {
+        value: undefined, enumerable: true, configurable: true, writable: true,
+      });
+    }
+    return values;
+  }, [samples, variableIndex]);
   const elements = useMemo(
     () =>
       nodeIds.map((id) => {
@@ -523,6 +539,7 @@ function ScriptEditorInner({
     tree,
     scripts,
     variableIndex,
+    transformSources,
     pageLoadScriptIds,
     serverStepIds,
     elements,
@@ -595,7 +612,7 @@ function ScriptEditorInner({
       setMenu({ x: e.clientX, y: e.clientY, target, key });
     },
   }), [doc, activePageId, extraRootsKey, targets, tree, scripts,
-    variableIndex, pageLoadScriptIds, serverStepIds, elements, focusNodeId, selected,
+    variableIndex, transformSources, pageLoadScriptIds, serverStepIds, elements, focusNodeId, selected,
     zOrder, commit, updateDoc, nodeIds, arrays, samples, begin]);
 
   const runMenu = (action: "delete" | "duplicate") => {
