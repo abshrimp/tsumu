@@ -4,7 +4,7 @@
  * ワークスペースに並ぶブロックの見た目（きっかけ・動作・繰り返し・差し込み位置）
  */
 
-import { useContext, useMemo, type ReactNode } from "react";
+import { useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Plus, Repeat, IterationCw, Split, X } from "lucide-react";
 import { readableValue } from "../DataView";
 import { isLinkScriptId, TRIGGER_LABELS, TRIGGER_ORDER, type PageScript } from "../../lib/script";
@@ -19,6 +19,8 @@ import { CondEditor, NumericVariableIn, Phrase, TextIn } from "./inputs";
 import { CAT_OF, Ico, STEP_ICON, TRIGGER_ICON } from "./palette";
 import { slotKey, type Loc } from "./step-tree";
 import { StepBody } from "./StepBody";
+import { chunkScriptSteps, SCRIPT_STEP_WINDOW_THRESHOLD, type StepChunk } from "./step-chunks";
+import { observeScriptViewport } from "./visibility";
 import { NodePicker } from "./targets";
 
 /** 「リスト［］の要素ごとにくり返す」。中では要素の項目を {項目} で使える */
@@ -288,6 +290,55 @@ function Slot({ loc, empty }: { loc: Loc; empty?: boolean }) {
   );
 }
 
+/**
+ * For large workspaces, mount only nearby rows. Every placeholder retains the
+ * list's total scroll height; its measured size replaces the estimate once seen.
+ * Block IDs and insertion-slot indices always use the original, unfiltered list.
+ */
+function StepChunkView({ scriptId, list, chunk }: {
+  scriptId: string; list: string; chunk: StepChunk;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [rendered, setRendered] = useState(chunk.start === 0);
+  const [height, setHeight] = useState(chunk.estimatedHeight);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    return observeScriptViewport(el, (visible) => {
+      // Do not discard a focused field or its uncommitted draft while scrolling.
+      if (visible) setRendered(true);
+      else if (!el.contains(document.activeElement)) setRendered(false);
+    });
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!rendered || !ref.current) return;
+    const el = ref.current;
+    const measure = () => {
+      const next = el.offsetHeight;
+      if (next > 0) setHeight((prev) => Math.abs(prev - next) > 1 ? next : prev);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [rendered]);
+
+  return (
+    <div className="se-virtual-chunk" ref={ref}
+      style={rendered ? undefined : { height }} aria-hidden={rendered ? undefined : true}>
+      {rendered && chunk.steps.map((step, i) => (
+        <div key={step.id} className="se-item">
+          <StepView step={step} loc={{ scriptId, list, index: chunk.start + i }} />
+          <Slot loc={{ scriptId, list, index: chunk.start + i + 1 }} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function StepList({
   scriptId,
   list,
@@ -297,18 +348,24 @@ export function StepList({
   list: string;
   steps: ScriptStep[];
 }) {
+  const chunks = useMemo(
+    () => steps.length > SCRIPT_STEP_WINDOW_THRESHOLD ? chunkScriptSteps(steps) : null,
+    [steps]
+  );
   return (
     <div className="se-list">
-      <Slot
-        loc={{ scriptId, list, index: 0 }}
-        empty={!steps.length && list !== "root"}
-      />
-      {steps.map((s, i) => (
-        <div key={s.id} className="se-item">
-          <StepView step={s} loc={{ scriptId, list, index: i }} />
-          <Slot loc={{ scriptId, list, index: i + 1 }} />
-        </div>
-      ))}
+      <Slot loc={{ scriptId, list, index: 0 }}
+        empty={!steps.length && list !== "root"} />
+      {chunks
+        ? chunks.map((chunk) => (
+            <StepChunkView key={chunk.start} scriptId={scriptId} list={list} chunk={chunk} />
+          ))
+        : steps.map((step, i) => (
+            <div key={step.id} className="se-item">
+              <StepView step={step} loc={{ scriptId, list, index: i }} />
+              <Slot loc={{ scriptId, list, index: i + 1 }} />
+            </div>
+          ))}
     </div>
   );
 }
