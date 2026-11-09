@@ -17,6 +17,7 @@ import { destParam, siteDestOf, siteIdOf } from "../../../lib/site-server";
 import {
   GENERATED_MANIFEST_PATH,
   ASSET_MANIFEST_PATH,
+  DOC_PATH,
   isProtectedPath,
   isSafeCommitPath,
   conflictingCommitPaths,
@@ -27,12 +28,14 @@ import {
 } from "../../../lib/publish-files";
 
 import { matchesPublishTarget, publishConflictMessage } from "../../../lib/publish-preconditions";
+import { hasPublishCredentials } from "../../../lib/publish-security";
 
 export const maxDuration = 60;
 
 /** ツリー作成1リクエストあたりの上限（項目数・インライン本文の文字数） */
 const TREE_CHUNK_ITEMS = 200;
 const TREE_CHUNK_BYTES = 512 * 1024;
+const MAX_DOC_BYTES = 12 * 1024 * 1024;
 
 interface TargetField {
   expected: unknown;
@@ -298,6 +301,40 @@ export async function POST(req: Request) {
     const paths = [...Object.keys(body.files), ...Object.keys(assetShas), ...keptPaths];
     if (!paths.every(isSafeCommitPath) || Object.keys(body.files).some(isProtectedPath)) {
       return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+    }
+
+    // The browser's credential check is not a security boundary. Inspect
+    // doc.json again in the committing request, including when the document
+    // was uploaded as a detached blob because it exceeded the inline limit.
+    if (Object.hasOwn(body.files, DOC_PATH) || Object.hasOwn(assetShas, DOC_PATH)) {
+      let content: string;
+      if (Object.hasOwn(body.files, DOC_PATH)) {
+        content = body.files[DOC_PATH];
+      } else {
+        const res = await gh(`/git/blobs/${assetShas[DOC_PATH]}`);
+        if (!res.ok) await fail(tr("編集データの取得"), res);
+        const blob = (await res.json()) as { content?: unknown; encoding?: unknown };
+        if (typeof blob.content !== "string" || (blob.encoding && blob.encoding !== "base64")) {
+          return NextResponse.json({ error: tr("編集データの形式ではありません") }, { status: 400 });
+        }
+        const bytes = Buffer.from(blob.content, "base64");
+        if (bytes.byteLength > MAX_DOC_BYTES) {
+          return NextResponse.json({ error: tr("編集データが大きすぎます。") }, { status: 400 });
+        }
+        content = bytes.toString("utf8");
+      }
+      if (Buffer.byteLength(content, "utf8") > MAX_DOC_BYTES) {
+        return NextResponse.json({ error: tr("編集データが大きすぎます。") }, { status: 400 });
+      }
+      let document: unknown;
+      try { document = JSON.parse(content); } catch {
+        return NextResponse.json({ error: tr("編集データの形式ではありません") }, { status: 400 });
+      }
+      if (hasPublishCredentials(document as Parameters<typeof hasPublishCredentials>[0])) {
+        return NextResponse.json({
+          error: tr("認証情報を含む編集データはGitHubへPushできません。APIキーやパスワードを削除し、サーバーの環境変数などで管理してください。"),
+        }, { status: 400 });
+      }
     }
 
     // 1. ブランチ先端を取得
