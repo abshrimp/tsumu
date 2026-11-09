@@ -191,9 +191,9 @@ At build time, the script reads `wrangler.jsonc` and writes a deploy config, `wr
 
 #### Previewing pull requests (Worker Previews)
 
-With the Preview command above, Workers Builds deploys each pull request as a **Worker Preview** and posts its URL on the pull request. A Preview is a public demo that needs no sign-in and keeps its data in the browser; it never uses production storage or secrets.
+With the Preview command above, Workers Builds deploys each pull request as a **Worker Preview** and posts its URL on the pull request. The repository's default Preview configuration is a public demo that needs no sign-in and keeps its data in the browser. The wrapper supplies empty D1/KV bindings and uses `--ignore-base-config`; it does not remove secrets already configured on an existing Preview. Check those secrets before reusing a Preview as a public demo.
 
-See [Previewing pull requests of the editor](docs/worker-previews.md) for setup and for giving Previews test storage.
+See [Previewing pull requests of the editor](docs/worker-previews.md) for setup and for giving Previews test storage. Server storage also needs an explicit Preview `DOC_STORE` binding to `DocumentRoom`, alongside `COLLAB_ROOM`; adding only D1 and KV IDs is incomplete. Configure sign-in before using shared test storage.
 
 ### Node.js
 
