@@ -24,14 +24,30 @@ import {
   TRIGGER_ICON,
   type Payload,
 } from "./script-editor/palette";
-import { insertAt, listIn, mapStep, numberFilters, removeKeys, stepIn, takeAt } from "./script-editor/step-tree";
+import { insertAt, listIn, mapStep, numberFilters, removeKeys, takeAt } from "./script-editor/step-tree";
 import { buildTree, collectTargets, type MenuTarget } from "./script-editor/targets";
 import { useScriptDrag } from "./script-editor/useScriptDrag";
 import { useScriptEditorKeys } from "./script-editor/useScriptEditorKeys";
 
-// Keep the heavy block subtree mounted and unchanged when only the palette,
-// zoom controls, or other editor chrome updates.
-const MemoStackView = memo(StackView);
+// The global editor context changes when one selected block changes. Scope
+// selection and z-order to each script so the other block trees do not redraw.
+const EMPTY_SCRIPT_KEYS: readonly string[] = [];
+const ScopedStackView = memo(function ScopedStackView({
+  script, shared, selectedKeys, zIndex,
+}: {
+  script: PageScript;
+  shared: EdCtx;
+  selectedKeys: readonly string[];
+  zIndex?: number;
+}) {
+  const selected = useMemo(() => new Set(selectedKeys), [selectedKeys]);
+  const context = useMemo<EdCtx>(() => ({
+    ...shared,
+    selected,
+    zOrder: zIndex === undefined ? new Map<string, number>() : new Map([[script.id, zIndex]]),
+  }), [shared, selected, script.id, zIndex]);
+  return <Ctx.Provider value={context}><StackView script={script} /></Ctx.Provider>;
+});
 
 /* ---------- 設定パネル用の一覧 ---------- */
 
