@@ -100,6 +100,18 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
           )`,
+          // Per-creation, unpredictable room identity. Old site IDs never reuse
+          // a deleted site's Durable Object, even after an import with the same ID.
+          ...(binding.__tsumuBackend === "sqlite" ? [] : [
+            `CREATE TABLE IF NOT EXISTS site_document_rooms (
+              site_id TEXT PRIMARY KEY,
+              room_key TEXT NOT NULL UNIQUE
+            )`,
+            `CREATE TABLE IF NOT EXISTS document_room_cleanup (
+              room_key TEXT PRIMARY KEY,
+              queued_at INTEGER NOT NULL
+            )`,
+          ]),
           // サイトの編集・公開の記録（人ごと・種類ごとに最後の時刻。lib/activity.ts）
           `CREATE TABLE IF NOT EXISTS site_activity (
             site_id TEXT NOT NULL,
