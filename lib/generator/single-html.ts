@@ -115,7 +115,7 @@ export async function toSingleHtmlProject(
       } else if (get("type").trim().toLowerCase() === "module" && url.protocol !== "data:") {
         set("src", await resources.embedModule(url, get("integrity")));
         attrs.delete("integrity"); // The original bytes were verified before rewriting module specifiers.
-      } else if (!get("type") || /^(?:module|(?:text|application)\/(?:x-)?(?:java|ecma)script)$/i.test(get("type").trim())) {
+      } else if (!get("type") || /^(?:module|application\/(?:x-)?(?:javascript|ecmascript)|text\/(?:(?:x-)?(?:javascript|ecmascript)|javascript1\.[0-5]|jscript|livescript))$/i.test(get("type").trim())) {
         // A data URL retains external-script parsing, defer/async, and any native
         // integrity enforcement without introducing a network dependency.
         set("src", await resources.embed(get("src"), base, get("integrity"), true));
