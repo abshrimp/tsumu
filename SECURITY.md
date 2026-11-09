@@ -30,6 +30,12 @@ Keep these points in mind when you run Tsumu.
 - **Every allowed account is a fully trusted editor.** It can access all sites, publish, and manage accounts. There are no per-site roles.
 - **`ALLOW_ANONYMOUS=true` gives those same capabilities to everyone** who can reach the editor. Keep demos isolated from production data and from GitHub publishing tokens.
 
+### Hosted editor Previews
+
+The default Worker Preview configuration is an anonymous, browser-only demo. The Preview wrapper supplies empty D1/KV bindings and passes `--ignore-base-config` to Wrangler, but does not inspect or delete secrets already set on an existing Preview. Review those secrets before making a Preview public; browser-only storage does not disable a configured GitHub token or AI provider.
+
+For server-backed test editing, follow the [Preview storage setup](docs/worker-previews.md#using-test-storage-optional): use separate test D1/KV resources, bind both `COLLAB_ROOM` and `DOC_STORE` within the Preview, remove anonymous access, and configure Google sign-in and an allowlist. The wrapper rejects configured production D1/KV IDs and cross-Worker Durable Object bindings, but does not validate that custom Preview storage is complete or inspect dashboard settings.
+
 ### Code inside site content
 
 - **Custom HTML and SVG are active content** on the published site.
