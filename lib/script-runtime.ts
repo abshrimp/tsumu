@@ -379,9 +379,19 @@ export const SCRIPT_RUNTIME = `function (env) {
       // 待機・くり返しは、開始したページを離れたら続けない。
       function activeRun() {
         var generation = syncPage();
-        return function () {
-          return alive && generation === syncPage();
+        // One user event must not monopolize the browser through deeply
+        // nested finite loops. An actual wait yields and starts a new budget.
+        var stepsRun = 0;
+        function active() {
+          return alive && generation === syncPage() && stepsRun < 20000;
+        }
+        active.consume = function () {
+          if (!active()) return false;
+          stepsRun++;
+          return true;
         };
+        active.resetBudget = function () { stepsRun = 0; };
+        return active;
       }
       // 画面上の変数（ストレージから読み込んだ値・分解した配列など）
       var vars = initialVars && typeof initialVars === "object"
@@ -1379,20 +1389,20 @@ export const SCRIPT_RUNTIME = `function (env) {
       var LOOP_BREAK = {};
       /*#repeat*/
       // Each nested loop catches its own break; the enclosing script continues.
-      function loop(st, self, cx, n, active, times, forever, depth) {
+      function loop(st, self, cx, n, active, times, forever, depth, nesting) {
         if (!active() || (!forever && n >= times)) return Promise.resolve();
         var local = { item: {}, array: "", index: n, key: String(n), raw: n, up: cx };
-        return runSteps(st.then, self, local, active, depth + 1).then(function (flow) {
+        return runSteps(st.then, self, local, active, depth + 1, nesting + 1).then(function (flow) {
           if (flow === LOOP_BREAK || !active()) return;
-          return (forever ? sleep(0.05) : Promise.resolve()).then(function () {
-            return loop(st, self, cx, n + 1, active, times, forever, depth);
+          return (forever ? sleep(0.05).then(function () { active.resetBudget(); }) : Promise.resolve()).then(function () {
+            return loop(st, self, cx, n + 1, active, times, forever, depth, nesting);
           });
         });
       }
             /*/repeat*/
       /*#each*/
       // Use a stable snapshot of own keys and values; do not skip null/nested lists.
-      function each(st, self, up, i, active, entries, depth) {
+      function each(st, self, up, i, active, entries, depth, nesting) {
         if (!active()) return Promise.resolve();
         if (!entries) {
           var source = lookup(st.array, self, scopeOf(up));
@@ -1405,17 +1415,20 @@ export const SCRIPT_RUNTIME = `function (env) {
         var entry = entries[i], value = entry.value;
         var item = value && typeof value === "object" && !Array.isArray(value) ? value : { "値": value };
         var cx = { array: st.array, index: i, key: entry.key, raw: value, item: item, up: up };
-        return runSteps(st.then, self, cx, active, depth + 1).then(function (flow) {
+        return runSteps(st.then, self, cx, active, depth + 1, nesting + 1).then(function (flow) {
           if (flow === LOOP_BREAK) return;
-          return each(st, self, up, i + 1, active, entries, depth);
+          return each(st, self, up, i + 1, active, entries, depth, nesting);
         });
       }
             /*/each*/
-      function runSteps(steps, self, cx, active, loopDepth) {
+      function runSteps(steps, self, cx, active, loopDepth, nesting) {
+        // Nesting and loop depth differ: an if does not make break-loop legal.
+        if ((nesting || 0) > 16) return Promise.resolve();
         var depth = loopDepth || 0;
         var i = 0;
         function next() {
           while (active() && i < steps.length) {
+            if (!active.consume()) return Promise.resolve();
             var st = steps[i++];
             if (st.kind === "break-loop") {
               if (depth > 0) return Promise.resolve(LOOP_BREAK);
@@ -1425,14 +1438,14 @@ export const SCRIPT_RUNTIME = `function (env) {
             if (st.kind === "wait") {
               var seconds = numericAmount(st.seconds, self, scopeOf(cx), lookup);
               if (!Number.isFinite(seconds) || seconds < 0) continue;
-              return sleep(seconds).then(next);
+              return sleep(seconds).then(function () { active.resetBudget(); return next(); });
             }
             /*/wait*/
             /*#if*/
             if (st.kind === "if") {
               var branch = testConditions(st, self, scopeOf(cx)) ? st.then : st.else;
               if (branch && branch.length) {
-                return runSteps(branch, self, cx, active, depth).then(function (flow) {
+                return runSteps(branch, self, cx, active, depth, (nesting || 0) + 1).then(function (flow) {
                   return flow === LOOP_BREAK ? LOOP_BREAK : next();
                 });
               }
@@ -1446,13 +1459,13 @@ export const SCRIPT_RUNTIME = `function (env) {
               if (!Number.isInteger(count) || count < 0 || count > 1000) continue;
               var forever = typeof st.times === "number" && st.times === 0;
               if (!forever && count === 0) continue;
-              return loop(st, self, cx, 0, active, count, forever, depth).then(next);
+              return loop(st, self, cx, 0, active, count, forever, depth, nesting || 0).then(next);
             }
             /*/repeat*/
             /*#each*/
             if (st.kind === "for-each") {
               if (!st.then || !st.then.length) continue;
-              return each(st, self, cx, 0, active, null, depth).then(next);
+              return each(st, self, cx, 0, active, null, depth, nesting || 0).then(next);
             }
             /*/each*/
             exec(st, self, cx);
