@@ -9,7 +9,7 @@ const close = (a: number, b: number, eps = 1e-3) => assert.ok(Math.abs(a - b) < 
 test("easing keywords and cubic-bezier values round-trip", () => {
   assert.deepEqual(parseEasing("ease-out"), { kind: "bezier", b: [0, 0, 0.58, 1] });
   assert.equal(easingValue({ kind: "bezier", b: [0.42, 0, 0.58, 1] }), "ease-in-out");
-  assert.equal(easingValue({ kind: "bezier", b: [0.123, 0.5, 0.456, 1.2] }), "cubic-bezier(0.12, 0.5, 0.46, 1.2)");
+  assert.equal(easingValue({ kind: "bezier", b: [0.123, 0.5, 0.456, 1.2] }), "cubic-bezier(0.123, 0.5, 0.456, 1.2)");
   // プリセットと同じ曲線は、プリセットの書き方に戻す（ドロップダウンで選択中として出る）
   assert.equal(easingValue(parseEasing("cubic-bezier(0.340, 1.56, 0.64, 1.0)")!), "cubic-bezier(0.34, 1.56, 0.64, 1)");
 });
@@ -240,4 +240,19 @@ test("overflowing keyframe values remain raw and never enter numeric editor fiel
     for (const key of ["opacity", "x", "y", "scale", "rotate"] as const) assert.equal(frames[0][key], undefined);
     assert.equal(serializeKeyframes(frames), css);
   }
+});
+
+
+test("easing serialization preserves precise and very small coordinates", () => {
+  for (const value of ["cubic-bezier(0.000001, 0.12567, 0.987654, 1.234567)", "cubic-bezier(1e-8, -2E-7, 0.9, 1.000001)", "cubic-bezier(0.1, 1e308, 0.9, 1)"]) {
+    const parsed = parseEasing(value)!;
+    assert.ok(parsed);
+    assert.deepEqual(parseEasing(easingValue(parsed)), parsed);
+  }
+  assert.notEqual(easingValue(parseEasing("cubic-bezier(0.41999, 0, 0.58001, 1)")!), "ease-in-out");
+});
+
+test("CSS steps integer syntax is not silently repaired into a different value", () => {
+  for (const value of ["steps(2.0)", "steps(2e1)", "steps(.2e1)"]) assert.equal(parseEasing(value), null);
+  assert.deepEqual(parseEasing("steps(+2)"), { kind: "steps", n: 2, pos: "jump-end" });
 });

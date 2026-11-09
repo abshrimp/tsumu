@@ -185,6 +185,13 @@ function useHistory<T>(init: () => T): History<T> {
     h.future.push(h.value);
     h.value = prev;
     h.mergeKey = null;
+    // Undo/redo is a history boundary even while a pointer remains down.
+    // Subsequent pointer updates must not merge into the entry just traversed.
+    h.pressed = false;
+    h.moved = false;
+    h.dragPushed = false;
+    h.gestureOwned = false;
+    h.pointerId = null;
     render();
   }, []);
 
@@ -195,6 +202,13 @@ function useHistory<T>(init: () => T): History<T> {
     h.past.push(h.value);
     h.value = next;
     h.mergeKey = null;
+    // Undo/redo is a history boundary even while a pointer remains down.
+    // Subsequent pointer updates must not merge into the entry just traversed.
+    h.pressed = false;
+    h.moved = false;
+    h.dragPushed = false;
+    h.gestureOwned = false;
+    h.pointerId = null;
     render();
   }, []);
 
@@ -400,15 +414,22 @@ export function EasingEditorModal({
   const sx = (x: number) => GPAD + x * (GW - GPAD * 2);
   const sy = (y: number) => GPAD + ((hi - y) / (hi - lo)) * (GH - GPAD * 2);
   const svgRef = useRef<SVGSVGElement>(null);
+  const dragCleanup = useRef<(() => void) | null>(null);
+  const endGesture = history.endGesture;
+  useEffect(() => () => {
+    dragCleanup.current?.();
+    dragCleanup.current = null;
+    endGesture();
+  }, [endGesture]);
 
   const setBezier = (b: Bezier) => setEasing({ kind: "bezier", b });
 
   const dragHandle = (which: 0 | 1) => (e: React.PointerEvent) => {
-    if (easing?.kind !== "bezier") return;
+    if (e.button !== 0 || dragCleanup.current || easing?.kind !== "bezier") return;
     e.preventDefault();
     const svg = svgRef.current;
     if (!svg) return;
-    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    history.beginGesture(e.pointerId);
     setDragging(which);
     const start = easing.b;
     const move = (ev: PointerEvent) => {
@@ -424,15 +445,11 @@ export function EasingEditorModal({
       next[which * 2 + 1] = r2(y);
       setBezier(next);
     };
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      window.removeEventListener("pointercancel", up);
+    dragCleanup.current = trackMotionPointer(e, svg, move, () => {
+      dragCleanup.current = null;
+      endGesture();
       setDragging(null);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-    window.addEventListener("pointercancel", up);
+    });
   };
 
   const y = easing ? easeAt(easing, p) : p;
