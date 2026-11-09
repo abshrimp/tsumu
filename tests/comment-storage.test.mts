@@ -67,7 +67,7 @@ function api(db: Db) {
     dbConfigured: () => true, getDb: async () => db,
     dbUnavailable: () => { throw new Error("Unexpected fallback"); },
   }) as (req: Request) => Promise<Response>;
-  return (site = "site", action: CommentAction = create) => post(new Request(`https://example.com/api/comments?site=${encodeURIComponent(site)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(action) }));
+  return (site = "site", action: CommentAction = create, contentType = "application/json") => post(new Request(`https://example.com/api/comments?site=${encodeURIComponent(site)}`, { method: "POST", headers: { "Content-Type": contentType }, body: JSON.stringify(action) }));
 }
 
 for (const timing of ["before request", "before write"] as const) {
@@ -210,5 +210,12 @@ test("comment API refuses an oversized JSON body before writing anything", async
   const oversized = { ...create, body: "x".repeat(100 * 1024) };
   const response = await api(db)("site", oversized);
   assert.equal(response.status, 413);
+  await assertEmpty(db);
+}));
+
+
+test("comment POST rejects text/plain even if its body is valid JSON", async () => database(async db => {
+  const response = await api(db)("site", create, "text/plain");
+  assert.equal(response.status, 415);
   await assertEmpty(db);
 }));
