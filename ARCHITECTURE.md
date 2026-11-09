@@ -23,7 +23,7 @@ Once you understand `SiteDoc`, you can find your way around everything else.
            ▲            │  ▲                                  │
            │            │  └─ AI ops (validated on a copy)    └─▶ any host
            │            ▼
-           └── D1 + Durable Object (save, three-way merge, live updates)
+           └── D1 (site index) + per-site Durable Objects (SQLite document, live updates)
 ```
 
 ## `SiteDoc`
@@ -57,8 +57,8 @@ A `DocNode` has a `type` and a `semantic` (the HTML tag to emit). It can also ha
 | Publish and zip export | `components/PublishModal.tsx` (client) → `app/api/publish/route.ts` (GitHub Git Data API). See [Publishing](#publishing).<br>`ExportModal` in `components/Header.tsx` → `lib/exportZip.ts` |
 | Import | `lib/import-site-file.ts` (new site from a file), `lib/site-import.ts` (Tsumu zip and `doc.json`), `lib/portable-doc.ts` (compact `doc.json`), `lib/html-to-site.ts` with `html-file-import.ts` and `html-zip.ts` (HTML). See [Imports](#imports). |
 | Pre-publish checks | `runChecks` in `lib/generator/checks.ts`: broken links, alt text, heading order, small text, overflow |
-| Persistence | `lib/doc-storage.ts`: D1, one row per site, optimistic `rev`<br>`lib/local-storage.ts`: fallback when there's no D1<br>`lib/kv.ts`: assets<br>`lib/node-storage.ts`: SQLite and files when running outside Cloudflare |
-| Collaboration | `custom-worker.ts`: one Durable Object per site, over WebSocket<br>`lib/collab-events.ts` and `app/api/collab/events`: Server-Sent Events on Node.js and Docker<br>`lib/collab.ts`: messages<br>`lib/merge.ts`: three-way merge by node ID, then by property; an array counts as one value |
+| Persistence | `document-room.ts` / `lib/structured-document-store.ts`: SQLite-backed Durable Object per site generation, page/node rows and transactional `rev`<br>`lib/site-document-service.ts`: Cloudflare/Node routing<br>`lib/doc-storage.ts` / `lib/node-storage.ts`: local SQLite outside Cloudflare<br>`lib/kv.ts`: asset files<br>`lib/local-storage.ts`: browser-only fallback |
+| Collaboration | `custom-worker.ts`: one WebSocket Durable Object per site generation<br>`lib/collab-events.ts` and `app/api/collab/events`: Server-Sent Events on Node.js and Docker<br>`lib/collab.ts`: messages<br>`lib/merge.ts`: three-way merge by node ID, then by property; an array counts as one value |
 | AI | `lib/ai/` (providers, prompt, streaming); `lib/aiOps.ts` (the op schema, and the apply function used on both server and client) |
 | Comments, activity | `lib/comments.ts`, `lib/comment-store.ts`, `lib/activity.ts` |
 | Auth | `auth.ts`, `middleware.ts`, `lib/allowlist.ts`. Without `AUTH_*`, the editor opens only under `npm run dev` or with `ALLOW_ANONYMOUS=true` (`lib/anonymous.ts`). |

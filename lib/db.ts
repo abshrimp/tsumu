@@ -2,7 +2,8 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { nodeDatabase } from "./node-storage";
 
 /**
- * Cloudflare D1（SQLite）への接続。サイトの一覧・編集データ・自動バックアップ・許可メールリストの保存先。
+ * Cloudflare D1接続。サイトの一覧・文書DOの世代管理・コメント・許可メールの保存先。
+ * SiteDoc本体と日次バックアップはサイト固有のDurable Object内SQLiteに保存する。
  * wrangler.jsonc の DB バインディング経由でアクセスするため、
  * 接続情報の環境変数は不要。next dev 中はローカルのD1シミュレーションが使われる。
  * Cloudflare の外では、TSUMU_DATA_DIR の SQLite を同じ形で使う（lib/node-storage.ts）。
@@ -17,6 +18,8 @@ export interface ResultSet {
 }
 
 export interface Db {
+  /** Node/Docker use local SQLite tables for documents and backups. */
+  readonly backend?: "d1" | "sqlite";
   execute(stmt: Stmt): Promise<ResultSet>;
   batch(stmts: Stmt[]): Promise<ResultSet[]>;
 }
@@ -33,6 +36,8 @@ interface D1PreparedStatement {
 }
 
 export interface D1LikeDatabase {
+  /** Present only on the local Node SQLite adapter, never on Cloudflare D1. */
+  readonly __tsumuBackend?: "sqlite";
   prepare(sql: string): D1PreparedStatement;
   batch(stmts: D1PreparedStatement[]): Promise<D1Result[]>;
 }
@@ -74,12 +79,12 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
     ready = binding
       .batch(
         [
-          `CREATE TABLE IF NOT EXISTS docs (
+          ...(binding.__tsumuBackend === "sqlite" ? [`CREATE TABLE IF NOT EXISTS docs (
             id TEXT PRIMARY KEY,
             rev INTEGER NOT NULL,
             saved_at INTEGER NOT NULL,
             body TEXT NOT NULL
-          )`,
+          )`] : []),
           `CREATE TABLE IF NOT EXISTS allowed_emails (
             email TEXT PRIMARY KEY,
             added_at INTEGER NOT NULL
@@ -96,6 +101,19 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
           )`,
+          // Per-creation, unpredictable room identity. Old site IDs never reuse
+          // a deleted site's Durable Object, even after an import with the same ID.
+          ...(binding.__tsumuBackend === "sqlite" ? [] : [
+            `CREATE TABLE IF NOT EXISTS site_document_rooms (
+              site_id TEXT PRIMARY KEY,
+              room_key TEXT NOT NULL UNIQUE,
+              saved_at INTEGER
+            )`,
+            `CREATE TABLE IF NOT EXISTS document_room_cleanup (
+              room_key TEXT PRIMARY KEY,
+              queued_at INTEGER NOT NULL
+            )`,
+          ]),
           // サイトの編集・公開の記録（人ごと・種類ごとに最後の時刻。lib/activity.ts）
           `CREATE TABLE IF NOT EXISTS site_activity (
             site_id TEXT NOT NULL,
@@ -137,14 +155,14 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
           )`,
           `CREATE INDEX IF NOT EXISTS comment_messages_site ON comment_messages (site_id)`,
           `CREATE INDEX IF NOT EXISTS comment_messages_thread ON comment_messages (site_id, thread_id, at, id)`,
-          // サイトごとの日次バックアップ（曜日ごとに7世代）
-          `CREATE TABLE IF NOT EXISTS site_backups (
+          // Local SQLite retains its optional rolling backups.
+          ...(binding.__tsumuBackend === "sqlite" ? [`CREATE TABLE IF NOT EXISTS site_backups (
             site_id TEXT NOT NULL,
             day INTEGER NOT NULL,
             saved_at INTEGER NOT NULL,
             body TEXT NOT NULL,
             PRIMARY KEY (site_id, day)
-          )`,
+          )`] : []),
         ].map((sql) => binding.prepare(sql))
       )
       .then(() => undefined)
@@ -156,6 +174,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
   }
   await ready;
   return {
+    backend: binding.__tsumuBackend === "sqlite" ? "sqlite" : "d1",
     execute: async (stmt) => toResultSet(await prepare(binding, stmt).all()),
     batch: async (stmts) =>
       (await binding.batch(stmts.map((s) => prepare(binding, s)))).map(

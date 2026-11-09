@@ -30,6 +30,7 @@ function handler() {
     "../../../../lib/server": { requireAuth: async () => null },
     "../../../../lib/errors": { userMessage: (_e: unknown, fallback: string) => fallback },
     "../../../../lib/site-server": { siteIdOf: async () => "site" },
+    "../../../../lib/site-document-service": { usesDocumentRooms: () => false },
   };
   const module = { exports: {} as Record<string, any> };
   new Function("require", "module", "exports", code)(

@@ -2,6 +2,7 @@
 import nextHandler from "./.open-next/worker.js";
 import { DurableObject } from "cloudflare:workers";
 import { getDbFromBinding, type D1LikeDatabase } from "./lib/db";
+export { DocumentRoom } from "./document-room";
 import {
   readCurrentDoc,
   saveCurrentDoc,
@@ -13,12 +14,13 @@ import type {
   DocChangeMessage,
 } from "./lib/collab";
 import { parseActivityUser, recordActivity, type ActivityUser } from "./lib/activity";
-import { isSiteId } from "./lib/sites";
+import { isSiteId, getSiteRoomKey } from "./lib/sites";
 import { isEmailAllowed, parseAllowedEmails } from "./lib/allowlist";
 import { isDocPatch } from "./lib/doc-patch";
 
 interface WorkerEnv {
   COLLAB_ROOM: DurableObjectNamespace<CollaborationRoom>;
+  DOC_STORE: DurableObjectNamespace;
   /** 未設定なら編集データはブラウザ内に保存する（クライアントがHTTPの503を見て切り替える） */
   DB?: D1LikeDatabase;
   ALLOWED_EMAILS?: string;
@@ -28,10 +30,11 @@ interface WorkerEnv {
 }
 
 /** siteId は接続時の ?site=、user は Worker が認証の結果から渡すログイン中の人 */
-type SocketAttachment = { clientId: string; siteId: string; user?: ActivityUser | null };
+type SocketAttachment = { clientId: string; siteId: string; roomKey?: string; user?: ActivityUser | null };
 
 /** Worker から部屋へ、ログイン中の人を渡すヘッダー（ブラウザから来た同名のヘッダーは捨てる） */
 const USER_HEADER = "X-Editor-User";
+const ROOM_KEY_HEADER = "X-Editor-Room-Key";
 
 type AttachableSocket = WebSocket & {
   serializeAttachment(value: SocketAttachment): void;
@@ -112,9 +115,10 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       user = null;
     }
 
+    const roomKey = request.headers.get(ROOM_KEY_HEADER) ?? undefined;
     const [client, server] = Object.values(new WebSocketPair());
     this.ctx.acceptWebSocket(server);
-    (server as AttachableSocket).serializeAttachment({ clientId, siteId, user });
+    (server as AttachableSocket).serializeAttachment({ clientId, siteId, roomKey, user });
 
     return new Response(null, {
       status: 101,
@@ -187,8 +191,26 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       const attachment = (socket as AttachableSocket).deserializeAttachment();
       const siteId = attachment?.siteId;
       if (!siteId) throw new Error("サイトが指定されていません");
+      const site = await db.execute({ sql: "SELECT 1 FROM sites WHERE id=? LIMIT 1", args: [siteId] });
+      if (!site.rows.length) throw new Error("サイトが見つかりません");
+      const roomKey = await getSiteRoomKey(db, siteId);
+      if (this.env.DB.__tsumuBackend !== "sqlite" &&
+        (!roomKey || attachment?.roomKey !== roomKey)) {
+        socket.close(1008, "Site generation changed");
+        return;
+      }
+      const remote = roomKey && this.env.DOC_STORE
+        ? this.env.DOC_STORE.get(this.env.DOC_STORE.idFromName(roomKey)) as unknown as
+        | {
+            getSnapshot(): Promise<{ body: string; rev: string; savedAt: number } | null>;
+            replaceDocument(raw: string, base: string | null): Promise<import("./lib/doc-storage").SaveDocResult>;
+            patchDocument(patch: import("./lib/doc-patch").DocPatch, base: string): Promise<import("./lib/doc-storage").SaveDocResult>;
+          } : undefined;
+      if (!remote && this.env.DB.__tsumuBackend !== "sqlite") {
+        throw new Error("DOC_STORE binding is missing");
+      }
       if (input.type === "load") {
-        const current = await readCurrentDoc(db, siteId);
+        const current = remote ? await remote.getSnapshot() : await readCurrentDoc(db, siteId);
         if (!current) {
           reply(
             JSON.stringify({
@@ -211,13 +233,19 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       let result;
       if (input.type === "patch") {
         if (typeof input.base !== "string" || !isDocPatch(input.patch)) throw new Error("不正なリクエスト");
-        result = await saveDocPatch(db, siteId, input.patch, input.base);
+        result = remote ? await remote.patchDocument(input.patch, input.base)
+          : await saveDocPatch(db, siteId, input.patch, input.base);
       } else {
         if (!input.doc) throw new Error("不正なリクエスト");
         const raw = JSON.stringify(input.doc);
         const validationError = validateDocBody(raw);
         if (validationError) throw new Error(validationError);
-        result = await saveCurrentDoc(db, siteId, raw, input.base);
+        result = remote ? await remote.replaceDocument(raw, input.base)
+          : await saveCurrentDoc(db, siteId, raw, input.base);
+      }
+      if (roomKey && await getSiteRoomKey(db, siteId) !== roomKey) {
+        socket.close(1008, "Site generation changed");
+        return;
       }
       if (result.kind === "missing") throw new Error("サイトが見つかりません");
       if (result.kind === "conflict") {
@@ -312,10 +340,21 @@ export default {
     if (!isSiteId(siteId)) {
       return new Response("Invalid site", { status: 400 });
     }
-    const room = env.COLLAB_ROOM.get(env.COLLAB_ROOM.idFromName(siteId));
+    // Collaboration WebSockets are isolated by the same per-creation key as
+    // document storage. Old sockets never join a recreated site's new room.
+    let roomName = siteId;
+    if (env.DB && env.DB.__tsumuBackend !== "sqlite") {
+      const db = await getDbFromBinding(env.DB);
+      const key = await getSiteRoomKey(db, siteId);
+      if (!key) return new Response("Site storage not initialized", { status: 404 });
+      roomName = key;
+    }
+    const room = env.COLLAB_ROOM.get(env.COLLAB_ROOM.idFromName(roomName));
     const headers = new Headers(request.headers);
     headers.delete(USER_HEADER);
+    headers.delete(ROOM_KEY_HEADER);
     if (user) headers.set(USER_HEADER, encodeURIComponent(JSON.stringify(user)));
+    if (roomName !== siteId) headers.set(ROOM_KEY_HEADER, roomName);
     return room.fetch(new Request(request, { headers }));
   },
 };

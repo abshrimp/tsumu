@@ -54,9 +54,17 @@ export function assertProductionStorage(config, env = process.env) {
     const id = entry?.[idKey];
     if (typeof id !== "string" || !id.trim() || id !== id.trim() || /[<>]/.test(id)) missing.push(label);
   }
+  const docBinding = (config.durable_objects?.bindings ?? []).some(
+    b => b.name === "DOC_STORE" && b.class_name === "DocumentRoom" && !b.script_name && !b.environment
+  );
+  const docMigration = (config.migrations ?? []).some(
+    m => (m.new_sqlite_classes ?? []).includes("DocumentRoom")
+  );
+  if (!docBinding) missing.push("Durable Object DOC_STORE");
+  if (!docMigration) missing.push("DocumentRoom SQLite migration");
   if (missing.length) throw new Error(
-    `Refusing deployment without ${missing.join(", ")}. Configure D1/KV IDs ` +
-      "or explicitly set TSUMU_ALLOW_BROWSER_ONLY_DEPLOY=true for browser-only deployment."
+    `Refusing deployment without ${missing.join(", ")}. Update wrangler.local.jsonc ` +
+      "to include DOC_STORE and its v2 SQLite migration, or explicitly set TSUMU_ALLOW_BROWSER_ONLY_DEPLOY=true."
   );
 }
 export function wranglerConfigPath({ deploy = false } = {}) {
