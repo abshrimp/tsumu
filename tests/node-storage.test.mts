@@ -95,10 +95,12 @@ test("消したサイトの編集データは、開いたままのタブが保�
   const db = await getDbFromBinding(nodeDatabase()!);
   const dest = { name: "s", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null };
   await insertSite(db, "s1", dest);
-  const first = await saveCurrentDoc(db, "s1", "{}", null);
+  const raw = JSON.stringify({ siteName: "Valid", pages: { p: { id: "p", slug: "", children: [] } },
+    pageOrder: ["p"], nodes: {}, assets: {} });
+  const first = await saveCurrentDoc(db, "s1", raw, null);
   assert.equal(first.kind, "saved");
   await deleteSite(db, "s1");
-  assert.deepEqual(await saveCurrentDoc(db, "s1", "{}", first.kind === "saved" ? first.rev : null), { kind: "missing" });
-  assert.deepEqual(await saveCurrentDoc(db, "s1", "{}", null), { kind: "missing" });
+  assert.deepEqual(await saveCurrentDoc(db, "s1", raw, first.kind === "saved" ? first.rev : null), { kind: "missing" });
+  assert.deepEqual(await saveCurrentDoc(db, "s1", raw, null), { kind: "missing" });
   assert.equal(await readCurrentDoc(db, "s1"), null);
 }));
