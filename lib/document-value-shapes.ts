@@ -6,7 +6,7 @@ const str: Check = value => typeof value === "string";
 const bool: Check = value => typeof value === "boolean";
 const finite: Check = value => typeof value === "number" && Number.isFinite(value);
 const nonnegative: Check = value => finite(value) && (value as number) >= 0;
-const integer: Check = value => Number.isSafeInteger(value) && (value as number) >= 0;
+const integer: Check = value => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 const optional = (value: unknown, check: Check) => value === undefined || check(value);
 const nullable = (value: unknown, check: Check) => value == null || check(value);
 const arrayOf = (value: unknown, check: Check) =>
