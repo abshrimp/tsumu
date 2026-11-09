@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runInNewContext } from "node:vm";
 import { SCRIPT_RUNTIME } from "../lib/script-runtime";
+import { PAGE_DATA_RUNTIME } from "../lib/generator/browser-data";
 
 // Exercise the exact predicate embedded in the browser/standalone export.
 // Keep the injected dependencies tiny so the number of field reads is visible.
@@ -83,4 +84,29 @@ test("client list filters short-circuit subsequent filter blocks with AND/OR", (
 
 test("browser runtime does not retain an unused competing scalar comparator", () => {
   assert.doesNotMatch(SCRIPT_RUNTIME, /\bfunction cmp\(/);
+});
+
+test("generated page-data filter skips irrelevant filter operations", () => {
+  const start = PAGE_DATA_RUNTIME.indexOf("function filter(items, operations, vars)");
+  const end = PAGE_DATA_RUNTIME.indexOf("function applyOps(items, operations, vars)", start);
+  assert.ok(start > 0 && end > start);
+  const reads: string[] = [];
+  const filter = runInNewContext(`(function () {
+    function passes(_item, conditions) {
+      reads.push(conditions[0].id);
+      return conditions[0].ok;
+    }
+    ${PAGE_DATA_RUNTIME.slice(start, end)}
+    return filter;
+  })()`, { reads }) as (items: object[], ops: object[], vars: object) => object[];
+  const item = { id: 1 };
+  const run = (first: boolean, join: string) => filter([item], [
+    { kind: "filter", conds: [{ id: "first", ok: first }] },
+    { kind: "filter", join, conds: [{ id: "second", ok: !first }] },
+  ], {});
+  assert.equal(run(true, "or").length, 1);
+  assert.deepEqual(reads, ["first"], "a successful OR branch should skip later filters");
+  reads.length = 0;
+  assert.equal(run(false, "and").length, 0);
+  assert.deepEqual(reads, ["first"], "a failed AND branch should skip later filters");
 });
