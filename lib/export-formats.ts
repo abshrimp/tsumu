@@ -87,16 +87,44 @@ function prunePartialDoc(doc: SiteDoc): SiteDoc {
   return { ...scoped, assets };
 }
 
+/** A selected node must actually be reachable from the selected page.
+ * Checking only that its ID exists can export content from an unrelated or
+ * unpublished page when the selection is stale (or supplied programmatically).
+ * Component instances are traversed because their masters are valid selections.
+ */
+function pageContainsNode(doc: SiteDoc, page: SiteDoc["pages"][string], target: string): boolean {
+  const pending = [...(page.children ?? [])];
+  const seen = new Set<string>();
+  while (pending.length) {
+    const id = pending.pop()!;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const node = Object.prototype.hasOwnProperty.call(doc.nodes, id) ? doc.nodes[id] : undefined;
+    if (!node) continue;
+    if (id === target) return true;
+    pending.push(...(node.children ?? []));
+    const component = node.componentId && doc.components &&
+      Object.prototype.hasOwnProperty.call(doc.components, node.componentId)
+      ? doc.components[node.componentId] : undefined;
+    if (component) pending.push(component.rootId);
+  }
+  return false;
+}
+
 /** Export a page or selection without editing the source site. */
 export function exportScopeDoc(doc: SiteDoc, options: ExportOptions): SiteDoc {
   if (options.scope === "project") return doc;
-  const page = options.pageId ? doc.pages[options.pageId] : undefined;
+  const page = options.pageId && Object.prototype.hasOwnProperty.call(doc.pages, options.pageId)
+    ? doc.pages[options.pageId] : undefined;
   if (!page) throw new Error(tr("書き出すページを選択してください。"));
   if (options.scope === "page") {
     return prunePartialDoc({ ...doc, pages: { [page.id]: page }, pageOrder: [page.id] });
   }
-  const node = options.nodeId ? doc.nodes[options.nodeId] : undefined;
-  if (!node) throw new Error(tr("書き出すコンポーネントを選択してください。"));
+  const node = options.nodeId && Object.prototype.hasOwnProperty.call(doc.nodes, options.nodeId)
+    ? doc.nodes[options.nodeId] : undefined;
+  if (!node || !pageContainsNode(doc, page, node.id)) {
+    throw new Error(tr("書き出すコンポーネントを選択してください。"));
+  }
   let id = "__export_component__";
   while (doc.pages[id]) id += "_";
   const scopedPage = {
