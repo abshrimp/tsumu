@@ -272,6 +272,80 @@ export function applyPageScripts(
   }
 }
 
+
+/**
+ * Apply workspace edits without cloning the entire site (including its assets
+ * and unrelated pages). Undo snapshots can safely share the untouched branches.
+ *
+ * pageScriptsOf() creates display wrappers, so comparing only object identity
+ * would turn an unchanged script into a new document/history entry.
+ */
+function sameScriptList(a: Script[] | undefined, b: Script[] | undefined): boolean {
+  if (a === b) return true;
+  if ((a?.length ?? 0) !== (b?.length ?? 0)) return false;
+  return (a ?? []).every((script, i) => {
+    const other = b![i];
+    return script === other || (
+      script.id === other.id &&
+      script.trigger === other.trigger &&
+      script.keepOnShown === other.keepOnShown &&
+      script.steps === other.steps &&
+      script.pos.x === other.pos.x &&
+      script.pos.y === other.pos.y
+    );
+  });
+}
+
+function sameLink(a: LinkSetting | null, b: LinkSetting | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.kind === b.kind && a.url === b.url && a.pageId === b.pageId &&
+    !!a.newTab === !!b.newTab && a.pos?.x === b.pos?.x && a.pos?.y === b.pos?.y;
+}
+
+/** Pure, copy-on-write counterpart to applyPageScripts for frequent editor commits. */
+export function withPageScripts(
+  doc: SiteDoc,
+  pageId: string,
+  nodeIds: string[],
+  views: PageScript[]
+): SiteDoc {
+  const page = doc.pages[pageId];
+  if (!page) return doc;
+
+  // applyPageScripts only assigns link/scripts and page scripts. Clone the
+  // containers it can touch, never an original node or page from an undo state.
+  const nodes = { ...doc.nodes };
+  for (const id of nodeIds) {
+    if (nodes[id]) nodes[id] = { ...nodes[id] };
+  }
+  const pages = { ...doc.pages, [pageId]: { ...page } };
+  const next: SiteDoc = { ...doc, nodes, pages };
+  applyPageScripts(next, pageId, nodeIds, views);
+
+  let changedNodes = false;
+  for (const id of nodeIds) {
+    const before = doc.nodes[id];
+    const after = nodes[id];
+    if (!before || !after) continue;
+    if (sameLink(before.link, after.link) && sameScriptList(before.scripts, after.scripts)) {
+      nodes[id] = before;
+    } else {
+      changedNodes = true;
+    }
+  }
+
+  const saved = pages[pageId];
+  const changedPage = !sameScriptList(page.scripts, saved.scripts) ||
+    !sameScriptList(page.pageScripts, saved.pageScripts);
+  if (!changedNodes && !changedPage) return doc;
+  return {
+    ...doc,
+    nodes: changedNodes ? nodes : doc.nodes,
+    pages: changedPage ? pages : doc.pages,
+  };
+}
+
 /* ---------- 走査 ---------- */
 
 /** 実行されるスクリプトすべて（要素のもの + 「このページ」のもの） */
