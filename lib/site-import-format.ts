@@ -117,5 +117,41 @@ export function validateImportedDoc(value: unknown): SiteDoc {
       throw new Error("アセットIDと参照情報が正しくありません。");
     }
   }
+  // A document accepted by import must also be accepted by persistence when
+  // reopened. Check every reference before the import creates a site or assets.
+  const assetRefValid = (ref: unknown): boolean =>
+    !isImportObject(ref) || ref.assetId === undefined ||
+    (typeof ref.assetId === "string" && Object.hasOwn(doc.assets, ref.assetId));
+  for (const node of Object.values(doc.nodes)) {
+    if (!isImportObject(node) || !assetRefValid(node.image) || !assetRefValid(node.media)) {
+      throw new Error("アセットの参照情報が正しくありません。");
+    }
+  }
+  for (const page of Object.values(doc.pages)) {
+    if (!isImportObject(page) || !assetRefValid(page.ogImage)) {
+      throw new Error("アセットの参照情報が正しくありません。");
+    }
+  }
+  if (!assetRefValid(doc.favicon) || !assetRefValid(doc.appleTouchIcon) ||
+      !assetRefValid(doc.ogImage) ||
+      (isImportObject(doc.pwa) && !assetRefValid(doc.pwa.icon))) {
+    throw new Error("アセットの参照情報が正しくありません。");
+  }
+  const folderIds = new Set<string>();
+  if (doc.pageFolders != null) {
+    if (!Array.isArray(doc.pageFolders)) throw new Error("ページフォルダーが正しくありません。");
+    for (const folder of doc.pageFolders) {
+      if (!isImportObject(folder) || typeof folder.id !== "string" ||
+          !folder.id || suspicious.has(folder.id) || typeof folder.name !== "string" ||
+          folderIds.has(folder.id)) throw new Error("ページフォルダーが正しくありません。");
+      folderIds.add(folder.id);
+    }
+  }
+  for (const page of Object.values(doc.pages)) {
+    if (isImportObject(page) && page.folderId !== undefined &&
+        (typeof page.folderId !== "string" || !folderIds.has(page.folderId))) {
+      throw new Error("ページフォルダーの参照が正しくありません。");
+    }
+  }
   return value as unknown as SiteDoc;
 }
