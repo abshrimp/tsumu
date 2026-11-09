@@ -5,7 +5,7 @@ import { setVarPath, withinScriptValueLimit } from "../lib/value-semantics";
 test("nested writes reject sparse array indexes without changing the original variable", () => {
   const original = [{ name: "first" }];
   const vars: Record<string, unknown> = { rows: original };
-  for (const invalid of ["rows.3", "rows.1000000", "rows.1000001"]) {
+  for (const invalid of ["rows.3", "rows.1000000", "rows.1000001", "rows.length", "rows.foo", "rows.-1"]) {
     assert.equal(setVarPath(vars, invalid, 7, withinScriptValueLimit), undefined, invalid);
     assert.deepEqual(vars.rows, [{ name: "first" }], invalid);
     assert.equal((vars.rows as unknown[]).length, 1, invalid);
