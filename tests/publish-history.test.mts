@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
 import * as React from "react";
+import { useEditor } from "../lib/store";
 
 const require = createRequire(new URL("../components/PublishModal.tsx", import.meta.url));
 const source = readFileSync(new URL("../components/PublishModal.tsx", import.meta.url), "utf8") + "\nexport { PublishHistory };";
@@ -44,6 +45,11 @@ function fixture(holdWrites = false, holdConfirmation = false) {
         dirty = true;
       }];
     },
+    useRef(initial: unknown) {
+      const index = cursor++;
+      if (!(index in current.values)) current.values[index] = { current: initial };
+      return current.values[index];
+    },
     useCallback(fn: any, deps: unknown[]) {
       const index = cursor++;
       if (changed(deps, current.deps[index])) {
@@ -81,6 +87,7 @@ function fixture(holdWrites = false, holdConfirmation = false) {
   };
   const mocks: Record<string, unknown> = {
     react: hooks,
+    "../lib/export-formats": {}, // Export generation is not used by the history panel.
     "./controls": { Seg: (props: any) => React.createElement("tabs", props) },
     "../lib/dialog": { showConfirm: () => holdConfirmation ? new Promise<boolean>(resolve => { confirm = resolve; }) : Promise.resolve(true), showAlert: async (...args: any[]) => { alerts.push(args); } },
     "../lib/site": {
@@ -89,6 +96,17 @@ function fixture(holdWrites = false, holdConfirmation = false) {
     },
     "../lib/i18n": { tr: (text: string) => text, getLang: () => "en" },
   };
+  // Execute the real pending-import hook with this renderer's hook cells and
+  // the real store, rather than letting it call React outside a renderer.
+  hooks.useLayoutEffect = hooks.useEffect;
+  const store = { useEditor: Object.assign((select: (state: ReturnType<typeof useEditor.getState>) => unknown) => select(useEditor.getState()), { getState: useEditor.getState }) };
+  const pendingCode = transformSync(readFileSync(new URL("../lib/use-pending-import.ts", import.meta.url), "utf8"), { loader: "ts", format: "cjs" }).code;
+  const pendingModule = { exports: {} as any };
+  new Function("require", "module", "exports", pendingCode)(
+    (name: string) => name === "react" ? hooks : name === "./store" ? store : require(name), pendingModule, pendingModule.exports,
+  );
+  mocks["../lib/use-pending-import"] = pendingModule.exports;
+  mocks["../lib/store"] = store;
   const module = { exports: {} as any };
   new Function("require", "module", "exports", "fetch", code)(
     (name: string) => name in mocks ? mocks[name] : require(name), module, module.exports, request,
@@ -149,6 +167,12 @@ function fixture(holdWrites = false, holdConfirmation = false) {
     rollbackDisabled: () => elements(tree).find((e) => e.type === "button" && text(e) === "サイトを戻す")?.props.disabled,
     text: () => text(tree),
     select(target: string) { elements(tree).find((e) => e.type === "tabs").props.onChange(target); flush(); },
+    async restore() {
+      const button = elements(tree).find((e) => e.type === "button" && text(e) === "編集内容を復元");
+      assert.ok(button, "a restore button must be present");
+      button.props.onClick();
+      await settle();
+    },
     async rollback() {
       const button = elements(tree).find((e) => e.type === "button" && text(e) === "サイトを戻す");
       assert.ok(button, "a rollback button must be present");
@@ -241,4 +265,19 @@ test("rollback confirmation keeps the displayed identity and head when Home sett
   assert.equal(f.reads.length, 1, "a conflicted rollback is not automatically retried or refreshed into another destination");
   assert.match(f.text(), /Destination changed/);
   assert.ok(f.alerts.every(args => args[1].title !== "ロールバックしました"));
+});
+
+
+test("real pending-import cleanup prevents a previous target's delayed restore", async () => {
+  const f = fixture();
+  f.reads[0].resolve(history("production")); await f.settle();
+  await f.restore();
+  const before = useEditor.getState().doc;
+  f.select("test");
+  f.reads[2].resolve(history("test")); await f.settle();
+  f.reads[1].resolve({ ...before, siteName: "Obsolete backup" }); await f.settle();
+  assert.equal(useEditor.getState().doc, before);
+  assert.match(f.text(), /test commit/);
+  assert.equal(f.rollbackDisabled(), false);
+  assert.deepEqual(f.alerts, []);
 });
