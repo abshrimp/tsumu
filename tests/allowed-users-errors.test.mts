@@ -46,3 +46,15 @@ for (const method of ["POST", "DELETE"] as const) {
     assert.deepEqual((await response.json()).extra, method === "POST" ? ["editor@example.com"] : []);
   });
 }
+
+
+test("DELETE rejects duplicate email selectors before attempting any mutation", async () => {
+  const { api, emails } = fixture(false);
+  emails.add("editor@example.com");
+  const response = await api.DELETE(new Request(
+    "https://example.test/api/allowed-users?email=editor%40example.com&email=owner%40example.com",
+    { method: "DELETE" },
+  ));
+  assert.equal(response.status, 400);
+  assert.equal(emails.has("editor@example.com"), true);
+});
