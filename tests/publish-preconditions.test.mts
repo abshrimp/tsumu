@@ -15,7 +15,7 @@ const old = "a".repeat(40), newer = "b".repeat(40), created = "c".repeat(40);
 const expected = (target = "production", branch = target === "test" ? "preview" : "main") => ({
   site: "example", target, repo: "owner/site", branch, productionBranch: "main",
 });
-function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolean; concurrentInit?: boolean; unrelatedHistory?: boolean; recordFails?: boolean; ambiguousUpdate?: boolean; truncatedRollback?: boolean } = {}) {
+function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolean; concurrentInit?: boolean; unrelatedHistory?: boolean; recordFails?: boolean; ambiguousUpdate?: boolean; truncatedRollback?: boolean; rollbackSourceMissingManual?: boolean } = {}) {
   const dest = { repo: "owner/site", branch: "main", previewBranch: "preview" };
   const heads: Record<string, string> = options.empty ? {} : { main: old, ...(options.absent ? {} : { preview: old }) };
   let empty = !!options.empty;
@@ -43,7 +43,7 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
         const source = path.slice("/compare/".length).split("...")[0];
         return NextResponse.json({ merge_base_commit: { sha: options.unrelatedHistory ? "f".repeat(40) : source } });
       }
-      if (path.startsWith("/git/trees/")) return NextResponse.json({ tree: entries, ...(options.truncatedRollback ? { truncated: true } : {}) });
+      if (path.startsWith("/git/trees/")) return NextResponse.json({ tree: options.rollbackSourceMissingManual && path.includes("old-tree") ? [] : entries, ...(options.truncatedRollback ? { truncated: true } : {}) });
       if (path === "/git/trees") return NextResponse.json({ sha: "tree" });
       if (path === "/git/commits") return NextResponse.json({ sha: created });
       if (path.startsWith("/git/commits/")) return NextResponse.json({ tree: { sha: "old-tree" }, message: "old" });
@@ -240,4 +240,15 @@ test("rollback refuses a truncated GitHub tree before writing a replacement comm
   assert.equal(response.status, 502);
   assert.deepEqual(f.writes, []);
   assert.equal(f.recorded, 0);
+});
+
+test("rollback preserves manually added files that are absent from the chosen historical tree", async () => {
+  const f = fixture({ rollbackSourceMissingManual: true });
+  const response = await f.post({ sha: old }, true);
+  assert.equal(response.status, 200);
+  const update = f.writes.find(item => item.path === "/git/trees");
+  assert.ok(update, "rollback must overlay manually retained files over the historic tree");
+  assert.equal(update.body.base_tree, "old-tree");
+  assert.deepEqual(update.body.tree.find((e: any) => e.path === "manual.txt"),
+    { path: "manual.txt", mode: "100755", type: "blob", sha: "manual" });
 });
