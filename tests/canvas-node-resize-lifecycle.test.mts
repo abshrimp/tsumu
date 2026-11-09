@@ -64,16 +64,16 @@ function mount() {
     startResize!({ currentTarget: target, pointerId: id, clientX: 0, clientY: 0, button,
       preventDefault() {}, stopPropagation() {} }, dir);
   };
-  const event = (type: string, { id = 1, x = 0, y = 0, buttons = 1, key = "" } = {}) => {
+  const event = (type: string, { id = 1, x = 0, y = 0, buttons = 1, key = "", shiftKey = false } = {}) => {
     const e = Object.assign(new Event(type, { cancelable: true }), {
-      pointerId: id, clientX: x, clientY: y, buttons, key,
+      pointerId: id, clientX: x, clientY: y, buttons, key, shiftKey,
       preventDefault() { Object.getPrototypeOf(e).preventDefault.call(this); },
     });
     win.dispatchEvent(e);
     return e;
   };
   const close = () => { for (const fn of cleanups.splice(0).reverse()) fn(); };
-  return { win, doc, target, down, event, close };
+  return { win, doc, target, element, down, event, close };
 }
 
 test("canvas node resizing is owned by the initiating pointer and is one undo step", () => {
@@ -149,5 +149,21 @@ test("remote edits invalidate the canvas resize without overwriting the new docu
     f.event("pointerup", { buttons: 0 });
     assert.equal(width(), "130px");
     assert.equal(state().doc.nodes.b.name, "Collaborator edit");
+  } finally { f.close(); }
+});
+
+test("Shift-resizing a zero-width node never writes Infinity or NaN CSS", () => {
+  const f = mount();
+  try {
+    f.element.offsetWidth = 0;
+    f.down();
+    f.event("pointermove", { x: 20, y: 10, shiftKey: true });
+    f.event("pointerup", { buttons: 0 });
+    assert.equal(width(), "20px");
+    assert.equal(state().doc.nodes.a.styles.base?.default?.height, "70px");
+    assert.doesNotMatch(JSON.stringify(state().doc.nodes.a.styles), /Infinity|NaN/);
+    const after = structuredClone(state().doc);
+    state().undo(); state().redo();
+    assert.deepEqual(state().doc, after);
   } finally { f.close(); }
 });
