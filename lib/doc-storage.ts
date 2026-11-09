@@ -187,7 +187,7 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
     op.path[0] === "pages" || op.path[0] === "pageOrder");
   const args: (string | number | null)[] = [];
   let body = "body";
-  // D1の関数引数数上限にも収める（1回のjson_setは本文 + 12組のパス・値）。
+  // SQLのバインド変数数を抑えるため、json_setは最大12組ずつ適用する。
   for (let i = 0; i < patch.length; i += 12) {
     const chunk = patch.slice(i, i + 12);
     const sets: string[] = [];
