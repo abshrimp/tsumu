@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { serverTr } from "../../../../lib/i18n-server";
 import { requireAuth } from "../../../../lib/server";
-import { signAssetPath } from "../../../../lib/asset-token";
+import { signAssetPaths } from "../../../../lib/asset-token";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../../lib/api-json";
 
 /**
@@ -24,9 +24,9 @@ export async function POST(req: Request) {
   if (!paths || paths.length > 500 || !paths.every((p) => typeof p === "string" && p.startsWith("assets/") && p.length < 500)) {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   }
-  const urls: Record<string, string> = {};
-  for (const path of new Set(paths as string[])) {
-    const token = await signAssetPath(path);
+  const urls: Record<string, string> = Object.create(null);
+  const tokens = await signAssetPaths(paths as string[]);
+  for (const [path, token] of tokens) {
     urls[path] = `/api/assets/file?path=${encodeURIComponent(path)}${token ? `&${token}` : ""}`;
   }
   return NextResponse.json({ urls });
