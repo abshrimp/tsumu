@@ -148,3 +148,30 @@ test("unmounting a FrameStage resets Canvas fit scale and global resize styles",
   await page.mouse.up();
   await unchangedDocument(page);
 });
+
+test("HTML pages only execute their HTML, CSS and scripts in preview mode", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.evaluate(() => (window as any).frameResize.page("h"));
+
+  await expect(page.locator(".cv-placeholder")).toContainText("このページはHTMLモードです");
+  await expect(page.locator(".rawhtml-frame")).toHaveCount(0);
+
+  await page.evaluate(() => (window as any).frameResize.mode("preview"));
+  const iframe = page.locator("iframe.rawhtml-frame");
+  const content = page.frameLocator("iframe.rawhtml-frame");
+  await expect(iframe).toHaveAttribute("sandbox", "allow-scripts allow-forms allow-popups");
+  await expect(content.locator("#execution")).toHaveText("script ran");
+  await expect(content.locator("body")).toHaveCSS("color", "rgb(10, 20, 30)");
+  await content.locator("#run").click();
+  await expect(content.locator("#execution")).toHaveText("clicked");
+
+  await page.evaluate(() => (window as any).frameResize.mode("design"));
+  await expect(page.locator(".rawhtml-frame")).toHaveCount(0);
+  await expect(page.locator(".cv-placeholder")).toContainText("プレビューで動作を確認してください");
+
+  await page.evaluate(() => (window as any).frameResize.mode("preview"));
+  await expect(content.locator("#execution")).toHaveText("script ran");
+  await unchangedDocument(page);
+  expect(errors).toEqual([]);
+});
