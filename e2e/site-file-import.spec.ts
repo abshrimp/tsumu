@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import JSZip from "jszip";
-import { createInitialDoc, makeImage } from "../lib/presets";
+import { createInitialDoc, makeIcon, makeImage } from "../lib/presets";
 import { DOC_STORAGE_KEY } from "../lib/site";
 import { serializePortableDoc } from "../lib/portable-doc";
 import { generateExportProject } from "../lib/export-formats";
@@ -318,4 +318,25 @@ test("local import waits for a preceding tab's site index to reach this tab", as
     await expect.poll(async () => (await getLocalSite(page)).list.map((site: { name: string }) => site.name))
       .toEqual(["Second tab", "First tab"]);
   } finally { await second.close(); }
+});
+
+test("JSON import strips active SVG from editable icons before the resulting site can be exported", async ({ page }) => {
+  await localMode(page);
+  const doc = fixture();
+  const icon = makeIcon();
+  icon.icon!.svg = '<svg xmlns="http://www.w3.org/2000/svg" onload="globalThis.injectedSvg=1">' +
+    '<script>globalThis.injectedSvg=2</script><rect width="10" height="10"/></svg>';
+  doc.nodes[icon.id] = icon;
+  doc.pages[doc.pageOrder[0]].children.push(icon.id);
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+  await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
+    name: "doc.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(doc)),
+  });
+  await expect(page).toHaveURL(new RegExp("/sites/[a-z0-9-]+$"), { timeout: 30000 });
+  const saved = await getLocalSite(page);
+  const svg = saved.doc.nodes[icon.id].icon.svg;
+  expect(svg).toContain("<rect");
+  expect(svg).not.toMatch(/onload|<script|injectedSvg/i);
+  expect(await page.evaluate(() => (globalThis as any).injectedSvg)).toBeUndefined();
 });
