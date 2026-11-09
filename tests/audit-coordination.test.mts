@@ -64,7 +64,7 @@ test('M check evidence is fail closed for pending, missing and failed runs', () 
 
 test('M finds baseline conflicts and flags a shared file without implying PR failure', () => {
   const s = summarizePr({
-    files: ['lib/types.ts', 'lib/merge.ts', 'tests/merge-cases.test.mts'],
+    files: ['lib/types.ts', 'lib/merge.ts', 'tests/merge-cases.test.mts', 'components/StylePanel.tsx'],
   }, ['LIB/TYPES.TS']);
   assert.deepEqual(s.baselineDrift, ['lib/types.ts']);
   assert.deepEqual(s.shared, ['lib/types.ts']);
