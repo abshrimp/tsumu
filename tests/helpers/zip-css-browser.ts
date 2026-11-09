@@ -183,9 +183,10 @@ export async function zipCssBrowser(page: Page, storage: "local" | "remote") {
       return;
     }
     if (url.origin === "https://zip-editor.test" && url.pathname === "/api/assets/file") {
-      resources.push({ url: url.href, cookie: request.headers().cookie, origin: request.headers().origin });
+      const headers = await request.allHeaders();
+      resources.push({ url: url.href, cookie: headers.cookie, origin: headers.origin });
       const asset = uploaded.get(url.searchParams.get("path") ?? "");
-      if (asset && (control.publicAssets || /^fixture-\d+$/.test(url.searchParams.get("sig") ?? "")) && !request.headers().cookie) {
+      if (asset && (control.publicAssets || /^fixture-\d+$/.test(url.searchParams.get("sig") ?? "")) && !headers.cookie) {
         return route.fulfill({ contentType: asset.mimeType, body: asset.body, headers: { "Access-Control-Allow-Origin": "*" } });
       }
     }
@@ -206,6 +207,18 @@ export async function zipCssBrowser(page: Page, storage: "local" | "remote") {
     return route.fulfill({ status: 404, body: "Unexpected fixture request" });
   });
   await page.goto("https://zip-editor.test/");
+  // WebKit's intercepted request omits file-backed multipart bytes. Materialize
+  // the browser's actual multipart body before the test's HTTP storage mock reads it.
+  await page.evaluate(() => {
+    const send = window.fetch.bind(window);
+    window.fetch = async (url, init) => {
+      if (url === "/api/assets" && init?.body instanceof FormData) {
+        const request = new Request(new URL(url, location.href), init);
+        return send(request.url, { ...init, headers: request.headers, body: await request.arrayBuffer() });
+      }
+      return send(url, init);
+    };
+  });
   await page.addScriptTag({ content: zipCssBrowserBundle });
   const zip = new JSZip();
   const integrity = "sha256-" + createHash("sha256").update(fixtureFiles["site/css/main.css"]).digest("base64");

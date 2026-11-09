@@ -69,6 +69,9 @@ export async function POST(req: Request) {
       const doc = validateImportedDoc(initialDoc);
       if (doc.siteName !== input.name) throw new Error("リクエストが正しくありません");
       initialBody = JSON.stringify(doc);
+      if (new TextEncoder().encode(initialBody).byteLength > IMPORT_LIMITS.docBytes) {
+        return NextResponse.json({ error: tr("編集データが容量上限を超えています。") }, { status: 413 });
+      }
     } catch (error) {
       return NextResponse.json({ error: tr(userMessage(error, "リクエストが正しくありません")) }, { status: 400 });
     }

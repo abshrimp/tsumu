@@ -136,7 +136,7 @@ Generated server code that fetches external data embeds the editor's own SSRF pr
 
 ## Imports
 
-`createSiteFromFile` in `lib/import-site-file.ts` prepares everything before it creates the site, then saves the doc to the server or to the browser. If saving fails, it removes the assets the attempt uploaded.
+`createSiteFromFile` in `lib/import-site-file.ts` prepares everything before it creates the site, then saves the doc to the server or to the browser. Server imports commit the site and its first document in one database transaction. A lost response is checked using the allocated ID. Newly uploaded assets are rolled back on a confirmed failure and retained when the save outcome is unknown.
 
 - **Tsumu zip or `doc.json`** (`lib/site-import.ts`). A zip must contain exactly one `_tsumu/doc.json`; `_tsumu/assets.json` maps original asset IDs to files in the archive. A `doc.json` may be plain JSON or the compact gzip+Base64 envelope from `lib/portable-doc.ts`. The doc is validated, and its assets are uploaded again with their original IDs. Paths aren't guessed: an asset that the manifest doesn't list, and that has no data URL, becomes a warning. Archive names that escape the root are rejected.
 - **HTML file or website zip** (`lib/html-to-site.ts`). Every page is converted into editable nodes. Classes and a short list of safe attributes are kept (`lib/imported-html-attrs.ts`); event handlers, URL-bearing attributes and Tsumu's internal `data-*` markers never are.
