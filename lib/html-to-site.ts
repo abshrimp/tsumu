@@ -185,9 +185,13 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     else if (tag !== "title" && tag !== "base") unusedHead.push(element.outerHTML);
   }
   for (const style of Array.from(parsed.body.querySelectorAll("style"))) {
+    // SVG styles belong to the sanitised icon, not to the whole page.
+    if (style.closest("svg")) continue;
     sheets.push(resolveCss(style.textContent || ""));
   }
   for (const script of Array.from(parsed.body.querySelectorAll("script"))) {
+    // Never promote an SVG child script into an executable page script.
+    if (script.closest("svg")) continue;
     scripts.push(script.outerHTML);
     scriptCount++;
   }
