@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
-import { JsonBodyTooLargeError, readJsonLimited } from "../lib/api-json";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
 function fixture(identity: unknown = "owner@example.com") {
   class NextResponse extends Response {
@@ -24,7 +24,7 @@ function fixture(identity: unknown = "owner@example.com") {
     "../../../lib/i18n-server": { serverTr: async () => (s: string) => s },
     "../../../lib/unavailable": { dbUnavailable: async () => NextResponse.json({}, { status: 503 }) },
     "../../../lib/db": { dbConfigured: () => true },
-    "../../../lib/api-json": { JsonBodyTooLargeError, readJsonLimited },
+    "../../../lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
     "../../../lib/errors": { userMessage: (_e: unknown, fallback: string) => fallback },
     "../../../lib/allowlist": {
       addAllowedEmail: async (email: string) => { inserted.push(email); },
@@ -39,6 +39,7 @@ function fixture(identity: unknown = "owner@example.com") {
   const GET = module.exports.GET as () => Promise<Response>;
   const send = (value: unknown) => POST(new Request("https://editor.example.test/api/allowed-users", {
     method: "POST", body: JSON.stringify(value),
+    headers: { "Content-Type": "application/json" },
   }));
   return { send, get: () => GET(), inserted };
 }
