@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createInitialDoc } from "../lib/presets";
+import { createInitialDoc, makeIcon } from "../lib/presets";
 import { parseSiteImport, validateImportedDoc } from "../lib/site-import";
 import { sanitizeImportedSvg } from "../lib/imported-svg";
 
@@ -54,4 +54,22 @@ test("non-browser import strips active or external SVG content rather than bypas
   assert.match(cleaned, /<circle\b/);
   assert.doesNotMatch(cleaned, /onload|onerror|<script|foreignobject|https?:|<img|alert\(/i);
   assert.ok(!cleaned.includes('fill="url('));
+});
+
+
+test("direct API SiteDoc validation blocks executable inline SVG without browser sanitization", () => {
+  const doc = createInitialDoc();
+  const icon = makeIcon();
+  const page = doc.pages[doc.pageOrder[0]];
+  doc.nodes[icon.id] = icon;
+  page.children.push(icon.id);
+  assert.equal(validateImportedDoc(doc), doc);
+  for (const payload of [
+    '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><rect width="5" height="5"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><iframe srcdoc="unsafe"></iframe></foreignObject></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://attacker.example/svg"/></svg>',
+  ]) {
+    icon.icon!.svg = payload;
+    assert.throws(() => validateImportedDoc(doc), /要素の設定/);
+  }
 });
