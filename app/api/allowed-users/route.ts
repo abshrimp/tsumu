@@ -9,6 +9,7 @@ import {
 } from "../../../lib/allowlist";
 import { dbConfigured } from "../../../lib/db";
 import { userMessage } from "../../../lib/errors";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
 
 export const maxDuration = 30;
 
@@ -33,11 +34,11 @@ async function requireMe(): Promise<string | NextResponse> {
     );
   }
   const session = await auth();
-  const email = session?.user?.email?.toLowerCase();
-  if (!email) {
+  const identity = session?.user?.email;
+  if (typeof identity !== "string" || !identity.trim()) {
     return NextResponse.json({ error: tr("ログインが必要です") }, { status: 401 });
   }
-  return email;
+  return identity.toLowerCase();
 }
 
 async function listResponse(me: string): Promise<NextResponse> {
@@ -46,7 +47,7 @@ async function listResponse(me: string): Promise<NextResponse> {
     me,
     fixed: allowedEmails(),
     extra: await listAllowedEmails(),
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 /** 許可アカウントの一覧（固定 = 環境変数、追加 = D1の動的リスト） */
@@ -75,11 +76,16 @@ export async function POST(req: Request) {
 
   let email: string;
   try {
-    email = String((await req.json()).email ?? "")
-      .trim()
-      .toLowerCase();
-  } catch {
-    return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+    const input = await readJsonLimited(req, 16 * 1024);
+    // 配列やオブジェクトを String(...) でメールアドレスに変換しない。
+    if (!input || typeof input !== "object" || Array.isArray(input) || !("email" in input) || typeof input.email !== "string") {
+      throw new TypeError("Invalid email type");
+    }
+    email = input.email.trim().toLowerCase();
+  } catch (error) {
+    return NextResponse.json({ error: tr("リクエストが正しくありません") }, {
+      status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
+    });
   }
   if (!validEmail(email)) {
     return NextResponse.json(
@@ -113,9 +119,11 @@ export async function DELETE(req: Request) {
   if (me instanceof NextResponse) return me;
   if (!dbConfigured()) return await dbUnavailable();
 
-  const email = (new URL(req.url).searchParams.get("email") ?? "")
-    .trim()
-    .toLowerCase();
+  const addresses = new URL(req.url).searchParams.getAll("email");
+  if (addresses.length !== 1) {
+    return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
+  }
+  const email = addresses[0].trim().toLowerCase();
   if (!validEmail(email)) {
     return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
   }

@@ -16,7 +16,7 @@ if (!Number.isSafeInteger(shard) || !Number.isSafeInteger(shardCount) || shard <
 const command = process.platform === "win32" ? "npx.cmd" : "npx";
 const env = { ...process.env };
 for (const name of ["PLAYWRIGHT_JSON_OUTPUT_NAME", "PLAYWRIGHT_JSON_OUTPUT_FILE", "PLAYWRIGHT_JSON_OUTPUT_DIR"]) delete env[name];
-const discovery = spawnSync(command, ["playwright", "test", "--list", "--reporter=json"], {
+const discovery = spawnSync(command, ["--no-install", "playwright", "test", "--list", "--reporter=json"], {
   cwd: root, encoding: "utf8", maxBuffer: 50 * 1024 * 1024, env,
 });
 if (discovery.error || discovery.status !== 0) {
@@ -91,6 +91,6 @@ if (assigned.files.length === 0) {
 const escapeRegex = (value) => Array.from(value, char =>
   ".*+?^$()[]{}|\\".includes(char) ? "\\" + char : char).join("");
 const filters = assigned.files.map(file => escapeRegex(file) + "$");
-const child = spawnSync(command, ["playwright", "test", ...filters], { cwd: root, stdio: "inherit", env });
+const child = spawnSync(command, ["--no-install", "playwright", "test", ...filters], { cwd: root, stdio: "inherit", env });
 if (child.error) throw child.error;
 process.exit(child.status || (child.signal ? 1 : 0));

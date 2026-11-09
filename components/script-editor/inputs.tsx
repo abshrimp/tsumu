@@ -118,11 +118,18 @@ function VarTextIn({
 }) {
   const { doc: savedDoc, pageId, readOnly } = useContext(Ctx);
   const stepId = useContext(ScriptStepCtx);
-  const doc = useMemo(() => scriptInputDoc(savedDoc, stepId), [savedDoc, stepId]);
+  // Every input formerly copied and traversed every script on mount.
+  // Produce its suggestions only when the user actually focuses it.
+  const [active, setActive] = useState(false);
+  const doc = useMemo(
+    () => active && !readOnly ? scriptInputDoc(savedDoc, stepId) : null,
+    [active, readOnly, savedDoc, stepId]
+  );
   const nodeId = useContext(ScriptNodeCtx);
   const loops = useContext(LoopCtx);
   // 候補: 配列の要素の項目 + くり返し中の要素の項目 + その位置で使える変数 + スクリプトで作る変数
   const { names, samples, extra } = useMemo(() => {
+    if (!doc) return { names: [], samples: {}, extra: [] };
     const at = varNamesAt(doc, pageId, nodeId);
     const made = [...dataVarNames(doc, pageId)].filter(
       (n) => n !== ITEM_VALUE && n !== "slug" && !at.includes(n)
@@ -152,6 +159,7 @@ function VarTextIn({
   return (
     <VarInput
       key={value}
+      onActivate={() => setActive(true)}
       value={value}
       className={`se-in${value ? "" : " is-empty"}`}
       style={{ width }}

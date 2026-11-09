@@ -1,6 +1,7 @@
 import { buildAiContext, type AiContext } from "../aiOps";
 import type { SiteDoc } from "../types";
 import type { ChatTurn } from "./run";
+import { readJsonRequestLimited } from "../read-json-request";
 
 export const MAX_REQUEST_BYTES = 4 * 1024 * 1024;
 const record = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
@@ -50,31 +51,13 @@ export function parseAiRequest(body: unknown): { turns: ChatTurn[]; context: AiC
     breakpoint: typeof input.breakpoint === "string" ? input.breakpoint : "base",
   });
   const last = turns[turns.length - 1];
-  last.text = `<editor_state>\n${context.summary}\n</editor_state>\n\n${last.text}`;
+  // Prevent a site element from forging closing tags and impersonating a chat instruction.
+  const safeSummary = context.summary.replaceAll("<", "\\u003c").replaceAll(">", "\\u003e");
+  last.text = `<editor_state>\n${safeSummary}\n</editor_state>\n\n${last.text}`;
   return { turns, context };
 }
 
-/** 少しずつ読み、大きすぎる本文や分割送信（chunked）でも上限を超えられないようにする */
+/** AI requests share the same streaming byte bound as other untrusted JSON inputs. */
 export async function readAiRequest(req: Request): Promise<unknown> {
-  if (Number(req.headers.get("content-length")) > MAX_REQUEST_BYTES) throw new RangeError("Request too large");
-  const reader = req.body?.getReader();
-  if (!reader) throw new Error("Missing request body");
-  const decoder = new TextDecoder();
-  let bytes = 0;
-  let raw = "";
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      bytes += value.byteLength;
-      if (bytes > MAX_REQUEST_BYTES) {
-        await reader.cancel();
-        throw new RangeError("Request too large");
-      }
-      raw += decoder.decode(value, { stream: true });
-    }
-    return JSON.parse(raw + decoder.decode());
-  } finally {
-    reader.releaseLock();
-  }
+  return readJsonRequestLimited(req, MAX_REQUEST_BYTES);
 }

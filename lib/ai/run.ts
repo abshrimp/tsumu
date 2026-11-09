@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { readTextLimited, TooLargeError } from "../safe-fetch";
 import type { AiConfig } from "./config";
 import type { AiProgress } from "./progress";
 import { ModelStreamError, readCompletionStream } from "./completion-stream";
@@ -6,6 +7,8 @@ import { editToolSchema, PORTABLE_NOTE, SYSTEM, TOOL_DESCRIPTION, TOOL_NAME } fr
 
 const MAX_TURNS = 8;
 const REQUEST_TIMEOUT = 240_000;
+export const MAX_MODEL_BODY_BYTES = 4 * 1024 * 1024;
+const MAX_MODEL_ERROR_BYTES = 32 * 1024;
 /** 混雑（429・503 など）のときに待ってから再試行する間隔 */
 const RETRY_DELAYS = [1_000, 3_000];
 const RETRYABLE = new Set([429, 500, 502, 503, 529]);
@@ -96,6 +99,7 @@ export async function runAi(
   } catch (error) {
     if (controller.signal.aborted) throw new AiApiError("timeout");
     if (error instanceof AiApiError) throw error;
+    if (error instanceof TooLargeError) throw new AiApiError("incomplete", undefined, "Model response exceeded the byte limit");
     if (error instanceof Anthropic.APIError || error instanceof ModelStreamError) throw apiError(error.status, error.message);
     throw new AiApiError("other", undefined, error instanceof Error ? error.message : String(error));
   } finally {
@@ -193,9 +197,13 @@ function compatibleSession(conf: AiConfig, turns: ChatTurn[], signal: AbortSigna
           ...(sendEffort ? { reasoning_effort: ["xhigh", "max"].includes(conf.effort) ? "high" : conf.effort } : {}),
         }),
         signal,
+        redirect: "error", // Never forward an API key to a redirected endpoint.
       });
       if (res.ok) break;
-      const detail = await res.text();
+      const detail = await readTextLimited(res, MAX_MODEL_ERROR_BYTES).catch((error: unknown) => {
+        if (error instanceof TooLargeError) return "Model error response exceeded the byte limit";
+        throw error;
+      });
       if (RETRYABLE.has(res.status) && attempt < RETRY_DELAYS.length) {
         await sleep(RETRY_DELAYS[attempt], signal);
         continue;
@@ -213,7 +221,7 @@ function compatibleSession(conf: AiConfig, turns: ChatTurn[], signal: AbortSigna
     const streamed = res.headers.get("content-type")?.includes("text/event-stream");
     const data = (streamed
       ? await readCompletionStream(res, onText ?? (() => {}), onTools ?? (() => {}))
-      : await res.json()) as { choices?: { message?: OaiMessage; finish_reason?: string }[] };
+      : JSON.parse(await readTextLimited(res, MAX_MODEL_BODY_BYTES))) as { choices?: { message?: OaiMessage; finish_reason?: string }[] };
     const choice = data?.choices?.[0];
     const message = choice?.message;
     if (!message || (message.tool_calls !== undefined && !Array.isArray(message.tool_calls))) {

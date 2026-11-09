@@ -6,7 +6,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getDbFromBinding, type Db } from "../lib/db";
 import { nodeDatabase } from "../lib/node-storage";
+import { createInitialDoc } from "../lib/presets";
 import * as sites from "../lib/sites";
+import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import-format";
+import { readTextLimited, TooLargeError } from "../lib/safe-fetch";
 import { readCurrentDoc, saveCurrentDoc } from "../lib/doc-storage";
 import { userMessage } from "../lib/errors";
 
@@ -23,7 +26,7 @@ async function database(run: (db: Db) => Promise<void>) {
     rmSync(dir, { recursive: true, force: true });
   }
 }
-function api(db: Db, read = readCurrentDoc, save = saveCurrentDoc) {
+function api(db: Db, read = readCurrentDoc) {
   class NextResponse extends Response {
     static json(data: unknown, init?: ResponseInit) { return new NextResponse(JSON.stringify(data), init); }
   }
@@ -31,9 +34,9 @@ function api(db: Db, read = readCurrentDoc, save = saveCurrentDoc) {
     .replace(/^import[\s\S]*?;\n/gm, "").replace(/^export /gm, "");
   const injected = { DEFAULT_BRANCH: sites.DEFAULT_BRANCH, DEFAULT_PREVIEW_BRANCH: sites.DEFAULT_PREVIEW_BRANCH, deleteSite: sites.deleteSite, getSite: sites.getSite, insertSite: sites.insertSite, isSiteId: sites.isSiteId, listSites: sites.listSites, normalizeSiteInput: sites.normalizeSiteInput, newSiteId: () => "copy", NextResponse, dbUnavailable: () => { throw new Error("Unexpected fallback"); }, serverTr: async () => (text: string) => text,
     requireAuth: async () => null, dbConfigured: () => true, getDb: async () => db, userMessage,
-    readCurrentDoc: read, saveCurrentDoc: save };
+    readCurrentDoc: read, validateImportedDoc, IMPORT_LIMITS, readTextLimited, TooLargeError };
   const post = new Function(...Object.keys(injected), `${source}\nreturn POST;`)(...Object.values(injected));
-  return () => post(new Request("https://example.test/api/sites", { method: "POST", body: JSON.stringify({ name: "Copy", copyFrom: "source" }) })) as Promise<Response>;
+  return (input: unknown = { name: "Copy", copyFrom: "source" }) => post(new Request("https://example.test/api/sites", { method: "POST", body: JSON.stringify(input) })) as Promise<Response>;
 }
 
 test("copying a source deleted before its document is read does not create a blank copy", async () => database(async db => {
@@ -55,7 +58,22 @@ test("a captured source document remains usable if the source is deleted afterwa
 }));
 test("an unsuccessful destination save is not reported as a completed copy", async () => database(async db => {
   await saveCurrentDoc(db, "source", '{"content":"saved"}', null);
-  const response = await api(db, readCurrentDoc, async () => ({ kind: "missing" }))();
+  await db.execute("CREATE TRIGGER fail_copy BEFORE INSERT ON docs WHEN NEW.id='copy' BEGIN SELECT RAISE(ABORT, 'simulated failure'); END");
+  const response = await api(db)();
   assert.equal(response.status, 502);
   assert.equal(await sites.getSite(db, "copy"), null);
+}));
+
+test("importing atomically creates revision one and rejects invalid or colliding imports without changing existing data", async () => database(async db => {
+  // Use a complete current SiteDoc: the import boundary must reject incomplete page metadata.
+  const doc = createInitialDoc();
+  doc.siteName = "Imported";
+  const input = { name: doc.siteName, initialDoc: doc, importId: "0123456789" };
+  const post = api(db);
+  assert.equal((await post({ ...input, initialDoc: { ...doc, pageOrder: ["absent"] } })).status, 400);
+  assert.equal(await sites.getSite(db, input.importId), null);
+  assert.equal((await post(input)).status, 200);
+  assert.equal((await readCurrentDoc(db, input.importId))?.rev, "1");
+  assert.equal((await post({ ...input, initialDoc: { ...doc, note: "replacement" } })).status, 409);
+  assert.deepEqual(JSON.parse((await readCurrentDoc(db, input.importId))!.body), doc);
 }));

@@ -10,7 +10,7 @@ import type { Drag, Marquee, ScriptEditorLatest } from "../components/ScriptEdit
 import { scriptDragBundle, scriptDragDoc } from "./helpers/script-drag";
 
 // 実フックを読み込み、DOMの寸法とイベントだけを固定する。保存・Undoは実ストアを使う。
-function mount() {
+function mount(targetSlot?: string) {
   useEditor.getState().replaceDoc(scriptDragDoc());
   useEditor.getState().setActivePage("p");
   const win = new EventTarget();
@@ -31,7 +31,11 @@ function mount() {
   const marqueeRef = { current: null as Marquee | null };
   const ui = { drag: null as Drag | null, marquee: null as Marquee | null, slot: null as string | null, selected: [] as string[], closed: false };
   const rect = (left: number, right: number) => ({ left, right, top: 0, bottom: 600 });
-  const ws = { scrollLeft: 0, scrollTop: 0, getBoundingClientRect: () => rect(300, 1200), querySelectorAll: () => [] };
+  const ws = { scrollLeft: 0, scrollTop: 0, getBoundingClientRect: () => rect(300, 1200),
+    querySelectorAll: (selector: string) => targetSlot && selector === '[data-slot-kind]'
+      ? [{ dataset: { slot: targetSlot, slotKind: "step" },
+        getBoundingClientRect: () => ({ left: 692, right: 740, top: 292, bottom: 315 }) }] : [],
+  };
   const scripts = () => pageScriptsOf(useEditor.getState().doc, [], useEditor.getState().activePageId);
   const latest = { current: {
     get scripts() { return scripts(); }, focusNodeId: null,
@@ -164,4 +168,21 @@ test("ordinary drops still use their release position and palette deletion is on
 test("the browser fixture bundles the real script editor and gesture hooks", async () => {
   const bundle = await scriptDragBundle();
   assert.match(bundle, /function ScriptEditorInner/); assert.match(bundle, /function useScriptDrag/);
+});
+
+test("dropping a selected chain inside its own removed subtree leaves document and undo history unchanged", () => {
+  const m = mount("script|repeat:then|0");
+  try {
+    state().updateDoc((doc) => {
+      doc.pages.p.pageScripts![0].steps = [
+        { id: "repeat", kind: "repeat", times: 2,
+          then: [{ id: "child", kind: "wait", seconds: 1 }] },
+        { id: "following", kind: "hide", target: "banner" },
+      ];
+    });
+    const before = snapshot();
+    m.start("step");
+    m.pointer("pointerup", { x: 700, y: 300, buttons: 0 });
+    assert.deepEqual(snapshot(), before, "an invalid descendant drop must not delete source steps");
+  } finally { m.close(); }
 });

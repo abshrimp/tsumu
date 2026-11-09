@@ -4,11 +4,12 @@ import { serverTr } from "../../../lib/i18n-server";
 import { requireAuth } from "../../../lib/server";
 import { dbConfigured, getDb } from "../../../lib/db";
 import { userMessage } from "../../../lib/errors";
-import { readCurrentDoc, saveCurrentDoc } from "../../../lib/doc-storage";
+import { IMPORT_LIMITS, validateImportedDoc } from "../../../lib/site-import-format";
+import { readTextLimited, TooLargeError } from "../../../lib/safe-fetch";
+import { readCurrentDoc } from "../../../lib/doc-storage";
 import {
   DEFAULT_BRANCH,
   DEFAULT_PREVIEW_BRANCH,
-  deleteSite,
   getSite,
   insertSite,
   isSiteId,
@@ -27,14 +28,16 @@ export async function GET() {
   if (denied) return denied;
   if (!dbConfigured()) return await dbUnavailable();
   try {
-    return NextResponse.json({ sites: await listSites(await getDb()) });
+    return NextResponse.json({ sites: await listSites(await getDb()) }, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch (e) {
     return NextResponse.json({ error: tr(userMessage(e, "読み込めませんでした")) }, { status: 502 });
   }
 }
 
 /**
- * サイトを作る（編集データは、初めて開いたときにエディタが保存する）。
+ * 通常のサイトは最初に開いたときに保存し、インポート時は初版と同時に作成する。
  * copyFrom にサイトIDがあれば、そのサイトの編集データを複製する（公開先は受け取った値を使う）
  */
 export async function POST(req: Request) {
@@ -43,13 +46,37 @@ export async function POST(req: Request) {
   if (denied) return denied;
   if (!dbConfigured()) return await dbUnavailable();
 
-  const input = (await req.json().catch(() => null)) as (SiteInput & { copyFrom?: unknown }) | null;
-  if (!input || typeof input !== "object") {
+  let input: SiteInput & { copyFrom?: unknown; importId?: unknown; initialDoc?: unknown };
+  try {
+    const raw = await readTextLimited(new Response(req.body, { headers: req.headers }), IMPORT_LIMITS.docBytes + 1024);
+    input = JSON.parse(raw);
+  } catch (error) {
+    const status = error instanceof TooLargeError ? 413 : 400;
+    return NextResponse.json({ error: tr(status === 413 ? "インポートするファイルが大きすぎます。" : "リクエストが正しくありません") }, { status });
+  }
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   }
-  const copyFrom = input.copyFrom;
-  if (copyFrom !== undefined && !isSiteId(copyFrom)) {
+  const { copyFrom, importId, initialDoc } = input;
+  const importing = importId !== undefined || initialDoc !== undefined;
+  if (copyFrom !== undefined && (!isSiteId(copyFrom) || importing)) {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+  }
+  let initialBody: string | undefined;
+  if (importing) {
+    if (typeof importId !== "string" || !/^[a-z0-9]{10}$/.test(importId)) {
+      return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+    }
+    try {
+      const doc = validateImportedDoc(initialDoc);
+      if (doc.siteName !== input.name) throw new Error("リクエストが正しくありません");
+      initialBody = JSON.stringify(doc);
+      if (new TextEncoder().encode(initialBody).byteLength > IMPORT_LIMITS.docBytes) {
+        return NextResponse.json({ error: tr("編集データが容量上限を超えています。") }, { status: 413 });
+      }
+    } catch (error) {
+      return NextResponse.json({ error: tr(userMessage(error, "リクエストが正しくありません")) }, { status: 400 });
+    }
   }
   const parsed = normalizeSiteInput(input, {
     name: "",
@@ -71,21 +98,19 @@ export async function POST(req: Request) {
     if (copyFrom && !src && !(await getSite(db, copyFrom))) {
       return NextResponse.json({ error: tr("複製するサイトが見つかりません") }, { status: 404 });
     }
-    const id = newSiteId();
-    await insertSite(db, id, parsed.value);
-    if (copyFrom) {
-      try {
-        if (src) {
-          const saved = await saveCurrentDoc(db, id, src.body, null);
-          if (saved.kind !== "saved") throw new Error("作成できませんでした");
-        }
-      } catch (e) {
-        await deleteSite(db, id).catch(() => {});
-        throw e;
-      }
+    const id = typeof importId === "string" ? importId : newSiteId();
+    if (importing && await getSite(db, id)) {
+      return NextResponse.json({ error: tr("サイトを作成できませんでした。") }, { status: 409 });
     }
+    await insertSite(db, id, parsed.value, initialBody ?? src?.body);
     return NextResponse.json({ site: await getSite(db, id) });
   } catch (e) {
+    if (e instanceof Error && /SQLITE_TOOBIG|too big/i.test(e.message)) {
+      return NextResponse.json({ error: tr("ドキュメントが大きすぎて、保存先に入りきりません") }, { status: 413 });
+    }
+    if (importing && e instanceof Error && /UNIQUE constraint failed: sites\.id/i.test(e.message)) {
+      return NextResponse.json({ error: tr("サイトを作成できませんでした。") }, { status: 409 });
+    }
     return NextResponse.json({ error: tr(userMessage(e, "作成できませんでした")) }, { status: 502 });
   }
 }

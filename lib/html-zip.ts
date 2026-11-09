@@ -8,6 +8,9 @@ import { attachZipDependencies, zipCssUrl, zipStylesheet } from "./zip-css";
 import { HTML_ZIP_LIMITS, inspectHtmlZip, readZipEntryLimited } from "./html-zip-guard";
 import { genId } from "./presets";
 import { tr } from "./i18n";
+import type { DefaultTreeAdapterTypes as Html } from "parse5";
+import { verifyZipEntry } from "./zip-stream";
+import { createIntegrityVerifier } from "./resource-integrity";
 import type { Asset } from "./types";
 
 const ZIP_MIME: Record<string, string> = {
@@ -24,23 +27,46 @@ const zipMime = (name: string) =>
 const cleanZipPath = (value: string) =>
   value.replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "");
 
+// Keep externally based references external. Resolve a local base inside the
+// archive without interpreting relative URLs against the editor origin.
+function archiveResolver(htmlPath: string, href: string | undefined | null, urls: Map<string, string>) {
+  let base: URL | undefined;
+  if (href) {
+    try {
+      const text = href.trim();
+      const value = new URL(/^[\\/]{2}/.test(text) ? "https:" + text : text, new URL(htmlPath, "file:///"));
+      if (["http:", "https:"].includes(value.protocol) ||
+          (value.protocol === "file:" && !/^[a-z][a-z0-9+.-]*:/i.test(href.trim()))) base = value;
+    } catch { /* Invalid bases use the HTML entry's directory. */ }
+  }
+  return (raw: string): string => {
+    const ref = raw.trim();
+    if (!base || !ref || /^(?:[a-z][a-z0-9+.-]*:|#|\/\/)/i.test(ref)) return resolveZipReference(ref, htmlPath, urls);
+    let url: URL;
+    try { url = new URL(ref, base); } catch { return raw; }
+    if (url.protocol !== "file:") return url.href;
+    const path = url.pathname + url.search + url.hash;
+    const target = resolveZipReference(path, "", urls);
+    return target === path ? raw : target;
+  };
+}
+
 export function rewriteZipReferences(html: string, htmlPath: string, urls: Map<string, string>) {
-  const resolve = (value: string) => resolveZipReference(value, htmlPath, urls);
   const doc = new DOMParser().parseFromString(html, "text/html");
+  const base = Array.from(doc.querySelectorAll("base[href]")).find(el => el.namespaceURI === "http://www.w3.org/1999/xhtml");
+  const resolve = archiveResolver(htmlPath, base?.getAttribute("href"), urls);
   for (const el of Array.from(doc.querySelectorAll<HTMLElement>("[src],[href],[poster],[xlink\\:href]"))) {
     for (const attr of ["src", "href", "poster", "xlink:href"]) {
       const value = el.getAttribute(attr);
-      if (value) {
-        const target = resolve(value);
-        el.setAttribute(attr, target);
-        if (attr === "href" && el.tagName.toLowerCase() === "link" && target.startsWith("tsumu-zip-css:")) {
-          el.removeAttribute("integrity");
-        }
+      if (value && !(el === base && attr === "href")) {
+        el.setAttribute(attr, resolve(value));
       }
     }
   }
-  for (const el of Array.from(doc.querySelectorAll<HTMLElement>("[srcset]"))) {
-    el.setAttribute("srcset", rewriteSrcsetUrls(el.getAttribute("srcset") ?? "", resolve));
+  for (const attr of ["srcset", "imagesrcset"]) {
+    for (const el of Array.from(doc.querySelectorAll<HTMLElement>(`[${attr}]`))) {
+      el.setAttribute(attr, rewriteSrcsetUrls(el.getAttribute(attr) ?? "", resolve));
+    }
   }
   for (const attr of CSS_ASSET_ATTRIBUTES) {
     for (const el of Array.from(doc.querySelectorAll(`[${attr}]`))) {
@@ -53,6 +79,63 @@ export function rewriteZipReferences(html: string, htmlPath: string, urls: Map<s
   return `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`;
 }
 
+
+/** Verify each archive-local resource before its bytes are uploaded or its CSS transformed. */
+async function verifyZipIntegrity(htmlText: Map<string, string>, assetEntries: import("jszip").JSZipObject[],
+    sourceBytes: Map<string, Uint8Array<ArrayBuffer>>) {
+  const verify = createIntegrityVerifier();
+  const indices = new Map(assetEntries.map((entry, index) => [entry.name, "zip-member:" + index]));
+  for (const [path, html] of htmlText) {
+    if (!/integrity/i.test(html)) continue;
+    const { parse, defaultTreeAdapter } = await import("parse5");
+    let elements = 0;
+    const doc = parse(html, { sourceCodeLocationInfo: true, treeAdapter: {
+      ...defaultTreeAdapter,
+      createElement(...args) {
+        if (++elements > 100000) throw new Error("Too many HTML elements in the imported page.");
+        return defaultTreeAdapter.createElement(...args);
+      },
+    } });
+    const pending: Html.Node[] = [doc];
+    const protectedTags: Html.Element[] = [];
+    let baseHref: string | undefined;
+    while (pending.length) {
+      const node = pending.pop()!;
+      if ("childNodes" in node) for (let i = node.childNodes.length - 1; i >= 0; i--) pending.push(node.childNodes[i]);
+      if (!("tagName" in node)) continue;
+      if (baseHref === undefined && node.tagName === "base" && node.namespaceURI === "http://www.w3.org/1999/xhtml") {
+        baseHref = node.attrs.find(attr => attr.name === "href")?.value;
+      }
+      if (node.tagName === "link" || node.tagName === "script") protectedTags.push(node);
+    }
+    const resolve = archiveResolver(path, baseHref, indices);
+    const remove: { startOffset: number; endOffset: number }[] = [];
+    for (const node of protectedTags) {
+      const metadata = node.attrs.find(attr => attr.name === "integrity")?.value;
+      const ref = node.attrs.find(attr => attr.name === (node.tagName === "link" ? "href" : "src"))?.value;
+      if (!metadata || !ref) continue;
+      // An authored URL with this scheme is never an archive reference.
+      const target = /^zip-member:(\d+)(?:[?#]|$)/.exec(resolve(ref));
+      if (!target || /^[a-z][a-z0-9+.-]*:/i.test(ref.trim())) continue;
+      const entry = assetEntries[Number(target[1])];
+      const bytes = sourceBytes.get(entry.name) ?? await readZipEntryLimited(entry, HTML_ZIP_LIMITS.assetBytes);
+      sourceBytes.set(entry.name, bytes);
+      await verify(bytes, metadata);
+      const attribute = node.sourceCodeLocation?.attrs?.integrity;
+      if (node.tagName === "link" && attribute && /\.css$/i.test(entry.name)) remove.push(attribute);
+    }
+    if (remove.length) {
+      const parts: string[] = [];
+      let start = 0;
+      for (const attr of remove.sort((a, b) => a.startOffset - b.startOffset)) {
+        parts.push(html.slice(start, attr.startOffset));
+        start = attr.endOffset;
+      }
+      parts.push(html.slice(start));
+      htmlText.set(path, parts.join(""));
+    }
+  }
+}
 
 /** Preflight the archive before uploading anything; JavaScript dependencies are not resolved. */
 async function prepareHtmlZip(file: File | Uint8Array, progress: (message: string) => void, paths: string[]) {
@@ -86,6 +169,14 @@ async function prepareHtmlZip(file: File | Uint8Array, progress: (message: strin
     stylesheets.set(entry.name, { bytes, source });
   }
 
+  const checkedBytes = new Map([...stylesheets].map(([path, sheet]) => [path, sheet.bytes]));
+  await verifyZipIntegrity(htmlText, assetEntries, checkedBytes);
+  for (const entry of assetEntries) {
+    // Prove the remaining members are intact before the first upload without
+    // retaining up to the whole expanded archive in the editor's memory.
+    if (!checkedBytes.has(entry.name)) await verifyZipEntry(entry, HTML_ZIP_LIMITS.assetBytes);
+  }
+
   const assets: Asset[] = [];
   const urls = new Map<string, string>();
   const group = genId("zip");
@@ -94,7 +185,7 @@ async function prepareHtmlZip(file: File | Uint8Array, progress: (message: strin
     progress(tr("アセットをアップロード中… {p1} / {length}", { p1: index + 1, length: assetEntries.length }));
     const path = cleanZipPath(entry.name);
     const sheet = stylesheets.get(entry.name);
-    const bytes = sheet?.bytes ?? await readZipEntryLimited(entry, HTML_ZIP_LIMITS.assetBytes);
+    const bytes = checkedBytes.get(entry.name) ?? await readZipEntryLimited(entry, HTML_ZIP_LIMITS.assetBytes);
     const mime = zipMime(path);
     // Preserve original bytes, including UTF-8 BOM; CSS references are metadata.
     const upload = new File([bytes], path.replace(/\//g, "-"), { type: mime });

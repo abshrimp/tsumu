@@ -1,10 +1,14 @@
 import type { Asset, BreakpointDef, DocNode, NodeStyles, Page, SiteDoc, StyleMap, StyleState } from "./types";
 import { genId } from "./presets";
+import { escapeStyleContent } from "./css-assets";
+import { MAX_NODE_DEPTH } from "./doc-tree";
 import { assetSrc } from "./assets";
 import { DEFAULT_BREAKPOINTS, MAX_BREAKPOINTS, normalizeBreakpoints } from "./style";
 import { zipStylesheet } from "./zip-css";
 import { tr } from "./i18n";
 import { importedClass, readImportedAttributes } from "./imported-html-attrs";
+import { sanitizeImportedSvg } from "./imported-svg";
+import { safeNavigationUrl, safeResourceUrl } from "./url-policy";
 import { expandZipCss } from "./html-css-import";
 import { importedAssetPath, isZipJavascript } from "./generator/imported-assets";
 
@@ -38,7 +42,10 @@ function htmlText(el: Element): string {
   return (el.textContent || "").replace(/\s+/g, " ").trim();
 }
 function safeUrl(value: string): string {
-  return /^(?:javascript|vbscript):/i.test(value.trim()) ? "" : value;
+  // Browsers remove tab/newline characters before interpreting a scheme.
+  // Use the same URL policy as the editor and generated sites.
+  const safe = safeResourceUrl(value);
+  return safe === "#" && value !== "#" ? "" : safe;
 }
 function htmlName(tag: string): string {
   const names: Record<string, string> = {
@@ -162,6 +169,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       }
       const source = zipStylesheet(asset);
       if (source) {
+        if (element.getAttribute("integrity")?.trim()) throw new Error("Cannot import a stylesheet with unverified integrity metadata.");
         const converted = mediaCss(element, resolveCss(source.source, asset));
         if (converted !== null) sheets.push(converted);
         else {
@@ -181,9 +189,13 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     else if (tag !== "title" && tag !== "base") unusedHead.push(element.outerHTML);
   }
   for (const style of Array.from(parsed.body.querySelectorAll("style"))) {
+    // SVG styles belong to the sanitised icon, not to the whole page.
+    if (style.closest("svg")) continue;
     sheets.push(resolveCss(style.textContent || ""));
   }
   for (const script of Array.from(parsed.body.querySelectorAll("script"))) {
+    // Never promote an SVG child script into an executable page script.
+    if (script.closest("svg")) continue;
     scripts.push(script.outerHTML);
     scriptCount++;
   }
@@ -228,13 +240,15 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     }
     return min <= max ? { min, max } : null;
   };
-  const collect = (rules: CSSRuleList, range: MediaRange) => {
+  let declarationWork = 0, emittedStyleChars = 0;
+  const collect = (rules: CSSRuleList, range: MediaRange, retained: string[], depth = 0) => {
+    if (depth > 32) throw new Error(tr("HTMLのスタイルが複雑すぎます。"));
     for (const rule of Array.from(rules)) {
       if (rule.type === CSSRule.MEDIA_RULE) {
         const media = rule as CSSMediaRule;
         const next = parseRange(media.conditionText);
         if (!next) {
-          unusedRules.push(rule.cssText);
+          retained.push(rule.cssText);
           warn(tr("複雑な@media条件はカスタムCSSとして保持しました。"));
           continue;
         }
@@ -245,11 +259,13 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
           ...(merged.min > 0 ? [merged.min - 1] : []),
         ];
         if (!limits.every(getBreakpoint)) {
-          unusedRules.push(rule.cssText);
+          retained.push(rule.cssText);
           warn(tr("Tsumuのブレークポイント上限により、一部の@mediaは変換できません。"));
           continue;
         }
-        collect(media.cssRules, merged);
+        const nested: string[] = [];
+        collect(media.cssRules, merged, nested, depth + 1);
+        if (nested.length) retained.push("@media " + media.conditionText + " {\n" + nested.join("\n") + "\n}");
       } else if (rule.type === CSSRule.STYLE_RULE) {
         const item = rule as CSSStyleRule;
         const declarations: ParsedRule["declarations"] = [];
@@ -257,13 +273,14 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
           declarations.push({ name, value, important });
         });
         if (!declarations.length) continue;
+        let retain = false;
         for (const originalSelector of splitSelectors(item.selectorText)) {
           const selector = originalSelector.trim();
           const stateMatch = /:(hover|focus|active)$/i.exec(selector);
           const state = (stateMatch?.[1]?.toLowerCase() || "default") as StyleState;
           const baseSelector = stateMatch ? selector.slice(0, -stateMatch[0].length) : selector;
           if (!baseSelector || /::|(^|[^\\]):/.test(baseSelector)) {
-            unusedRules.push(item.cssText);
+            retain = true;
             warn(tr("一部のCSSセレクターはカスタムCSSとして保持しました。"));
             continue;
           }
@@ -272,12 +289,13 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
             // Global selectors such as :root do not have a Tsumu node;
             // retain their declarations instead of silently losing variables.
             if (Array.from(matches).some((el) => el === parsed.documentElement || el === parsed.head)) {
-              unusedRules.push(item.cssText);
+              retain = true;
               warn(tr("一部のCSSルールはカスタムCSSとして保持しました。"));
               continue;
             }
-            for (const element of Array.from(matches)) {
-              if (parsedRules.length >= 200000) throw new Error("too-many-matches");
+            declarationWork += matches.length * declarations.length;
+            for (const element of matches) {
+              if (parsedRules.length >= 200000 || declarationWork > 2000000) throw new Error("too-many-matches");
               parsedRules.push({
                 element, state, range, score: specificity(selector), order: ++order, declarations,
               });
@@ -286,19 +304,20 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
             if (error instanceof Error && error.message === "too-many-matches") {
               throw new Error(tr("HTMLの要素数が多すぎます。"));
             }
-            unusedRules.push(item.cssText);
+            retain = true;
             warn(tr("一部のCSSセレクターを解析できませんでした。"));
           }
         }
+        if (retain) retained.push(item.cssText);
       } else {
-        unusedRules.push(rule.cssText);
+        retained.push(rule.cssText);
         warn(tr("一部のCSSルールはカスタムCSSとして保持しました。"));
       }
     }
   };
   for (const source of sheets) {
     const rules = cssRules(source);
-    if (rules) collect(rules, { min: 0, max: Infinity });
+    if (rules) collect(rules, { min: 0, max: Infinity }, unusedRules);
     else if (source.trim()) {
       unusedRules.push(source);
       warn(tr("解析できないCSSをカスタムコードに保持しました。"));
@@ -369,6 +388,8 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
           const after = values.get(key);
           if (at.id === "base" || before !== after) {
             // A rule that only applied at wider widths must be cancelled here.
+            emittedStyleChars += key.length + (after?.length ?? 6);
+            if (emittedStyleChars > MAX_HTML_CHARS) throw new Error(tr("HTMLのスタイルが複雑すぎます。"));
             if (after !== undefined) props[key] = after;
             else if (at.id !== "base") props[key] = "revert";
           }
@@ -411,13 +432,14 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     nodes[node.id] = node;
     return node.id;
   };
-  const convert = (element: Element): string | null => {
+  const convert = (element: Element, depth = 1): string | null => {
     const tag = element.tagName.toLowerCase();
     if (SKIP_TAGS.has(tag)) return null;
     if (UNSAFE_TAGS.has(tag)) {
       warn(tr("埋め込み要素は安全上の理由で変換対象から除外しました。"));
       return null;
     }
+    if (depth > MAX_NODE_DEPTH) throw new Error(tr("HTMLの要素数が多すぎます。"));
     const id = genId("node");
     const visual = nodeStyle(element);
     const sourceClass = keepOriginalClasses
@@ -447,7 +469,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     if (tag === "hr") { common.type = "divider"; return add(common); }
     if (tag === "svg") {
       common.type = "icon";
-      common.icon = { name: "imported-svg", svg: element.outerHTML };
+      common.icon = { name: "imported-svg", svg: sanitizeImportedSvg(element.outerHTML) };
       return add(common);
     }
     if (tag === "input" || tag === "textarea" || tag === "select") {
@@ -500,7 +522,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       return add(common);
     }
     if (tag === "a") {
-      common.link = { kind: "url", url: safeUrl(element.getAttribute("href") || ""), newTab: element.getAttribute("target") === "_blank" };
+      common.link = { kind: "url", url: safeNavigationUrl(element.getAttribute("href") || ""), newTab: element.getAttribute("target") === "_blank" };
     } else if (!SEMANTICS.has(tag) && !/^h[1-6]$/.test(tag) && tag !== "p") {
       common.semantic = "custom";
       common.customTag = tag;
@@ -533,6 +555,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       if (child.nodeType === Node.TEXT_NODE) {
         const value = (child.textContent || "").replace(/\s+/g, " ").trim();
         if (!value) continue;
+        if (depth >= MAX_NODE_DEPTH) throw new Error(tr("HTMLの要素数が多すぎます。"));
         const textId = genId("node");
         common.children.push(add({
           id: textId, type: "box", name: tr("テキスト"), semantic: "span",
@@ -540,7 +563,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
           styles: { base: { default: {} } },
         }));
       } else if (child.nodeType === Node.ELEMENT_NODE) {
-        const childId = convert(child as Element);
+        const childId = convert(child as Element, depth + 1);
         if (childId) common.children.push(childId);
       }
     }
@@ -564,7 +587,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
   const pageId = genId("page");
   const name = parsed.title.trim() || tr("HTMLから変換したページ");
   const description = parsed.head.querySelector('meta[name="description"]')?.getAttribute("content") || "";
-  const retainedCss = unusedRules.length ? "<style>\n" + [...new Set(unusedRules)].join("\n") + "\n</style>" : "";
+  const retainedCss = unusedRules.length ? "<style>\n" + escapeStyleContent(unusedRules.join("\n")) + "\n</style>" : "";
   const headMarkup = [unusedHead.join("\n"), retainedCss].filter(Boolean).join("\n");
   const page: Page = {
     id: pageId, name, title: name, slug: "", description, children: roots,

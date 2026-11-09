@@ -100,7 +100,7 @@ export async function GET(req: Request) {
         path: String(r.asset_path),
         bytes: r.bytes === null || r.bytes === undefined ? null : Number(r.bytes),
       })),
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (e) {
     return NextResponse.json({ error: tr(userMessage(e, "読み込めませんでした")) }, { status: 502 });
   }

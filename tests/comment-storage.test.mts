@@ -9,6 +9,7 @@ import { nodeDatabase } from "../lib/node-storage";
 import { deleteSite, insertSite, isSiteId } from "../lib/sites";
 import { listComments, listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction, type CommentAction } from "../lib/comments";
 import { userMessage } from "../lib/errors";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
 const author = { email: "author@example.com", name: "Author", image: null };
 const create: CommentAction = {
@@ -60,13 +61,13 @@ function api(db: Db) {
   };
   const siteIdOf = load("../lib/site-server.ts", "siteIdOf", { NextResponse, serverTr, isSiteId });
   const post = load("../app/api/comments/route.ts", "POST", {
-    NextResponse, serverTr, siteIdOf, userMessage,
+    NextResponse, serverTr, siteIdOf, userMessage, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited,
     listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction,
     requireAuth: async () => null, sessionUser: async () => author,
     dbConfigured: () => true, getDb: async () => db,
     dbUnavailable: () => { throw new Error("Unexpected fallback"); },
   }) as (req: Request) => Promise<Response>;
-  return (site = "site", action: CommentAction = create) => post(new Request(`https://example.com/api/comments?site=${encodeURIComponent(site)}`, { method: "POST", body: JSON.stringify(action) }));
+  return (site = "site", action: CommentAction = create, contentType = "application/json") => post(new Request(`https://example.com/api/comments?site=${encodeURIComponent(site)}`, { method: "POST", headers: { "Content-Type": contentType }, body: JSON.stringify(action) }));
 }
 
 for (const timing of ["before request", "before write"] as const) {
@@ -202,4 +203,19 @@ test("a delayed message deletion cannot delete a replacement message owned by an
   assert.equal(threads[0].updatedAt, 300, "a rejected delete must not bump the replacement thread");
   assert.equal(threads[0].messages[0].body, "Replacement");
   assert.equal(threads[0].messages[0].author.email, other.email);
+}));
+
+
+test("comment API refuses an oversized JSON body before writing anything", async () => database(async db => {
+  const oversized = { ...create, body: "x".repeat(100 * 1024) };
+  const response = await api(db)("site", oversized);
+  assert.equal(response.status, 413);
+  await assertEmpty(db);
+}));
+
+
+test("comment POST rejects text/plain even if its body is valid JSON", async () => database(async db => {
+  const response = await api(db)("site", create, "text/plain");
+  assert.equal(response.status, 415);
+  await assertEmpty(db);
 }));

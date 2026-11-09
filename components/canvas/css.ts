@@ -2,9 +2,11 @@
  * キャンバスに当てるCSS（要素のスタイル・画面幅・状態）と、HTMLページのプレビュー用の本文スタイル
  */
 
+import { escapeStyleContent } from "../../lib/css-assets";
 import { keyframesCss, motionCss } from "../../lib/motion";
 import type { Breakpoint, NodeStyles, SiteDoc, StyleState } from "../../lib/types";
 import { customStateSelector } from "../../lib/custom-states";
+import { cssQuotedAttributeValue } from "../../lib/css-selector";
 import {
   bpChain,
   isHiddenAt,
@@ -16,9 +18,47 @@ import {
 
 /* ---------- キャンバス用CSS生成 ---------- */
 
+/** A SiteDoc can contain arbitrary style-map keys and values. Treat each entry as
+ * one declaration, not as trusted CSS source that can terminate the canvas rule. */
+function safeDeclarationValue(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  let quote = "";
+  let depth = 0;
+  let comment = false;
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i];
+    const next = value[i + 1];
+    // A style-element close tag is dangerous even when quoted in CSS.
+    if (c === "<" && /^<\/style\b/i.test(value.slice(i, i + 10))) return false;
+    if (comment) {
+      if (c === "*" && next === "/") { comment = false; i++; }
+      continue;
+    }
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = "";
+      continue;
+    }
+    if (c === "/" && next === "*") { comment = true; i++; continue; }
+    if (c === "\\") { i++; continue; }
+    if (c === '"' || c === "'") { quote = c; continue; }
+    if (c === "(") { depth++; continue; }
+    if (c === ")") { if (depth === 0) return false; depth--; continue; }
+    if (c === "{" || c === "}" || (c === ";" && depth === 0)) return false;
+  }
+  return !quote && !comment && depth === 0;
+}
+
 function cssBody(map: Record<string, string>): string {
   return Object.entries(map)
-    .map(([k, v]) => `${k.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase())}: ${v};`)
+    .flatMap(([key, value]) => {
+      // Camel-cased React properties, vendor prefixes and CSS custom properties.
+      // Reject punctuation/whitespace that could create a new selector or at-rule.
+      if (!/^(?:--[\w\u0080-\uFFFF-]+|-?[a-zA-Z][a-zA-Z0-9-]*)$/.test(key)) return [];
+      if (!safeDeclarationValue(value)) return [];
+      const name = key.startsWith("--") ? key : key.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
+      return [`${name}: ${value};`];
+    })
     .join(" ");
 }
 
@@ -30,7 +70,7 @@ export function previewHtmlWithBodyStyles(
   const map = resolveStyleMap(styles, bp, "default");
   map.width ??= "auto";
   map.height ??= "auto";
-  const safeCss = cssBody(map).replace(/<\/style/gi, "<\\/style");
+  const safeCss = escapeStyleContent(cssBody(map));
   const style = `<style data-editor-body-style>body { ${safeCss} }</style>`;
   return /<\/head>/i.test(html)
     ? html.replace(/<\/head>/i, (end) => `${style}${end}`)
@@ -60,13 +100,13 @@ export function buildCanvasCss(
       const comp = doc.components?.[node.componentId ?? ""];
       if (comp) walk(comp.rootId);
       if (isHiddenAt(node, bp)) {
-        const safeId = JSON.stringify(id);
+        const safeId = cssQuotedAttributeValue(id);
         rules.push(`.cv-root :is([data-node=${safeId}], [data-instance-node~=${safeId}]) { display: none !important; }`);
       }
       return;
     }
     // 通常の data-node と、インスタンス内の data-ghost の両方に効かせる
-    const safeId = JSON.stringify(id);
+    const safeId = cssQuotedAttributeValue(id);
     const sel = `.cv-root :is([data-node=${safeId}], [data-ghost=${safeId}])`;
 
     // モーション（transitionは常時、animationはプレビュー時のみ・画面内トリガーは即時再生）

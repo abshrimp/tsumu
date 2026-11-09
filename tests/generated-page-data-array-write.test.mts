@@ -50,7 +50,8 @@ for (const mode of ["native", "browser"] as const) {
     const actual = await loadWith(mode, "items.length", 1);
     const reference: Record<string, unknown> = { items: ["first", "second"] };
     setVarPath(reference, "items.length", 1);
-    assert.equal(Array.isArray(actual.items), false);
+    assert.equal(Array.isArray(actual.items), true, "a name like length is not an array element");
+    assert.equal(JSON.stringify(actual.items), '["first","second"]');
     assert.equal(JSON.stringify(actual.items), JSON.stringify(reference.items));
   });
 
@@ -59,9 +60,18 @@ for (const mode of ["native", "browser"] as const) {
     assert.equal(JSON.stringify(actual.items), '["first","updated"]');
   });
 
-  test(mode + " page-data fetch stores __proto__ as an own property, not a prototype change", async () => {
+  test(mode + " page-data fetch rejects non-index properties on arrays", async () => {
     const actual = await loadWith(mode, "items.__proto__", { polluted: "yes" });
-    assert.equal(Object.hasOwn(actual.items as object, "__proto__"), true);
+    assert.equal(Array.isArray(actual.items), true);
+    assert.equal(Object.hasOwn(actual.items as object, "__proto__"), false);
+    assert.equal(JSON.stringify(actual.items), '["first","second"]');
+    assert.equal(({} as Record<string, unknown>).polluted, undefined);
+  });
+
+  test(mode + " page-data fetch preserves own special keys on ordinary objects", async () => {
+    const actual = await loadWith(mode, "record.__proto__", { polluted: "yes" });
+    assert.equal(Object.hasOwn(actual.record as object, "__proto__"), true);
+    assert.equal((actual.record as Record<string, any>).__proto__.polluted, "yes");
     assert.equal(({} as Record<string, unknown>).polluted, undefined);
   });
 }
