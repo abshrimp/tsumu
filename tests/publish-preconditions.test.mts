@@ -14,7 +14,7 @@ const old = "a".repeat(40), newer = "b".repeat(40), created = "c".repeat(40);
 const expected = (target = "production", branch = target === "test" ? "preview" : "main") => ({
   site: "example", target, repo: "owner/site", branch, productionBranch: "main",
 });
-function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolean; concurrentInit?: boolean } = {}) {
+function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolean; concurrentInit?: boolean; unrelatedHistory?: boolean; recordFails?: boolean; ambiguousUpdate?: boolean } = {}) {
   const dest = { repo: "owner/site", branch: "main", previewBranch: "preview" };
   const heads: Record<string, string> = options.empty ? {} : { main: old, ...(options.absent ? {} : { preview: old }) };
   let empty = !!options.empty;
@@ -38,11 +38,16 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
         return NextResponse.json({ commit: { sha: old } }, { status: options.concurrentInit ? 422 : 201 });
       }
       if (path === "/git/blobs") return empty ? NextResponse.json({}, { status: 409 }) : NextResponse.json({ sha: "asset" });
+      if (path.startsWith("/compare/")) {
+        const source = path.slice("/compare/".length).split("...")[0];
+        return NextResponse.json({ merge_base_commit: { sha: options.unrelatedHistory ? "f".repeat(40) : source } });
+      }
       if (path.startsWith("/git/trees/")) return NextResponse.json({ tree: entries });
       if (path === "/git/trees") return NextResponse.json({ sha: "tree" });
       if (path === "/git/commits") return NextResponse.json({ sha: created });
       if (path.startsWith("/git/commits/")) return NextResponse.json({ tree: { sha: "old-tree" }, message: "old" });
       if (path.startsWith("/git/refs/heads/")) {
+        if (options.ambiguousUpdate) { heads[config.branch] = body.sha; throw new Error("Connection reset after update"); }
         if (options.lateMove) { heads[config.branch] = newer; return NextResponse.json({}, { status: 422 }); }
         heads[config.branch] = body.sha; return NextResponse.json({});
       }
@@ -59,7 +64,7 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
   const mocks: Record<string, unknown> = {
     "next/server": { NextResponse },
     "lib/i18n-server": { serverTr: async () => (s: string) => s },
-    "lib/server": { requireAuth: async () => null, recordPublish: async () => { recorded++; } },
+    "lib/server": { requireAuth: async () => null, recordPublish: async () => { recorded++; if (options.recordFails) throw new Error("Storage unavailable"); } },
     "lib/site-server": { siteIdOf: async (site: string) => site, siteDestOf: async () => dest, destParam: () => undefined },
     "lib/github": { targetConfig: conf, configError: () => null, githubClient: client, branchPath: (s: string) => s, previewEnabled: () => true },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
@@ -180,4 +185,50 @@ test("history list and its rollback precondition use the same captured head", as
   assert.equal((await res.json()).head, old);
   assert.ok(f.calls.includes(`owner/site:/commits?sha=${old}&per_page=30`));
   assert.ok(!f.calls.some(path => path.includes("sha=main")));
+});
+
+test("restore cannot read editable data from an unrelated Git history", async () => {
+  const f = fixture({ unrelatedHistory: true });
+  const sha = "e".repeat(40);
+  const response = await f.get({ doc: sha });
+  assert.equal(response.status, 404);
+  assert.ok(!f.calls.some(path => path.includes("/contents/")));
+});
+
+test("rollback rejects a valid commit SHA outside the selected branch ancestry", async () => {
+  const f = fixture({ unrelatedHistory: true });
+  const response = await f.post({ sha: "e".repeat(40) }, true);
+  assert.equal(response.status, 404);
+  assert.deepEqual(f.writes, []);
+  assert.equal(f.recorded, 0);
+});
+
+test("an ancestor is eligible for history restore and rollback", async () => {
+  const f = fixture();
+  const sha = "e".repeat(40);
+  assert.equal((await f.get({ doc: sha })).status, 200);
+  assert.equal((await f.post({ sha }, true)).status, 200);
+  assert.ok(f.calls.some(path => path.includes(`/compare/${sha}...${old}`)));
+});
+
+test("a successful Git branch update remains successful when bookkeeping fails", async () => {
+  for (const rollback of [false, true]) {
+    const f = fixture({ recordFails: true });
+    const response = await f.post(rollback ? { sha: old } : { action: "commit", files: { "page.txt": "page" } }, rollback);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).commit, created);
+    assert.equal(f.heads.main, created);
+    assert.equal(f.recorded, 1);
+  }
+});
+
+test("connection loss after a successful ref update is reconciled instead of inviting a duplicate retry", async () => {
+  for (const rollback of [false, true]) {
+    const f = fixture({ ambiguousUpdate: true });
+    const response = await f.post(rollback ? { sha: old } : { action: "commit", files: { "page.txt": "page" } }, rollback);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).commit, created);
+    assert.equal(f.heads.main, created);
+    assert.equal(f.recorded, 1);
+  }
 });
