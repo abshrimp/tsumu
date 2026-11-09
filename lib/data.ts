@@ -655,6 +655,38 @@ export function stepOutName(st: ScriptStep): string | null {
   return null;
 }
 
+/** Index script variable producers once for the editor's many input fields. */
+export interface PageVariableIndex {
+  names: string[];
+  /** How many steps produce each name (reserved values are accounted for separately). */
+  counts: Map<string, number>;
+  /** Names produced by a step; repeated IDs may occur in imported data. */
+  byStep: Map<string, Map<string, number>>;
+  hasOther: (name: string, stepId: string) => boolean;
+}
+
+export function pageVariableIndex(doc: SiteDoc, pageId: string): PageVariableIndex {
+  const counts = new Map<string, number>();
+  const byStep = new Map<string, Map<string, number>>();
+  for (const steps of scriptsInPage(doc, pageId)) {
+    walkAll(steps, (step) => {
+      const name = stepOutName(step);
+      if (!name) return;
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+      const produced = byStep.get(step.id) ?? new Map<string, number>();
+      produced.set(name, (produced.get(name) ?? 0) + 1);
+      byStep.set(step.id, produced);
+    });
+  }
+  const names = [...new Set(["slug", ITEM_VALUE, ...counts.keys()])];
+  return {
+    names, counts, byStep,
+    hasOther: (name, stepId) =>
+      name === "slug" || name === ITEM_VALUE ||
+      (counts.get(name) ?? 0) > (byStep.get(stepId)?.get(name) ?? 0),
+  };
+}
+
 /** ページのスクリプトで使っている変数名（名前の重複チェック用） */
 export function dataVarNames(doc: SiteDoc, pageId: string, exceptStepId?: string): Set<string> {
   const out = new Set<string>(["slug", ITEM_VALUE]);
