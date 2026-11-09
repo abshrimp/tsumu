@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { test } from "node:test";
 import * as preconditions from "../lib/publish-preconditions";
+import { advanceBranchRef } from "../lib/github";
 import * as helpers from "../lib/publish-files";
 
 // 外部通信せず、公開 API が GitHub に渡すツリーを確かめる。
@@ -52,6 +53,7 @@ function fixture(truncated?: boolean) {
     targetConfig: () => ({ repo: "test/site", branch: "main", token: "fake" }),
     githubClient: () => ({ gh, fail: () => { throw new Error("Unexpected GitHub error"); } }),
     toBranchPath: (path: string) => path,
+    advanceBranchRef,
     recordPublish: async () => { recorded = true; },
     userMessage: (error: Error) => error.message,
   };
