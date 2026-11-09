@@ -418,3 +418,29 @@ test("incremental script save moves ownership and preserves page script arrays",
   assert.equal(cleared.pages.p.scripts, undefined);
   assert.equal(next.nodes.b.scripts?.[0]?.id, "loose");
 });
+
+test("script updates reuse untouched sibling scripts and stable display wrappers", () => {
+  const first = { id: "one", trigger: "click" as const,
+    pos: { x: 32, y: 32 },
+    steps: [{ id: "wait-one", kind: "wait" as const, seconds: 1 }] };
+  const second = { id: "two", trigger: "click" as const,
+    pos: { x: 32, y: 300 },
+    steps: [{ id: "wait-two", kind: "wait" as const, seconds: 1 }] };
+  const doc = {
+    pages: { p: { id: "p", children: [] } },
+    nodes: { box: { id: "box", type: "box", link: null, scripts: [first, second] } },
+    assets: {},
+  } as unknown as SiteDoc;
+
+  const before = pageScriptsOf(doc, ["box"], "p");
+  assert.strictEqual(before[0], pageScriptsOf(doc, ["box"], "p")[0]);
+  const modified = mapStep(before, "wait-two", (step) => ({ ...step, seconds: 2 }) as ScriptStep);
+  const after = withPageScripts(doc, "p", ["box"], modified);
+  assert.notStrictEqual(after.nodes.box, doc.nodes.box);
+  assert.strictEqual(after.nodes.box.scripts![0], doc.nodes.box.scripts![0]);
+  assert.notStrictEqual(after.nodes.box.scripts![1], doc.nodes.box.scripts![1]);
+  const updatedView = pageScriptsOf(after, ["box"], "p");
+  assert.strictEqual(updatedView[0], before[0]);
+  assert.notStrictEqual(updatedView[1], before[1]);
+  assert.strictEqual(updatedView[0], pageScriptsOf(after, ["box"], "p")[0]);
+});
