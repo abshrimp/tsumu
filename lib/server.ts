@@ -19,7 +19,7 @@ export async function requireAuth(): Promise<NextResponse | null> {
   const session = await auth();
   // Googleの検証済みメールがないセッションをログイン済みとみなさない。
   // NextAuth側でセッションの形式が変化した場合もAPIへの認可を fail-closed にする。
-  if (!session?.user?.email) {
+  if (typeof session?.user?.email !== "string" || !session.user.email.trim()) {
     const tr = await serverTr();
     return NextResponse.json({ error: tr("ログインが必要です") }, { status: 401 });
   }
