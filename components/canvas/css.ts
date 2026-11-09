@@ -42,7 +42,7 @@ function safeDeclarationValue(value: unknown): value is string {
     if (c === "(") { depth++; continue; }
     if (c === ")") { if (depth === 0) return false; depth--; continue; }
     if (c === "{" || c === "}" || (c === ";" && depth === 0)) return false;
-    if (c === "<" && /^<\\/style\\b/i.test(value.slice(i))) return false;
+    if (c === "<" && /^<\/style\b/i.test(value.slice(i))) return false;
   }
   return !quote && !comment && depth === 0;
 }
@@ -52,7 +52,7 @@ function cssBody(map: Record<string, string>): string {
     .flatMap(([key, value]) => {
       // Camel-cased React properties, vendor prefixes and CSS custom properties.
       // Reject punctuation/whitespace that could create a new selector or at-rule.
-      if (!/^(?:--[\\w\\u0080-\\uFFFF-]+|-?[a-zA-Z][a-zA-Z0-9-]*)$/.test(key)) return [];
+      if (!/^(?:--[\w\u0080-\uFFFF-]+|-?[a-zA-Z][a-zA-Z0-9-]*)$/.test(key)) return [];
       if (!safeDeclarationValue(value)) return [];
       const name = key.startsWith("--") ? key : key.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
       return [`${name}: ${value};`];
