@@ -5,9 +5,9 @@ import { QUERY_VARIANT_RUNTIME } from '../lib/generator/query-route';
 // HTML Standard's script type uses an essence *match*, not MIME parsing.
 // Parameters such as text/javascript;charset=utf-8 are inert data blocks.
 // https://html.spec.whatwg.org/multipage/scripting.html#attr-script-type
-async function bootstrap(type:string, browserExecutes:boolean) {
+async function bootstrap(type:string | null, browserExecutes:boolean, language?:string) {
   const inserted:string[]=[];
-  const attrs=[{name:'type',value:type},{name:'src',value:'/authored.js'}];
+  const attrs=[...(type === null ? [] : [{name:'type',value:type}]), {name:'src',value:'/authored.js'}, ...(language === undefined ? [] : [{name:'language',value:language}])];
   const old={attributes:attrs,textContent:'',
     getAttribute:(name:string)=>attrs.find(a=>a.name===name)?.value??null,
     hasAttribute:(name:string)=>attrs.some(a=>a.name===name),
@@ -35,3 +35,27 @@ for(const type of ['text/javascript','application/javascript','text/ecmascript',
   test(`browser-supported classic script type is replayed: ${type}`,async()=>{
     assert.deepEqual(await bootstrap(type,true),['authored','/data-loader.js','/scripts.js']);
   });
+
+for (const language of ['vbscript', 'python', 'javascript1.6', 'module', 'importmap'])
+  test(`unsupported legacy language does not stall startup: ${language}`, async () => {
+    assert.deepEqual(await bootstrap(null, false, language), ['/data-loader.js', '/scripts.js']);
+  });
+for (const language of ['javascript', 'JavaScript1.2', 'jscript', 'livescript', ''])
+  test(`supported legacy language is replayed: ${language}`, async () => {
+    assert.deepEqual(await bootstrap(null, true, language), ['authored', '/data-loader.js', '/scripts.js']);
+  });
+test('explicit empty type overrides an unsupported legacy language', async () => {
+  assert.deepEqual(await bootstrap('', true, 'vbscript'), ['authored', '/data-loader.js', '/scripts.js']);
+});
+
+for (const type of [' ', '\t', ' module ', ' importmap ', '\u00a0text/javascript\u00a0'])
+  test(`non-executable whitespace type does not stall startup: ${JSON.stringify(type)}`, async () => {
+    assert.deepEqual(await bootstrap(type, false), ['/data-loader.js', '/scripts.js']);
+  });
+for (const language of ['javascript ', ' javascript', 'javascript\t'])
+  test(`language does not inherit type attribute whitespace trimming: ${JSON.stringify(language)}`, async () => {
+    assert.deepEqual(await bootstrap(null, false, language), ['/data-loader.js', '/scripts.js']);
+  });
+test('classic type attributes accept ASCII whitespace only', async () => {
+  assert.deepEqual(await bootstrap(' \ttext/javascript\n', true), ['authored', '/data-loader.js', '/scripts.js']);
+});
