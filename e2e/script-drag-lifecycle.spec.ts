@@ -128,3 +128,28 @@ test("a real mouse drop still moves one stack and supports Undo/Redo", async ({ 
   await page.keyboard.press("Control+z"); expect((await snapshot(page)).doc).toEqual(before.doc);
   await page.keyboard.press("Control+y"); expect((await snapshot(page)).doc).toEqual(moved.doc);
 });
+
+test("cancelling over the palette removes imperative trash feedback", async ({ page }) => {
+  const before = await snapshot(page);
+  await start(page, "palette");
+  const palette = page.locator(".se-pal-wrap");
+  const r = await palette.boundingBox();
+  await pointer(page, "pointermove", { x: r!.x + 20, y: r!.y + 20 });
+  await expect(palette).toHaveClass(/is-trash/);
+  await page.keyboard.press("Escape");
+  await expect(palette).not.toHaveClass(/is-trash/);
+  await expect(transient(page)).toHaveCount(0);
+  expect(await snapshot(page)).toEqual(before);
+});
+
+test("marquee selects blocks reached only by the release event", async ({ page }) => {
+  const before = await snapshot(page);
+  await start(page, "marquee");
+  const block = page.locator('.se-ws [data-sel-key="step:wait"]');
+  await expect(block).not.toHaveClass(/is-selected/);
+  const r = await block.boundingBox();
+  await pointer(page, "pointerup", { x: r!.x + 5, y: r!.y + 5, buttons: 0 });
+  await expect(block).toHaveClass(/is-selected/);
+  await expect(transient(page)).toHaveCount(0);
+  expect(await snapshot(page)).toEqual(before);
+});

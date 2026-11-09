@@ -10,20 +10,29 @@ import type { Drag, Marquee, ScriptEditorLatest } from "../components/ScriptEdit
 import { scriptDragBundle, scriptDragDoc } from "./helpers/script-drag";
 
 // 実フックを読み込み、DOMの寸法とイベントだけを固定する。保存・Undoは実ストアを使う。
-function mount(targetSlot?: string) {
+function mount(targetSlot?: string, framed = false) {
   useEditor.getState().replaceDoc(scriptDragDoc());
   useEditor.getState().setActivePage("p");
   const win = new EventTarget();
   const doc = Object.assign(new EventTarget(), { visibilityState: "visible", querySelector: () => null });
   const cleanups: (() => void)[] = [];
-  const hooks = { useEffect: (fn: () => () => void) => cleanups.push(fn()), useCallback: (fn: any) => fn };
+  const hooks = { useEffect: (fn: () => () => void) => cleanups.push(fn()), useCallback: (fn: any) => fn,
+    useRef: (current: unknown) => ({ current }) };
+  let frameId = 0;
+  const frames = new Map<number, () => void>();
+  const requestFrame = framed ? (fn: () => void) => { frames.set(++frameId, fn); return frameId; } : undefined;
+  const cancelFrame = framed ? (id: number) => { frames.delete(id); } : undefined;
+  const flushFrames = () => {
+    const pending = [...frames.values()]; frames.clear();
+    pending.forEach((fn) => fn());
+  };
   const load = (path: string) => {
     const require = createRequire(resolve(path));
     const mod = { exports: {} as any };
     const code = transformSync(readFileSync(path, "utf8"), { loader: "ts", format: "cjs" }).code;
-    new Function("require", "module", "exports", "window", "document", code)(
+    new Function("require", "module", "exports", "window", "document", "requestAnimationFrame", "cancelAnimationFrame", code)(
       (id: string) => id === "react" ? hooks : id === "../../lib/store" ? { useEditor } : require(id),
-      mod, mod.exports, win, doc,
+      mod, mod.exports, win, doc, requestFrame, cancelFrame,
     );
     return mod.exports;
   };
@@ -31,10 +40,18 @@ function mount(targetSlot?: string) {
   const marqueeRef = { current: null as Marquee | null };
   const ui = { drag: null as Drag | null, marquee: null as Marquee | null, slot: null as string | null, selected: [] as string[], closed: false };
   const rect = (left: number, right: number) => ({ left, right, top: 0, bottom: 600 });
+  const paletteClasses = new Set<string>();
+  const palette = { getBoundingClientRect: () => rect(0, 280), classList: {
+    toggle: (name: string, on: boolean) => { if (on) paletteClasses.add(name); else paletteClasses.delete(name); },
+    remove: (name: string) => { paletteClasses.delete(name); },
+  } };
+  const selectable = [{ dataset: { selKey: "step:wait" },
+    getBoundingClientRect: () => ({ left: 780, right: 820, top: 200, bottom: 240 }) }];
   const ws = { scrollLeft: 0, scrollTop: 0, getBoundingClientRect: () => rect(300, 1200),
     querySelectorAll: (selector: string) => targetSlot && selector === '[data-slot-kind]'
       ? [{ dataset: { slot: targetSlot, slotKind: "step" },
-        getBoundingClientRect: () => ({ left: 692, right: 740, top: 292, bottom: 315 }) }] : [],
+        getBoundingClientRect: () => ({ left: 692, right: 740, top: 292, bottom: 315 }) }]
+      : selector === '[data-sel-key]' ? selectable : [],
   };
   const scripts = () => pageScriptsOf(useEditor.getState().doc, [], useEditor.getState().activePageId);
   const latest = { current: {
@@ -45,7 +62,7 @@ function mount(targetSlot?: string) {
   } as ScriptEditorLatest };
   const setSelectedList = (value: string[]) => { ui.selected = value; };
   const cancel = load("components/script-editor/useScriptDrag.ts").useScriptDrag({
-    wsRef: { current: ws }, paletteRef: { current: { getBoundingClientRect: () => rect(0, 280) } }, zoomRef: { current: 1 },
+    wsRef: { current: ws }, paletteRef: { current: palette }, zoomRef: { current: 1 },
     dragRef, marqueeRef, latest, setSelectedList, setMenu() {},
     setDrag: (value: Drag | null) => { ui.drag = value; },
     setMarquee: (value: Marquee | null) => { ui.marquee = value; },
@@ -65,7 +82,7 @@ function mount(targetSlot?: string) {
     }
     if (move) pointer("pointermove");
   };
-  return { start, pointer, win, doc, ui, dragRef, marqueeRef, cancel,
+  return { start, pointer, win, doc, ui, dragRef, marqueeRef, cancel, frames, flushFrames, paletteClasses,
     key(key: string, ctrlKey = false) {
       const event = Object.assign(new Event("keydown"), { key, ctrlKey });
       Object.defineProperty(event, "target", { value: { tagName: "BODY" } });
@@ -76,6 +93,65 @@ function mount(targetSlot?: string) {
 }
 const state = () => useEditor.getState();
 const snapshot = () => ({ doc: structuredClone(state().doc), past: state().past.length, future: state().future.length });
+
+test("an unrelated pointer release preserves the owner's queued slot feedback", () => {
+  const m = mount("script|root|1", true);
+  try {
+    const before = snapshot();
+    m.start("palette");
+    m.pointer("pointermove");
+    assert.equal(m.frames.size, 1);
+    m.pointer("pointerup", { id: 2, x: 100, buttons: 0 });
+    m.flushFrames();
+    assert.equal(m.ui.slot, "script|root|1");
+    assert.deepEqual(snapshot(), before);
+    m.pointer("pointerup", { buttons: 0 });
+    assert.deepEqual(state().doc.pages.p.pageScripts![0].steps.map((s) => s.id), ["wait", "palette-wait"]);
+    assert.equal(state().past.length, before.past + 1);
+  } finally { m.close(); }
+});
+
+for (const end of ["pointercancel", "blur", "escape", "edit", "unmount"]) {
+  test(`${end} clears trash feedback and queued work before another drag`, () => {
+    const m = mount("script|root|1", true);
+    try {
+      m.start("step");
+      m.pointer("pointermove", { x: 100 }); m.flushFrames();
+      assert.equal(m.paletteClasses.has("is-trash"), true);
+      m.pointer("pointermove", { x: 100 });
+      assert.equal(m.frames.size, 1);
+      if (end === "pointercancel") m.pointer("pointercancel");
+      if (end === "blur") m.win.dispatchEvent(new Event("blur"));
+      if (end === "escape") m.key("Escape");
+      if (end === "edit") state().updatePage("p", { title: "Changed" });
+      if (end === "unmount") m.close();
+      assert.equal(m.paletteClasses.has("is-trash"), false);
+      assert.equal(m.frames.size, 0);
+      const before = snapshot();
+      if (end !== "unmount") m.start("palette");
+      m.flushFrames();
+      assert.equal(m.ui.slot, null, "cancelled work cannot update a later gesture");
+      assert.deepEqual(snapshot(), before);
+    } finally { m.close(); }
+  });
+}
+
+for (const initialX of [700, 900]) for (const releaseX of [700, 900]) {
+  test(`marquee uses release at ${releaseX} after last move at ${initialX}`, () => {
+    const m = mount();
+    try {
+      const before = snapshot();
+      m.start("marquee", false);
+      m.marqueeRef.current!.base = ["script:kept", "script:kept"];
+      m.pointer("pointermove", { x: initialX });
+      m.pointer("pointerup", { x: releaseX, buttons: 0 });
+      assert.deepEqual(m.ui.selected, releaseX === 900 ? ["script:kept", "step:wait"] : ["script:kept"]);
+      assert.equal(m.marqueeRef.current, null);
+      assert.equal(m.ui.marquee, null);
+      assert.deepEqual(snapshot(), before);
+    } finally { m.close(); }
+  });
+}
 
 for (const kind of ["script", "step", "palette", "marquee"]) {
   for (const end of ["pointercancel", "blur", "hidden", "released-outside", "escape", "unmount"]) {

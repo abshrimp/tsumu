@@ -3,7 +3,7 @@
 /**
  * スクリプト画面のドラッグ（パレット → ワークスペース / ワークスペース内の移動）と範囲選択
  */
-import { useCallback, useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
+import { useCallback, useEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { useEditor } from "../../lib/store";
 import { scriptUid, type PageScript } from "../../lib/script";
 import { isDataStep } from "../../lib/data";
@@ -45,16 +45,25 @@ export function useScriptDrag({
   ghostRef,
   marqueeElRef,
 }: UseScriptDragDeps) {
+  // Cancellation can also come from keyboard and store listeners outside the effect.
+  const animationFrame = useRef<number | null>(null);
+  const cancelFrame = useCallback(() => {
+    if (animationFrame.current !== null) cancelAnimationFrame(animationFrame.current);
+    animationFrame.current = null;
+  }, []);
+
   // 中断はドロップにしない。元のブロックと履歴をそのまま残す。
   const cancelGesture = useCallback(() => {
     if (!dragRef.current && !marqueeRef.current) return false;
+    cancelFrame();
+    paletteRef.current?.classList?.remove("is-trash");
     dragRef.current = null;
     marqueeRef.current = null;
     setDrag(null);
     setMarquee(null);
     setActiveSlot(null);
     return true;
-  }, [dragRef, marqueeRef, setDrag, setMarquee, setActiveSlot]);
+  }, [dragRef, marqueeRef, setDrag, setMarquee, setActiveSlot, cancelFrame, paletteRef]);
 
   // ドラッグ（パレット → ワークスペース / ワークスペース内の移動）と範囲選択
   useEffect(() => {
@@ -79,12 +88,6 @@ export function useScriptDrag({
         marqueeRects = null;
       });
     if (wsRef.current) slotObserver?.observe(wsRef.current, { subtree: true, childList: true });
-    let animationFrame = 0;
-    const cancelFrame = () => {
-      if (animationFrame && typeof cancelAnimationFrame === "function") cancelAnimationFrame(animationFrame);
-      animationFrame = 0;
-    };
-
     const contentRect = (ws: HTMLDivElement) => ws.getBoundingClientRect();
     const findSlot = (d: Drag): string | null => {
       const ws = wsRef.current;
@@ -216,18 +219,24 @@ export function useScriptDrag({
       if (typeof requestAnimationFrame !== "function") {
         // Non-browser test hosts dispatch synthetic pointer events synchronously.
         updatePosition();
-      } else if (!animationFrame) {
-        animationFrame = requestAnimationFrame(() => {
-          animationFrame = 0;
+      } else if (animationFrame.current === null) {
+        animationFrame.current = requestAnimationFrame(() => {
+          animationFrame.current = null;
           updatePosition();
         });
       }
     };
     const onUp = (e: PointerEvent) => {
-      cancelFrame();
       const gesture = marqueeRef.current ?? dragRef.current;
       if (!gesture || e.pointerId !== gesture.pointerId) return;
-      if (marqueeRef.current) {
+      cancelFrame();
+      const m = marqueeRef.current;
+      if (m) {
+        // The release can arrive at a different position than the last move.
+        if (marqueeGesture !== m) marqueeRects = null;
+        m.x = e.clientX;
+        m.y = e.clientY;
+        setSelectedList([...new Set([...m.base, ...marqueeHits(m)])]);
         marqueeRef.current = null;
         marqueeGesture = null;
         marqueeRects = null;
@@ -375,7 +384,7 @@ export function useScriptDrag({
       unsubscribe();
       cancelGesture();
     };
-  }, [cancelGesture]);
+  }, [cancelGesture, cancelFrame]);
 
   return cancelGesture;
 }
