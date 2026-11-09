@@ -9,6 +9,7 @@ import {
 } from "../../../lib/allowlist";
 import { dbConfigured } from "../../../lib/db";
 import { userMessage } from "../../../lib/errors";
+import { JsonBodyTooLargeError, readJsonLimited } from "../../../lib/api-json";
 
 export const maxDuration = 30;
 
@@ -75,14 +76,16 @@ export async function POST(req: Request) {
 
   let email: string;
   try {
-    const input = await req.json();
+    const input = await readJsonLimited(req, 16 * 1024, false);
     // 配列やオブジェクトを String(...) でメールアドレスに変換しない。
     if (!input || typeof input !== "object" || Array.isArray(input) || typeof input.email !== "string") {
       throw new TypeError("Invalid email type");
     }
     email = input.email.trim().toLowerCase();
-  } catch {
-    return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+  } catch (error) {
+    return NextResponse.json({ error: tr("リクエストが正しくありません") }, {
+      status: error instanceof JsonBodyTooLargeError ? 413 : 400,
+    });
   }
   if (!validEmail(email)) {
     return NextResponse.json(
