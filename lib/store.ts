@@ -1192,7 +1192,14 @@ export const useEditor = create<EditorStore>((set, get) => {
         ...doc, nodes: { ...doc.nodes }, assets: { ...doc.assets },
         ...(doc.components ? { components: { ...doc.components } } : {}),
       };
-      const deps = mergeClipDeps(prepared, clip);
+      const deps = mergeClipDeps(prepared, clip, {
+        preserveSourceOnCollision: !!clip.site && clip.site !== currentSiteId(),
+      });
+      for (const node of clones) {
+        if (node.type === "instance" && node.componentId) {
+          node.componentId = deps.componentIds.get(node.componentId) ?? node.componentId;
+        }
+      }
       // コンポーネントの中へ、そのコンポーネント自身（を含むインスタンス）は入れない（無限に入れ子になる）
       const host = parent.kind === "node" ? componentOf(doc, parent.id) : null;
       if (host) {
