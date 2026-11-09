@@ -1,4 +1,5 @@
 import type { Db } from "./db";
+import type { StoredDocBody } from "./compressed-doc-storage";
 
 /**
  * サイト（1つの編集データと、その公開先）。
@@ -143,7 +144,7 @@ export async function getSite(db: Db, id: string): Promise<SiteRecord | null> {
   return rs.rows[0] ? toRecord(rs.rows[0]) : null;
 }
 
-export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>, storedBody?: string): Promise<void> {
+export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>, storedBody?: StoredDocBody): Promise<void> {
   const now = Date.now();
   const site = {
     sql: `INSERT INTO sites (id, name, repo, branch, preview_branch, site_url, preview_url, created_at, updated_at)

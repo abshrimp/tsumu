@@ -58,7 +58,7 @@ export async function GET(req: Request) {
 
     const cur = await readCurrentDoc(db, siteId);
     if (!cur) return NextResponse.json({ exists: false });
-    // body は保存済みJSONなので、パースし直さず文字列結合で返す
+    // readCurrentDoc は圧縮を展開し、検証済みの通常SiteDoc JSONを返す。
     //（Workers無料プランのCPU時間制限対策）
     return new NextResponse(
       `{"exists":true,"rev":"${cur.rev}","savedAt":${cur.savedAt},"doc":${cur.body}}`,
@@ -156,7 +156,7 @@ async function save(req: Request, partial: boolean) {
     if (e instanceof InvalidDocPatchError) {
       return NextResponse.json({ error: tr("不正なリクエスト") }, { status: 400 });
     }
-    // 大きさの上限は決め打ちせず、保存先が拒んだときに返す
+    // D1の上限に対して保存前に検査し、超過時は413として返す。
     if (e instanceof DocTooLargeError) {
       return NextResponse.json({ error: tr("ドキュメントが大きすぎて、保存先に入りきりません") }, { status: 413 });
     }

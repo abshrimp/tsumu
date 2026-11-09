@@ -5,6 +5,10 @@
  */
 import { gzipSync, gunzipSync } from "node:zlib";
 
+declare const storedDocBrand: unique symbol;
+/** Only the encoder may create a persisted D1 body. */
+export type StoredDocBody = string & { readonly [storedDocBrand]: true };
+
 const MARKER = "__tsumu_compressed_v1";
 export const MAX_STORED_DOC_BYTES = 1_800_000;
 export const MAX_EXPANDED_DOC_BYTES = 64 * 1024 * 1024;
@@ -64,7 +68,7 @@ function fromBase64(value: string): Buffer {
   return bytes;
 }
 
-export async function encodeStoredDoc(rawSiteDoc: string): Promise<string> {
+export async function encodeStoredDoc(rawSiteDoc: string): Promise<StoredDocBody> {
   if (Buffer.byteLength(rawSiteDoc, "utf8") > MAX_EXPANDED_DOC_BYTES)
     throw new StoredDocTooLargeError();
   let doc: unknown;
@@ -81,7 +85,7 @@ export async function encodeStoredDoc(rawSiteDoc: string): Promise<string> {
   });
   if (Buffer.byteLength(stored, "utf8") > MAX_STORED_DOC_BYTES)
     throw new StoredDocTooLargeError();
-  return stored;
+  return stored as StoredDocBody;
 }
 
 export async function decodeStoredDoc(storedBody: string): Promise<string> {

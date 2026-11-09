@@ -6,7 +6,7 @@ import type { SiteDoc } from "./types";
 
 /**
  * 編集データの保存（D1 の docs テーブル。1サイト = 1行で、id はサイトID）。
- * 大きさの上限は決め打ちしない（D1 は公称2MBでも、実際にはそれより大きな値も入る）。保存先が拒んだときに大きさのエラーにする
+ * docs.body は常にgzipレベル3のv1エンベロープ。D1への書込み前に1.8MBの上限を検査する。
  */
 
 /** 保存先に入りきらない編集データ（API は 413 で返す） */
@@ -77,10 +77,12 @@ export async function readCurrentDoc(db: Db, siteId: string): Promise<CurrentDoc
   });
   const row = rs.rows[0];
   if (!row) return null;
+  const body = await decodeStoredDoc(String(row.body));
+  if (validateDocBody(body)) throw new Error("保存済みの編集データが不正です");
   return {
     rev: String(row.rev),
     savedAt: Number(row.saved_at),
-    body: await decodeStoredDoc(String(row.body)),
+    body,
   };
 }
 
