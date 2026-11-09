@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { makeBox } from "../lib/presets";
 import { useEditor } from "../lib/store";
 import type { SiteDoc } from "../lib/types";
+import { pageScriptsOf } from "../lib/script";
 
 function fixture(size = 128): SiteDoc {
   const ids = Array.from({ length: size }, (_, i) => `node-${i}`);
@@ -90,4 +91,38 @@ test("transient style edits preserve one gesture-level undo checkpoint", () => {
   assert.equal(useEditor.getState().doc.nodes["node-0"].styles.base?.default?.color, undefined);
   useEditor.getState().redo();
   assert.equal(useEditor.getState().doc.nodes["node-0"].styles.base?.default?.color, "#00ff00");
+});
+
+test("script edits preserve undo/redo and do not create history for an unchanged workspace", () => {
+  open();
+  const nodeIds = ["node-0", "node-1"];
+  const before = useEditor.getState().doc;
+  const views = [{
+    id: "script", nodeId: "node-0", trigger: "click" as const,
+    pos: { x: 32, y: 32 }, steps: [{ id: "step", kind: "wait" as const, seconds: 1 }],
+  }];
+  useEditor.getState().updatePageScripts("p", nodeIds, views);
+  const first = useEditor.getState().doc;
+  assert.notStrictEqual(first, before);
+  assert.strictEqual(first.nodes["node-1"], before.nodes["node-1"]);
+  assert.strictEqual(first.assets, before.assets);
+  assert.strictEqual(first.pages, before.pages);
+  const history = useEditor.getState().past;
+  const unchanged = pageScriptsOf(first, nodeIds, "p");
+  useEditor.getState().updatePageScripts("p", nodeIds, unchanged);
+  assert.strictEqual(useEditor.getState().doc, first);
+  assert.strictEqual(useEditor.getState().past, history);
+
+  const updated = unchanged.map((s) => s.id === "script"
+    ? { ...s, steps: [{ ...s.steps[0], seconds: 2 }] } : s);
+  useEditor.getState().updatePageScripts("p", nodeIds, updated);
+  assert.equal(useEditor.getState().doc.nodes["node-0"].scripts?.[0].steps[0].kind, "wait");
+  useEditor.getState().undo();
+  assert.equal((useEditor.getState().doc.nodes["node-0"].scripts?.[0].steps[0] as { seconds: number }).seconds, 1);
+  useEditor.getState().undo();
+  assert.strictEqual(useEditor.getState().doc, before);
+  useEditor.getState().redo();
+  assert.equal(useEditor.getState().doc.nodes["node-0"].scripts?.[0].id, "script");
+  useEditor.getState().redo();
+  assert.equal((useEditor.getState().doc.nodes["node-0"].scripts?.[0].steps[0] as { seconds: number }).seconds, 2);
 });

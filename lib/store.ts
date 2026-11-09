@@ -39,6 +39,7 @@ import {
   type ClipPayload,
 } from "./clip-transfer";
 import { storageKey } from "./storage-keys";
+import { withPageScripts, type PageScript } from "./script";
 import { MAX_NODE_DEPTH, maxSubtreeDepth, validSiteDoc } from "./doc-tree";
 
 const PUBLISHED_KEY = siteKey(storageKey("published-v1"));
@@ -477,6 +478,8 @@ export interface EditorStore {
 
   /** history: 省略時 true。transient操作は checkpoint() を先に呼び history:false で更新する */
   updateDoc: (fn: (doc: SiteDoc) => void, opts?: { history?: boolean }) => void;
+  /** Commit scripts without copying unrelated document branches. */
+  updatePageScripts: (pageId: string, nodeIds: string[], views: PageScript[]) => void;
   /** 中断した読み込みのファイルだけを、Undo/Redoを壊さず全履歴にも残す。 */
   retainUploadedAssets: (assets: Asset[]) => void;
 
@@ -1371,6 +1374,19 @@ export const useEditor = create<EditorStore>((set, get) => {
             : null,
         textSel: null,
       });
+    },
+
+    updatePageScripts: (pageId, nodeIds, views) => {
+      const current = get().doc;
+      const next = withPageScripts(current, pageId, nodeIds, views);
+      // A no-op must not erase redo or consume a pending drag checkpoint.
+      if (next === current) return;
+      if (get().gestureActive) {
+        if (pendingBase) pushHistory(pendingBase);
+      } else {
+        pushHistory(current);
+      }
+      set({ doc: next });
     },
 
     updateDoc: (fn, opts) => {
