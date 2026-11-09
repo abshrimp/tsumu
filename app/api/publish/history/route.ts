@@ -18,7 +18,25 @@ import { matchesPublishTarget, publishConflictMessage } from "../../../../lib/pu
 
 export const maxDuration = 30;
 
-const isSha = (s: unknown): s is string => typeof s === "string" && /^[0-9a-f]{7,40}$/i.test(s);
+const isSha = (s: unknown): s is string => typeof s === "string" && /^[0-9a-f]{40}$/i.test(s);
+
+/** A SHA from a different branch (or an unreachable commit) is not a history
+ * entry for the selected publication target, even when GitHub can read it. */
+async function belongsToHistory(
+  gh: (path: string) => Promise<Response>,
+  fail: (step: string, response: Response) => Promise<never>,
+  tr: (message: string) => string,
+  sha: string,
+  head: string
+): Promise<boolean> {
+  if (sha === head) return true;
+  const res = await gh(`/compare/${sha}...${head}`);
+  if (res.status === 404 || res.status === 422) return false;
+  if (!res.ok) await fail(tr("指定した版の取得"), res);
+  const data = (await res.json()) as { merge_base_commit?: { sha?: unknown } };
+  // Merely existing in the repository does not authorize restoration.
+  return data.merge_base_commit?.sha === sha;
+}
 
 function parseTarget(v: unknown): PublishTarget {
   return v === "test" ? "test" : "production";
@@ -54,6 +72,10 @@ export async function GET(req: Request) {
     if (docSha) {
       if (!isSha(docSha)) {
         return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
+      }
+      const current = await head();
+      if (!current || !(await belongsToHistory(gh, fail, tr, docSha, current))) {
+        return NextResponse.json({ error: tr("この版には編集データが含まれていません") }, { status: 404 });
       }
       // raw で受け取り、パースせずにそのまま返す（大きな編集データでもCPU時間を使わない）
       const res = await gh(`/contents/${DOC_PATH}?ref=${docSha}`, {
@@ -136,6 +158,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: tr("まだ公開されていません") }, { status: 404 });
     }
     if (current !== body.expectedHead) return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
+    if (!(await belongsToHistory(gh, fail, tr, sha, current))) {
+      return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 404 });
+    }
     const srcRes = await gh(`/git/commits/${sha}`);
     if (!srcRes.ok) await fail(tr("指定した版の取得"), srcRes);
     const src = (await srcRes.json()) as { tree: { sha: string }; message: string };
