@@ -40,12 +40,11 @@ A file path may be referenced by more than one site's editor document, including
 
 Orphaned KV files require a separate fenced garbage collector or an administrative export-and-cleanup process. **Cloudflare asset storage usage will not automatically shrink as documents remove assets.** The existing local-Node deletion path continues to check other site references and may remove unused files.
 
-## Deployment and cutover
+## Deployment
 
-1. Back up any existing production D1 database, Workers KV assets and site export files **outside this application** before deploying. No existing D1 document bodies are automatically loaded into `DocumentRoom`.
-2. Configure `DB` (D1), `ASSETS_KV` (KV), `COLLAB_ROOM` and `DOC_STORE` bindings. In particular, a separately maintained `wrangler.local.jsonc` must contain the DocumentRoom binding and its migration. The checked-in configuration includes SQLite DO migration `v2`.
-3. Treat deployment to an installation with existing D1 `docs` data as a **data-format cutover**. Existing sites without an entry in `site_document_rooms` cannot be opened from their former D1 document rows. Import required SiteDocs as new sites after exporting the data externally. No automatic conversion, format detection or fallback is present.
-4. Verify creating, opening, copying, editing, saving, synchronizing and deleting sites; exporting projects; and fetching day backups in a controlled Cloudflare environment.
-5. Measure initial load for a ~7,000-node site and p50/p95 patch latency, CPU and D1/DO row usage before a production rollout. CI proves Node SQLite behavior and a build; it does not measure real Cloudflare latency.
+1. Configure the `DB` (D1), `ASSETS_KV` (Workers KV), `COLLAB_ROOM` and `DOC_STORE` bindings. `DOC_STORE` must point to the SQLite-backed `DocumentRoom` class and be declared in the Wrangler Durable Object migrations. Keep the same bindings in any separately maintained `wrangler.local.jsonc`.
+2. Deploy the Worker and confirm that the configured D1 database and KV namespace are the intended production resources. Workers Builds can supply their IDs through `D1_DATABASE_ID` and `KV_NAMESPACE_ID`.
+3. Verify site creation, opening, duplication, editing, saving, collaboration, deletion, exports and daily backups in a controlled Cloudflare environment.
+4. Measure initial load on a large site and p50/p95 patch latency, CPU and row usage before production rollout. Local SQLite tests and a successful Worker build do not establish production latency.
 
-The document room's schema may be inspected in `lib/structured-document-store.ts`. The routing layer is `lib/site-document-service.ts`, with the RPC facade in `document-room.ts`.
+The document room's schema is in `lib/structured-document-store.ts`. Routing is in `lib/site-document-service.ts`, and the RPC facade is in `document-room.ts`.
