@@ -7,7 +7,7 @@ import { advanceBranchRef } from "../lib/github";
 import * as helpers from "../lib/publish-files";
 
 // 外部通信せず、公開 API が GitHub に渡すツリーを確かめる。
-function fixture(truncated?: boolean) {
+function fixture(truncated?: boolean, manifestText?: string) {
   class NextResponse extends Response {
     static json(data: unknown, init?: ResponseInit) {
       return new NextResponse(JSON.stringify(data), init);
@@ -27,6 +27,9 @@ function fixture(truncated?: boolean) {
     if (options.body) writes.push(path);
     if (path.startsWith("/git/ref/heads/")) return NextResponse.json({ object: { sha: "head" } });
     if (path.startsWith("/git/trees/")) return NextResponse.json({ tree: entries, truncated });
+    if (path.startsWith("/git/blobs/")) return NextResponse.json({
+      encoding: "base64", content: Buffer.from(manifestText ?? "").toString("base64"),
+    });
     if (path === "/git/trees") {
       trees.push(JSON.parse(options.body!));
       return NextResponse.json({ sha: "new-tree" });
@@ -190,5 +193,35 @@ test("the same path cannot be supplied as both text and an asset SHA", async () 
     assetShas: { "app/page.tsx": "other-blob" },
   });
   assert.equal(res.status, 400);
+  assert.deepEqual(f.writes, []);
+});
+
+test("commit reconstructs manual retention from the previous generated manifest", async () => {
+  const older = helpers.serializeGeneratedManifest({ "app/obsolete.ts": "original" });
+  const f = fixture(false, older);
+  f.entries.push(
+    { path: helpers.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "manifest-blob" },
+    { path: "app/obsolete.ts", mode: "100644", type: "blob", sha: "original" },
+    { path: "README.md", mode: "100644", type: "blob", sha: "manual" }
+  );
+  const response = await f.send({
+    action: "commit",
+    files: {
+      "app/page.tsx": "updated",
+      [helpers.GENERATED_MANIFEST_PATH]: helpers.serializeGeneratedManifest({ "app/page.tsx": "updated" }),
+    },
+    keptPaths: [],
+  });
+  assert.equal(response.status, 200);
+  const output = f.trees.flatMap(chunk => chunk.tree);
+  assert.equal(output.some(entry => entry.path === "app/obsolete.ts"), false, "obsolete generated files are removed");
+  assert.equal(output.some(entry => entry.path === "README.md"), true, "manual files survive an incomplete client plan");
+});
+
+test("malformed previous generated manifest stops destructive replacement", async () => {
+  const f = fixture(false, '{"version":1,"files":{"../outside":"not-safe"}}');
+  f.entries.push({ path: helpers.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "broken-blob" });
+  const response = await f.send({ action: "commit", files: { "app/page.tsx": "page" }, keptPaths: [] });
+  assert.equal(response.status, 502);
   assert.deepEqual(f.writes, []);
 });
