@@ -8,7 +8,7 @@ import { hasPublishCredentials } from "../lib/publish-security";
 import * as helpers from "../lib/publish-files";
 
 // 外部通信せず、公開 API が GitHub に渡すツリーを確かめる。
-function fixture(truncated?: boolean, manifestText?: string) {
+function fixture(truncated?: boolean, manifestText?: string, documentBlob?: string) {
   class NextResponse extends Response {
     static json(data: unknown, init?: ResponseInit) {
       return new NextResponse(JSON.stringify(data), init);
@@ -29,7 +29,7 @@ function fixture(truncated?: boolean, manifestText?: string) {
     if (path.startsWith("/git/ref/heads/")) return NextResponse.json({ object: { sha: "head" } });
     if (path.startsWith("/git/trees/")) return NextResponse.json({ tree: entries, truncated });
     if (path.startsWith("/git/blobs/")) return NextResponse.json({
-      encoding: "base64", content: Buffer.from(manifestText ?? "").toString("base64"),
+      encoding: "base64", content: Buffer.from(path.endsWith("/secret-doc") ? documentBlob ?? "" : manifestText ?? "").toString("base64"),
     });
     if (path === "/git/trees") {
       trees.push(JSON.parse(options.body!));
@@ -271,4 +271,48 @@ test("two generated paths cannot overlap in a file/descendant relationship", asy
   const response = await f.send({ action: "commit", files: { "config": "file", "config/settings.json": "{}" } });
   assert.equal(response.status, 400);
   assert.deepEqual(f.writes, []);
+});
+
+test("commit blocks embedded fetch credentials even when a crafted API call bypasses the UI check", async () => {
+  const f = fixture();
+  const document = JSON.stringify({ pageScripts: [{ steps: [
+    { kind: "fetch", url: "https://api.example.test/search?api_key=credential" },
+  ] }] });
+  const response = await f.send({
+    action: "commit",
+    files: { "app/page.tsx": "page", [helpers.DOC_PATH]: document },
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /認証情報/);
+  assert.deepEqual(f.writes, []);
+});
+
+test("commit checks credentials in a previously uploaded doc.json blob as well", async () => {
+  const document = JSON.stringify({ pages: { p: { pageScripts: [{
+    steps: [{ kind: "fetch", headers: [{ name: "Authorization", value: "Bearer credential" }] }],
+  }] } } });
+  const f = fixture(false, undefined, document);
+  const response = await f.send({
+    action: "commit",
+    files: { "app/page.tsx": "page" },
+    assetShas: { [helpers.DOC_PATH]: "secret-doc" },
+  });
+  assert.equal(response.status, 400);
+  assert.match((await response.json()).error, /認証情報/);
+  assert.deepEqual(f.writes, []);
+});
+
+test("commit rejects malformed editable JSON and accepts benign data", async () => {
+  const invalid = fixture();
+  const denied = await invalid.send({
+    action: "commit", files: { [helpers.DOC_PATH]: "{broken" },
+  });
+  assert.equal(denied.status, 400);
+  assert.deepEqual(invalid.writes, []);
+
+  const permitted = fixture();
+  const ok = await permitted.send({
+    action: "commit", files: { [helpers.DOC_PATH]: JSON.stringify({ siteName: "Public", pages: {} }) },
+  });
+  assert.equal(ok.status, 200);
 });
