@@ -8,6 +8,7 @@ import { toSingleHtmlProject } from "./generator/single-html";
 import { applyExportStyle } from "./generator/style-export";
 import { zipAssetClosure } from "./zip-css";
 import { scopedAssetIds } from "./generator/scoped-assets";
+import { assertGeneratedPaths } from "./generator/output-paths";
 import { tr } from "./i18n";
 
 export type ExportFormat = "nextjs" | "react" | "html" | "single-html" | "vue" | "nuxt" | "sveltekit";
@@ -280,8 +281,10 @@ export function generateExportProject(
       : (options.framework === "vue" || options.framework === "nuxt" || options.framework === "sveltekit")
         ? buildAdditionalFramework(scoped, next, options.framework, options.language)
         : next;
-  return options.style === "css" ? generated
+  const styled = options.style === "css" ? generated
     : applyExportStyle(generated, options.framework, options.style);
+  assertGeneratedPaths(styled);
+  return styled;
 }
 
 /** Preserve only the ZIP dependencies reachable from the selected page or component. */
@@ -331,6 +334,8 @@ export async function prepareExportProject(
     }
     project = { ...project, files };
   }
-  return options.framework === "single-html" ? toSingleHtmlProject(project) : project;
+  const ready = options.framework === "single-html" ? await toSingleHtmlProject(project) : project;
+  assertGeneratedPaths(ready);
+  return ready;
 
 }
