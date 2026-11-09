@@ -1,7 +1,7 @@
 "use client";
 
 /** Pure value-operation controls for ordinary script blocks. */
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ComponentProps, type CSSProperties } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import { Phrase, TextIn } from "./inputs";
@@ -66,7 +66,7 @@ function FixedOptionSelect({ children, ...props }: ComponentProps<"select">) {
 }
 
 /** Field names and variable-token suggestions use the same editable input. */
-function fieldSuggestions(options: string[], samples: Record<string, unknown>): string[] {
+function fieldSuggestions(options: string[], samples: Record<string, unknown>, excludedVariableName?: string): string[] {
   const out = new Set(options);
   const visit = (value: unknown, name: string, depth: number) => {
     if (out.size >= 120 || !name || name.startsWith("#")) return;
@@ -77,14 +77,18 @@ function fieldSuggestions(options: string[], samples: Record<string, unknown>): 
       visit(item, name + "." + child, depth + 1);
     }
   };
-  for (const [name, value] of Object.entries(samples)) visit(value, name, 0);
+  for (const [name, value] of Object.entries(samples)) {
+    if (name !== excludedVariableName) visit(value, name, 0);
+  }
   return [...out];
 }
 
-function FieldKeyPicker({ value, onChange, options, ariaLabel, placeholder }: {
+function FieldKeyPicker({ value, onChange, options, samples, excludedVariableName, ariaLabel, placeholder }: {
   value: string;
   onChange: (next: string) => void;
   options: string[];
+  samples?: Record<string, unknown>;
+  excludedVariableName?: string;
   ariaLabel?: string;
   placeholder?: string;
 }) {
@@ -96,7 +100,11 @@ function FieldKeyPicker({ value, onChange, options, ariaLabel, placeholder }: {
   const [showAll, setShowAll] = useState(true);
   const [active, setActive] = useState(0);
   const [position, setPosition] = useState<CSSProperties | null>(null);
-  const filtered = (showAll ? options : options.filter((option) =>
+  // Hidden pickers should not enumerate every variable in a workspace.
+  const choices = useMemo(() => open && samples
+    ? fieldSuggestions(options, samples, excludedVariableName) : options,
+    [open, options, samples, excludedVariableName]);
+  const filtered = (showAll ? choices : choices.filter((option) =>
     option.toLocaleLowerCase().includes(value.toLocaleLowerCase()))).slice(0, 50);
   const selectedIndex = Math.min(active, Math.max(0, filtered.length - 1));
 
@@ -233,7 +241,7 @@ function FieldKeyPicker({ value, onChange, options, ariaLabel, placeholder }: {
             >{key}</button>
           )) : (
             <p className="se-composer-field-empty" role="status">
-              {tr(options.length
+              {tr(choices.length
                 ? "一致する候補がありません。項目名を直接入力できます。"
                 : "候補がありません。項目名を直接入力できます。")}
             </p>
@@ -265,13 +273,13 @@ function ValueOperandEditor({ type, text, onChange, purpose = "compare" }: {
   );
 }
 
-function RecipeStepSettings({ transform, options, onChange, samples }: {
+function RecipeStepSettings({ transform, options, onChange, samples, excludedVariableName }: {
   transform: ValueTransform;
   options: string[];
   onChange: (next: ValueTransform) => void;
   samples: Record<string, unknown>;
+  excludedVariableName?: string;
 }) {
-  const allOptions = fieldSuggestions(options, samples);
   if (transform.kind === "math") return (
     <div className="se-composer-step-settings">
       <FixedOptionSelect aria-label={tr("計算方法")} value={transform.operation}
@@ -323,7 +331,8 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
 
   if (transform.kind === "sort") return (
     <div className="se-composer-step-settings">
-      <FieldKeyPicker value={transform.field} options={allOptions}
+      <FieldKeyPicker value={transform.field} options={options} samples={samples}
+        excludedVariableName={excludedVariableName}
         ariaLabel={tr("リスト内の項目名")}
         placeholder={tr("項目（空なら要素自身）")}
         onChange={(field) => onChange({ ...transform, field })} />
@@ -339,16 +348,17 @@ function RecipeStepSettings({ transform, options, onChange, samples }: {
 
 
 /** Standalone controls for a block on the script canvas, not a modal recipe. */
-export function ValueTransformSettings({ transform, options, onChange, samples }: {
+export function ValueTransformSettings({ transform, options, onChange, samples, excludedVariableName }: {
   transform: ValueTransform;
   options: string[];
   onChange: (next: ValueTransform) => void;
   samples: Record<string, unknown>;
+  excludedVariableName?: string;
 }) {
-  const allOptions = fieldSuggestions(options, samples);
   if (transform.kind === "field") return (
     <div className="se-composer-step-settings">
-      <FieldKeyPicker value={transform.key} options={allOptions}
+      <FieldKeyPicker value={transform.key} options={options} samples={samples}
+        excludedVariableName={excludedVariableName}
         placeholder={tr("項目名 / {変数}")}
         onChange={(key) => onChange({ ...transform, key })} />
     </div>
@@ -367,6 +377,7 @@ export function ValueTransformSettings({ transform, options, onChange, samples }
         onCommit={(text) => onChange({ ...transform, text })} />
     </div>
   );
-  return <RecipeStepSettings transform={transform} options={options} onChange={onChange} samples={samples} />;
+  return <RecipeStepSettings transform={transform} options={options} onChange={onChange} samples={samples}
+    excludedVariableName={excludedVariableName} />;
 }
 
