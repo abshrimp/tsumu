@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   }
   const urls: Record<string, string> = {};
-  for (const path of paths as string[]) {
+  for (const path of new Set(paths as string[])) {
     const token = await signAssetPath(path);
     urls[path] = `/api/assets/file?path=${encodeURIComponent(path)}${token ? `&${token}` : ""}`;
   }
