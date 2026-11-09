@@ -44,6 +44,11 @@ export type InputType =
   | "color"
   | "range";
 
+export interface FieldOption {
+  label: string;
+  value: string;
+}
+
 export interface FieldContent {
   kind: FieldKind;
   
@@ -55,7 +60,7 @@ export interface FieldContent {
   
   placeholder?: string;
   
-  options?: string[];
+  options?: FieldOption[];
   
   checked?: boolean;
   

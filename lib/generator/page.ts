@@ -681,7 +681,7 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
           unknown(f.max, inList) ||
           unknown(f.step, inList) ||
           unknown(f.accept, inList) ||
-          (f.options ?? []).some((o) => unknown(o, inList))))
+          (f.options ?? []).some((o) => unknown(o.label, inList) || unknown(o.value, inList))))
     ) {
       return true;
     }

@@ -231,7 +231,7 @@ function useTargetField(target: string): { kind: FieldContent["kind"]; choices: 
     if (!f) return null;
     // チェックボックス・グループのラジオボタン1つは true / false
     if (f.kind === "checkbox" || isRadioItem(node!)) return { kind: f.kind, choices: [], bool: true };
-    if (f.kind === "select") return { kind: f.kind, choices: (f.options ?? []).filter(Boolean), bool: false };
+    if (f.kind === "select") return { kind: f.kind, choices: (f.options ?? []).map((o) => o.value).filter(Boolean), bool: false };
     if (f.kind === "radio") {
       const group = fieldVarName(node!);
       const labels = nodes
