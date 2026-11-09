@@ -5,6 +5,7 @@ import { dbConfigured, getDb } from "../../../../lib/db";
 import { requireAuth } from "../../../../lib/server";
 import { userMessage } from "../../../../lib/errors";
 import { siteIdOf } from "../../../../lib/site-server";
+import { usesDocumentRooms } from "../../../../lib/site-document-service";
 
 /**
  * サーバーに自動で残している日ごとのバックアップ（サイトごと・曜日ごとに7世代）。
@@ -25,6 +26,14 @@ export async function GET(req: Request) {
   }
   const day = dayParams.length ? Number(dayParams[0]) : null;
   try {
+    // The new DO document store intentionally does not migrate historical
+    // D1 backup generations. SQLite-backed Durable Objects provide PITR.
+    if (usesDocumentRooms()) {
+      if (day !== null) {
+        return NextResponse.json({ error: tr("バックアップが見つかりません") }, { status: 404 });
+      }
+      return NextResponse.json({ backups: [] }, { headers: { "Cache-Control": "private, no-store" } });
+    }
     const db = await getDb();
     if (day !== null) {
       const rs = await db.execute({
