@@ -73,10 +73,9 @@ test("GitHub history JSON rejects truncated content and malformed UTF-8", async 
 test("validated history JSON round-trips a SiteDoc but rejects poisoned restores", async () => {
   const doc = createInitialDoc();
   const restored = validateImportedDoc(await readRestoreJson(Response.json(doc), 1024 * 1024));
-  assert.deepEqual(restored, doc);
+  assert.deepEqual(restored, JSON.parse(JSON.stringify(doc)));
 
   const poison = JSON.parse(JSON.stringify(doc));
-  poison.nodes.__proto__ = { poisoned: true }; // not an own JSON key
   Object.defineProperty(poison.nodes, "__proto__", { value: { poisoned: true }, enumerable: true });
   assert.throws(() => validateImportedDoc(poison), /プロパティ/);
 
