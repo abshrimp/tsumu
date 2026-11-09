@@ -516,6 +516,7 @@ export function PathMenu({
   ariaLabel,
   allowRoot = true,
   portalZIndex,
+  excludeRootKey,
 }: {
   /** 選べる値の見本（undefined = 見本が無い） */
   root: unknown;
@@ -527,6 +528,8 @@ export function PathMenu({
   ariaLabel?: string;
   allowRoot?: boolean;
   portalZIndex?: number;
+  /** Hide the current transform block\'s unpublished output at the root. */
+  excludeRootKey?: string;
 }) {
   const [open, setOpen] = useState(false);
   /** 開いている階層の位置 */
@@ -584,7 +587,8 @@ export function PathMenu({
   // Building child options (often thousands of script variables) is only
   // necessary for an open menu, not every closed dropdown on initial render.
   const levelValue = open ? (at ? digPath(root, at) : root) : undefined;
-  const rows = !open ? [] : !known ? (at ? [] : UNKNOWN_ITEMS) : childOptions(levelValue);
+  const rows = !open ? [] : (!known ? (at ? [] : UNKNOWN_ITEMS) : childOptions(levelValue))
+    .filter((option) => at || option.key !== excludeRootKey);
   const join = (key: string) => (at ? `${at}.${key}` : key);
   /** 文字・数値だけのリスト（比べるときは「,」でつないだ文字になる） */
   const primitiveList = (v: unknown) =>
