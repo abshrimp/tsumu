@@ -19,7 +19,7 @@ import { CondEditor, NumericVariableIn, Phrase, TextIn } from "./inputs";
 import { CAT_OF, Ico, STEP_ICON, TRIGGER_ICON } from "./palette";
 import { slotKey, type Loc } from "./step-tree";
 import { StepBody } from "./StepBody";
-import { chunkScriptSteps, SCRIPT_STEP_WINDOW_THRESHOLD, type StepChunk } from "./step-chunks";
+import { chunkScriptSteps, estimateScriptStackHeight, SCRIPT_STEP_WINDOW_THRESHOLD, type StepChunk } from "./step-chunks";
 import { observeScriptViewport } from "./visibility";
 import { NodePicker } from "./targets";
 
@@ -464,6 +464,44 @@ export function HatView({
 
 export function StackView({ script }: { script: PageScript }) {
   const ctx = useContext(Ctx);
+  const ref = useRef<HTMLDivElement>(null);
+  const [inViewport, setInViewport] = useState(false);
+  const [measured, setMeasured] = useState<{
+    steps: ScriptStep[]; width: number; height: number;
+  } | null>(null);
+  const estimatedHeight = useMemo(() => estimateScriptStackHeight(script.steps), [script.steps]);
+  const mounted = ctx.readOnly || !ctx.virtualizeStacks || inViewport;
+  const placeholder = measured?.steps === script.steps
+    ? measured : { width: 320, height: estimatedHeight };
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || ctx.readOnly || !ctx.virtualizeStacks) return;
+    return observeScriptViewport(el, (visible) => {
+      if (visible) setInViewport(true);
+      else if (!el.contains(document.activeElement)) setInViewport(false);
+    });
+  }, [ctx.readOnly, ctx.virtualizeStacks]);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !mounted || !ctx.virtualizeStacks || ctx.readOnly) return;
+    const measure = () => {
+      const height = el.offsetHeight;
+      const width = el.offsetWidth;
+      if (height > 0 && width > 0) {
+        setMeasured((old) => old?.steps === script.steps &&
+          Math.abs(old.height - height) <= 1 && Math.abs(old.width - width) <= 1
+          ? old : { steps: script.steps, height, width });
+      }
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [mounted, script.steps, ctx.readOnly, ctx.virtualizeStacks]);
+
   const headKey = `${script.id}|head|0`;
   const scriptKey = `script:${script.id}`;
   const runnable = !!script.trigger && !!script.nodeId;
@@ -471,6 +509,7 @@ export function StackView({ script }: { script: PageScript }) {
     <ScriptOwnerCtx.Provider value={{ scriptId: script.id, nodeId: script.nodeId }}>
     <ScriptNodeCtx.Provider value={script.nodeId && script.nodeId !== PAGE_TARGET ? script.nodeId : ""}>
     <div
+      ref={ref}
       className={`se-stack${runnable ? "" : " is-idle"}${
         ctx.selected.has(scriptKey) ? " is-selected" : ""
       }${ctx.focusNodeId && script.nodeId === ctx.focusNodeId ? " is-focus" : ""}`}
@@ -479,10 +518,11 @@ export function StackView({ script }: { script: PageScript }) {
       style={
         ctx.readOnly
           ? undefined
-          : { left: script.pos.x, top: script.pos.y, zIndex: ctx.zOrder.get(script.id) }
+          : { left: script.pos.x, top: script.pos.y, zIndex: ctx.zOrder.get(script.id),
+              ...(!mounted ? { width: placeholder.width, height: placeholder.height } : {}) }
       }
     >
-      {script.trigger ? (
+      {mounted && (script.trigger ? (
         <HatView
           trigger={script.trigger}
           onChange={
@@ -540,8 +580,8 @@ export function StackView({ script }: { script: PageScript }) {
             {tr("きっかけが無いため実行されません")}
           </div>
         )
-      )}
-      <StepList scriptId={script.id} list="root" steps={script.steps} />
+      ))}
+      {mounted && <StepList scriptId={script.id} list="root" steps={script.steps} />}
     </div>
     </ScriptNodeCtx.Provider>
     </ScriptOwnerCtx.Provider>
