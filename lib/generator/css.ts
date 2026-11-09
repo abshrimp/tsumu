@@ -227,9 +227,9 @@ export function generateSiteCss(
         (bpStyles) => bpStyles.default?.position === "absolute"
       );
     });
-    const parentPositioned = Object.values(node.styles).some(
-      (bpStyles) => bpStyles.default?.position
-    );
+    // A narrower breakpoint must not suppress the desktop containing block.
+    // Its own explicit positioning will override this base fallback as usual.
+    const parentPositioned = !!node.styles.base?.default?.position;
     for (const bp of BP_ORDER) {
       // base はカスタムCSS・自動relativeの注入先になるため styles が空でも処理する
       const bpStyles =
