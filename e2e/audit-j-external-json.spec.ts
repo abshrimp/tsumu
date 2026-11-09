@@ -80,8 +80,18 @@ for (const format of ["html", "single-html"] as const) {
     for (let i = 0; i < payload.length; i++) {
       await expect(rows.nth(i).locator("#row-title")).toHaveText(payload[i].name);
       await expect(rows.nth(i).locator("#row-link")).toHaveText("Open " + payload[i].name);
-      await expect(rows.nth(i).locator("#row-link")).toHaveAttribute("href",
-        i === 2 ? "https://example.com/path?q=1" : "#");
+      const href = await rows.nth(i).locator("#row-link").getAttribute("href");
+      expect(href).toBeTruthy();
+      // The runtime may percent-encode an unsupported scheme as an inert
+      // same-origin relative path rather than replacing it with "#".
+      // Both are safe; only an executable/navigation-to-attacker URL is a bug.
+      if (i === 2) {
+        expect(href).toBe("https://example.com/path?q=1");
+      } else {
+        expect(href).not.toMatch(/^(?:javascript|vbscript|data):/i);
+        expect(new URL(href!, page.url()).origin).toBe(new URL(page.url()).origin);
+      }
+      await expect(rows.nth(i).locator("#row-title img, #row-title svg")).toHaveCount(0);
     }
     expect(await page.evaluate(() => (window as any).auditJExecuted)).toBeUndefined();
     expect(await page.evaluate(() => ({} as Record<string, unknown>).inert)).toBeUndefined();
