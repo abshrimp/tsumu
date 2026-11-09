@@ -11,6 +11,7 @@ import { ASSET_DRAG_TYPE, assetKind, nodeAssetSrc } from "../../lib/assets";
 import { useImageDrop } from "../../lib/image-drop";
 import { makeImage } from "../../lib/presets";
 import { canContainElements } from "../../lib/tags";
+import { cssQuotedAttributeValue } from "../../lib/css-selector";
 import type { Component, DocNode, SiteDoc } from "../../lib/types";
 
 /** Canvas から受け取る値 */
@@ -245,7 +246,7 @@ export function useCanvasDrag({
     e.preventDefault();
     e.stopPropagation();
     const el = frameRef.current?.querySelector(
-      `[data-node="${selection}"]`
+      `[data-node=${cssQuotedAttributeValue(selection)}]`
     ) as HTMLElement | null;
     if (!el) return;
     resizing.current = true;
