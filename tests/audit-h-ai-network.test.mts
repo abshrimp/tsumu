@@ -106,3 +106,21 @@ test("AI replay is atomic if another change invalidates its document snapshot", 
   assert.throws(() => applyAiEdits(source, context, approved), AiEditConflict);
   assert.equal(source.nodes.a.text!.content, "Manual update");
 });
+
+test("excessive generated trees are rejected without orphan elements", () => {
+  const doc = fixture();
+  const operations = Array.from({ length: 4 }, (_, index) => ({
+    op: "insert" as const,
+    node: {
+      type: "box" as const,
+      name: `Group ${index}`,
+      children: Array.from({ length: 700 }, () => ({ type: "text" as const, text: "Item" })),
+    },
+  }));
+  const result = applyAiOps(doc, operations, { pageId: "p" });
+  assert.equal(result.applied.length, 2);
+  assert.equal(result.errors.length, 2);
+  assert.ok(result.errors.every((error) => error.includes("growth limit")));
+  assert.equal(Object.keys(doc.nodes).length, 1 + 2 * 701);
+  assert.equal(doc.pages.p.children.length, 3);
+});
