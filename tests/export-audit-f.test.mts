@@ -404,8 +404,9 @@ test("AUD-F-012: browser exports use decoded, deep credential scanning like GitH
     "pure variable placeholders are not literal credentials");
 });
 
-test("AUD-F-013: Next.js credential fetch stays in server files, not client-distributed assets", async () => {
+test("AUD-F-013: every export, including Next.js SSR, rejects credentials before source generation", async () => {
   const { hasPublishCredentials } = await import("../lib/publish-security");
+  const { prepareExportProject } = await import("../lib/export-formats");
   const site = doc();
   const sentinel = "AUDIT_NOT_A_REAL_SECRET_SENTINEL_0529";
   site.pages.public.pageScripts = [{
@@ -414,19 +415,40 @@ test("AUD-F-013: Next.js credential fetch stays in server files, not client-dist
       url: "https://public.example/private",
       headers: [{ name: "Authorization", value: "Bearer " + sentinel }] }],
   }];
-  assert.equal(hasPublishCredentials(site), true,
-    "GitHub Push must detect literal credential-like headers");
+  assert.equal(hasPublishCredentials(site), true);
+  for (const framework of ["nextjs", "react", "vue", "nuxt", "sveltekit", "html", "single-html"] as const) {
+    assert.ok(exportLimitations(site, framework).some(reason => reason.includes("編集用ZIP")),
+      framework + ": a server-only fetch still exposes hardcoded credentials in source or archives");
+    assert.throws(() => generateExportProject(site, framework),
+      /認証情報|APIキー/, framework);
+  }
+  await assert.rejects(prepareExportProject(site, "nextjs"), /認証情報|APIキー/,
+    "the shared async ZIP / GitHub Push entrypoint must fail closed");
+
+  const step = site.pages.public.pageScripts![0].steps[0];
+  if (step.kind !== "fetch") throw new Error("Unexpected fixture type");
+  step.headers = [];
+  assert.equal(hasPublishCredentials(site), false);
   const project = generateExportProject(site, "nextjs");
   assert.match(project.files["app/page.tsx"], /fetchPublic/,
-    "existing authenticated server fetch behavior is preserved pending design approval");
-  const publicSources = Object.entries(project.files)
-    .filter(([path, content]) =>
-      path.startsWith("public/") ||
-      (path.startsWith("components/") && /^(?:"use client"|'use client')/.test(content)))
-    .map(([path, content]) => path + ":\\n" + content)
-    .join("\\n");
-  assert.ok(!publicSources.includes(sentinel),
-    "server-side fetch settings must not be duplicated into browser-distributed files");
+    "public server-side fetch remains available without embedded credentials");
+
+  step.headers = [{ name: "Metadata-Flavor", value: "Google" }];
+  assert.ok(exportLimitations(site, "nextjs").length > 0,
+    "reserved internal metadata headers are unsafe even in SSR");
+
+  // Component/page-scoped export may exclude secrets that are not included in
+  // the generated editable document; project export must still inspect all pages.
+  step.headers = [];
+  site.pages.private.pageScripts = [{
+    id: "secret-load", trigger: "load", pos: { x: 0, y: 0 },
+    steps: [{ id: "secret-fetch", kind: "fetch", as: "secret",
+      url: "https://public.example/private?api_key=" + sentinel }],
+  }];
+  assert.ok(exportLimitations(site, "nextjs").length > 0);
+  assert.deepEqual(exportLimitations(site, { framework: "nextjs", language: "typescript",
+    style: "css", scope: "page", pageId: "public" }), [],
+    "a scoped page archive does not include unrelated private pages");
 });
 
 test("AUD-F-014: generated filename components are bounded for portable ZIP extraction", async () => {
