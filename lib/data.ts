@@ -53,14 +53,16 @@ export function toListItems(value: unknown): Record<string, unknown>[] {
 /** Return the first list record for an editor suggestion without expanding the whole list. */
 export function firstListItem(value: unknown): Record<string, unknown> | undefined {
   if (!value || typeof value !== "object") return undefined;
+  const asItem = (item: unknown): Record<string, unknown> =>
+    item && typeof item === "object" && !Array.isArray(item)
+      ? item as Record<string, unknown>
+      : { [ITEM_VALUE]: item };
+  // The common dense-array case never needs to enumerate the remaining keys.
+  if (Array.isArray(value) && Object.hasOwn(value, 0)) return asItem(value[0]);
   // Object.entries(value) would allocate every record even though previews
   // inspect only the first own enumerable entry.
   for (const key in value) {
-    if (!Object.hasOwn(value, key)) continue;
-    const item = (value as Record<string, unknown>)[key];
-    return item && typeof item === "object" && !Array.isArray(item)
-      ? item as Record<string, unknown>
-      : { [ITEM_VALUE]: item };
+    if (Object.hasOwn(value, key)) return asItem((value as Record<string, unknown>)[key]);
   }
   return undefined;
 }
