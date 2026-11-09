@@ -104,3 +104,23 @@ test("消したサイトの編集データは、開いたままのタブが保�
   assert.deepEqual(await saveCurrentDoc(db, "s1", snapshot, null), { kind: "missing" });
   assert.equal(await readCurrentDoc(db, "s1"), null);
 }));
+
+test("Node SQLite rejects malformed documents, invalid revisions and corrupt stored snapshots", withDataDir(async () => {
+  const db = await getDbFromBinding(nodeDatabase()!);
+  await insertSite(db, "s1", {
+    name: "s", repo: null, branch: "main", previewBranch: "preview",
+    siteUrl: null, previewUrl: null,
+  });
+  await assert.rejects(saveCurrentDoc(db, "s1", "{}", null), /不正な/);
+  assert.equal(await readCurrentDoc(db, "s1"), null);
+  const original = createInitialDoc();
+  const body = JSON.stringify(original);
+  assert.equal((await saveCurrentDoc(db, "s1", body, null)).kind, "saved");
+  await assert.rejects(saveCurrentDoc(db, "s1", body, "invalid"), /不正な/);
+  await assert.rejects(saveCurrentDoc(db, "s1", JSON.stringify({
+    ...original, baseWidth: "wide",
+  }), "1"), /不正な/);
+  assert.equal((await readCurrentDoc(db, "s1"))?.rev, "1");
+  await db.execute({ sql: "UPDATE docs SET body = ? WHERE id = ?", args: ["{}", "s1"] });
+  await assert.rejects(readCurrentDoc(db, "s1"), /破損/);
+}));
