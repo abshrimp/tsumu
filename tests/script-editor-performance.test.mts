@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SlotIndex, type SlotPoint } from "../components/script-editor/slot-index";
 import { filterNumbersOf, mapStep, numberFilters, removeKeys } from "../components/script-editor/step-tree";
-import { dataVarNames, pageVariableIndex, scriptInputDoc } from "../lib/data";
+import { dataVarNames, firstListItem, ITEM_VALUE, pageVariableIndex, scriptInputDoc, toListItems } from "../lib/data";
 import { PAGE_TARGET, type ScriptStep, type SiteDoc } from "../lib/types";
 import { applyPageScripts, pageScriptsOf, type PageScript } from "../lib/script";
 
@@ -269,4 +269,21 @@ test("saving many scripts for one element retains their order and page-owned scr
   assert.equal(doc.pages.page.pageScripts?.[0].id, "page-script");
   assert.equal(doc.pages.page.scripts?.[0].id, "loose");
   assert.equal(views[0].nodeId, "box", "the display model remains intact");
+});
+
+
+test("editor list suggestions inspect the first item without materializing the remaining sample", () => {
+  const large = Array.from({ length: 25000 }, (_, i) => i + 5);
+  assert.deepEqual(firstListItem(large), { [ITEM_VALUE]: 5 });
+  assert.deepEqual(firstListItem(large), toListItems(large)[0]);
+  const nested = { initial: { label: "first" }, get unrelated() {
+    throw new Error("Later sample entries must not be accessed");
+  } };
+  assert.deepEqual(firstListItem(nested), { label: "first" });
+  const sparse: unknown[] = [];
+  sparse[3] = false;
+  assert.deepEqual(firstListItem(sparse), { [ITEM_VALUE]: false });
+  assert.deepEqual(firstListItem(sparse), toListItems(sparse)[0]);
+  assert.equal(firstListItem({}), undefined);
+  assert.equal(firstListItem(null), undefined);
 });

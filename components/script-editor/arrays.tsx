@@ -9,7 +9,7 @@ import { Plus, X } from "lucide-react";
 import {
   fieldLabel,
   flattenFields,
-  toListItems,
+  firstListItem,
 } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
 import { type FilterCond, type ScriptStep } from "../../lib/types";
@@ -50,12 +50,17 @@ function arrayPathsIn(samples: Record<string, unknown>): string[] {
     if (depth > 3 || !v || typeof v !== "object" || out.length >= 100) return;
     out.push(path);
     if (depth === 3) return;
-    for (const [k, c] of Object.entries(v).slice(0, 50)) {
+    let visited = 0;
+    for (const k in v) {
+      if (!Object.hasOwn(v, k)) continue;
+      if (visited++ >= 50 || out.length >= 100) break;
+      const c = (v as Record<string, unknown>)[k];
       if (!k.includes(".") && c && typeof c === "object") walk(c, `${path}.${k}`, depth + 1);
     }
   };
-  for (const [k, v] of Object.entries(samples)) {
-    if (!k.startsWith("#")) walk(v, k, 0);
+  for (const k in samples) {
+    if (out.length >= 100) break;
+    if (Object.hasOwn(samples, k) && !k.startsWith("#")) walk(samples[k], k, 0);
   }
   return out;
 }
@@ -95,7 +100,7 @@ export function AnyArraySelect({ value, onChange }: { value: string; onChange: (
 
 /** リストの要素の項目（入れ子は「category.name」のような位置）を、見本から並べる */
 export function itemFieldsOf(sample: unknown): string[] {
-  const first = toListItems(sample)[0];
+  const first = firstListItem(sample);
   if (!first) return [];
   return flattenFields(first, 2, 1)
     .map((o) => o.field)
@@ -116,7 +121,7 @@ function ArrayFieldSelect({
   onChange: (v: string) => void;
 }) {
   const { samples } = useContext(Ctx);
-  const first = array ? toListItems(lookupVar(samples, array))[0] : undefined;
+  const first = array ? firstListItem(lookupVar(samples, array)) : undefined;
   return <PathMenu root={first} path={value} mode="field" onChange={onChange} />;
 }
 

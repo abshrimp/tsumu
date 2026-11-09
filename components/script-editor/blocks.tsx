@@ -8,7 +8,7 @@ import { useContext, useMemo, type ReactNode } from "react";
 import { Plus, Repeat, IterationCw, Split, X } from "lucide-react";
 import { readableValue } from "../DataView";
 import { isLinkScriptId, TRIGGER_LABELS, TRIGGER_ORDER, type PageScript } from "../../lib/script";
-import { isDataStep, keyOfItem, toListItems, type FetchStep } from "../../lib/data";
+import { isDataStep, keyOfItem, firstListItem, type FetchStep } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
 import { PAGE_TARGET, type ScriptStep, type ScriptTrigger } from "../../lib/types";
 import { tr } from "../../lib/i18n";
@@ -40,7 +40,7 @@ function ForEachView({
   const loops = useMemo(() => {
     const fields = [...itemFieldsOf(sample), "ループ.値", "ループ.キー", "ループ.順番",
       ...(outer.length ? ["ループ.外側.値", "ループ.外側.キー", "ループ.外側.順番"] : [])];
-    const item = toListItems(sample)[0];
+    const item = firstListItem(sample);
     const samples = Object.fromEntries(
       fields.map((f) => [f, readableValue(item ? keyOfItem(item, f) : undefined)])
     );
