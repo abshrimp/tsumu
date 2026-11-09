@@ -381,6 +381,10 @@ export const SCRIPT_RUNTIME = `function (env) {
           /*#wait|repeat*/
           cancelPendingSleeps();
           /*/wait|repeat*/
+          /*#keep*/
+          hovering.forEach(function (timer) { clearTimeout(timer); });
+          hovering.clear();
+          /*/keep*/
           pageGeneration++;
           pageBody = body;
         }
@@ -1594,7 +1598,13 @@ export const SCRIPT_RUNTIME = `function (env) {
         hovering.set(
           el,
           setTimeout(function () {
-            if (!alive || !hovering.has(el)) return;
+            if (!alive || !hovering.has(el) || !root.contains(el)) {
+              hovering.delete(el);
+              return;
+            }
+            // The page may have changed before the mutation observer ran.
+            syncPage();
+            if (!hovering.has(el)) return;
             var still = [el].concat(shownByHover(el)).some(function (g) {
               return root.contains(g) && g.matches(":hover");
             });
