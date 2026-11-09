@@ -77,8 +77,8 @@ test("bare and named CSS @import layers survive conversion with their cascade sc
     const result = expandZipCss(main.zip!.stylesheet!.source, [main, theme],
       message => warnings.push(message), main);
     assert.deepEqual(result.unresolved, []);
-    assert.match(result.css, /@layer(?: theme(?:\\.parts)?)? \\{\\n\\.card \\{ color: red; \\}/);
-    if (modifier.includes("screen")) assert.match(result.css, /@media screen and \\(max-width: 600px\\)/);
+    assert.match(result.css, /@layer(?: theme(?:\.parts)?)? \{\n\.card \{ color: red; \}/);
+    if (modifier.includes("screen")) assert.match(result.css, /@media screen and \(max-width: 600px\)/);
     assert.ok(!result.css.includes("@media layer"));
     assert.match(result.css, /display: grid/);
     assert.deepEqual(warnings, []);
