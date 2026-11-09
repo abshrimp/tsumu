@@ -102,7 +102,15 @@ export async function verifyNetlifySite(
   token: string, siteId: string, teamId: string
 ): Promise<NetlifySite> {
   if (!validNetlifyId(siteId) || !validNetlifyId(teamId)) throw new PublishPublicError("Invalid Netlify project.");
-  const remote = await netlifyApi<NetlifySite>(token, "/sites/" + encodeURIComponent(siteId));
+  let remote: NetlifySite;
+  try {
+    remote = await netlifyApi<NetlifySite>(token, "/sites/" + encodeURIComponent(siteId));
+  } catch (error) {
+    if (error instanceof PublishPublicError && error.message === "Netlify request failed (HTTP 404).") {
+      throw new PublishPublicError("Netlify project was not found.");
+    }
+    throw error;
+  }
   return checkedSite(remote, siteId, teamId);
 }
 

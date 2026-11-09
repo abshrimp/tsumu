@@ -21,7 +21,13 @@ export default function LeaveAnimator() {
       ghost.inert = true;
       ghost.setAttribute("aria-hidden", "true");
       ghost.removeAttribute("id");
-      ghost.querySelectorAll("[id]").forEach((n) => n.removeAttribute("id"));
+      ghost.removeAttribute("role");
+      ghost.removeAttribute("aria-modal");
+      ghost.querySelectorAll("[id], [role], [aria-modal]").forEach((n) => {
+        n.removeAttribute("id");
+        n.removeAttribute("role");
+        n.removeAttribute("aria-modal");
+      });
       // 入力欄の値は複製されないため、写しておく
       const src = el.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea");
       const dst = ghost.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea");

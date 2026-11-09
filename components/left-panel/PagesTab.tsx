@@ -231,7 +231,11 @@ export function PagesTab() {
   useEffect(() => {
     if (!selecting) return;
     const onKey = (e: KeyboardEvent) => {
-      if (isEscapeKey(e) && !document.querySelector(".modal-backdrop, .dd-menu, .color-pop")) endPicking();
+      if (
+        isEscapeKey(e) &&
+        !Array.from(document.querySelectorAll(".modal-backdrop, .dd-menu, .color-pop"))
+          .some((el) => !el.closest(".is-leaving"))
+      ) endPicking();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

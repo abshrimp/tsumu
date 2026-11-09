@@ -116,6 +116,12 @@ export function saveNetlifyProject(siteId: string, target: Target, project: Brow
   saveNetlifySite(siteId, { ...site, [target]: project });
 }
 
+export function clearNetlifyProject(siteId: string, target: Target): void {
+  const site = readNetlifySite(siteId);
+  if (!site) return;
+  saveNetlifySite(siteId, { ...site, [target]: null });
+}
+
 export function startNetlifyOAuth(siteId: string, config: { clientId: string; redirectUri: string }): void {
   if (!isSiteId(siteId) || !/^[a-zA-Z0-9_-]{8,200}$/.test(config.clientId) ||
       !URL.canParse(config.redirectUri)) throw new Error("Invalid Netlify OAuth settings.");

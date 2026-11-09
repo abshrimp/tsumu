@@ -121,7 +121,9 @@ export async function POST(req: Request) {
     }
     const kept = planPublish(current.blobs, current.generated, []).kept;
     const restoreGenerated = Object.fromEntries(
-      Object.entries(chosen.generated).filter(([path]) => !Object.hasOwn(kept, path))
+      Object.entries(chosen.generated)
+        .filter(([path]) => !Object.hasOwn(kept, path) && isSha(chosen.blobs[path]))
+        .map(([path]) => [path, chosen.blobs[path]])
     );
     const outputPaths = [...Object.keys(restoreGenerated), GENERATED_MANIFEST_PATH];
     if (conflictingCommitPaths([...outputPaths, ...Object.keys(kept)]) ||
@@ -132,16 +134,21 @@ export async function POST(req: Request) {
     const manifestText = serializeGeneratedManifest(restoreGenerated);
     const actions: Array<{ action: "create" | "update" | "delete"; file_path: string;
       content?: string; encoding?: "base64" }> = [];
-    const restorePaths = Object.keys(restoreGenerated);
-    if (restorePaths.length > 40) {
+    const changedPaths = Object.keys(restoreGenerated).filter(path => current.blobs[path] !== chosen.blobs[path]);
+    if (changedPaths.length > 40) {
       return NextResponse.json({ error: tr("This version has too many files to restore in one request.") }, { status: 413 });
     }
     // The GitLab commits API cannot reference existing blob SHAs. Fetch only
     // changed content, preserving every manually maintained path in the branch.
-    for (const path of restorePaths) {
+    const docValidationBytes = !changedPaths.includes(DOC_PATH)
+      ? await client.blob(chosen.blobs[DOC_PATH])
+      : null;
+    if (docValidationBytes) {
+      const invalid = validatePublishDocument(docValidationBytes, tr);
+      if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
+    }
+    for (const path of changedPaths) {
       const wantedSha = chosen.blobs[path];
-      if (!wantedSha || !isSha(wantedSha)) return conflict(tr);
-      if (current.blobs[path] === wantedSha) continue;
       const bytes = await client.blob(wantedSha);
       if (path === DOC_PATH) {
         const invalid = validatePublishDocument(bytes, tr);

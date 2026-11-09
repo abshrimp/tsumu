@@ -11,7 +11,7 @@ import { selectDefaultValue, fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "..
 import { resolveTag } from "../tags";
 import { hasVars } from "../vars";
 import { pageQueryConditions } from "../page-query";
-import { compileScripts, EMPTY_GIF, hasRunnableScripts, scriptTargetIds } from "../script";
+import { compileScripts, EMPTY_GIF, hasRunnableScripts, listFilterFields, scriptTargetIds } from "../script";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
 import { safeMediaUrl, safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { serializePageDataPlan } from "./browser-data";
@@ -28,6 +28,7 @@ type Context = {
   assets: Map<string, string>;
   components: Map<string, string>;
   toggles: Set<string>;
+  filterFields: Map<string, Set<string>>;
   imports: Set<string>;
   code: string[];
   seen: Set<string>;
@@ -93,7 +94,7 @@ function common(ctx: Context, node: DocNode, className: string): string {
     .join("");
   return literal("class", className) +
     literal("id", node.attrId) + retained +
-    (show ? literal("data-toggle-show", toggleShowDisplay(node)) : "") +
+    (show ? literal("data-toggle-show", node.type === "instance" ? "contents" : toggleShowDisplay(node)) : "") +
     (node.motions?.some((m) => m.trigger === "in-view") ? " data-inview" : "") +
     compiled(ctx, node);
 }
@@ -247,6 +248,8 @@ function node(ctx: Context, id: string, top = false): string {
       const row = "row" + ctx.level;
       const index = "index" + ctx.level;
       const from = listFromOf(n) || "";
+      const fields = [...(ctx.filterFields.get(from) ?? [])];
+      const itemAttr = fields.length ? dynamicAttr(ctx, "data-item", "serializeListItem(" + row + ", " + q(fields) + ")") : "";
       const listExpr = "listItemsWithOps(listOps, scope, " + q(from) + ", " + (n.list.limit || 0) +
         (ctx.rows.length ? ", " + ctx.rows.join(", ") : "") + ")";
       const prior = ctx.rows, level = ctx.level;
@@ -258,11 +261,11 @@ function node(ctx: Context, id: string, top = false): string {
       if (ctx.vue) {
         return "<div" + attrs + literal("data-array", from) + ">" +
           '<div v-for="(' + row + ", " + index + ") in " + esc(listExpr) +
-          '" :key="' + index + '" data-row style="display:contents">' + inner + "</div></div>";
+          '" :key="' + index + '" data-row style="display:contents"' + itemAttr + ">" + inner + "</div></div>";
       }
       return "<div" + attrs + literal("data-array", from) + ">" +
         "{#each " + listExpr + " as " + row + ", " + index + " (" + index + ")}" +
-        '<div data-row style="display:contents">' + inner + "</div>" +
+        '<div data-row style="display:contents"' + itemAttr + ">" + inner + "</div>" +
         "{/each}</div>";
     }
 
@@ -327,10 +330,11 @@ export function generateNativeFiles(
     ...Object.values(normalized.pages).flatMap((p) =>
       scriptTargetIds({ scripts: p.pageScripts }, ["show", "toggle"])),
   ]);
+  const filterFields = listFilterFields(normalized);
   const pageFiles: Record<string, string> = {};
   const componentFiles: Record<string, string> = {};
   const makeCtx = (): Context => ({
-    doc: normalized, vue: mode === "vue", classes, assets, components, toggles,
+    doc: normalized, vue: mode === "vue", classes, assets, components, toggles, filterFields,
     imports: new Set(), code: [], seen: new Set(), inForm: false, rows: [], level: 0,
   });
   type PageRenderPlan = Pick<Page, "id" | "pageScripts"> & {
@@ -347,7 +351,7 @@ export function generateNativeFiles(
     const ext = ctx.vue ? ".vue" : ".svelte";
     const dependencyImports = [...ctx.imports].filter((name) => name !== id).map((name) =>
       'import ' + name + ' from "../components/' + name + ext + '";');
-    const helper = 'import { resolveText, resolveUrl, resolveResourceUrl, scopeOf, listItemsWithOps, selectedOption, setField } from "../site-data.js";';
+    const helper = 'import { resolveText, resolveUrl, resolveResourceUrl, scopeOf, listItemsWithOps, serializeListItem, selectedOption, setField } from "../site-data.js";';
     const constants = ctx.code;
     if (page) {
       constants.push("const listOps = JSON.parse(" + q(JSON.stringify(page.listOps)) + ");");

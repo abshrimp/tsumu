@@ -2023,7 +2023,7 @@ function mount(context: "design" | "preview" | "modal" | "script" | "leaving" = 
     useEditor: useEditor,
     window: { addEventListener: (type: string, fn: any) => handlers.set(type, fn), removeEventListener: (type: string) => handlers.delete(type) },
     document: { querySelector: (selector: string) => {
-      assert.equal(selector, ".se-backdrop, .modal-backdrop:not(.is-leaving)");
+      assert.equal(selector, ".se-backdrop:not(.is-leaving), .modal-backdrop:not(.is-leaving)");
       return context === "modal" || context === "script" ? {} : null;
     } },
     setPasteNotice: (notice: unknown) => notices.push(notice),

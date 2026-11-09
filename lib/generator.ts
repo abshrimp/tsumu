@@ -304,17 +304,17 @@ ${body || "    null"}
   const layoutMeta: string[] = [];
   const siteUrl = doc.siteUrl?.trim();
   if (siteUrl && /^https?:\/\//.test(siteUrl)) {
-    layoutMeta.push(`  metadataBase: new URL(${JSON.stringify(siteUrl)}),`);
+    layoutMeta.push(`  metadataBase: new URL(${codeLiteral(siteUrl)}),`);
   }
   layoutMeta.push(
-    `  title: {\n    default: ${JSON.stringify(doc.siteName)},\n    template: ${JSON.stringify(`%s | ${doc.siteName}`)},\n  },`
+    `  title: {\n    default: ${codeLiteral(doc.siteName)},\n    template: ${codeLiteral(`%s | ${doc.siteName}`)},\n  },`
   );
   const faviconSrc = imageRefSrc(assetNames, doc.favicon);
   const appleIconSrc = imageRefSrc(assetNames, doc.appleTouchIcon);
   if (faviconSrc || appleIconSrc) {
     const icons = [
-      faviconSrc ? `icon: ${JSON.stringify(faviconSrc)}` : null,
-      appleIconSrc ? `apple: ${JSON.stringify(appleIconSrc)}` : null,
+      faviconSrc ? `icon: ${codeLiteral(faviconSrc)}` : null,
+      appleIconSrc ? `apple: ${codeLiteral(appleIconSrc)}` : null,
     ].filter(Boolean);
     layoutMeta.push(`  icons: { ${icons.join(", ")} },`);
   }
@@ -322,7 +322,7 @@ ${body || "    null"}
   const defaultOgSrc = imageRefSrc(assetNames, doc.ogImage);
   if (defaultOgSrc) {
     layoutMeta.push(
-      `  openGraph: {\n    siteName: ${JSON.stringify(doc.siteName)},\n    images: [${JSON.stringify(defaultOgSrc)}],\n  },`
+      `  openGraph: {\n    siteName: ${codeLiteral(doc.siteName)},\n    images: [${codeLiteral(defaultOgSrc)}],\n  },`
     );
     layoutMeta.push(`  twitter: { card: "summary_large_image" },`);
   }
@@ -340,13 +340,13 @@ ${body || "    null"}
     files["app/manifest.ts"] = `import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
-  return ${JSON.stringify(manifest, null, 2).replace(/\n/g, "\n  ")};
+  return ${codeLiteral(manifest, 2).replace(/\n/g, "\n  ")};
 }
 `;
     files["public/sw.js"] = compactJs(PWA_SERVICE_WORKER) + "\n";
     files["public/pwa.js"] = compactJs(PWA_REGISTER_SCRIPT) + "\n";
     layoutMeta.push(
-      `  appleWebApp: { capable: true, title: ${JSON.stringify(manifest.short_name)} },`
+      `  appleWebApp: { capable: true, title: ${codeLiteral(manifest.short_name)} },`
     );
   }
 
@@ -552,11 +552,11 @@ ${loadingBody || `      ${fallbackBody}`}
   const bodyEndTag = bodyEndHtml
     ? bodyEndNeedsPageHtml
       ? `\n        <PageHtml html={${codeLiteral(bodyEndHtml)}} staticHtml={${codeLiteral(deferRunnableScripts(bodyEndHtml))}} />`
-      : `\n        <div\n          dangerouslySetInnerHTML={{ __html: ${JSON.stringify(bodyEndHtml)} }}\n        />`
+      : `\n        <div\n          dangerouslySetInnerHTML={{ __html: ${codeLiteral(bodyEndHtml)} }}\n        />`
     : "";
 
   const viewportExport = pwaThemeColor
-    ? `\nexport const viewport: Viewport = {\n  themeColor: ${JSON.stringify(pwaThemeColor)},\n};\n`
+    ? `\nexport const viewport: Viewport = {\n  themeColor: ${codeLiteral(pwaThemeColor)},\n};\n`
     : "";
   files["app/layout.tsx"] = `import type { Metadata${pwaThemeColor ? ", Viewport" : ""} } from "next";
 ${fontImports}${siteScripts.length ? 'import Script from "next/script";\n' : ""}${bodyEndNeedsPageHtml ? 'import PageHtml from "@/components/PageHtml";\n' : ""}${loading ? 'import SiteLoadingScreen from "@/components/SiteLoadingScreen";\n' : ""}import "./globals.css";

@@ -395,7 +395,7 @@ function ActiveCommentLayer({ frameRef, innerRef }: CommentLayerProps) {
   // Esc: 書きかけのコメントや開いているスレッドを閉じる。何も無ければコメントモードを終える
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!isEscapeKey(e) || document.querySelector(".modal-backdrop")) return;
+      if (!isEscapeKey(e) || document.querySelector(".modal-backdrop:not(.is-leaving)")) return;
       const s = useComments.getState();
       if (s.draft || s.openId) s.open(null);
       else s.setActive(false);

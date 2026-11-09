@@ -7,6 +7,7 @@ import { runChecks, type CheckResult } from "../lib/generator/checks";
 import type { PublishTarget } from "../lib/generator";
 import type { SiteDoc } from "../lib/types";
 import { showConfirm } from "../lib/dialog";
+import { userMessage } from "../lib/errors";
 import { tr } from "../lib/i18n";
 import { Seg } from "./controls";
 
@@ -23,6 +24,50 @@ export interface StaticPublishSubmitted {
   state: string;
   deploymentUrl: string;
   siteUrl: string;
+}
+
+export function staticPublishError(cause: unknown, fallback: string): string {
+  const message = cause instanceof Error ? cause.message : "";
+  if (message === "The site ZIP is too large (25 MiB maximum)." || message === "The site ZIP is too large." ||
+      message === "The site contains files that exceed the upload size limit.") {
+    return tr("The site files exceed the static hosting size limit.");
+  }
+  if (message === "The site has too many files.") {
+    return tr("The site has too many files to publish.");
+  }
+  if (message === "The site ZIP could not be read." || message === "A static-site ZIP is required.") {
+    return tr("Could not prepare the static site archive.");
+  }
+  if (message === "The exported site has no index.html.") {
+    return tr("The exported site has no index.html.");
+  }
+  if (message === "Pages Functions and custom Workers cannot be deployed as static HTML." ||
+      message === "Symbolic links cannot be published." ||
+      message === "Unsafe generated file path.") {
+    return tr("The publish includes a file path that isn't allowed");
+  }
+  if (message === "Editable project data and secret files must not be published.") {
+    return tr("Editable project data and secret files must not be published.");
+  }
+  if (message === "The publishing destination changed. Reopen the publish dialog.") {
+    return tr("The publishing destination changed. Reopen the publish dialog.");
+  }
+  if (message === "CLOUDFLARE_API_TOKEN is not configured." ||
+      message === "CLOUDFLARE_ACCOUNT_ID must be a valid account ID.") {
+    return tr("Static publishing isn't configured on the server.");
+  }
+  if (message === "This deployment cannot be restored." ||
+      message === "The deployment is not available for restoration." ||
+      message === "Invalid deployment ID.") {
+    return tr("This deployment cannot be restored.");
+  }
+  if (message.includes("Cloudflare") && (message.includes("failed (HTTP ") || message.includes("rejected by Cloudflare") || message.includes("redirected") || message.includes("did not return"))) {
+    return tr("Cloudflare Pages could not complete the request. Try again later.");
+  }
+  if (cause instanceof TypeError) {
+    return tr("Could not reach the publishing service. Check your network and retry.");
+  }
+  return userMessage(cause, fallback);
 }
 
 export function useStaticPublishChecks(doc: SiteDoc): CheckResult[] {

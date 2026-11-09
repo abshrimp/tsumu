@@ -9,7 +9,9 @@ export function useEscapeToClose(onClose: () => void, enabled = true) {
       if (
         isEscapeKey(e) &&
         !e.defaultPrevented &&
-        (typeof document === "undefined" || !document.querySelector(".modal.dialog, .dd-menu, .color-pop, .ctx-menu"))
+        (typeof document === "undefined" ||
+          !Array.from(document.querySelectorAll(".modal.dialog, .dd-menu, .color-pop, .ctx-menu"))
+            .some((el) => !el.closest(".is-leaving")))
       ) {
         onClose();
       }

@@ -201,6 +201,9 @@ export function exportLimitations(
       pages.some((page) => !!page.customTopHtml?.trim() || !!page.customEndHtml?.trim())) {
       reasons.push(tr("Custom HTML is omitted from this framework format. Export to Next.js or HTML."));
     }
+    if (doc.loadingScreen?.enabled) {
+      reasons.push(tr("Loading screens are omitted from this framework format. Export to Next.js, React, or HTML."));
+    }
   }
   if (options.framework === "react") {
     // Data-driven React pages use dangerouslySetInnerHTML for their DOM

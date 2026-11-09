@@ -4,8 +4,8 @@
  * </script> が、JavaScript が実行される前に HTML の script 要素を終わらせてしまう。
  * JavaScript としての値は変えずに、HTML で意味を持つ字句だけを取り除く。
  */
-export function codeLiteral(value: unknown): string {
-  const json = JSON.stringify(value);
+export function codeLiteral(value: unknown, space?: number): string {
+  const json = JSON.stringify(value, null, space);
   if (json === undefined) throw new TypeError("Cannot generate a code literal for undefined");
   return json.replace(/[<>&\u2028\u2029]/g, (char) => {
     switch (char) {

@@ -402,7 +402,7 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
       // Ctrl+V を横取りしないプレビューやモーダルでは、背後の文書を変更しない。
       if (
         useEditor.getState().mode !== "design" ||
-        document.querySelector(".se-backdrop, .modal-backdrop:not(.is-leaving)")
+        document.querySelector(".se-backdrop:not(.is-leaving), .modal-backdrop:not(.is-leaving)")
       ) return;
       const data = event.clipboardData;
       if (!data) return;
@@ -1220,7 +1220,7 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
       // スクリプトエディタを開いている間とプレビュー中は、元に戻す・やり直す以外の要素の操作をしない
       //（プレビューでは選択枠が見えないまま、選んでいた要素を Delete などで消してしまうため）
       const isUndoKey = mod && (key === "z" || (key === "y" && !e.metaKey));
-      if ((document.querySelector(".se-backdrop") || s.mode === "preview") && !isUndoKey) {
+      if ((document.querySelector(".se-backdrop:not(.is-leaving)") || s.mode === "preview") && !isUndoKey) {
         return;
       }
       // 公開や設定などのモーダルを開いている間は、後ろの要素を操作しない
@@ -1267,12 +1267,19 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
         }
       } else if (isEscapeKey(e)) {
         // ヘルプを開いていれば、選択を外す前にヘルプを閉じる
-        if (useHelp.getState().open && !document.querySelector(".dd-menu, .color-pop")) {
+        if (
+          useHelp.getState().open &&
+          !Array.from(document.querySelectorAll(".dd-menu, .color-pop"))
+            .some((el) => !el.closest(".is-leaving"))
+        ) {
           closeHelp();
           return;
         }
         // ドロップダウンなどのポップアップが開いている間は、選択を残す
-        if (!document.querySelector('.dd-menu, .color-pop, .modal, [role="dialog"]')) {
+        if (
+          !Array.from(document.querySelectorAll('.dd-menu, .color-pop, .modal, [role="dialog"]'))
+            .some((el) => !el.closest(".is-leaving"))
+        ) {
           if (!s.selection && s.editingComponentId) {
             s.setEditingComponent(null);
           } else {

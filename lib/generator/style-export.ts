@@ -152,7 +152,7 @@ function addCssModules(files: Record<string, string>, framework: ExportFormat) {
     files["app/layout.tsx"] = files["app/layout.tsx"]
       .replace('import "../styles/site.css";', 'import "../styles/site-global.css";\nimport siteStyles from "../styles/site.module.css";')
       .replace(/(<body(?:\s[^>]*)?>)/, '$1\n        <div className={siteStyles.siteRoot}>')
-      .replace("</body>", "</div>\n      </body>");
+      .replace(/\n      <\/body>\n    <\/html>/, "\n        </div>\n      </body>\n    </html>");
   }
 }
 

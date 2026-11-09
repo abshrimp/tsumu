@@ -73,6 +73,13 @@ export function nativeDataModule(): string {
     "  const rows = displayListRows(read(scope, name), listOps, name, scope);",
     "  return Number(limit) > 0 ? rows.slice(0, limit) : rows;",
     "}",
+    "export function serializeListItem(item, fields) {",
+    "  const out = {};",
+    "  if (item && typeof item === 'object') {",
+    "    for (const field of fields || []) out[field] = read(item, field);",
+    "  }",
+    "  return JSON.stringify(out);",
+    "}",
     "",
   ].join("\n");
 }

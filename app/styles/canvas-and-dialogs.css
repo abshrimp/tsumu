@@ -294,13 +294,13 @@
 }
 
 .var-comp .is-sel-key .var-chip {
-  color: #fff;
+  color: var(--on-accent, #fff);
   background: var(--accent);
   box-shadow: none;
 }
 
 .var-comp .is-sel-key .var-chip b {
-  color: #fff;
+  color: var(--on-accent, #fff);
 }
 
 .var-comp-sample {

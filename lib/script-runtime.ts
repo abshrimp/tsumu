@@ -122,14 +122,18 @@ export const SCRIPT_RUNTIME = `function (env) {
     /*#env*/
     touch(el);
     /*/env*/
+    var display =
+      /*#env*/
+      (env.showDisplay && env.showDisplay(el)) ||
+      /*/env*/
+      el.getAttribute("data-toggle-show");
+    if (display === "contents") {
+      el.style.display = "contents";
+      return;
+    }
     el.style.display = "";
     if (isHidden(el)) {
-      el.style.display =
-        /*#env*/
-        (env.showDisplay && env.showDisplay(el)) ||
-        /*/env*/
-        el.getAttribute("data-toggle-show") ||
-        "block";
+      el.style.display = display || "block";
     }
   }
   function hide(el) {
@@ -429,7 +433,9 @@ export const SCRIPT_RUNTIME = `function (env) {
           pageBody = body;
           pageSeeds = seedData;
           if (pageId !== null) {
-            vars = Object.create(null);
+            vars = typeof window !== "undefined" && window.__pageVars && typeof window.__pageVars === "object"
+              ? Object.assign(Object.create(null), window.__pageVars)
+              : Object.create(null);
             /*#load|inview*/
             if (changed) seen = new WeakSet();
             /*/load|inview*/
@@ -482,6 +488,14 @@ export const SCRIPT_RUNTIME = `function (env) {
       // 画面上の変数（ストレージから読み込んだ値・分解した配列など）
       var vars = initialVars && typeof initialVars === "object"
         ? Object.assign(Object.create(null), initialVars) : Object.create(null);
+      var setPageVars = null;
+      if (typeof window !== "undefined" && initialVars !== undefined) {
+        setPageVars = function (next) {
+          vars = next && typeof next === "object"
+            ? Object.assign(Object.create(null), next) : Object.create(null);
+        };
+        window.__siteSetPageVars = setPageVars;
+      }
       var missingVar = {};
       function getVar(name, missing) {
         var source = vars;
@@ -1478,6 +1492,9 @@ export const SCRIPT_RUNTIME = `function (env) {
           /*#scroll*/
           case "scroll-to": {
             var el = find(self, st.target)[0];
+            while (el && getComputedStyle(el).display === "contents" && el.firstElementChild) {
+              el = el.firstElementChild;
+            }
             if (el) el.scrollIntoView({ behavior: (${preferredScrollBehavior.toString()})(), block: "start" });
             break;
           }
@@ -2100,6 +2117,9 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*#live*/
         root.removeEventListener("input", onLiveInput);
         /*/live*/
+        if (typeof window !== "undefined" && setPageVars && window.__siteSetPageVars === setPageVars) {
+          delete window.__siteSetPageVars;
+        }
       };
     },
   };

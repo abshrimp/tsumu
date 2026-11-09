@@ -3757,6 +3757,19 @@ const ja: Dict = {
   "This version has too many files to restore in one request.": "この版はファイル数が多すぎるため、1回のリクエストで復元できません。",
   "Couldn't connect to GitLab. Check the server token and project permissions.": "GitLabに接続できませんでした。サーバーのトークンとプロジェクトの権限を確認してください。",
   "This repository is already used by another site": "このリポジトリはすでに別のサイトで使われています",
+  "You do not have permission to create a site in this Netlify team.": "このNetlifyチームでサイトを作成する権限がありません。",
+  "The Netlify project was not found. Retry to create a new project.": "Netlifyプロジェクトが見つかりませんでした。再試行して新しいプロジェクトを作成してください。",
+  "Editable data that contains credentials cannot be pushed to {provider}. Remove the API keys or passwords and manage them with server environment variables instead.": "認証情報を含む編集データは{provider}へ公開できません。APIキーやパスワードを取り除き、サーバーの環境変数で管理してください。",
+  "The publish includes a file path that isn't allowed: {paths}": "公開できないファイルパスが含まれています: {paths}",
+  "The site files exceed the static hosting size limit.": "サイトのファイルが静的ホスティングの容量上限を超えています。",
+  "The site has too many files to publish.": "ファイル数が多すぎるため公開できません。",
+  "Could not prepare the static site archive.": "静的サイトのアーカイブを作成できませんでした。",
+  "The exported site has no index.html.": "書き出したサイトに index.html がありません。",
+  "Editable project data and secret files must not be published.": "編集用のプロジェクトデータや機密ファイルは公開できません。",
+  "The publishing destination changed. Reopen the publish dialog.": "公開先が変更されました。公開ダイアログを開き直してください。",
+  "This deployment cannot be restored.": "この公開は復元できません。",
+  "Cloudflare Pages could not complete the request. Try again later.": "Cloudflare Pagesでリクエストを完了できませんでした。しばらくしてからやり直してください。",
+  "Loading screens are omitted from this framework format. Export to Next.js, React, or HTML.": "このフレームワーク形式ではローディング画面は出力されません。Next.js、React、またはHTMLで書き出してください。",
 };
 
 export default ja;

@@ -18,6 +18,8 @@ import {
   DOC_PATH, GENERATED_MANIFEST_PATH, conflictingCommitPaths, isProtectedPath,
   isSafeCommitPath, parseGeneratedManifest, planPublish,
 } from "../../../../lib/publish-files";
+import { isSafeBranch } from "../../../../lib/site-model";
+import type { Tr } from "../../../../lib/i18n-server";
 import type { PublishTarget } from "../../../../lib/generator";
 
 export const maxDuration = 60;
@@ -36,7 +38,7 @@ type Body = {
 
 class MissingAssetError extends Error {}
 
-async function assetBytes(siteId: string, asset: Asset): Promise<Uint8Array> {
+async function assetBytes(siteId: string, asset: Asset, tr: Tr): Promise<Uint8Array> {
   if (!isSafeCommitPath(asset.path) || isProtectedPath(asset.path) ||
       (asset.base64 === undefined) === (asset.source === undefined)) {
     throw new Error("Invalid asset reference");
@@ -52,12 +54,12 @@ async function assetBytes(siteId: string, asset: Asset): Promise<Uint8Array> {
     throw new Error("Invalid asset reference");
   }
   if (dbConfigured() && !await siteHasAsset(await getDb(), siteId, asset.source)) {
-    throw new MissingAssetError("Couldn't load asset: " + asset.path);
+    throw new MissingAssetError(tr("Couldn't load asset: {path}", { path: asset.path }));
   }
   const store = assetStore();
   if (!store) throw new Error("Asset storage isn't configured. Contact your administrator.");
   const data = await store.get(asset.source, { type: "arrayBuffer" });
-  if (!data) throw new MissingAssetError("Couldn't load asset: " + asset.path);
+  if (!data) throw new MissingAssetError(tr("Couldn't load asset: {path}", { path: asset.path }));
   return new Uint8Array(data);
 }
 
@@ -127,6 +129,13 @@ export async function POST(req: Request) {
           });
           production = await client.head(productionBranch);
           if (!init.ok && !production) await client.fail(tr("Initializing the repository"), init);
+        } else if (typeof project.default_branch === "string" && isSafeBranch(project.default_branch)) {
+          const createBranch = await client.request("/repository/branches", {
+            method: "POST",
+            body: JSON.stringify({ branch: productionBranch, ref: project.default_branch }),
+          });
+          production = await client.head(productionBranch);
+          if (!createBranch.ok && !production) await client.fail(tr("Creating the branch"), createBranch);
         }
       }
       if (target === "test" && !await client.head()) {
@@ -145,7 +154,7 @@ export async function POST(req: Request) {
     if (body.action === "upload") {
       const asset = { path: body.path, base64: body.base64, source: body.source };
       if (!assetObject(asset)) return NextResponse.json({ error: tr("Invalid asset reference") }, { status: 400 });
-      const bytes = await assetBytes(siteId, asset);
+      const bytes = await assetBytes(siteId, asset, tr);
       if (asset.path === DOC_PATH) {
         const invalid = validatePublishDocument(bytes, tr);
         if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
@@ -166,24 +175,33 @@ export async function POST(req: Request) {
     const files = body.files as Record<string, unknown>;
     const assets = body.assets as Asset[];
     const assetShas = body.assetShas as Record<string, unknown>;
-    const outputPaths = [...Object.keys(files), ...assets.map(asset => asset.path)];
+    const uploadedPaths = new Set(assets.map(asset => asset.path));
+    const outputPaths = [...Object.keys(files), ...Object.keys(assetShas)];
     if (outputPaths.length > MAX_ACTIONS || new Set(outputPaths).size !== outputPaths.length ||
+        uploadedPaths.size !== assets.length ||
         outputPaths.some(path => !isSafeCommitPath(path) || isProtectedPath(path)) ||
         Object.values(files).some(value => typeof value !== "string") ||
-        Object.keys(assetShas).length !== assets.length ||
-        Object.keys(assetShas).some(path => !isSha(assetShas[path]) || !assets.some(asset => asset.path === path))) {
+        assets.some(asset => !Object.hasOwn(assetShas, asset.path)) ||
+        Object.keys(assetShas).some(path => !isSha(assetShas[path]))) {
       return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 400 });
     }
     const actual: Record<string, { hash: string; content: string; encoding?: "base64" }> = Object.create(null);
+    const committedHashes: Record<string, string> = Object.create(null);
     for (const [path, text] of Object.entries(files)) {
       const content = text as string;
-      actual[path] = { hash: await gitlabBlobSha(new TextEncoder().encode(content)), content };
+      const hash = await gitlabBlobSha(new TextEncoder().encode(content));
+      actual[path] = { hash, content };
+      committedHashes[path] = hash;
     }
     for (const asset of assets) {
-      const bytes = await assetBytes(siteId, asset);
+      const bytes = await assetBytes(siteId, asset, tr);
       const hash = await gitlabBlobSha(bytes);
       if (assetShas[asset.path] !== hash) return conflict(tr, 400);
       actual[asset.path] = { hash, content: Buffer.from(bytes).toString("base64"), encoding: "base64" };
+      committedHashes[asset.path] = hash;
+    }
+    for (const [path, sha] of Object.entries(assetShas)) {
+      if (!Object.hasOwn(committedHashes, path)) committedHashes[path] = sha as string;
     }
     if (!Object.hasOwn(actual, DOC_PATH) || !Object.hasOwn(actual, GENERATED_MANIFEST_PATH)) {
       return NextResponse.json({ error: tr("Not an editor data file") }, { status: 400 });
@@ -197,12 +215,15 @@ export async function POST(req: Request) {
       ? Buffer.from(meta.content, "base64").toString("utf8") : meta.content);
     if (!generated || Object.keys(generated).length !== outputPaths.length - 1 ||
         Object.entries(generated).some(([path, sha]) =>
-          path === GENERATED_MANIFEST_PATH || !Object.hasOwn(actual, path) || actual[path].hash !== sha)) {
+          path === GENERATED_MANIFEST_PATH || !Object.hasOwn(committedHashes, path) || committedHashes[path] !== sha)) {
       return NextResponse.json({ error: tr("Publishing stopped because the generated file manifest is invalid.") }, { status: 400 });
     }
 
     const before = await client.snapshot();
     if (before.head !== body.expectedHead) return conflict(tr);
+    for (const [path, sha] of Object.entries(assetShas)) {
+      if (!uploadedPaths.has(path) && before.blobs[path] !== sha) return conflict(tr);
+    }
     const serverPlan = planPublish(before.blobs, before.generated, outputPaths);
     const expectedKept = body.keptPaths as string[];
     if (expectedKept.some(path => !Object.hasOwn(serverPlan.kept, path)) ||
@@ -217,7 +238,7 @@ export async function POST(req: Request) {
     }
     if (before.generated) {
       for (const path of Object.keys(before.generated)) {
-        if (!Object.hasOwn(actual, path) && Object.hasOwn(before.blobs, path)) {
+        if (!Object.hasOwn(committedHashes, path) && Object.hasOwn(before.blobs, path)) {
           if (isProtectedPath(path) || !isSafeCommitPath(path)) return conflict(tr);
           actions.push({ action: "delete", file_path: path });
         }
@@ -264,7 +285,7 @@ export async function POST(req: Request) {
       commitUrl: commitSha ? "https://gitlab.com/" + conf.repo + "/-/commit/" + commitSha : null, optionsSaved });
   } catch (error) {
     if (error instanceof MissingAssetError) {
-      return NextResponse.json({ error: tr(error.message), missing: true }, { status: 404 });
+      return NextResponse.json({ error: error.message, missing: true }, { status: 404 });
     }
     return NextResponse.json({ error: tr(userMessage(error, "Couldn't publish")) }, { status: 502 });
   }

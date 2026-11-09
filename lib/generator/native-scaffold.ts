@@ -181,18 +181,28 @@ function serverRequestSource(pages: ReturnType<typeof generateNativeFiles>["page
 
 function browserStarter(assetPaths: string[]): string {
   return [
-    "export async function startPage(vars, update) {",
+    "let loading;",
+    "export function syncPageVars(vars, update) {",
+    "  window.__pageVars = vars;",
     "  window.__pageDataReady = Promise.resolve(vars);",
-    "  window.__siteVarsOnChange = update;",
-    "  for (const src of " + json(assetPaths) + ") {",
-    "    await new Promise((resolve) => {",
-    '      const script = document.createElement("script");',
-    "      script.src = src;",
-    "      script.onload = resolve;",
-    "      script.onerror = resolve;",
-    "      document.body.appendChild(script);",
-    "    });",
-    "  }",
+    "  if (update) window.__siteVarsOnChange = update;",
+    '  if (typeof window.__siteSetPageVars === "function") window.__siteSetPageVars(vars);',
+    "}",
+    "export async function startPage(vars, update) {",
+    "  syncPageVars(vars, update);",
+    "  loading ??= (async () => {",
+    "    for (const src of " + json(assetPaths) + ") {",
+    "      if (document.querySelector('script[src=' + JSON.stringify(src) + ']')) continue;",
+    "      await new Promise((resolve) => {",
+    '        const script = document.createElement("script");',
+    "        script.src = src;",
+    "        script.onload = resolve;",
+    "        script.onerror = resolve;",
+    "        document.body.appendChild(script);",
+    "      });",
+    "    }",
+    "  })();",
+    "  await loading;",
     "}", "",
   ].join("\n");
 }
@@ -207,12 +217,13 @@ function vueApp(
 ): string {
   const isNuxt = framework === "nuxt";
   const rel = isNuxt ? "../generated/" : "./";
+  const typed = lang === "typescript";
   const js = [
-    '<script setup' + (lang === "typescript" ? ' lang="ts"' : "") + '>',
+    '<script setup' + (typed ? ' lang="ts"' : "") + '>',
     'import { ref, computed, watch, onMounted, nextTick } from "vue";',
     'import { pages, selectPage } from "' + rel + 'site-routes.js";',
     'import { loadPageData } from "' + rel + 'site-data.js";',
-    'import { startPage } from "' + rel + 'browser-start.js";',
+    'import { startPage, syncPageVars } from "' + rel + 'browser-start.js";',
     ...(isNuxt ? ['import { requestPublic } from "' + rel + 'server-request.js";'] : []),
     ...pages.map((page) => 'import ' + page.name + ' from "' + rel + 'pages/' + page.name + '.vue";'),
     ...(hasNotFound ? ['import NotFound from "' + rel + 'pages/NotFound.vue";'] : []),
@@ -240,10 +251,11 @@ function vueApp(
       "        requestLocal));",
       "    return { vars };",
       "  }, { default: () => ({ vars: {} }) });",
-      lang === "typescript"
+      typed
         ? "const vars = ref<Record<string, unknown>>(loaded.value?.vars || {});"
         : "const vars = ref(loaded.value?.vars || {});",
-      "watch(loaded, (next) => { vars.value = next?.vars || {}; });",
+      "const updateVars = (name" + (typed ? ": string" : "") + ", value" + (typed ? ": unknown" : "") + ") => { vars.value[name] = value; };",
+      'watch(loaded, (next) => { vars.value = next?.vars || {}; if (typeof window !== "undefined") syncPageVars(vars.value, updateVars); });',
       "useHead(() => ({",
       "  htmlAttrs: { lang: selected.value?.language || " + json(siteLanguage) + " },",
       "  title: selected.value ? selected.value.title + ' | ' + " + json(siteName) + " : " + json(siteName) + ",",
@@ -253,10 +265,11 @@ function vueApp(
     );
   } else {
     js.push(
-      lang === "typescript" ? 'const selected = ref<(typeof pages)[number] | null>(null);'
+      typed ? 'const selected = ref<(typeof pages)[number] | null>(null);'
         : 'const selected = ref(null);',
-      lang === "typescript" ? 'const vars = ref<Record<string, unknown>>({});'
+      typed ? 'const vars = ref<Record<string, unknown>>({});'
         : 'const vars = ref({});',
+      "const updateVars = (name" + (typed ? ": string" : "") + ", value" + (typed ? ": unknown" : "") + ") => { vars.value[name] = value; };",
     );
   }
   const fallbackAttr = pages.length ? " v-else" : "";
@@ -272,9 +285,7 @@ function vueApp(
       "  }",
     ] : []),
     "  await nextTick();",
-    "  await startPage(vars.value, (name" + (lang === "typescript" ? ": string" : "") + ", value" + (lang === "typescript" ? ": unknown" : "") + ") => {",
-    "    vars.value[name] = value;",
-    "  });",
+    "  await startPage(vars.value, updateVars);",
     "});",
     "</script>",
     "<template>",
@@ -295,21 +306,23 @@ function sveltePage(
   siteName: string,
   hasNotFound = false,
 ): string {
+  const typed = lang === "typescript";
   const fallbackBody = hasNotFound ? "<NotFound {scope} />" : "<h1>Not Found</h1>";
   return [
-    '<script' + (lang === "typescript" ? ' lang="ts"' : "") + '>',
+    '<script' + (typed ? ' lang="ts"' : "") + '>',
     'import { onMount } from "svelte";',
-    'import { startPage } from "$lib/browser-start.js";',
+    'import { startPage, syncPageVars } from "$lib/browser-start.js";',
     ...pages.map((page) => 'import ' + page.name + ' from "$lib/pages/' + page.name + '.svelte";'),
     ...(hasNotFound ? ['import NotFound from "$lib/pages/NotFound.svelte";'] : []),
-    lang === "typescript"
+    typed
       ? 'let { data }: { data: { id: string; vars: Record<string, unknown>; title: string; description: string; noindex: boolean; language: string } } = $props();'
       : "let { data } = $props();",
     'let scope = $state(data.vars || {});',
-    '$effect(() => { scope = { ...(data.vars || {}) }; });',
+    'const updateScope = (name' + (typed ? ': string' : '') + ', value' + (typed ? ': unknown' : '') + ') => { scope = { ...scope, [name]: value }; };',
+    '$effect.pre(() => { const next = { ...(data.vars || {}) }; scope = next; if (typeof window !== "undefined") syncPageVars(next, updateScope); });',
     '$effect(() => { document.documentElement.lang = data.language; });',
     'onMount(() => {',
-    '  void startPage(scope, (name, value) => { scope = { ...scope, [name]: value }; });',
+    '  void startPage(scope, updateScope);',
     '});',
     '</script>',
     '<svelte:head>',

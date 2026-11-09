@@ -14,6 +14,7 @@ import {
   confirmStaticRestore,
   StaticDeploymentHistoryView,
   StaticPublishDoneView,
+  staticPublishError,
   useStaticPublishChecks,
   yieldBeforeStaticBuild,
   type StaticDeploymentItem,
@@ -21,7 +22,7 @@ import {
 } from "./StaticPublishShared";
 import {
   readNetlifyAccount, saveNetlifyAccount,
-  readNetlifySite, saveNetlifySite, saveNetlifyProject, disconnectNetlifySite,
+  readNetlifySite, saveNetlifySite, saveNetlifyProject, clearNetlifyProject, disconnectNetlifySite,
   readNetlifyOAuthConfig, startNetlifyOAuth, requestNetlify,
   type BrowserNetlifyAccount, type BrowserNetlifySite,
 } from "../lib/browser-netlify";
@@ -37,9 +38,10 @@ type RemoteAccount = { user: { id: string; email: string }; teams: Team[] };
 type Phase = "loading" | "team" | "check" | "busy" | "done" | "error" | "history";
 type NetlifyPublishSubmitted = StaticPublishSubmitted & { projectName?: string };
 
-function netlifyConnectionError(cause: unknown): string {
+function netlifyError(cause: unknown, fallback: string): string {
   const message = cause instanceof Error ? cause.message : "";
-  if (message === "Netlify OAuth is not configured." || message === "Netlify publishing is disabled.") {
+  if (message === "Netlify OAuth is not configured." || message === "Netlify publishing is disabled." ||
+      message === "Configure NETLIFY_OAUTH_CLIENT_ID and NETLIFY_OAUTH_REDIRECT_URI.") {
     return tr("Netlify publishing is not configured. Ask the administrator to check the OAuth settings.");
   }
   if (message === "The registered Netlify callback URL does not match this Tsumu origin.") {
@@ -49,8 +51,17 @@ function netlifyConnectionError(cause: unknown): string {
     return tr("Browser storage is blocked. Allow site data and connect again.");
   }
   if (message.startsWith("Netlify authorization expired") || message === "Netlify authorization is required." ||
-      message.startsWith("Netlify authorization expired or does not permit")) {
+      message.startsWith("Netlify authorization expired or does not permit") ||
+      message === "Invalid Netlify access token.") {
     return tr("Your Netlify authorization has expired or lacks permission. Connect again.");
+  }
+  if (message === "You do not have permission to create a site in this Netlify team.") {
+    return tr("You do not have permission to create a site in this Netlify team.");
+  }
+  if (message === "Netlify project was not found." ||
+      message === "Netlify project does not belong to the selected team." ||
+      message === "Invalid Netlify project.") {
+    return tr("The Netlify project was not found. Retry to create a new project.");
   }
   if (message === "Netlify did not return a valid account." || message === "Netlify returned an invalid account.") {
     return tr("Netlify returned an invalid account.");
@@ -59,13 +70,14 @@ function netlifyConnectionError(cause: unknown): string {
     return tr("Netlify is temporarily limiting requests. Try again later.");
   }
   if (message.startsWith("Netlify request failed (HTTP ") || message === "Netlify request failed." ||
-      message === "Netlify unexpectedly redirected an API request.") {
+      message === "Netlify unexpectedly redirected an API request." ||
+      message === "Netlify deployment failed." || message === "Netlify operation failed." ||
+      message === "Netlify did not return a deployment ID." ||
+      message === "Netlify did not return a valid project URL." ||
+      message === "Netlify returned a project outside the selected team.") {
     return tr("Netlify could not complete the request. Try again later.");
   }
-  if (cause instanceof TypeError) {
-    return tr("Could not reach the publishing service. Check your network and retry.");
-  }
-  return userMessage(cause, tr("Couldn't connect Netlify."));
+  return staticPublishError(cause, fallback);
 }
 
 export default function NetlifyPublishModal({
@@ -160,7 +172,7 @@ export default function NetlifyPublishModal({
         }
       } catch (cause) {
         if (!alive) return;
-        setError(netlifyConnectionError(cause));
+        setError(netlifyError(cause, tr("Couldn't connect Netlify.")));
         setPhase("error");
       }
     })();
@@ -231,7 +243,14 @@ export default function NetlifyPublishModal({
       setResult(data as NetlifyPublishSubmitted);
       setPhase("done");
     } catch (cause) {
-      setError(userMessage(cause, tr("Couldn't publish")));
+      const msg = cause instanceof Error ? cause.message : "";
+      if (msg === "Netlify project was not found." ||
+          msg === "Netlify project does not belong to the selected team." ||
+          msg === "Invalid Netlify project.") {
+        clearNetlifyProject(conf.site, nextTarget);
+        setBinding(readNetlifySite(conf.site));
+      }
+      setError(netlifyError(cause, tr("Couldn't publish")));
       setPhase("error");
     }
   };
@@ -254,7 +273,7 @@ export default function NetlifyPublishModal({
       setHistory(data.deployments);
     } catch (cause) {
       if (historyRequestRef.current !== requestId) return;
-      setError(userMessage(cause, tr("Couldn't load publish history")));
+      setError(netlifyError(cause, tr("Couldn't load publish history")));
     }
   };
 
@@ -272,7 +291,7 @@ export default function NetlifyPublishModal({
       });
       await openHistory(target);
     } catch (cause) {
-      setError(userMessage(cause, tr("Couldn't roll back")));
+      setError(netlifyError(cause, tr("Couldn't roll back")));
     } finally {
       setRestoring(null);
     }
@@ -300,7 +319,7 @@ export default function NetlifyPublishModal({
       // A cancelled sign-in must not discard the previous browser connection.
       await beginLogin();
     } catch (cause) {
-      setError(netlifyConnectionError(cause));
+      setError(netlifyError(cause, tr("Couldn't connect Netlify.")));
       setPhase("error");
     }
   };
@@ -418,11 +437,19 @@ export default function NetlifyPublishModal({
             </div>
             <div className="modal-actions netlify-pub-error-actions">
               <button className="btn" onClick={onClose}>{tr("Close")}</button>
-              {account && binding && <button className="btn" onClick={() => setPhase("check")}>{tr("Back")}</button>}
-              {readNetlifyAccount() && (
-                <button className="btn" onClick={retryConnection}>{tr("Retry")}</button>
+              {account && binding ? (
+                <>
+                  <button className="btn" onClick={() => setPhase("check")}>{tr("Back")}</button>
+                  <button className="btn btn-primary" onClick={() => void publish(target)}>{tr("Retry")}</button>
+                </>
+              ) : (
+                <>
+                  {readNetlifyAccount() && (
+                    <button className="btn" onClick={retryConnection}>{tr("Retry")}</button>
+                  )}
+                  <button className="btn btn-primary" onClick={() => void reconnect()}>{tr("Connect Netlify")}</button>
+                </>
               )}
-              <button className="btn btn-primary" onClick={() => void reconnect()}>{tr("Connect Netlify")}</button>
             </div>
           </>
         )}

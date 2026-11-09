@@ -3467,5 +3467,134 @@ test("exported projects emit sandboxed Content-Security-Policy headers for SVG a
     assert.match(preview.files[headersPath] ?? "", /\/assets\/\*\.svg[\s\S]*?sandbox/);
   }
 });
+
+test("native framework exports guard loading screens, scope list data-item fields, and preserve instance contents", async () => {
+  const doc = createInitialDoc();
+  doc.loadingScreen = { enabled: true, preset: "spinner", minDurationMs: 400 };
+  for (const fw of ["vue", "nuxt", "sveltekit"] as const) {
+    assert.ok(exportLimitations(doc, { framework: fw, language: "typescript", style: "css", scope: "project" })
+      .some((msg) => msg.includes("Loading screens") || msg.includes("ローディング")));
+  }
+  for (const fw of ["nextjs", "react", "html"] as const) {
+    assert.equal(exportLimitations(doc, { framework: fw, language: "typescript", style: "css", scope: "project" })
+      .some((msg) => msg.includes("Loading screens") || msg.includes("ローディング")), false);
+  }
+
+  const cssModDoc = createInitialDoc();
+  cssModDoc.siteName = "My </script></body>\u2028 Site";
+  cssModDoc.customHeadHtml = '<meta name="note" content="literal </body> attr">';
+  cssModDoc.customBodyEndHtml = '<div data-note="literal </body> text">ok</div>';
+  const cssModLayout = generateExportProject(cssModDoc, {
+    framework: "nextjs", language: "typescript", style: "css-modules", scope: "project",
+  }).files["app/layout.tsx"];
+  assert.match(cssModLayout, /My \\u003c\/script\\u003e\\u003c\/body\\u003e\\u2028 Site/);
+  assert.match(cssModLayout, /content="literal &lt;\/body&gt; attr"/);
+  assert.match(cssModLayout, /literal \\u003c\/body\\u003e text/);
+  assert.match(cssModLayout, /\n        <\/div>\n      <\/body>\n    <\/html>/);
+
+  const listDoc: SiteDoc = {
+    siteName: "Native parity", assets: {}, pageOrder: ["p"],
+    components: { card: { id: "card", name: "Card", rootId: "cardRoot" } },
+    pages: { p: { id: "p", name: "Home", title: "Home", description: "", slug: "", children: ["btn", "inst", "filteredList", "plainList"] } },
+    nodes: {
+      cardRoot: { ...makeBox(), id: "cardRoot", text: { content: "Card", heading: 0 } },
+      inst: { ...makeBox(), id: "inst", attrId: "inst", type: "instance", componentId: "card" },
+      btn: {
+        ...makeBox(), id: "btn", attrId: "btn", semantic: "button",
+        scripts: [{
+          id: "s1", trigger: "click", steps: [
+            { id: "t1", kind: "toggle", target: "inst" },
+            { id: "sc1", kind: "scroll-to", target: "inst" },
+            { id: "f1", kind: "list-display", mode: "filter", array: "items", field: "rank", op: "gte", value: "2", dir: "asc" },
+          ],
+        }],
+      },
+      filteredList: { ...makeBox(), id: "filteredList", type: "list", list: { from: "items" }, children: ["itemLabel"] },
+      itemLabel: { ...makeBox(), id: "itemLabel", text: { content: "{name}", heading: 0 } },
+      plainList: { ...makeBox(), id: "plainList", type: "list", list: { from: "other" }, children: [] },
+    },
+  };
+  for (const fw of ["vue", "sveltekit"] as const) {
+    const files = generateExportProject(listDoc, fw).files;
+    const pageSource = files[nativePagePath(fw)];
+    assert.match(pageSource, /id="inst"[^>]*data-toggle-show="contents"/);
+    assert.equal((pageSource.match(/serializeListItem\(/g) ?? []).length, 1);
+    assert.equal((pageSource.match(/data-item/g) ?? []).length, 1);
+    const dataSource = files[(fw === "vue" ? "src/" : "src/lib/") + "site-data.js"];
+    const dataMod = await import("data:text/javascript;base64," + Buffer.from(dataSource).toString("base64"));
+    assert.equal(dataMod.serializeListItem({ rank: 3, secret: "hidden" }, ["rank"]), '{"rank":3}');
+  }
+
+  let scrolledTag = "";
+  const childEl = { nodeType: 1, tagName: "DIV", firstElementChild: null, scrollIntoView: () => { scrolledTag = "CHILD"; } };
+  const wrapperEl: Record<string, any> = {
+    nodeType: 1, id: "inst", tagName: "DIV", style: { display: "none" }, firstElementChild: childEl,
+    getAttribute: (k: string) => k === "data-toggle-show" ? "contents" : null,
+    matches: () => false, querySelector: () => null, closest: () => null,
+    scrollIntoView: () => { scrolledTag = "WRAPPER"; },
+  };
+  const btnEl: Record<string, any> = {
+    nodeType: 1, id: "btn", tagName: "BUTTON", style: {},
+    getAttribute: (k: string) => k === "data-scripts" ? JSON.stringify([{
+      id: "s1", trigger: "click", steps: [
+        { id: "t1", kind: "show", target: "inst" },
+        { id: "sc1", kind: "scroll-to", target: "inst" },
+      ],
+    }]) : null,
+    matches: () => false, closest: (sel: string) => sel === "[data-scripts]" ? btnEl : null,
+  };
+  let onClick: ((ev: any) => void) | undefined;
+  const docStub = {
+    querySelector: () => null,
+    querySelectorAll: (sel: string) => sel === "#inst" ? [wrapperEl] : [],
+    addEventListener: (ev: string, fn: (e: any) => void, cap?: boolean) => { if (ev === "click" && !cap) onClick = fn; },
+    removeEventListener() {},
+    contains: () => true,
+  };
+  runInNewContext(generateExportProject(listDoc, "html").files["scripts.js"], {
+    window: { matchMedia: () => ({ matches: false }) },
+    document: docStub,
+    getComputedStyle: (el: any) => ({ display: el.style?.display || "block" }),
+    CSS: { escape: (s: string) => s },
+    MutationObserver: class { observe() {} disconnect() {} },
+    requestAnimationFrame() {}, setTimeout, clearTimeout,
+  });
+  await Promise.resolve();
+  onClick?.({ target: btnEl, defaultPrevented: false, button: 0, metaKey: false, ctrlKey: false, shiftKey: false, altKey: false });
+  assert.equal(wrapperEl.style.display, "contents");
+  assert.equal(scrolledTag, "CHILD");
 });
+
+test("native browser-start deduplicates script tags and syncs SPA page vars into script-runtime", async () => {
+  const doc = createInitialDoc();
+  const vue = generateExportProject(doc, "nuxt");
+  const starterSource = vue.files["app/generated/browser-start.js"];
+  const appended: string[] = [];
+  const win: Record<string, any> = {};
+  const docStub = {
+    querySelector: (sel: string) => appended.some((src) => sel === `script[src=${JSON.stringify(src)}]`) ? {} : null,
+    createElement: () => {
+      const el: Record<string, any> = {};
+      return el;
+    },
+    body: {
+      appendChild: (el: Record<string, any>) => {
+        appended.push(el.src);
+        el.onload?.();
+      },
+    },
+  };
+  const cjs = transformSync(starterSource, { format: "cjs" }).code;
+  const mod = { exports: {} as any };
+  runInNewContext(cjs, { module: mod, exports: mod.exports, window: win, document: docStub, Promise });
+  let updated = 0;
+  win.__siteSetPageVars = () => { updated++; };
+  await mod.exports.startPage({ q: "first" }, () => {});
+  await mod.exports.startPage({ q: "second" }, () => {});
+  assert.deepEqual(appended, ["/scripts.js"]);
+  assert.deepEqual(win.__pageVars, { q: "second" });
+  assert.equal(updated, 2);
+});
+});
+
 

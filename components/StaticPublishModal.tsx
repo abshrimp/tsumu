@@ -6,7 +6,6 @@ import { docFingerprint, useEditor } from "../lib/store";
 import { buildStaticPublishZip } from "../lib/static-publish-zip";
 import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { tr } from "../lib/i18n";
-import { userMessage } from "../lib/errors";
 import type { PublishTarget } from "../lib/generator";
 import type { StaticPublishProvider } from "../lib/publish-provider";
 import { CheckList, docWithSvgFilters } from "./PublishShared";
@@ -14,6 +13,7 @@ import {
   confirmStaticRestore,
   StaticDeploymentHistoryView,
   StaticPublishDoneView,
+  staticPublishError,
   useStaticPublishChecks,
   yieldBeforeStaticBuild,
   type StaticDeploymentItem,
@@ -84,7 +84,7 @@ export default function StaticPublishModal({
       setHistory(data.deployments as StaticDeploymentItem[]);
     } catch (cause) {
       if (historyRequestRef.current !== requestId) return;
-      setHistoryError(userMessage(cause, tr("Couldn't load publish history")));
+      setHistoryError(staticPublishError(cause, tr("Couldn't load publish history")));
     }
   }, [conf.site, conf.provider]);
 
@@ -126,7 +126,7 @@ export default function StaticPublishModal({
       setResult(data as PublishResult);
       setPhase("done");
     } catch (cause) {
-      setError(userMessage(cause, tr("Couldn't publish")));
+      setError(staticPublishError(cause, tr("Couldn't publish")));
       setPhase("error");
     }
   };
@@ -148,7 +148,7 @@ export default function StaticPublishModal({
       if (!response.ok) throw new Error(data?.error ?? tr("Couldn't roll back"));
       await loadHistory(historyTarget);
     } catch (cause) {
-      setHistoryError(userMessage(cause, tr("Couldn't roll back")));
+      setHistoryError(staticPublishError(cause, tr("Couldn't roll back")));
     } finally {
       setRestoring(null);
     }

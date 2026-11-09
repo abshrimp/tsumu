@@ -137,3 +137,193 @@ test("GitLab client rejects encoded traversal paths and non-gitlab.com commit we
   }
 });
 
+test("GitLab publish creates missing live branch on non-empty repos and reuses unchanged same-path assets", async () => {
+  const { load } = await import("./helpers/document-generation-api");
+  const { createInitialDoc } = await import("../lib/presets");
+  const { DOC_PATH } = await import("../lib/publish-files");
+  class StubNextResponse extends Response {
+    static json(value: unknown, init?: ResponseInit) { return new StubNextResponse(JSON.stringify(value), init); }
+  }
+  const savedToken = process.env.GITLAB_TOKEN;
+  const savedProvider = process.env.PUBLISH_PROVIDER;
+  const previousFetch = globalThis.fetch;
+  process.env.GITLAB_TOKEN = "glpat-test";
+  process.env.PUBLISH_PROVIDER = "github";
+  const docJson = JSON.stringify(createInitialDoc());
+  const docSha = await gitlabBlobSha(new TextEncoder().encode(docJson));
+  const logoBytes = new TextEncoder().encode("logo-bytes");
+  const logoSha = await gitlabBlobSha(logoBytes);
+  const dest = { gitProvider: "gitlab" as const, repo: "group/project", branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null };
+  const route = load("../../app/api/publish/gitlab/route.ts", {
+    "next/server": { NextResponse: StubNextResponse },
+    "../../../../lib/i18n-server": { serverTr: async () => tr },
+    "../../../../lib/server": { requireAuth: async () => null, recordPublish: async () => {} },
+    "../../../../lib/site-access": { requireSiteAccess: async () => null },
+    "../../../../lib/site-server": { siteIdOf: () => "site1", siteDestOf: async () => dest },
+    "../../../../lib/db": { dbConfigured: () => false, getDb: async () => { throw new Error("unused"); } },
+    "../../../../lib/publish-preferences": {
+      parsePublishedExportOptions: () => ({ framework: "html", language: "javascript", style: "css" }),
+      savePublishedExportOptions: async () => {},
+    },
+  }) as { POST: (req: Request) => Promise<Response> };
+
+  try {
+    let branchCreated = false;
+    let lastCommitActions: Array<{ action: string; file_path: string }> = [];
+    globalThis.fetch = async (url, init) => {
+      const u = String(url);
+      const method = init?.method ?? "GET";
+      if (u.endsWith("/repository/branches/main") && method === "GET") {
+        return branchCreated ? Response.json({ commit: { id: sha } }) : new Response("{}", { status: 404 });
+      }
+      if (u.endsWith("/projects/group%2Fproject") && method === "GET") {
+        return Response.json({ empty_repo: false, default_branch: "trunk" });
+      }
+      if (u.endsWith("/repository/branches") && method === "POST") {
+        const b = JSON.parse(String(init?.body ?? "{}")) as { branch: string; ref: string };
+        assert.deepEqual(b, { branch: "main", ref: "trunk" });
+        branchCreated = true;
+        return Response.json({ name: "main", commit: { id: sha } }, { status: 201 });
+      }
+      if (u.includes("/repository/tree?")) {
+        return Response.json(branchCreated ? [
+          { path: "public/logo.png", id: logoSha, type: "blob" },
+          { path: GENERATED_MANIFEST_PATH, id: manifestSha, type: "blob" },
+        ] : []);
+      }
+      if (u.endsWith("/repository/blobs/" + manifestSha + "/raw")) {
+        return new Response(serializeGeneratedManifest({ "public/logo.png": logoSha, [DOC_PATH]: docSha }));
+      }
+      if (u.endsWith("/repository/commits") && method === "POST") {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { actions: Array<{ action: string; file_path: string }> };
+        lastCommitActions = body.actions;
+        return Response.json({ id: "c".repeat(40), web_url: "https://gitlab.com/group/project/-/commit/" + "c".repeat(40) }, { status: 201 });
+      }
+      throw new Error(`Unexpected GitLab API call: ${method} ${u}`);
+    };
+
+    const expected = { site: "site1", provider: "gitlab", target: "production", repo: "group/project", branch: "main", productionBranch: "main" };
+    const prepRes = await route.POST(new Request("http://localhost/api/publish/gitlab", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "tree", site: "site1", target: "production", expected }),
+    }));
+    assert.equal(prepRes.status, 200);
+    assert.equal(branchCreated, true);
+
+    const manifest = serializeGeneratedManifest({ "public/logo.png": logoSha, [DOC_PATH]: docSha });
+    const res = await route.POST(new Request("http://localhost/api/publish/gitlab", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        action: "commit",
+        site: "site1",
+        target: "production",
+        expected,
+        expectedHead: sha,
+        keptPaths: [],
+        exportOptions: { framework: "html", language: "javascript", style: "css" },
+        files: { [DOC_PATH]: docJson, [GENERATED_MANIFEST_PATH]: manifest },
+        assets: [],
+        assetShas: { "public/logo.png": logoSha },
+      }),
+    }));
+    assert.equal(res.status, 200);
+    assert.equal(lastCommitActions.some((a) => a.file_path === "public/logo.png"), false);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (savedToken === undefined) delete process.env.GITLAB_TOKEN;
+    else process.env.GITLAB_TOKEN = savedToken;
+    if (savedProvider === undefined) delete process.env.PUBLISH_PROVIDER;
+    else process.env.PUBLISH_PROVIDER = savedProvider;
+  }
+});
+
+test("GitLab rollback caps changed blob fetches rather than total unchanged site files", async () => {
+  const { load } = await import("./helpers/document-generation-api");
+  const { createInitialDoc } = await import("../lib/presets");
+  const { DOC_PATH } = await import("../lib/publish-files");
+  class StubNextResponse extends Response {
+    static json(value: unknown, init?: ResponseInit) { return new StubNextResponse(JSON.stringify(value), init); }
+  }
+  const savedToken = process.env.GITLAB_TOKEN;
+  const savedProvider = process.env.PUBLISH_PROVIDER;
+  const previousFetch = globalThis.fetch;
+  process.env.GITLAB_TOKEN = "glpat-test";
+  process.env.PUBLISH_PROVIDER = "github";
+  const docJson = JSON.stringify(createInitialDoc());
+  const docSha = await gitlabBlobSha(new TextEncoder().encode(docJson));
+  const oldPageSha = "1".repeat(40);
+  const curPageSha = "2".repeat(40);
+  const curHead = "3".repeat(40);
+  const chosenHead = "4".repeat(40);
+  const curManifestSha = "5".repeat(40);
+  const chosenManifestSha = "6".repeat(40);
+  const unchanged: Record<string, string> = {};
+  for (let i = 1; i <= 45; i++) unchanged[`p${i}.html`] = sha;
+  const curGenerated = { ...unchanged, "p0.html": curPageSha, [DOC_PATH]: docSha };
+  const chosenGenerated = { ...unchanged, "p0.html": oldPageSha, "missing.html": "7".repeat(40), [DOC_PATH]: docSha };
+  const dest = { gitProvider: "gitlab" as const, repo: "group/project", branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null };
+  const route = load("../../app/api/publish/gitlab/history/route.ts", {
+    "next/server": { NextResponse: StubNextResponse },
+    "../../../../../lib/i18n-server": { serverTr: async () => tr },
+    "../../../../../lib/server": { requireAuth: async () => null, recordPublish: async () => {} },
+    "../../../../../lib/site-access": { requireSiteAccess: async () => null },
+    "../../../../../lib/site-server": { siteIdOf: () => "site1", siteDestOf: async () => dest, destParam: () => null },
+  }) as { POST: (req: Request) => Promise<Response> };
+
+  try {
+    let rawFetches = 0;
+    globalThis.fetch = async (url, init) => {
+      const u = String(url);
+      const method = init?.method ?? "GET";
+      if (u.endsWith("/repository/branches/main")) return Response.json({ commit: { id: curHead } });
+      if (u.includes("/repository/commits?")) return Response.json([
+        { id: curHead, message: "Current", committed_date: "2026-01-02T00:00:00Z" },
+        { id: chosenHead, message: "Previous", committed_date: "2026-01-01T00:00:00Z" },
+      ]);
+      if (u.includes("/repository/commits/" + chosenHead)) return Response.json({ id: chosenHead });
+      if (u.includes("/repository/tree?")) {
+        const isChosen = u.includes("ref=" + chosenHead);
+        const pageSha = isChosen ? oldPageSha : curPageSha;
+        const mSha = isChosen ? chosenManifestSha : curManifestSha;
+        return Response.json([
+          ...Object.entries(unchanged).map(([path, id]) => ({ path, id, type: "blob" })),
+          { path: "p0.html", id: pageSha, type: "blob" },
+          { path: DOC_PATH, id: docSha, type: "blob" },
+          { path: GENERATED_MANIFEST_PATH, id: mSha, type: "blob" },
+        ]);
+      }
+      if (u.endsWith("/repository/blobs/" + curManifestSha + "/raw")) return new Response(serializeGeneratedManifest(curGenerated));
+      if (u.endsWith("/repository/blobs/" + chosenManifestSha + "/raw")) return new Response(serializeGeneratedManifest(chosenGenerated));
+      if (u.endsWith("/repository/blobs/" + docSha + "/raw")) { rawFetches++; return new Response(docJson); }
+      if (u.endsWith("/repository/blobs/" + oldPageSha + "/raw")) { rawFetches++; return new Response("<h1>old</h1>"); }
+      if (u.endsWith("/repository/commits") && method === "POST") {
+        return Response.json({ id: "8".repeat(40), web_url: "https://gitlab.com/group/project/-/commit/" + "8".repeat(40) }, { status: 201 });
+      }
+      throw new Error(`Unexpected GitLab API call: ${method} ${u}`);
+    };
+
+    const res = await route.POST(new Request("http://localhost/api/publish/gitlab/history", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        site: "site1",
+        sha: chosenHead,
+        expectedHead: curHead,
+        target: "production",
+        expected: { site: "site1", provider: "gitlab", target: "production", repo: "group/project", branch: "main", productionBranch: "main" },
+      }),
+    }));
+    assert.equal(res.status, 200);
+    assert.equal(rawFetches, 2);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (savedToken === undefined) delete process.env.GITLAB_TOKEN;
+    else process.env.GITLAB_TOKEN = savedToken;
+    if (savedProvider === undefined) delete process.env.PUBLISH_PROVIDER;
+    else process.env.PUBLISH_PROVIDER = savedProvider;
+  }
+});
+
+

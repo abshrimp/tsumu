@@ -274,7 +274,7 @@ export default function Header({
           event.altKey || event.key.toLowerCase() !== "f" || event.isComposing) return;
       const target = event.target as HTMLElement | null;
       if (target?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target?.tagName ?? "")) return;
-      if (document.querySelector(".se-backdrop, .modal-backdrop, .dialog-backdrop")) return;
+      if (document.querySelector(".se-backdrop:not(.is-leaving), .modal-backdrop:not(.is-leaving), .dialog-backdrop:not(.is-leaving)")) return;
       event.preventDefault();
       closeHelp();
       setSearchOpen(true);

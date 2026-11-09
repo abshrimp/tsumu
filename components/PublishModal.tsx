@@ -304,7 +304,7 @@ export default function PublishModal({
     try {
       const target = await docWithSvgFilters(doc);
       if (hasPublishCredentials(target)) {
-        throw new Error(gitText("Editable data that contains credentials cannot be pushed to GitHub. Remove the API keys or passwords and manage them with server environment variables instead."));
+        throw new Error(tr("Editable data that contains credentials cannot be pushed to {provider}. Remove the API keys or passwords and manage them with server environment variables instead.", { provider: gitLabel }));
       }
       const { files, binaries, remoteAssets } = await prepareExportProject(target, options, site);
       // 編集データも一緒に含める（バックアップを兼ね、履歴から編集内容を戻すときに使う）
@@ -350,7 +350,7 @@ export default function PublishModal({
       const plan = planPublish(existing.blobs, existing.generated, outputPaths);
       const incompatiblePaths = conflictingCommitPaths([...outputPaths, ...Object.keys(plan.kept)]);
       if (incompatiblePaths) {
-        throw new Error(`${tr("The publish includes a file path that isn't allowed")}: ${incompatiblePaths.join(" / ")}`);
+        throw new Error(tr("The publish includes a file path that isn't allowed: {paths}", { paths: incompatiblePaths.join(" / ") }));
       }
       const overwritten = [...plan.edited, ...plan.clashing];
       if (overwritten.length && !(await confirmOverwrite(overwritten, targets.provider === "gitlab" ? "gitlab" : "github"))) {
@@ -367,7 +367,10 @@ export default function PublishModal({
           asset.base64 !== undefined
             ? await gitBlobSha(asset.base64)
             : existing.manifest[asset.source!];
-        if (targets.provider !== "gitlab" && sha && knownShas.has(sha)) {
+        const canReuse = sha && (targets.provider === "gitlab"
+          ? asset.path !== DOC_PATH && existing.blobs[asset.path] === sha
+          : knownShas.has(sha));
+        if (canReuse) {
           assetShas[asset.path] = sha;
           if (asset.source !== undefined) manifest[asset.source] = sha;
         } else {
@@ -383,11 +386,12 @@ export default function PublishModal({
       // just before the final tree/commit requests. Keep the first upload immediate.
       let nextUploadAt = 0;
       let uploadGate: Promise<void> = Promise.resolve();
+      const uploadIntervalMs = targets.provider === "gitlab" ? 0 : UPLOAD_START_INTERVAL_MS;
       const reserveUploadSlot = (): Promise<void> => {
         const turn = uploadGate.then(async () => {
           const delay = Math.max(0, nextUploadAt - Date.now());
           if (delay > 0) await new Promise<void>(resolve => setTimeout(resolve, delay));
-          nextUploadAt = Date.now() + UPLOAD_START_INTERVAL_MS;
+          nextUploadAt = Date.now() + uploadIntervalMs;
         });
         uploadGate = turn;
         return turn;
