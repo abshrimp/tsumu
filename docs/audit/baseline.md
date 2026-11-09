@@ -82,7 +82,9 @@ Set `GITHUB_TOKEN` in the environment for authenticated API limits if needed. Th
 | Initial source inventory and provisional ownership | **Recorded**, for inventory SHA only |
 | Full A–I review coverage | Not verified |
 | Initial open PR overlap | To be continuously checked on current open PRs |
-| Current main CI, CodeQL and dependency findings | Not verified here |
+| Captured main SHA CI/CodeQL check runs | **13 of 13 completed successfully** at `4cd04c23137e11afce7d7c43f0e06a52815de38e`; this does not establish zero outstanding alerts |
+| Current main after future merges | Not verified until SHA is rechecked |
+| Code scanning alert backlog and dependency alerts | Not verified; a successful CodeQL job is not proof of no findings |
 | A–I individual regression verification | Not verified |
 | J independent adversarial review | Not verified |
 | Final integrated-head CI/E2E/generated build and SSR | Not verified |
