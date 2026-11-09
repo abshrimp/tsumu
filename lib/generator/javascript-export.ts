@@ -71,13 +71,15 @@ export async function toJavaScriptProject(
         const node = pending.pop()!;
         if ("tagName" in node && node.tagName === "script" &&
           node.namespaceURI === "http://www.w3.org/1999/xhtml" &&
-          node.attrs.some(attr => attr.name === "type" && attr.value === "module")) {
+          node.attrs.some(attr => attr.name === "type" && attr.value === "module") &&
+          !node.attrs.some(attr => attr.name === "vite-ignore")) {
           const src = node.attrs.find(attr => attr.name === "src")?.value;
           const location = node.sourceCodeLocation?.attrs?.src;
           // Every executable reference follows the renamed file. Comments,
           // script bodies and inert template content are never rewritten.
           // Vite のローカル入力は index.html 基準で解決され、base 要素の影響を受けない。
           // パスの表記とクエリ・フラグメントは維持し、外部URLには触れない。
+          // vite-ignore の参照はVite入力ではないため、ブラウザーに元のURLを渡す。
           if (location && src && /^(?:\/|\.\/)?src\/main\.tsx(?:[?#]|$)/.test(src)) {
             entries.push({ ...location, src: src.replace(/\.tsx(?=[?#]|$)/, ".jsx") });
           }

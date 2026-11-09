@@ -102,3 +102,18 @@ for (const href of ["/", "/nested/", "https://cdn.example/app/"]) {
     assert.ok(output.files["index.html"].includes('src="/src/main.jsx"'));
   });
 }
+
+for (const src of ["/src/main.tsx", "./src/main.tsx", "src/main.tsx?v=1#boot"]) {
+  test(`React JavaScript entry rewrite preserves browser-resolved vite-ignore URL ${src}`, async () => {
+    const head = '<base href="https://cdn.example/app/">' +
+      `<script type="module" vite-ignore src="${src}"></script>`;
+    const source = generateExportProject({
+      siteName: "Export", customHeadHtml: head,
+      pages: { home: { id: "home", name: "Home", slug: "", title: "Home", description: "", children: [] } },
+      pageOrder: ["home"], nodes: {}, assets: {},
+    }, "react");
+    const output = await toJavaScriptProject(source, "react");
+    assert.ok(output.files["index.html"].includes(head));
+    assert.ok(output.files["index.html"].includes('src="/src/main.jsx"'));
+  });
+}
