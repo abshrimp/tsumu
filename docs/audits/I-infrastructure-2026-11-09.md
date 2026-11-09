@@ -27,6 +27,7 @@
 | AUD-I-013 | Low | CIのnpxコマンドが、バイナリ不足時に意図しないパッケージ取得を実行し得た。 | Playwright/Next/OpenNext起動に--no-installを付け、意図しない外部取得を防止。 |
 | AUD-I-014 | Medium | 本番deploy引数の拒否一覧がWranglerの--cwd、--env-file、--profile、--route、--assets等を許し、設定確認後の対象・環境・公開経路を変える余地が残っていた。 | 対象・環境・公開経路を上書きする追加オプションと引数区切り--を拒否。既存の--dry-runは保持し、拒否テストを拡充。 |
 | AUD-I-015 | Low（テスト不足） | DockerのNext.js standalone成果物が実際に起動できるか、非root実行ユーザー、/dataボリューム、HTTPの正常応答が静的テストだけでは証明できなかった。 | 既存の必須CI checkジョブ内にDocker image build・非root UID・/data volume・HTTPスモーク試験を追加。独立ジョブは増やさない。 |
+| AUD-I-016 | High（ベースイメージ由来・成立条件は未検証） | 固定したNode 26.12.1-slimイメージのDebian Trixie zlib1gは、DSA-6613-1の修正前バージョンを含む。CVE-2026-85091などのOSライブラリ脆弱性が残存する。 | Dockerランタイム段階のみaptでzlib1gをセキュリティ更新し、CIのDocker smokeで修正バージョン以上であることを確認する。Node・イメージのdigest固定は維持。 |
 
 重要度は成立条件が設定ミスやサプライチェーンに依存することを考慮した暫定評価。Critical/Highが不存在であるとの判定ではない。
 
@@ -116,3 +117,5 @@ docker build -t tsumu-audit-i .
 - Docker Hubの`node:26.12.1-slim`（index digest `sha256:36793bcbb160a6a16cede1e62b93f84e26b78a972a8a4c0b879c1c12f22761ec`）にはスキャナ上High判定のOS/npmパッケージ脆弱性が残る。Dockerイメージの固定は脆弱性解消を意味しない。実際のTsumuへの到達可能性と修正可能なOSパッケージの検証はR-I-003として継続。https://hub.docker.com/layers/library/node/26.12.1-slim/images/sha256-80eccfd7e3fa8663c84881efb6b28c7411672a337aec1769f0fb9e3adc4a4d8b
 
 - CI必須 `check` 内で、Dockerを実際にビルドし、UID 1000の非rootプロセス、`/data`ボリューム、`/robots.txt` HTTP応答を検証するステップを追加した。新コミットでの実行成功確認前にはDocker動作検証済みと判断しない。マルチアーキテクチャ起動とOS CVEスキャンは引き続きR-I-003。
+
+- Debian Security Advisory DSA-6613-1（2026-11-07）により、Trixie の `zlib1g` 修正版 `1:1.3.dfsg+really1.3.1-1+deb13u1` が提供されている。Dockerの最終ランタイム段階で `zlib1g` だけをアップグレードし、CIでそのバージョン以上を要求した（AUD-I-016）。参照: https://lists.debian.org/debian-security-announce/2026/msg00532.html 、https://security-tracker.debian.org/tracker/CVE-2026-85091 。実際のCI成功までは完了扱いにしない。npm由来の他のOSイメージ警告の実行時到達可能性も別途精査が必要。

@@ -35,6 +35,7 @@ test("CI checks pull requests without path skips, dependencies, workers and all 
   assert.ok(requiredCheck.includes("docker build --tag tsumu:ci ."));
   assert.ok(requiredCheck.includes("docker run --detach --name tsumu-ci"));
   assert.ok(requiredCheck.includes("docker exec tsumu-ci id -u"));
+  assert.ok(requiredCheck.includes('dpkg --compare-versions "$zlib_version" ge "1:1.3.dfsg+really1.3.1-1+deb13u1"'));
   assert.ok(requiredCheck.includes("http://127.0.0.1:3188/robots.txt"));
   assert.match(workflow, /shard: \[1, 2, 3, 4\]/);
   assert.match(workflow, /framework: \[nextjs, react, vue, nuxt, sveltekit\]/);
@@ -55,6 +56,7 @@ test("Docker runtime is non-root and local credentials are excluded from the bui
   assert.equal(imageRefs[0][2], imageRefs[1][2]);
   assert.match(dockerfile, /^COPY --from=build --chown=node:node \/app\/\.next\/standalone \.\/$/m);
   assert.match(dockerfile, /^COPY --from=build --chown=node:node \/app\/\.next\/static \.\/\.next\/static$/m);
+  assert.match(dockerfile, /apt-get install -y --no-install-recommends --only-upgrade zlib1g/);
   assert.match(dockerfile, /^USER node$/m);
   assert.match(dockerfile, /^VOLUME \/data$/m);
   assert.match(dockerfile, /chown node:node \/data/);

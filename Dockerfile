@@ -17,6 +17,11 @@ ENV NODE_ENV=production \
     HOSTNAME=0.0.0.0 \
     TSUMU_DATA_DIR=/data \
     NODE_OPTIONS=--disable-warning=ExperimentalWarning
+# DSA-6613-1: Debian Trixie fixes zlib heap overflow vulnerabilities.
+# Upgrade only this OS package in the runtime image; keep Node pinned by digest.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends --only-upgrade zlib1g \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 RUN mkdir -p /data && chown node:node /data
