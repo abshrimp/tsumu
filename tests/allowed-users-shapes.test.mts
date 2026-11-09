@@ -59,3 +59,11 @@ test("account allowlist API still accepts a normalized string email address", as
   assert.equal(response.status, 200);
   assert.deepEqual(f.inserted, ["editor@example.com"]);
 });
+
+
+test("account allowlist API rejects oversized JSON before changing permissions", async () => {
+  const f = fixture();
+  const response = await f.send({ email: "attacker@example.com", padding: "x".repeat(32 * 1024) });
+  assert.equal(response.status, 413);
+  assert.deepEqual(f.inserted, []);
+});
