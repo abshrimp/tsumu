@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { ancestorsOf, findParentOf, useEditor } from "../../lib/store";
 import type { Breakpoint, CustomFont, DocNode, SiteDoc, StyleState } from "../../lib/types";
-import { allFonts, getProp, resolveStyleMap } from "../../lib/style";
+import { allFonts, getProp, resolveStyleMap, isInitialValue } from "../../lib/style";
 import {
   Dropdown,
   Grp,
@@ -225,7 +225,10 @@ export function TypographySec({ node }: { node: DocNode }) {
   const breakpoint = useEditor((s) => s.breakpoint);
   const styleState = useEditor((s) => s.styleState);
   const updateTargets = useEditor((s) => s.updateTargets);
-  const clamp = insp.get("WebkitLineClamp").value;
+  const clamp = !isInitialValue("WebkitLineClamp", insp.get("WebkitLineClamp").value);
+  // Removing the local clamp must also override one inherited from a wider
+  // breakpoint. display has element-specific defaults, not a global clear value.
+  const unclampedDisplay = insp.get("display").baseline === "-webkit-box" ? "block" : null;
   const nowrap = insp.get("whiteSpace").value === "nowrap";
   const deco = insp.get("textDecoration").value;
   const italic = insp.get("fontStyle").value === "italic";
@@ -445,19 +448,20 @@ export function TypographySec({ node }: { node: DocNode }) {
                 const props: Record<string, string | null> = {
                   // 大きい画面の「なし」を打ち消すときは、文字要素の既定（改行を保つ）に戻す
                   whiteSpace: insp.cleared("whiteSpace") && node.text ? "pre-wrap" : insp.cleared("whiteSpace"),
-                  WebkitLineClamp: null,
-                  WebkitBoxOrient: null,
+                  WebkitLineClamp: insp.cleared("WebkitLineClamp"),
+                  WebkitBoxOrient: insp.cleared("WebkitBoxOrient"),
                 };
                 if (clamp) {
-                  props.display = null;
-                  props.overflow = null;
+                  props.display = unclampedDisplay;
+                  props.overflow = insp.cleared("overflow");
                 }
                 insp.set(props);
               } else if (v === "nowrap")
                 insp.set({
                   whiteSpace: "nowrap",
-                  WebkitLineClamp: null,
-                  WebkitBoxOrient: null,
+                  WebkitLineClamp: insp.cleared("WebkitLineClamp"),
+                  WebkitBoxOrient: insp.cleared("WebkitBoxOrient"),
+                  ...(clamp ? { display: unclampedDisplay, overflow: insp.cleared("overflow") } : {}),
                 });
               else
                 insp.set({

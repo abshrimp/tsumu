@@ -16,6 +16,7 @@ import { BODY_NODE_ID, type DocNode } from "../../lib/types";
 import { ELEMENT_DRAG_TYPE, ELEMENT_SECTIONS, normalizeMade } from "../../lib/elements";
 import { Icon } from "../icons";
 import { InfoTip, Seg } from "../controls";
+import { useDocumentConfirmation } from "../../lib/use-document-confirmation";
 import { showConfirm } from "../../lib/dialog";
 import { tr } from "../../lib/i18n";
 
@@ -23,6 +24,7 @@ import { tr } from "../../lib/i18n";
 
 
 export function AddTab() {
+  const confirmDeletion = useDocumentConfirmation("component-deletion");
   const doc = useEditor((s) => s.doc);
   const activePageId = useEditor((s) => s.activePageId);
   const selection = useEditor((s) => s.selection);
@@ -154,11 +156,11 @@ export function AddTab() {
               data-tip={tr("削除（すべてのインスタンスも削除）")}
               onClick={async () => {
                 if (
-                  await showConfirm(tr("ページに置いた、このコンポーネントの使用箇所（インスタンス）もすべて削除されます。"), {
+                  await confirmDeletion(() => showConfirm(tr("ページに置いた、このコンポーネントの使用箇所（インスタンス）もすべて削除されます。"), {
                     title: tr("コンポーネント「{name}」を削除しますか？", { name: c.name }),
                     okLabel: tr("削除"),
                     danger: true,
-                  })
+                  }))
                 ) {
                   deleteComponent(c.id);
                 }
