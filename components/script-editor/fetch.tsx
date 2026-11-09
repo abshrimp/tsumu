@@ -724,15 +724,21 @@ export function VarNameIn({
   value: string;
   placeholder?: string;
 }) {
-  const { doc, pageId, renameVar, readOnly } = useContext(Ctx);
-  // ほかのブロックが作る変数と同じ名前なら、その変数を上書きする（後から動いた方の値になる）
-  const others = dataVarNames(doc, pageId, stepId);
-  const overwrite = !!value && others.has(value) && !RESERVED_VARS.has(value);
-  /** 予測の候補: ページのスクリプトで作るほかの変数（同じ変数に入れ直すとき） */
-  const names = [...others].filter((n) => !RESERVED_VARS.has(n)).sort((a, b) => a.localeCompare(b, getLang()));
+  const { doc, pageId, renameVar, readOnly, variableIndex } = useContext(Ctx);
   const [text, setText] = useState(value);
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
+  // The workspace supplies one shared producer index for every variable name
+  // block. In independent previews or tests, retain the usual scan fallback.
+  const others = variableIndex || readOnly ? null : dataVarNames(doc, pageId, stepId);
+  const hasOther = (name: string) =>
+    variableIndex ? variableIndex.hasOther(name, stepId) : (others?.has(name) ?? false);
+  const overwrite = !!value && hasOther(value) && !RESERVED_VARS.has(value);
+  // Sorting thousands of choices in every closed input made opening a large
+  // script workspace quadratic. Compute suggestions only while editing.
+  const names = open ? (variableIndex ? variableIndex.names : [...(others ?? [])])
+    .filter((name) => !RESERVED_VARS.has(name) && hasOther(name))
+    .sort((a, b) => a.localeCompare(b, getLang())) : [];
   const [pos, setPos] = useState<CSSProperties>({});
   const ref = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -749,7 +755,7 @@ export function VarNameIn({
     // slug・値 は特別な意味があるため上書きしない
     const next = RESERVED_VARS.has(name) ? uniqueVarName(doc, pageId, name, stepId) : name;
     // 元の名前をほかのブロックも作っているなら、使っている箇所は書き換えない
-    renameVar(stepId, others.has(value) ? "" : value, next);
+    renameVar(stepId, hasOther(value) ? "" : value, next);
   };
   const place = () => {
     const r = ref.current?.getBoundingClientRect();
