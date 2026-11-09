@@ -1,4 +1,4 @@
-name: Audit F - Extra Style Export Builds
+name: Extra Style Export Builds
 
 on:
   pull_request:
@@ -6,14 +6,14 @@ on:
       - "lib/generator/**"
       - "lib/export-formats.ts"
       - "scripts/smoke-export-build.mts"
-      - ".github/workflows/audit-f-tailwind.yml"
+      - ".github/workflows/tailwind.yml"
   push:
     branches: [main]
     paths:
       - "lib/generator/**"
       - "lib/export-formats.ts"
       - "scripts/smoke-export-build.mts"
-      - ".github/workflows/audit-f-tailwind.yml"
+      - ".github/workflows/tailwind.yml"
 
 permissions:
   contents: read
