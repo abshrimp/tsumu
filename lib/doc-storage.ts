@@ -4,8 +4,8 @@ import { applyDocPatch, isDocPatch, type DocPatch } from "./doc-patch";
 import type { SiteDoc } from "./types";
 
 /**
- * 編集データの保存（D1 の docs テーブル。1サイト = 1行で、id はサイトID）。
- * 大きさの上限は決め打ちしない（D1 は公称2MBでも、実際にはそれより大きな値も入る）。保存先が拒んだときに大きさのエラーにする
+ * Node.js / Docker用ローカルSQLiteの文書保存。
+ * 1サイトを docs テーブルの1行として保存し、保存先の容量制限は実際のSQLiteエラーで判定する。
  */
 
 /** 保存先に入りきらない編集データ（API は 413 で返す） */
@@ -42,7 +42,7 @@ export function validateDocValue(parsed: unknown): string | null {
   return validSiteDoc(parsed) ? null : "不正なリクエスト";
 }
 
-/** 保存先の上限を超えた値は SQLITE_TOOBIG になる（D1 では「string or blob too big」）。大きさのエラーとして返す */
+/** SQLiteのサイズ制限エラーをAPIに伝えるための保存処理。 */
 async function write(db: Db, stmt: Parameters<Db["execute"]>[0]): Promise<ResultSet> {
   try {
     return await db.execute(stmt);

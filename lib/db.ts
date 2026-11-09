@@ -89,7 +89,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
             email TEXT PRIMARY KEY,
             added_at INTEGER NOT NULL
           )`,
-          // サイトの一覧と公開先。編集データは docs の id = サイトID の行
+          // サイトの一覧と公開先。Cloudflareの文書本体はDocumentRoomに保存する。
           `CREATE TABLE IF NOT EXISTS sites (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
