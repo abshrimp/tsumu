@@ -7,6 +7,14 @@ import { buildAssetNames } from "./generator/names";
 import { assertGeneratedPaths } from "./generator/output-paths";
 import { EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, type ArchiveAssetMap } from "./site-import";
 
+/** A ZIP's top-level folder is also a filesystem path, not just a download label. */
+export function exportDirectoryName(siteName: string): string {
+  const name = siteName.toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "my-site";
+  return /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/.test(name) ? "_" + name : name;
+}
+
 /** zip を作ってダウンロードさせる。保存先に見つからず同梱できなかったアセットのパスを返す */
 export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | ExportOptions = "nextjs"): Promise<string[]> {
   const options: ExportOptions = typeof request === "string"
@@ -18,11 +26,7 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
   // This archive adds editable metadata after framework generation. Treat
   // those entries as reserved paths before JSZip creates any directories.
   assertGeneratedPaths(project, [EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH]);
-  const dirName =
-    doc.siteName
-      .toLowerCase()
-      .replace(/[^a-z0-9-]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "my-site";
+  const dirName = exportDirectoryName(doc.siteName);
   if (options.framework === "single-html") {
     const html = files["index.html"];
     if (!html || Object.keys(files).length !== 1 || Object.keys(binaries).length ||

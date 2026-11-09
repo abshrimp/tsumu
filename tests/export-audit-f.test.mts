@@ -341,3 +341,12 @@ test("AUD-F-009: Windows device names are renamed, not rejected, as asset paths"
   assert.equal(files[5], "_CON-3.png");
   assert.doesNotThrow(() => generateExportProject(site, "html"));
 });
+
+test("AUD-F-010: the ZIP root directory is portable for Windows device-name site titles", async () => {
+  const { exportDirectoryName } = await import("../lib/exportZip");
+  for (const name of ["CON", "prn", "AuX", "NUL", "com1", "LPT9"]) {
+    assert.equal(exportDirectoryName(name), "_" + name.toLowerCase());
+  }
+  assert.equal(exportDirectoryName("Example website"), "example-website");
+  assert.equal(exportDirectoryName(""), "my-site");
+});
