@@ -234,3 +234,72 @@ test("editing or deleting an imported master's scripts cannot change the destina
   assert.equal(useEditor.getState().doc.nodes[imported.id].scripts, undefined);
   assert.deepEqual(payload, payloadBefore);
 });
+
+
+test("cross-site paste preserves a separately edited master despite colliding component IDs", () => {
+  const { source, payload, componentId } = forkWithComponent();
+  const destination = structuredClone(source);
+  const masterRoot = destination.components![componentId].rootId;
+  const textId = destination.nodes[masterRoot].children[0];
+  destination.nodes[textId].text!.content = "Destination fork";
+  const before = structuredClone(destination);
+  payload.site = "different-site";
+  const sourceBefore = structuredClone(payload);
+
+  open(destination);
+  useEditor.getState().pasteClipboard(payload);
+  const pasted = useEditor.getState().doc;
+  const instance = pasted.nodes[useEditor.getState().selection!];
+  const importedComponentId = instance.componentId!;
+  assert.notEqual(importedComponentId, componentId);
+  assert.equal(importedText(pasted, componentId).text!.content, "Destination fork");
+  assert.equal(importedText(pasted, importedComponentId).text!.content, "Imported master content");
+  assert.deepEqual(pasted.components![componentId], before.components![componentId]);
+  assert.deepEqual(pasted.nodes[masterRoot], before.nodes[masterRoot]);
+  assert.deepEqual(payload, sourceBefore);
+  useEditor.getState().undo();
+  assert.deepEqual(useEditor.getState().doc, before);
+  useEditor.getState().redo();
+  assert.equal(importedText(useEditor.getState().doc, importedComponentId).text!.content, "Imported master content");
+});
+
+test("page copy remaps conflicting components without changing destination masters", () => {
+  const { source, componentId } = forkWithComponent();
+  const destination = structuredClone(source);
+  const originalRoot = destination.components![componentId].rootId;
+  const originalTextId = destination.nodes[originalRoot].children[0];
+  destination.nodes[originalTextId].text!.content = "Destination fork";
+  const before = structuredClone(destination);
+  const payload = buildPagePayload(source, ["home"]);
+
+  applyPagePayload(destination, payload);
+  const copiedPage = destination.pages[destination.pageOrder.at(-1)!];
+  const pastedInstance = destination.nodes[copiedPage.children[0]];
+  assert.notEqual(pastedInstance.componentId, componentId);
+  assert.equal(importedText(destination, componentId).text!.content, "Destination fork");
+  assert.equal(importedText(destination, pastedInstance.componentId!).text!.content, "Imported master content");
+  assert.deepEqual(destination.components![componentId], before.components![componentId]);
+  assert.deepEqual(destination.nodes[originalRoot], before.nodes[originalRoot]);
+});
+
+test("page copy remaps nested conflicting components and their instance references", () => {
+  const { source } = forkWithComponent();
+  open(source);
+  useEditor.getState().createComponent("text");
+  const copiedSource = useEditor.getState().doc;
+  const originalOuterId = copiedSource.nodes[copiedSource.pages.home.children[0]].componentId!;
+  const originalOuterRoot = copiedSource.components![originalOuterId].rootId;
+  const originalInnerId = copiedSource.nodes[copiedSource.nodes[originalOuterRoot].children[0]].componentId!;
+  const destination = structuredClone(copiedSource);
+  const innerRoot = destination.components![originalInnerId].rootId;
+  destination.nodes[innerRoot].text!.content = "Destination nested edit";
+  applyPagePayload(destination, buildPagePayload(copiedSource, ["home"]));
+  const page = destination.pages[destination.pageOrder.at(-1)!];
+  const outerInstance = destination.nodes[page.children[0]];
+  assert.notEqual(outerInstance.componentId, originalOuterId);
+  const outer = destination.nodes[destination.components![outerInstance.componentId!].rootId];
+  const innerInstance = destination.nodes[outer.children[0]];
+  assert.notEqual(innerInstance.componentId, originalInnerId);
+  assert.equal(destination.nodes[destination.components![innerInstance.componentId!].rootId].text!.content, "Imported master content");
+  assert.equal(destination.nodes[innerRoot].text!.content, "Destination nested edit");
+});

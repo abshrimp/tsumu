@@ -236,8 +236,11 @@ export function readClipMirror(): ClipPayload | null {
  * 同じファイルのアセットが既にあればそれを使い、要素の参照をそちらへ付け替える。
  * 戻り値はアセットIDの対応と、新しく取り込んだマスターの要素。
  */
-export function mergeClipDeps(d: SiteDoc, p: ClipPayload): {
+export function mergeClipDeps(
+  d: SiteDoc, p: ClipPayload, { preserveSourceOnCollision = false }: { preserveSourceOnCollision?: boolean } = {},
+): {
   assetIds: Map<string, string>;
+  componentIds: Map<string, string>;
   componentNodes: DocNode[];
 } {
   const remap = new Map<string, string>();
@@ -265,7 +268,21 @@ export function mergeClipDeps(d: SiteDoc, p: ClipPayload): {
   for (const asset of added) {
     for (const ref of zipStylesheet(asset)?.references ?? []) ref.assetId = remap.get(ref.assetId) ?? ref.assetId;
   }
-  const components = Object.values(p.components).filter((c) => !d.components?.[c.id]);
+  // A copied site can retain the same component IDs even after both sites
+  // independently edit their masters. Never bind an external instance to the
+  // unrelated destination master just because their IDs happen to match.
+  const componentIds = new Map<string, string>();
+  const components = Object.values(p.components).filter(
+    (c) => preserveSourceOnCollision || !d.components?.[c.id]
+  );
+  const occupied = new Set([...Object.keys(d.components ?? {}), ...Object.keys(p.components)]);
+  for (const c of components) {
+    if (!d.components?.[c.id]) continue;
+    let id: string;
+    do { id = genId("comp"); } while (occupied.has(id));
+    occupied.add(id);
+    componentIds.set(c.id, id);
+  }
   const sourceNodes = new Map(p.componentNodes.map((n) => [n.id, n]));
   const needed = new Set<string>();
   const pending = components.map((c) => c.rootId);
@@ -289,14 +306,18 @@ export function mergeClipDeps(d: SiteDoc, p: ClipPayload): {
   }
   for (const c of components) {
     const copy = structuredClone(c);
+    copy.id = componentIds.get(c.id) ?? c.id;
     copy.rootId = nodeIds.get(c.rootId) ?? c.rootId;
-    d.components = { ...(d.components ?? {}), [c.id]: copy };
+    d.components = { ...(d.components ?? {}), [copy.id]: copy };
   }
   const componentNodes: DocNode[] = [];
   for (const id of needed) {
     const node = remapAssetIds(structuredClone(sourceNodes.get(id)!), remap);
     node.id = nodeIds.get(id)!;
     node.children = node.children.map((child) => nodeIds.get(child) ?? child);
+    if (node.type === "instance" && node.componentId) {
+      node.componentId = componentIds.get(node.componentId) ?? node.componentId;
+    }
     // スクリプト画面もIDで編集・削除するため、コピー元と別のIDにする。
     if (node.scripts) {
       node.scripts = node.scripts.map((s) => ({ ...s, id: scriptUid(), steps: cloneSteps(s.steps) }));
@@ -313,7 +334,7 @@ export function mergeClipDeps(d: SiteDoc, p: ClipPayload): {
       d.customFonts = [...(d.customFonts ?? []), structuredClone(f)];
     }
   }
-  return { assetIds: remap, componentNodes };
+  return { assetIds: remap, componentIds, componentNodes };
 }
 
 /** クリップボードのアセットが安全か（HTML や不正なパス・スキームは受け取らない） */

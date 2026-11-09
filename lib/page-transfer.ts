@@ -9,8 +9,10 @@
 import type { BreakpointDef, DocNode, NodeStyles, Page, ScriptStep, SiteDoc } from "./types";
 import { buildClipPayload, mergeClipDeps, remapAssetIds, type ClipPayload } from "./clip-transfer";
 import { createInitialDoc, genId } from "./presets";
+import { cloneSteps, scriptUid } from "./script";
 import { copySlug, uniquePageNaming } from "./store";
-import { isLocalSiteDeleted } from "./site";
+import { isLocalSiteDeleted, loadLocalSites } from "./site";
+import { validSiteDoc } from "./doc-tree";
 import { readBrowserDoc, writeBrowserDoc } from "./browser-doc-storage";
 import { tr } from "./i18n";
 import { isSiteLang, siteLangOf } from "./site-lang";
@@ -108,17 +110,9 @@ function prepareResponsivePayload(d: SiteDoc, payload: PagePayload): PagePayload
     value && Object.fromEntries(Object.entries(value).map(([key, style]) => [id(key), style]));
   const p = structuredClone(payload);
   for (const page of p.pages) page.bodyStyles = styles(page.bodyStyles);
-  // Existing component masters are reused, not imported or modified.
-  const componentNodes = new Map(p.deps.componentNodes.map(n => [n.id, n]));
-  const needed = new Set<string>();
-  const pending = Object.values(p.deps.components).filter(c => !d.components?.[c.id]).map(c => c.rootId);
-  for (let key = pending.pop(); key !== undefined; key = pending.pop()) {
-    const node = componentNodes.get(key);
-    if (!node || needed.has(key)) continue;
-    needed.add(key);
-    pending.push(...node.children);
-  }
-  for (const node of [...p.nodes, ...p.deps.componentNodes.filter(n => needed.has(n.id))]) {
+  // A foreign master may have the same ID as a destination component. All
+  // source masters can be imported with fresh IDs, so normalize their styles.
+  for (const node of [...p.nodes, ...p.deps.componentNodes]) {
     node.styles = styles(node.styles)!;
     if (node.hiddenOn) node.hiddenOn = node.hiddenOn.map(id);
   }
@@ -127,7 +121,8 @@ function prepareResponsivePayload(d: SiteDoc, payload: PagePayload): PagePayload
 
 export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
   p = prepareResponsivePayload(d, p);
-  const { assetIds: assetMap, componentNodes } = mergeClipDeps(d, p.deps);
+  const { assetIds: assetMap, componentIds: componentMap, componentNodes } =
+    mergeClipDeps(d, p.deps, { preserveSourceOnCollision: true });
   const pageMap = new Map<string, string>();
   for (const page of p.pages) pageMap.set(page.id, genId("page"));
   const urlKey = (slug: string, query?: string) => JSON.stringify([slug, normalizeQuery(query)]);
@@ -145,12 +140,20 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
     for (const s of n.scripts ?? []) mapSteps(s.steps, toPage);
   }
 
+  // The page script editor addresses scripts and their nested blocks by ID.
+  // Copying the same page twice must not make edits or selection ambiguous.
+  const cloneScripts = <T extends { id: string; steps: ScriptStep[] }>(scripts: T[] | undefined): T[] | undefined =>
+    scripts?.map((s) => ({ ...s, id: scriptUid(), steps: cloneSteps(s.steps) }));
   const nodeMap = new Map<string, string>();
   for (const n of p.nodes) nodeMap.set(n.id, genId("node"));
   for (const raw of p.nodes) {
     const n = remapAssetIds(structuredClone(raw), assetMap);
     n.id = nodeMap.get(raw.id)!;
     n.children = n.children.map((c) => nodeMap.get(c)).filter((c): c is string => !!c);
+    if (n.scripts) n.scripts = cloneScripts(n.scripts);
+    if (n.type === "instance" && n.componentId) {
+      n.componentId = componentMap.get(n.componentId) ?? n.componentId;
+    }
     if (n.link?.kind === "page" && n.link.pageId) n.link.pageId = toPage(n.link.pageId);
     for (const s of n.scripts ?? []) mapSteps(s.steps, toPage);
     d.nodes[n.id] = n;
@@ -166,6 +169,8 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
       0
     );
     page.id = id;
+    if (page.scripts) page.scripts = cloneScripts(page.scripts);
+    if (page.pageScripts) page.pageScripts = cloneScripts(page.pageScripts);
     page.name = name;
     page.slug = slug;
     // コピー先のサイトと言語が違えば、ページの言語として残す（中身はコピー元の言語のまま）
@@ -215,23 +220,25 @@ export async function copyPagesToSite(
     try {
       // The destination list can be stale while the copy dialog is open.
       // Never recreate content for a site explicitly deleted in another tab.
-      if (isLocalSiteDeleted(target.id)) throw new Error("Local destination deleted");
-      const raw = await readBrowserDoc(target.id);
-      expected = raw;
-      // 未保存と読み込み失敗を区別し、読めない既存データを初期状態で上書きしない。
-      if (raw === null) {
-        doc = createInitialDoc();
-        doc.siteName = target.name;
-      } else {
-        doc = JSON.parse(raw) as SiteDoc;
-        if (!doc?.pages || !doc.nodes || !doc.assets || !Array.isArray(doc.pageOrder) || !doc.pageOrder.length) {
-          throw new Error("Invalid destination document");
-        }
+      if (isLocalSiteDeleted(target.id) ||
+          !loadLocalSites({ strict: true }).some(site => site.id === target.id)) {
+        throw new Error("Local destination missing");
       }
+      const raw = await readBrowserDoc(target.id);
+      // A local site is seeded with a document when it is created. Missing or
+      // corrupt bytes must never be silently replaced with an empty site.
+      if (raw === null) throw new Error("Local destination document missing");
+      const parsed: unknown = JSON.parse(raw);
+      if (!validSiteDoc(parsed)) throw new Error("Invalid destination document");
+      expected = raw;
+      doc = parsed as SiteDoc;
     } catch {
       throw new Error(tr("コピー先の編集データを読み込めませんでした。コピー先を確認して、もう一度お試しください。"));
     }
     applyPagePayload(doc, payload);
+    if (!validSiteDoc(doc)) {
+      throw new Error(tr("コピー先の編集データを読み込めませんでした。コピー先を確認して、もう一度お試しください。"));
+    }
     try {
       if (isLocalSiteDeleted(target.id)) throw new Error("Local destination deleted");
       const result = await writeBrowserDoc(target.id, JSON.stringify(doc), expected);
