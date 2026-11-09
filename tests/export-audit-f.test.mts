@@ -223,3 +223,21 @@ test("AUD-F-004: exporting a selected unpublished page includes it without publi
   assert.equal(site.pages.public.unpublished, true,
     "exporting a page does not change the saved publication state");
 });
+
+test("AUD-F-005: every Tailwind export registers its CSS processing plugin", () => {
+  const site = doc();
+  const options = { language: "typescript", style: "tailwind", scope: "project" } as const;
+  const registrations = [
+    ["react", "vite.config.ts", /plugins:\s*\[tailwindcss\(\)\]/],
+    ["vue", "vite.config.ts", /plugins:\s*\[vue\(\),\s*tailwindcss\(\)\]/],
+    ["nuxt", "nuxt.config.ts", /vite:\s*\{\s*plugins:\s*\[tailwindcss\(\)\]/],
+    ["sveltekit", "vite.config.ts", /plugins:\s*\[tailwindcss\(\),\s*sveltekit\(/],
+    ["nextjs", "postcss.config.mjs", /"@tailwindcss\/postcss"/],
+  ] as const;
+  for (const [framework, path, plugin] of registrations) {
+    const generated = generateExportProject(site, { ...options, framework });
+    assert.match(generated.files[path], plugin, framework + ": missing Tailwind plugin");
+    assert.match(generated.files["package.json"], /tailwindcss/,
+      framework + ": missing Tailwind dependency");
+  }
+});
