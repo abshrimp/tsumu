@@ -53,7 +53,7 @@ jobs:
           cache: npm
       - run: npm install --global npm@12.2.1
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: npx --no-install playwright install --with-deps chromium
       - run: npm run build
       - run: node scripts/run-e2e-shard.mjs ${{ matrix.shard }}/4
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -84,7 +84,7 @@ jobs:
       - run: npm ci
       - name: Install Chromium for framework browser checks
         if: matrix.framework != 'nextjs'
-        run: npx playwright install --with-deps chromium
+        run: npx --no-install playwright install --with-deps chromium
       - name: Verify TypeScript and JavaScript exports
         shell: bash
         run: |
