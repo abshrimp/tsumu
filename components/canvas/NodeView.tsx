@@ -192,7 +192,7 @@ function GhostViewInner({
 
 const GhostView = memo(GhostViewInner);
 
-function NodeViewInner({
+export function NodeView({
   id,
   isTop,
   itemVars,
@@ -284,7 +284,7 @@ function NodeViewInner({
       );
     } else {
       const first = node.children.map((cid) => (
-        <NodeView
+        <MemoNodeView
           key={`t-${cid}`}
           id={cid}
           isTop={false}
@@ -449,7 +449,7 @@ function NodeViewInner({
   }
   for (const childId of node.children) {
     children.push(
-      <NodeView
+      <MemoNodeView
         key={childId}
         id={childId}
         isTop={false}
@@ -569,4 +569,4 @@ function NodeViewInner({
 }
 
 /** Preserve unchanged subtrees when selection or canvas chrome changes. */
-export const NodeView = memo(NodeViewInner);
+export const MemoNodeView = memo(NodeView);
