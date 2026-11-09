@@ -119,9 +119,11 @@ export async function DELETE(req: Request) {
   if (me instanceof NextResponse) return me;
   if (!dbConfigured()) return await dbUnavailable();
 
-  const email = (new URL(req.url).searchParams.get("email") ?? "")
-    .trim()
-    .toLowerCase();
+  const addresses = new URL(req.url).searchParams.getAll("email");
+  if (addresses.length !== 1) {
+    return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
+  }
+  const email = addresses[0].trim().toLowerCase();
   if (!validEmail(email)) {
     return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
   }
