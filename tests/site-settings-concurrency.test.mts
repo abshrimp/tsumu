@@ -33,7 +33,7 @@ function api(db: Db) {
     requireAuth: async () => null, dbConfigured: () => true, getDb: async () => db, userMessage,
     deleteSite, getSite, isSiteId, normalizeSiteInput, updateSite };
   const patch = new Function(...Object.keys(injected), `${source}\nreturn PATCH;`)(...Object.values(injected));
-  return (input: unknown) => patch(new Request("https://example.test/api/sites/site", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }), { params: Promise.resolve({ id: "site" }) }) as Promise<Response>;
+  return (input: unknown, contentType = "application/json") => patch(new Request("https://example.test/api/sites/site", { method: "PATCH", headers: { "Content-Type": contentType }, body: JSON.stringify(input) }), { params: Promise.resolve({ id: "site" }) }) as Promise<Response>;
 }
 function race(db: Db, action: () => Promise<void>): Db {
   let pending = true;
@@ -102,5 +102,13 @@ test("oversized site-settings PATCH is rejected without modifying settings", asy
   const before = await getSite(db, "site");
   const response = await api(db)({ name: "x".repeat(128 * 1024) });
   assert.equal(response.status, 413);
+  assert.deepEqual(await getSite(db, "site"), before);
+}));
+
+
+test("site settings reject non-JSON Content-Type without touching the database", async () => database(async db => {
+  const before = await getSite(db, "site");
+  const response = await api(db)({ name: "Injected" }, "text/plain");
+  assert.equal(response.status, 415);
   assert.deepEqual(await getSite(db, "site"), before);
 }));
