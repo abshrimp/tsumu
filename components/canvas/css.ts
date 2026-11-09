@@ -27,6 +27,8 @@ function safeDeclarationValue(value: unknown): value is string {
   for (let i = 0; i < value.length; i++) {
     const c = value[i];
     const next = value[i + 1];
+    // A style-element close tag is dangerous even when quoted in CSS.
+    if (c === "<" && /^<\/style\b/i.test(value.slice(i))) return false;
     if (comment) {
       if (c === "*" && next === "/") { comment = false; i++; }
       continue;
@@ -42,7 +44,6 @@ function safeDeclarationValue(value: unknown): value is string {
     if (c === "(") { depth++; continue; }
     if (c === ")") { if (depth === 0) return false; depth--; continue; }
     if (c === "{" || c === "}" || (c === ";" && depth === 0)) return false;
-    if (c === "<" && /^<\/style\b/i.test(value.slice(i))) return false;
   }
   return !quote && !comment && depth === 0;
 }
