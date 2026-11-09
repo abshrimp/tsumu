@@ -3,6 +3,7 @@ import JSZip from "jszip";
 import { readFile } from "node:fs/promises";
 import { createInitialDoc } from "../lib/presets";
 import { generateProject } from "../lib/generator";
+import { generateExportProject } from "../lib/export-formats";
 import { importedAssetPath, importedAssetUrl } from "../lib/generator/imported-assets";
 import { DOC_STORAGE_KEY, siteKey } from "../lib/site";
 import { storageKey } from "../lib/storage-keys";
@@ -62,6 +63,30 @@ test("HTML file import generates editable nodes and responsive CSS, not rawHtml"
   const desktopOnlyBoundary = doc.breakpoints.find((bp: any) => bp.maxWidth === 999);
   expect(desktopOnlyBoundary).toBeTruthy();
   expect(card.styles[desktopOnlyBoundary.id].default.color).toBe("revert");
+});
+
+test("HTML import applies browser-compatible URL validation before storing links and sources", async ({ page }) => {
+  await localMode(page);
+  const html = '<html><body>' +
+    '<a id="obfuscated-link" href="java&#x09;script:alert(1)">unsafe</a>' +
+    '<a id="document-link" href="data:text/html;base64,PHNjcmlwdD4=">unsafe data</a>' +
+    '<a id="ordinary-link" href="https://example.test/docs">safe</a>' +
+    '<img id="obfuscated-image" src="java&#x0a;script:alert(2)" alt="unsafe">' +
+    '<img id="inline-image" src="data:image/png;base64,aGVsbG8=" alt="inline">' +
+    '</body></html>';
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+  await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
+    name: "index.html", mimeType: "text/html", buffer: Buffer.from(html),
+  });
+  await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
+  const doc = await importedDoc(page);
+  const node = (id: string) => Object.values(doc.nodes).find((value: any) => value.attrId === id) as any;
+  expect(node("obfuscated-link").link.url).toBe("#");
+  expect(node("document-link").link.url).toBe("#");
+  expect(node("ordinary-link").link.url).toBe("https://example.test/docs");
+  expect(node("obfuscated-image").image.src).toBe("");
+  expect(node("inline-image").image.src).toBe("data:image/png;base64,aGVsbG8=");
 });
 
 test("HTML import preserves selector classes and safe attributes in editor and export", async ({ page }) => {
@@ -268,6 +293,49 @@ test("multi-page HTML ZIP imports every page and converts internal page links", 
 });
 
 
+
+test("HTML ZIP survives save, reload, HTML export ZIP and reimport with editable content", async ({ page }) => {
+  await localMode(page);
+  const original = new JSZip()
+    .file("index.html", '<!doctype html><html><head><title>Import round trip</title>' +
+      '<link rel="stylesheet" href="main.css"></head><body>' +
+      '<section id="roundtrip-card" class="card"><h1>Roundtrip verified</h1></section>' +
+      '</body></html>')
+    .file("main.css", ".card { display: flex; gap: 12px; }");
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+  await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
+    name: "input.zip", mimeType: "application/zip",
+    buffer: await original.generateAsync({ type: "nodebuffer" }),
+  });
+  await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
+  await expect(page.locator(".app")).toBeVisible();
+  await page.reload();
+  await expect(page.locator(".app")).toBeVisible();
+  const saved = await importedDoc(page);
+  const originalCard = Object.values(saved.nodes).find((node: any) => node.attrId === "roundtrip-card") as any;
+  expect(originalCard?.styles?.base?.default?.display).toBe("flex");
+  expect(originalCard?.styles?.base?.default?.gap).toBe("12px");
+  const output = generateExportProject(saved, "html");
+  expect(output.files["index.html"]).toContain("Roundtrip verified");
+  const exported = new JSZip();
+  for (const [path, source] of Object.entries(output.files)) exported.file(path, source);
+  for (const [path, base64] of Object.entries(output.binaries)) {
+    exported.file(path, Buffer.from(base64, "base64"));
+  }
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+  await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
+    name: "published.zip", mimeType: "application/zip",
+    buffer: await exported.generateAsync({ type: "nodebuffer" }),
+  });
+  await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
+  await expect(page.locator(".app")).toBeVisible();
+  const restored = await importedDoc(page);
+  expect(Object.values(restored.nodes).some((node: any) => node.text?.content === "Roundtrip verified")).toBe(true);
+  expect(Object.values(restored.nodes).some((node: any) => node.styles?.base?.default?.display === "flex")).toBe(true);
+});
+
 test("normal-page ZIP conversion uses only index.html and keeps the site's other pages", async ({ page }) => {
   await localMode(page);
   const original = createInitialDoc();
@@ -326,4 +394,27 @@ test("normal-page HTML import replaces only that page while leaving other pages 
   for (const id of original.pageOrder.slice(1)) expect(after.pages[id]).toEqual(original.pages[id]);
   expect(after.pages[original.pageOrder[0]].rawHtml).toBeNull();
   expect(after.nodes).toBeDefined();
+});
+
+test("inline SVG import removes executable content before saving an editable icon", async ({ page }) => {
+  await localMode(page);
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" id="imported-icon" viewBox="0 0 12 12" ' +
+    'onload="globalThis.svgExecuted=1"><script>globalThis.svgExecuted=2</script>' +
+    '<foreignObject><div xmlns="http://www.w3.org/1999/xhtml"><img src="x" onerror="globalThis.svgExecuted=3"></div></foreignObject>' +
+    '<rect width="12" height="12" fill="red"/></svg>';
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+  await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
+    name: "inline.svg.html", mimeType: "text/html",
+    buffer: Buffer.from("<!doctype html><title>Safe SVG</title><body>" + svg),
+  });
+  await expect(page).toHaveURL(new RegExp("/sites/[a-z0-9-]+$"), { timeout: 30000 });
+  const doc = await importedDoc(page);
+  const icon = Object.values(doc.nodes).find((item: any) => item.type === "icon") as any;
+  expect(icon).toBeTruthy();
+  expect(icon.icon.svg).toContain("<rect");
+  expect(icon.icon.svg).not.toMatch(/onload|onerror|<script|foreignObject/i);
+  expect(doc.pages[doc.pageOrder[0]].customEndHtml ?? "").not.toContain("svgExecuted");
+  expect(Object.values(generateExportProject(doc, "html").files).join("\n")).not.toContain("svgExecuted");
+  expect(await page.evaluate(() => (globalThis as any).svgExecuted)).toBeUndefined();
 });

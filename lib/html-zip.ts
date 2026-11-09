@@ -63,8 +63,10 @@ export function rewriteZipReferences(html: string, htmlPath: string, urls: Map<s
       }
     }
   }
-  for (const el of Array.from(doc.querySelectorAll<HTMLElement>("[srcset]"))) {
-    el.setAttribute("srcset", rewriteSrcsetUrls(el.getAttribute("srcset") ?? "", resolve));
+  for (const attr of ["srcset", "imagesrcset"]) {
+    for (const el of Array.from(doc.querySelectorAll<HTMLElement>(`[${attr}]`))) {
+      el.setAttribute(attr, rewriteSrcsetUrls(el.getAttribute(attr) ?? "", resolve));
+    }
   }
   for (const attr of CSS_ASSET_ATTRIBUTES) {
     for (const el of Array.from(doc.querySelectorAll(`[${attr}]`))) {

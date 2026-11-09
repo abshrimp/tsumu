@@ -67,3 +67,29 @@ test("circular imports are bounded and do not execute recursively", () => {
   assert.equal(warnings.length, 1);
   assert.match(warnings[0], /circular/i);
 });
+
+test("bare and named CSS @import layers survive conversion with their cascade scopes", () => {
+  const theme = css("theme", "css/theme.css", ".card { color: red; }");
+  for (const modifier of ["layer", "layer(theme)", "layer(theme.parts) screen and (max-width: 600px)"]) {
+    const main = css("main", "css/main.css", `@import "theme.css" ${modifier}; .card { display: grid; }`,
+      [{ url: "theme.css", assetId: "theme", suffix: "" }]);
+    const warnings: string[] = [];
+    const result = expandZipCss(main.zip!.stylesheet!.source, [main, theme],
+      message => warnings.push(message), main);
+    assert.deepEqual(result.unresolved, []);
+    assert.match(result.css, /@layer(?: theme(?:\.parts)?)? \{\n\.card \{ color: red; \}/);
+    if (modifier.includes("screen")) assert.match(result.css, /@media screen and \(max-width: 600px\)/);
+    assert.ok(!result.css.includes("@media layer"));
+    assert.match(result.css, /display: grid/);
+    assert.deepEqual(warnings, []);
+  }
+});
+
+test("complex @import modifier syntax stays unresolved instead of producing invalid CSS", () => {
+  const theme = css("theme", "css/theme.css", ".card { color: red; }");
+  const main = css("main", "css/main.css", '@import "theme.css" supports(display: grid);',
+    [{ url: "theme.css", assetId: "theme", suffix: "" }]);
+  const result = expandZipCss(main.zip!.stylesheet!.source, [main, theme], () => {}, main);
+  assert.deepEqual(result.unresolved, ['@import "theme.css" supports(display: grid);']);
+  assert.ok(!result.css.includes("@media supports"));
+});
