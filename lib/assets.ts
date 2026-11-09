@@ -1,5 +1,6 @@
 "use client";
 
+import { isEmbeddedAssetUrl } from "./site-import-format";
 import { CSS_ASSET_ATTRIBUTES, replaceCssAssetUrls, rewriteCssAssetUrls } from "./css-assets";
 import { zipAssetClosure, zipCssPreviewUrls, zipStylesheet, ZIP_CSS_LIMITS } from "./zip-css";
 import { appendAssetSuffix } from "./zip-references";
@@ -67,14 +68,17 @@ export async function uploadStaticAsset(file: File): Promise<Asset> {
   const form = new FormData();
   form.append("file", file);
   try {
-    const res = await fetch("/api/assets", { method: "POST", body: form });
+    const res = await fetch("/api/assets", { method: "POST", body: form, credentials: "same-origin", redirect: "error" });
     if (res.ok) {
       const data = await res.json();
+      if (typeof data?.path !== "string" || !data.path.startsWith("assets/") || data.path.length === "assets/".length) {
+        throw new Error(tr("アップロード結果を確認できませんでした。"));
+      }
       return {
         id: genId("asset"),
         // 表示名は元のファイル名のまま（日本語も可）。保存先のパスと書き出しのファイル名は別に安全な名前にする
         name: displayName(file.name),
-        ...(data.path ? { path: data.path } : {}),
+        path: data.path,
         bytes: file.size,
         mimeType: file.type,
         ...size,
@@ -226,9 +230,7 @@ export async function fetchWithRetry(url: string, tries = 3, init?: RequestInit)
   }
 }
 
-export function isEmbeddedAssetUrl(value: unknown): value is string {
-  return typeof value === "string" && /^data:[^,]*,/i.test(value);
-}
+export { isEmbeddedAssetUrl } from "./site-import-format";
 
 /** アセットの表示用URL */
 export function assetSrc(asset: Asset): string {

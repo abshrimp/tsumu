@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { buildSync, transformSync } from "esbuild";
 import JSZip from "jszip";
 import { resolve } from "node:path";
@@ -12,7 +13,7 @@ const PROBE_FONT = "AAEAAAAKAIAAAwAgT1MvMkU3R2wAAAEoAAAAYGNtYXAADACrAAABkAAAADRn
 const fixtureFiles: Record<string, string | Buffer> = {
   "site/index.html": `<!doctype html><html><head>
     <link rel="icon" href="data:,">
-    <link id="main-sheet" rel="stylesheet" href="css/main.css?version=3#sheet" media="screen" title="Base" integrity="sha256-not-the-rewritten-css">
+    <link id="main-sheet" rel="stylesheet" href="css/main.css?version=3#sheet" media="screen" title="Base" integrity="__ORIGINAL_CSS_INTEGRITY__">
     <link id="namespace-sheet" rel="stylesheet" href="css/namespaces.css" media="screen">
     <link id="print-sheet" rel="stylesheet" href="css/print.css" media="print">
     <link id="disabled-sheet" rel="stylesheet" href="css/disabled.css" disabled>
@@ -139,7 +140,7 @@ export async function zipCssBrowser(page: Page, storage: "local" | "remote") {
   let exported: Awaited<ReturnType<typeof renderZipExport>> | undefined;
   page.on("pageerror", (error) => errors.push(error.message));
   await page.context().addCookies([{ name: "editor-session", value: "synthetic-not-authentication", url: "https://zip-editor.test", sameSite: "Strict" }]);
-  await page.route("**/*", async (route) => {
+  await page.route(/^https?:\/\//, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     if (url.origin === "https://zip-cdn.test" && url.pathname === "/external.css") {
@@ -182,9 +183,10 @@ export async function zipCssBrowser(page: Page, storage: "local" | "remote") {
       return;
     }
     if (url.origin === "https://zip-editor.test" && url.pathname === "/api/assets/file") {
-      resources.push({ url: url.href, cookie: request.headers().cookie, origin: request.headers().origin });
+      const headers = await request.allHeaders();
+      resources.push({ url: url.href, cookie: headers.cookie, origin: headers.origin });
       const asset = uploaded.get(url.searchParams.get("path") ?? "");
-      if (asset && (control.publicAssets || /^fixture-\d+$/.test(url.searchParams.get("sig") ?? "")) && !request.headers().cookie) {
+      if (asset && (control.publicAssets || /^fixture-\d+$/.test(url.searchParams.get("sig") ?? "")) && !headers.cookie) {
         return route.fulfill({ contentType: asset.mimeType, body: asset.body, headers: { "Access-Control-Allow-Origin": "*" } });
       }
     }
@@ -205,9 +207,24 @@ export async function zipCssBrowser(page: Page, storage: "local" | "remote") {
     return route.fulfill({ status: 404, body: "Unexpected fixture request" });
   });
   await page.goto("https://zip-editor.test/");
+  // WebKit's intercepted request omits file-backed multipart bytes. Materialize
+  // the browser's actual multipart body before the test's HTTP storage mock reads it.
+  await page.evaluate(() => {
+    const send = window.fetch.bind(window);
+    window.fetch = async (url, init) => {
+      if (url === "/api/assets" && init?.body instanceof FormData) {
+        const request = new Request(new URL(url, location.href), init);
+        return send(request.url, { ...init, headers: request.headers, body: await request.arrayBuffer() });
+      }
+      return send(url, init);
+    };
+  });
   await page.addScriptTag({ content: zipCssBrowserBundle });
   const zip = new JSZip();
-  for (const [name, source] of Object.entries(fixtureFiles)) zip.file(name, source);
+  const integrity = "sha256-" + createHash("sha256").update(fixtureFiles["site/css/main.css"]).digest("base64");
+  for (const [name, source] of Object.entries(fixtureFiles)) {
+    zip.file(name, name === "site/index.html" ? String(source).replace("__ORIGINAL_CSS_INTEGRITY__", integrity) : source);
+  }
   const base64 = await zip.generateAsync({ type: "base64" });
   const doc = await page.evaluate((input) => (window as any).zipCssHarness.importZip(input), base64) as SiteDoc;
   return {
