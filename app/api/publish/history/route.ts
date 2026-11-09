@@ -248,10 +248,11 @@ export async function POST(req: Request) {
     // in this Git Trees API request; that could replace the subtree.
     const sourceRoot = sourceEntries.filter(entry => !entry.path.includes("/"));
     const currentRoot = currentEntries.filter(entry => !entry.path.includes("/"));
+    const sourceByPath = new Map(sourceEntries.map(entry => [entry.path, entry]));
     const edits = [
       ...protectedTreeEdits(sourceRoot, currentRoot),
       ...kept.filter(entry => {
-        const prior = sourceEntries.find(source => source.path === entry.path);
+        const prior = sourceByPath.get(entry.path);
         return !prior || prior.sha !== entry.sha || prior.mode !== entry.mode || prior.type !== entry.type;
       }),
     ];
