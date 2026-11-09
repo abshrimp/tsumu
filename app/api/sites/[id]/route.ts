@@ -38,7 +38,9 @@ export async function GET(_req: Request, ctx: Ctx) {
   try {
     const r = await load(ctx);
     if (r instanceof NextResponse) return r;
-    return NextResponse.json({ site: r.site });
+    return NextResponse.json({ site: r.site }, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch (e) {
     const tr = await serverTr();
     return NextResponse.json({ error: tr(userMessage(e, "読み込めませんでした")) }, { status: 502 });
