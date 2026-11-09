@@ -16,7 +16,7 @@ const old = "a".repeat(40), newer = "b".repeat(40), created = "c".repeat(40);
 const expected = (target = "production", branch = target === "test" ? "preview" : "main") => ({
   site: "example", target, repo: "owner/site", branch, productionBranch: "main",
 });
-function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolean; concurrentInit?: boolean; unrelatedHistory?: boolean; recordFails?: boolean; ambiguousUpdate?: boolean; truncatedRollback?: boolean; rollbackSourceMissingManual?: boolean; rollbackGeneratedFile?: boolean; rollbackSourceContainsCredentials?: boolean } = {}) {
+function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolean; concurrentInit?: boolean; unrelatedHistory?: boolean; recordFails?: boolean; ambiguousUpdate?: boolean; truncatedRollback?: boolean; rollbackSourceMissingManual?: boolean; rollbackGeneratedFile?: boolean; rollbackSourceContainsCredentials?: boolean; rollbackSourceHasOlderManual?: boolean } = {}) {
   const dest = { repo: "owner/site", branch: "main", previewBranch: "preview" };
   const heads: Record<string, string> = options.empty ? {} : { main: old, ...(options.absent ? {} : { preview: old }) };
   let empty = !!options.empty;
@@ -53,6 +53,8 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
       if (path.startsWith("/git/trees/")) return NextResponse.json({
         tree: options.rollbackSourceContainsCredentials && path.includes("old-tree")
           ? [{ path: files.DOC_PATH, mode: "100644", type: "blob", sha: "historic-secret" }]
+          : options.rollbackSourceHasOlderManual && path.includes("old-tree")
+            ? [{ path: "manual.txt", mode: "100644", type: "blob", sha: "older" }]
           : options.rollbackSourceMissingManual && path.includes("old-tree") ? [] : entries,
         ...(options.truncatedRollback ? { truncated: true } : {}),
       });
@@ -290,4 +292,14 @@ test("rollback cannot reactivate a historical document containing embedded API c
   assert.match((await response.json()).error, /認証情報/);
   assert.deepEqual(f.writes, []);
   assert.equal(f.recorded, 0);
+});
+
+test("rollback keeps a manually maintained file when the older tree has another version at the same path", async () => {
+  const f = fixture({ rollbackSourceHasOlderManual: true });
+  const response = await f.post({ sha: old }, true);
+  assert.equal(response.status, 200);
+  const update = f.writes.find(item => item.path === "/git/trees");
+  assert.ok(update);
+  assert.deepEqual(update.body.tree.find((entry: any) => entry.path === "manual.txt"),
+    { path: "manual.txt", mode: "100755", type: "blob", sha: "manual" });
 });
