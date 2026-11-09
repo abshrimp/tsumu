@@ -19,7 +19,7 @@ Already-merged historical PRs are outside the active overlap set. This table rep
 | I | [#25](https://github.com/abshrimp/tsumu/pull/25) | yes | `fd9e719b6132b7c25ee889497fee1ede4bb04464` | 15 | `.github/dependabot.yml`, `.github/workflows/ci.yml`, `package.json` |
 | J | [#28](https://github.com/abshrimp/tsumu/pull/28) | yes | `a3ea4e19f14a7a77979dd9bcef7d6810901beb5a` | 4 | — |
 | M | [#32](https://github.com/abshrimp/tsumu/pull/32) | yes | `16716e7a7620a9dda6f00725caa8cd197df25b6b` | 5 | — |
-| Other | [#33](https://github.com/abshrimp/tsumu/pull/33) | yes | `5d40066818f5cf534d2ca12c4f90fc34eba32d1f` | 9 | — |
+| A | [#33](https://github.com/abshrimp/tsumu/pull/33) | yes | `5d40066818f5cf534d2ca12c4f90fc34eba32d1f` | 9 | — |
 
 ## Synchronized-change risks requiring separate review
 
