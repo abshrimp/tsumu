@@ -3,14 +3,14 @@
 #   docker build -t tsumu .
 #   docker run -d --name tsumu -p 3000:3000 -v tsumu-data:/data --env-file .env.local tsumu
 
-FROM node:26.12.1-slim AS build
+FROM node:26.12.1-slim@sha256:36793bcbb160a6a16cede1e62b93f84e26b78a972a8a4c0b879c1c12f22761ec AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm install --global npm@12.2.1 && npm ci
 COPY . .
 RUN NEXT_OUTPUT=standalone npm run build
 
-FROM node:26.12.1-slim
+FROM node:26.12.1-slim@sha256:36793bcbb160a6a16cede1e62b93f84e26b78a972a8a4c0b879c1c12f22761ec
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=3000 \
