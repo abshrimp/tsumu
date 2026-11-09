@@ -130,7 +130,7 @@ test("an actual multi-megabyte SiteDoc can initialize and change one node withou
 test("asset references are read directly from asset rows and erase clears both tables", () => {
   const { store, sqlite } = database();
   const doc = createInitialDoc();
-  doc.assets.asset1 = { id: "asset1", name: "a.png", path: "assets/a.png", mimeType: "image/png" };
+  doc.assets.asset1 = { id: "asset1", name: "a.png", path: "assets/a.png", mimeType: "image/png", width: 1, height: 1 };
   assert.equal(validSiteDoc(doc), true);
   store.replace(JSON.stringify(doc), null);
   assert.deepEqual(store.assetReferences(), [{ path: "assets/a.png", bytes: null }]);
