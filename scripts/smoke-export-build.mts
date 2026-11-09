@@ -2,13 +2,17 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
-import { prepareExportProject, type ExportFormat, type ExportOptions } from "../lib/export-formats";
+import { prepareExportProject, type ExportFormat, type ExportOptions, type ExportStyle } from "../lib/export-formats";
 
 const framework = process.argv[2] as ExportFormat | undefined;
 if (!framework || !["nextjs", "react", "vue", "nuxt", "sveltekit"].includes(framework)) {
   throw new Error("Expected framework: nextjs, react, vue, nuxt or sveltekit");
 }
-const style = framework === "vue" ? "css" : framework === "nuxt" ? "tailwind" : "css-modules";
+const defaultStyle = framework === "vue" ? "css" : framework === "nuxt" ? "tailwind" : "css-modules";
+const style: ExportStyle = (process.argv[4] as ExportStyle | undefined) ?? defaultStyle;
+if (!["css", "css-modules", "tailwind"].includes(style)) {
+  throw new Error("Expected style: css, css-modules or tailwind");
+}
 const language = (process.argv[3] === "javascript" || process.argv[3] === "typescript")
   ? process.argv[3] : framework === "nuxt" ? "javascript" : "typescript";
 const options: ExportOptions = { framework, language, style, scope: "project" };

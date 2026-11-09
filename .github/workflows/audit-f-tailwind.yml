@@ -1,0 +1,51 @@
+name: Audit F - SvelteKit Tailwind Export
+
+on:
+  pull_request:
+    paths:
+      - "lib/generator/**"
+      - "lib/export-formats.ts"
+      - "scripts/smoke-export-build.mts"
+      - ".github/workflows/audit-f-tailwind.yml"
+  push:
+    branches: [main]
+    paths:
+      - "lib/generator/**"
+      - "lib/export-formats.ts"
+      - "scripts/smoke-export-build.mts"
+      - ".github/workflows/audit-f-tailwind.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-f-tailwind-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sveltekit-tailwind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [typescript, javascript]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm install --global npm@12.2.1
+      - run: npm ci
+      - name: Generate SvelteKit Tailwind site
+        run: node --import tsx scripts/smoke-export-build.mts sveltekit ${{ matrix.language }} tailwind
+      - name: Build and audit independent generated project
+        working-directory: .generated-export-smoke
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+          npm audit --omit=dev --audit-level=high
+          npm audit --audit-level=high
+      - name: Verify SSR output
+        run: node --import tsx scripts/check-generated-ssr.mts sveltekit
