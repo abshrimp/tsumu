@@ -398,13 +398,20 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
 
 /** One native block applies one pure operation. Stacking blocks composes them. */
 function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform" }> }) {
-  const { doc, pageId, updateStep, samples } = useContext(Ctx);
+  const { doc, pageId, updateStep, samples, variableIndex, transformSources } = useContext(Ctx);
   const set = (patch: Partial<typeof step>) => updateStep(step.id, (s) => ({ ...s, ...patch }) as ScriptStep);
-  const available = new Set([...dataVarNames(doc, pageId, step.id), ...Object.keys(samples).filter((key) => !key.startsWith("#"))]);
-  const sourceValues = Object.fromEntries([
-    ...Object.entries(samples).filter(([name]) => !name.startsWith("#")),
-    ...[...available].filter((name) => !Object.hasOwn(samples, name)).map((name) => [name, undefined]),
-  ]);
+  const sourceValues = transformSources ?? (() => {
+    const available = new Set([...dataVarNames(doc, pageId, step.id), ...Object.keys(samples).filter((key) => !key.startsWith("#"))]);
+    return Object.fromEntries([
+      ...Object.entries(samples).filter(([name]) => !name.startsWith("#")),
+      ...[...available].filter((name) => !Object.hasOwn(samples, name)).map((name) => [name, undefined]),
+    ]);
+  })();
+  // A block must not suggest its own, as-yet-unavailable output. Keep the
+  // shared source object intact and exclude that name only in opened menus.
+  const excludedSourceName = variableIndex && step.into &&
+    !variableIndex.hasOther(step.into, step.id) && !Object.hasOwn(samples, step.into)
+      ? step.into : undefined;
   const sample = step.source ? lookupVar(samples, step.source) : undefined;
   const first = Array.isArray(sample)
     ? sample.find((item) => item !== null && typeof item === "object" && !Array.isArray(item))
@@ -422,6 +429,7 @@ function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform"
           source: <PathMenu root={sourceValues} path={step.source}
             ariaLabel={tr("加工する元の変数")} placeholder={tr("変数を選択")}
             mode="any" allowRoot={false} portalZIndex={550}
+            excludeRootKey={excludedSourceName}
             onChange={(source) => updateStep(step.id, (s) => {
               if (s.kind !== "transform") return s;
               // Reuse the source variable by default; blocks can share one name.
@@ -442,6 +450,7 @@ function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform"
       />
       <div className="se-transform-settings">
         <ValueTransformSettings transform={step.transform} options={options} samples={sourceValues}
+          excludedVariableName={excludedSourceName}
           onChange={(transform) => set({ transform })} />
       </div>
       {preview?.kind === "value" && (

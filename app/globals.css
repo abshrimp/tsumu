@@ -4747,6 +4747,7 @@ input.se-in {
   z-index: 3;
   pointer-events: none;
   opacity: 0.92;
+  will-change: transform;
 }
 
 .se-ghost .se-stack {

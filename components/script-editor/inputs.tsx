@@ -186,12 +186,15 @@ export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 
 }) {
   const { doc: savedDoc, pageId, readOnly } = useContext(Ctx);
   const stepId = useContext(ScriptStepCtx);
-  const doc = useMemo(() => scriptInputDoc(savedDoc, stepId), [savedDoc, stepId]);
+  const source = singleValueReference(value);
+  // A literal value or read-only preview needs no variable-type document.
+  // The editable variable picker builds its suggestions on focus separately.
+  const doc = useMemo(() => source && !readOnly ? scriptInputDoc(savedDoc, stepId) : null,
+    [savedDoc, stepId, source, readOnly]);
   const nodeId = useContext(ScriptNodeCtx);
   const loops = useContext(LoopCtx);
-  const source = singleValueReference(value);
   const local = localVariableNames([...(itemFields ?? []), ...loops.flatMap((l) => [...l.fields, ...(l.roots ?? [])])]);
-  const sample = source ? lookupVar(variableChoiceSamples(varGroupsAt(doc, pageId, nodeId), local), source) : undefined;
+  const sample = source && doc ? lookupVar(variableChoiceSamples(varGroupsAt(doc, pageId, nodeId), local), source) : undefined;
   const kind = sample === undefined ? null : sample !== null && typeof sample === "object" ? tr("リスト") : tr("値");
   if (readOnly) return <span className="se-in se-in-fake">{source ? fieldLabel(source) : value}</span>;
   return <span className="se-value-choice">
