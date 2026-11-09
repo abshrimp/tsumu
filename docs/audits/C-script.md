@@ -26,7 +26,7 @@
 | --- | --- | --- |
 | クリック、値の変更 | バブリング、自己再発火、要素の破棄 | `script-runtime-reentrancy`、`script-input-value`、`script-cancellation` |
 | ページを開いたとき | サーバー実行とクライアント実行の分割、再遷移 | `script-block-composition`、`script-data-export`、`script-cancellation` |
-| ホバー開始・終了、表示要素上の継続 | 親子の境界、keep、タイマー解除 | `SCRIPT_RUNTIME` の `onOver/onOut`（実ブラウザの追加検証が必要） |
+| ホバー開始・終了、表示要素上の継続 | 親子の境界、keep、タイマー解除 | `script-hover-cancellation`（ページ遷移中の停止）、`SCRIPT_RUNTIME` の `onOver/onOut`（境界の実ブラウザ検証が必要） |
 | 画面に入ったとき | 交差観測、再描画、dispose | `SCRIPT_RUNTIME` の `IntersectionObserver`（ブラウザ試験は要追加） |
 | 表示・非表示・切替、状態変更 | 非表示からの復元、状態名の検証 | `script-runtime-budget`、`value-transform-blocks.spec.ts` |
 | ページ・URLを開く、スクロール | URL解決、ページID、対象要素不在 | `generator-script-query`、`script-navigation.spec.ts`（スクロールの独立試験は要追加） |
@@ -57,6 +57,7 @@
 | AUD-C-005 | Medium（データ整合性） | 非有限数やJSON非対応値を変数に入れられ、比較やJSON直列化で不整合になる | 比較と変数値の検証を強化。`script-nonfinite-values.test.mts` |
 | AUD-C-006 | Low〜Medium（性能・整合性） | ブラウザ側リスト絞り込みがOR成立後やAND不成立後も不要な条件を評価していた | SSRと同じ短絡評価。`script-conditions-shortcircuit.test.mts` |
 | AUD-C-007 | Medium（データ整合性・可用性） | `setVarPath` が飛び番添字や配列の文字列キーを受け入れ、疎な巨大配列や別のデータ型に変化させる | 既存添字の更新または末尾への追加だけ許可し、不正な書込は原子的に拒否。`script-var-path-bounds.test.mts` |
+| AUD-C-008 | Medium（画面遷移・状態破壊） | hover-end遅延コールバックが元の要素をページ遷移で失っても発火し、新ページの要素を操作できる | 遷移時にhoverタイマーを破棄し、実行前に要素の接続とページ世代を再確認。`script-hover-cancellation.test.mts` |
 
 実行量上限は悪意あるデータによるブラウザ停止の回避策であり、**意図的な長時間処理が上限で停止し得る仕様上の制約**が残る。明示的な待機または無限ループのインターバルで実行予算は更新される。
 
