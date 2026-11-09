@@ -34,9 +34,9 @@ export function parseJsonc(src) {
       while (i < src.length && src[i] !== "\n") i++;
       out += "\n";
     } else if (c === "/" && src[i + 1] === "*") {
-      i = src.indexOf("*/", i + 2);
-      if (i < 0) break;
-      i++;
+      const end = src.indexOf("*/", i + 2);
+      if (end < 0) throw new SyntaxError("Unterminated block comment in Wrangler configuration");
+      i = end + 1;
     } else out += c;
   }
   return JSON.parse(out.replace(/"(?:\\.|[^"\\])*"|,(\s*[}\]])/g, (match, closing) => closing ?? match));
