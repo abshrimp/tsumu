@@ -477,10 +477,11 @@ test("AUD-F-015: exported CSS contains untrusted style-map values as declaration
     color: '"</style><script>window.__AUDIT_CSS_XSS__=1</script>"',
     margin: "12px",
   } } };
+  site.pages.public.htmlBackground = 'red; } body { --__AUDIT_HTML_BACKGROUND_BREAKOUT__: yes; } /*';
   for (const format of ["nextjs", "html"] as const) {
     const project = generateExportProject(site, format);
     const css = project.files["styles/site.css"];
-    assert.doesNotMatch(css, /__AUDIT_CSS_BREAKOUT__|__AUDIT_CSS_XSS__/);
+    assert.doesNotMatch(css, /__AUDIT_CSS_BREAKOUT__|__AUDIT_CSS_XSS__|__AUDIT_HTML_BACKGROUND_BREAKOUT__/);
     assert.match(css, /background-image: url\(data:image\/png;base64,AQID\);/);
     assert.match(css, /font-family: "A; B", sans-serif;/);
     assert.match(css, /-webkit-line-clamp: 3;/);

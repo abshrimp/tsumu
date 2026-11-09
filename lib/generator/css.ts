@@ -371,7 +371,8 @@ function mergeIdenticalRules(rules: string[]): string[] {
 
 /** htmlに背景を置くとbodyの背景は画面全体に広がらないため、bodyを画面の高さまで伸ばす */
 function htmlBackgroundCss(color: string, htmlSel: string, bodySel: string): string {
-  return `${htmlSel} {\n  background: ${color};\n}\n\n${bodySel} {\n  min-height: 100vh;\n}`;
+  const background = safeCssDeclarationValue(color) ? color : "transparent";
+  return `${htmlSel} {\n  background: ${background};\n}\n\n${bodySel} {\n  min-height: 100vh;\n}`;
 }
 
 export function rawHtmlWithBodyStyles(
