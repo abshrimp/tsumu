@@ -9,6 +9,7 @@ import { nodeDatabase } from "../lib/node-storage";
 import { deleteSite, insertSite, isSiteId } from "../lib/sites";
 import { listComments, listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction, type CommentAction } from "../lib/comments";
 import { userMessage } from "../lib/errors";
+import { JsonBodyTooLargeError, readJsonLimited } from "../lib/api-json";
 
 const author = { email: "author@example.com", name: "Author", image: null };
 const create: CommentAction = {
@@ -60,7 +61,7 @@ function api(db: Db) {
   };
   const siteIdOf = load("../lib/site-server.ts", "siteIdOf", { NextResponse, serverTr, isSiteId });
   const post = load("../app/api/comments/route.ts", "POST", {
-    NextResponse, serverTr, siteIdOf, userMessage,
+    NextResponse, serverTr, siteIdOf, userMessage, JsonBodyTooLargeError, readJsonLimited,
     listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction,
     requireAuth: async () => null, sessionUser: async () => author,
     dbConfigured: () => true, getDb: async () => db,
