@@ -205,6 +205,7 @@ test("history list and its rollback precondition use the same captured head", as
   const f = fixture();
   const res = await f.get();
   assert.equal(res.status, 200);
+  assert.equal(res.headers.get("cache-control"), "private, no-store");
   assert.equal((await res.json()).head, old);
   assert.ok(f.calls.includes(`owner/site:/commits?sha=${old}&per_page=30`));
   assert.ok(!f.calls.some(path => path.includes("sha=main")));
@@ -229,7 +230,9 @@ test("rollback rejects a valid commit SHA outside the selected branch ancestry",
 test("an ancestor is eligible for history restore and rollback", async () => {
   const f = fixture();
   const sha = "e".repeat(40);
-  assert.equal((await f.get({ doc: sha })).status, 200);
+  const docResponse = await f.get({ doc: sha });
+  assert.equal(docResponse.status, 200);
+  assert.equal(docResponse.headers.get("cache-control"), "private, no-store");
   assert.equal((await f.post({ sha }, true)).status, 200);
   assert.ok(f.calls.some(path => path.includes(`/compare/${sha}...${old}`)));
 });
