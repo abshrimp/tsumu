@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import { ancestorsOf, findParentOf, useEditor } from "../../lib/store";
 import type { Breakpoint, CustomFont, DocNode, SiteDoc, StyleState } from "../../lib/types";
-import { allFonts, getProp, resolveStyleMap, isInitialValue } from "../../lib/style";
+import { allFonts, getProp, resolveStyleMap, isInitialValue, initialValueOf } from "../../lib/style";
 import {
   Dropdown,
   Grp,
@@ -225,6 +225,10 @@ export function TypographySec({ node }: { node: DocNode }) {
   const breakpoint = useEditor((s) => s.breakpoint);
   const styleState = useEditor((s) => s.styleState);
   const updateTargets = useEditor((s) => s.updateTargets);
+  // Choosing an off state is not a reset: hover/focus may need to override
+  // the normal state's styling explicitly instead of inheriting it again.
+  const explicitDefault = (prop: string) => isInitialValue(prop, insp.get(prop).baseline)
+    ? null : initialValueOf(prop) ?? null;
   const clamp = !isInitialValue("WebkitLineClamp", insp.get("WebkitLineClamp").value);
   // Removing the local clamp must also override one inherited from a wider
   // breakpoint. display has element-specific defaults, not a global clear value.
@@ -364,7 +368,7 @@ export function TypographySec({ node }: { node: DocNode }) {
               className={italic ? "is-on" : ""}
               data-tip={tr("斜体")}
               onClick={() =>
-                insp.set({ fontStyle: italic ? insp.cleared("fontStyle") : "italic" })
+                insp.set({ fontStyle: italic ? explicitDefault("fontStyle") : "italic" })
               }
             >
               <Italic size={13} />
@@ -374,7 +378,7 @@ export function TypographySec({ node }: { node: DocNode }) {
               data-tip={tr("下線")}
               onClick={() =>
                 insp.set({
-                  textDecoration: deco === "underline" ? insp.cleared("textDecoration") : "underline",
+                  textDecoration: deco === "underline" ? explicitDefault("textDecoration") : "underline",
                 })
               }
             >
@@ -386,7 +390,7 @@ export function TypographySec({ node }: { node: DocNode }) {
               onClick={() =>
                 insp.set({
                   textDecoration:
-                    deco === "line-through" ? insp.cleared("textDecoration") : "line-through",
+                    deco === "line-through" ? explicitDefault("textDecoration") : "line-through",
                 })
               }
             >
@@ -447,25 +451,25 @@ export function TypographySec({ node }: { node: DocNode }) {
               if (v === "wrap") {
                 const props: Record<string, string | null> = {
                   // 大きい画面の「なし」を打ち消すときは、文字要素の既定（改行を保つ）に戻す
-                  whiteSpace: insp.cleared("whiteSpace") && node.text ? "pre-wrap" : insp.cleared("whiteSpace"),
-                  WebkitLineClamp: insp.cleared("WebkitLineClamp"),
-                  WebkitBoxOrient: insp.cleared("WebkitBoxOrient"),
+                  whiteSpace: explicitDefault("whiteSpace") && node.text ? "pre-wrap" : explicitDefault("whiteSpace"),
+                  WebkitLineClamp: explicitDefault("WebkitLineClamp"),
+                  WebkitBoxOrient: explicitDefault("WebkitBoxOrient"),
                 };
                 if (clamp) {
                   props.display = unclampedDisplay;
-                  props.overflow = insp.cleared("overflow");
+                  props.overflow = explicitDefault("overflow");
                 }
                 insp.set(props);
               } else if (v === "nowrap")
                 insp.set({
                   whiteSpace: "nowrap",
-                  WebkitLineClamp: insp.cleared("WebkitLineClamp"),
-                  WebkitBoxOrient: insp.cleared("WebkitBoxOrient"),
-                  ...(clamp ? { display: unclampedDisplay, overflow: insp.cleared("overflow") } : {}),
+                  WebkitLineClamp: explicitDefault("WebkitLineClamp"),
+                  WebkitBoxOrient: explicitDefault("WebkitBoxOrient"),
+                  ...(clamp ? { display: unclampedDisplay, overflow: explicitDefault("overflow") } : {}),
                 });
               else
                 insp.set({
-                  whiteSpace: insp.cleared("whiteSpace") && node.text ? "pre-wrap" : insp.cleared("whiteSpace"),
+                  whiteSpace: explicitDefault("whiteSpace") && node.text ? "pre-wrap" : explicitDefault("whiteSpace"),
                   display: "-webkit-box",
                   WebkitBoxOrient: "vertical",
                   WebkitLineClamp: "2",

@@ -284,6 +284,10 @@ export function AppearanceSec() {
   const insp = useInspector();
   const [corners, setCorners] = useState(false);
   const opacity = insp.get("opacity");
+  const opacityNumber = opacity.value?.trim().match(/^([+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)(%)?$/i);
+  const opacityPercent = opacityNumber
+    ? Math.max(0, Math.min(100, Number(opacityNumber[1]) * (opacityNumber[2] ? 1 : 100)))
+    : undefined;
   const radius = insp.get("borderRadius");
   const cornerProps = [
     "borderTopLeftRadius",
@@ -304,8 +308,8 @@ export function AppearanceSec() {
         >
           <NumField
             value={
-              opacity.value !== undefined
-                ? `${Math.round(parseFloat(opacity.value) * 100)}%`
+              opacityPercent !== undefined
+                ? `${Math.round(opacityPercent * 10000) / 10000}%`
                 : undefined
             }
             units={["%"]}
@@ -315,7 +319,10 @@ export function AppearanceSec() {
             pre={<Blend size={I} />}
             onChange={(v) => {
               const n = v ? (parseNumeric(v)?.num ?? 100) : 100;
-              insp.set({ opacity: n >= 100 ? insp.cleared("opacity") : String(n / 100) });
+              // Choosing 100% is an explicit value, not a reset: a translucent
+              // default must be overridable in hover/focus as well as smaller screens.
+              const full = isInitialValue("opacity", opacity.baseline) ? null : "1";
+              insp.set({ opacity: n >= 100 ? full : String(n / 100) });
             }}
           />
         </Grp>

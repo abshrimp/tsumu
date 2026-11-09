@@ -254,3 +254,31 @@ test("an import ID collision preserves the already stored site and document", as
   expect(existing.list).toEqual([{ id: "aaaaaaaaaa", name: "Existing site" }]);
   expect(existing.doc).toEqual({ siteName: "Existing document" });
 });
+
+for (const lock of ["web-locks", "indexeddb"]) {
+  test(`simultaneous local imports retain both documents and home entries with ${lock}`, async ({ page, context }) => {
+    const other = await context.newPage();
+    try {
+      const tabs = [page, other];
+      await Promise.all(tabs.map(async tab => {
+        await localMode(tab);
+        if (lock === "indexeddb") await tab.addInitScript(() => Object.defineProperty(navigator, "locks", { value: undefined }));
+        await tab.goto("/");
+        await expect(tab.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+      }));
+      await Promise.all(tabs.map(async (tab, i) => {
+        const doc = fixture();
+        doc.siteName = "Parallel site " + i;
+        await tab.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
+          name: "site.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(doc)),
+        });
+        await expect(tab).toHaveURL(/\/sites\/[a-z0-9]{10}$/);
+      }));
+      const saved = await page.evaluate(({ listKey, docKey }) =>
+        JSON.parse(localStorage.getItem(listKey) || "[]").map((site: { id: string; name: string }) =>
+          [site.name, JSON.parse(localStorage.getItem(docKey + ":" + site.id) || "null")?.siteName]),
+        { listKey, docKey: DOC_STORAGE_KEY });
+      expect(saved.sort()).toEqual([["Parallel site 0", "Parallel site 0"], ["Parallel site 1", "Parallel site 1"]]);
+    } finally { await other.close(); }
+  });
+}

@@ -86,6 +86,43 @@ export function otherLocalDocs(): string[] {
 
 const LOCAL_SITES_KEY = storageKey("sites-v1");
 
+/** Serialize the entire site-list read/modify/write across same-origin tabs. */
+export async function withLocalSiteListLock<T>(change: () => T): Promise<T> {
+  // Non-browser callers can supply in-memory Storage without cross-tab writers.
+  if (!window.navigator) return change();
+  const locks = window.navigator.locks;
+  if (locks) return locks.request(LOCAL_SITES_KEY, change);
+  const idb = window.indexedDB;
+  const unavailable = () => new Error("ブラウザにサイトを保存できませんでした。空き容量と保存設定を確認してください。");
+  if (!idb) throw unavailable();
+  // HTTP origins may have IndexedDB without Web Locks. A readwrite transaction
+  // on the same store also excludes other tabs until this synchronous change ends.
+  return new Promise<T>((resolve, reject) => {
+    const open = idb.open(LOCAL_SITES_KEY, 1);
+    open.onupgradeneeded = () => open.result.createObjectStore("lock");
+    open.onerror = () => reject(unavailable());
+    open.onsuccess = () => {
+      const db = open.result;
+      let tx: IDBTransaction;
+      try { tx = db.transaction("lock", "readwrite"); }
+      catch { db.close(); reject(unavailable()); return; }
+      let value: T;
+      tx.objectStore("lock").get("list").onsuccess = () => {
+        try { value = change(); }
+        catch (error) { tx.abort(); reject(error); }
+      };
+      tx.oncomplete = () => { db.close(); resolve(value); };
+      tx.onabort = () => { db.close(); reject(unavailable()); };
+    };
+  });
+}
+
+/** Never replace an existing list entry, deleted site, or unlisted document. */
+export function localSiteIdInUse(id: string, list: SiteRecord[]): boolean {
+  return list.some(site => site.id === id) || isLocalSiteDeleted(id) ||
+    window.localStorage.getItem(siteKey(DOC_STORAGE_KEY, id)) !== null;
+}
+
 /** 明示的なローカルサイト削除の記録。古いタブの一覧保存や掃除で消さない。 */
 export const LOCAL_SITE_DELETED_KEY = storageKey("site-deleted-v1");
 
@@ -129,13 +166,11 @@ export function saveLocalSites(list: SiteRecord[]): boolean {
 /** いま開いているサイトの最終編集時刻を、ブラウザ内のサイト一覧に記録する */
 export function touchLocalSite(at = Date.now()): void {
   const id = currentSiteId();
-  try {
+  void withLocalSiteListLock(() => {
     const list = loadLocalSites({ strict: true });
     if (!list.some((s) => s.id === id)) return;
     saveLocalSites(list.map((s) => (s.id === id ? { ...s, updatedAt: at, savedAt: at } : s)));
-  } catch {
-    // 最終編集時刻だけの更新なので、一覧を読めないときは編集データの保存を妨げずに見送る。
-  }
+  }).catch(() => { /* Updating the timestamp is best effort; the document was already saved. */ });
 }
 
 /** ブラウザ内に保存した、いま開いているサイトの公開先（無ければ null） */

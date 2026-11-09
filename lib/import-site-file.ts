@@ -1,5 +1,5 @@
 import { withImportUploads } from "./import-uploads";
-import { DOC_STORAGE_KEY, emptyDest, isLocalSiteDeleted, loadLocalSites, saveLocalSites, siteKey } from "./site";
+import { DOC_STORAGE_KEY, emptyDest, localSiteIdInUse, loadLocalSites, saveLocalSites, siteKey, withLocalSiteListLock } from "./site";
 import { newSiteId, type SiteRecord } from "./sites";
 import { IMPORT_LIMITS, parseSiteImport, restoreImportAssets, validateImportedDoc } from "./site-import";
 import { convertHtmlFile, isEditableSiteZip, isHtmlFile } from "./html-file-import";
@@ -27,7 +27,7 @@ function localWrite(doc: string, name: string): string {
   // must not leave behind a partial document or an inaccessible site.
   const list = loadLocalSites({ strict: true });
   const docKey = siteKey(DOC_STORAGE_KEY, id);
-  if (list.some(site => site.id === id) || isLocalSiteDeleted(id) || window.localStorage.getItem(docKey) !== null) {
+  if (localSiteIdInUse(id, list)) {
     throw new Error("サイトを作成できませんでした。");
   }
   let wroteDoc = false;
@@ -100,7 +100,7 @@ export async function createSiteFromFile(
     }
     const id = mode === "server"
       ? await serverWrite(doc, raw, paths)
-      : localWrite(raw, doc.siteName);
+      : await withLocalSiteListLock(() => localWrite(raw, doc.siteName));
     try {
       window.sessionStorage.setItem(importWarningsKey(id), JSON.stringify(warnings));
     } catch {
