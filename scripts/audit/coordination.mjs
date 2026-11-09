@@ -8,6 +8,9 @@
  */
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import {
+  requiredChecksForBranch, summarizeRequiredChecks, summarizeIndependentReview,
+} from './merge-gates.mjs';
 
 export const PLAN_BASELINE = '1ba32974d4b5ecf441e36428e765d0542207c421';
 export const DEFAULT_REPO = 'abshrimp/tsumu';
@@ -178,6 +181,20 @@ export async function snapshot({ repo = DEFAULT_REPO, baseline = PLAN_BASELINE,
     api.pages(repo, '/pulls?state=open'),
     api.pages(repo, '/issues?state=open'),
   ]);
+  // Required checks must come from active branch rules, not a hardcoded count.
+  // Failure to read rulesets blocks an automatic 'passed' conclusion.
+  let requiredContexts = null, rulesetNote = 'not verified';
+  try {
+    const list = await api.pages(repo, '/rulesets');
+    const active = list.filter(item => item.target === 'branch' && item.enforcement === 'active');
+    const details = await Promise.all(active.map(item =>
+      api.request(repo, '/rulesets/' + encodeURIComponent(String(item.id)))));
+    const scoped = requiredChecksForBranch(details, 'main');
+    requiredContexts = scoped.contexts;
+    rulesetNote = scoped.note;
+  } catch (error) {
+    rulesetNote = 'not verified: ' + error.message;
+  }
   let changed = [], compareNote = 'same commit';
   if (head !== baseline) {
     try {
@@ -195,19 +212,29 @@ export async function snapshot({ repo = DEFAULT_REPO, baseline = PLAN_BASELINE,
     const files = [...new Set(detail.flatMap((x) =>
       x.previous_filename ? [x.filename, x.previous_filename] : [x.filename]))];
     let checks = summarizeChecks(), checksNote = null;
+    let requiredChecks = summarizeRequiredChecks([], requiredContexts);
     try {
       const result = await api.request(repo, '/commits/' + pr.head.sha + '/check-runs?per_page=100');
       checks = summarizeChecks(result.check_runs);
+      requiredChecks = summarizeRequiredChecks(result.check_runs, requiredContexts, result.total_count);
       if (result.total_count > result.check_runs.length)
         checksNote = 'check runs truncated; cannot treat result as complete';
     } catch (error) {
       checksNote = error.message;
     }
+    let independentReview = { state: 'unknown', reviewers: [], reason: 'Review API unavailable' };
+    try {
+      const reviews = await api.pages(repo, '/pulls/' + pr.number + '/reviews');
+      independentReview = summarizeIndependentReview(reviews, pr.user?.login, pr.head.sha);
+    } catch (error) {
+      independentReview.reason = 'Review API unavailable: ' + error.message;
+    }
     return {
       number: pr.number, title: pr.title, url: pr.html_url, draft: pr.draft,
       head: pr.head.sha, base: pr.base.sha,
       mergeable: typeof pr.mergeable === 'boolean' ? pr.mergeable : 'unknown',
-      files, checks, checksNote, ...summarizePr({ files }, changed),
+      files, checks, checksNote, requiredChecks, independentReview,
+      ...summarizePr({ files }, changed),
     };
   }));
   // Detect races while querying, but never silently substitute the later SHA.
@@ -220,7 +247,7 @@ export async function snapshot({ repo = DEFAULT_REPO, baseline = PLAN_BASELINE,
     prs.some((pr) => liveHeads.get(pr.number) !== pr.head);
   return {
     observedAt: new Date().toISOString(), repo, baseline, head, stale,
-    changed, compareNote,
+    changed, compareNote, requiredContexts, rulesetNote,
     issues: allIssues.filter((issue) => !issue.pull_request).map((issue) =>
       ({ number: issue.number, title: issue.title, url: issue.html_url })),
     prs, overlaps: findOverlaps(prs),
@@ -241,15 +268,19 @@ export function toMarkdown(s) {
     '- Changes since baseline: ' + s.changed.length + ' paths (' + s.compareNote + ')',
     '- Open issues (excluding PRs): ' + s.issues.length,
     '- Security alerts: ' + s.security,
+    '- Branch Ruleset: ' + s.rulesetNote,
     '- Independent verification: ' + s.independence,
     '',
-    '| PR | State | Head check runs | Primary areas | Shared paths | Baseline drift |',
-    '| --- | --- | --- | --- | ---: | ---: |',
+    '| PR | State | Observed check runs | Required CI | Independent review | Primary areas | Shared paths | Baseline drift |',
+    '| --- | --- | --- | --- | --- | --- | ---: | ---: |',
   ];
   for (const pr of s.prs)
     lines.push('| [#' + pr.number + '](' + pr.url + ') | ' +
       (pr.draft ? 'draft' : 'open') + ', mergeability=' + pr.mergeable +
       ' | ' + pr.checks.state + ' (' + pr.checks.observed + ')' +
+      ' | ' + pr.requiredChecks.state + ' (' + pr.requiredChecks.passed + '/' +
+      (s.requiredContexts?.length ?? '?') + ')' +
+      ' | ' + pr.independentReview.state +
       ' | ' + pr.areas.join(', ') + ' | ' + pr.shared.length +
       ' | ' + pr.baselineDrift.length + ' |');
   lines.push('', '## Exact or case-insensitive shared PR paths', '');
@@ -266,6 +297,10 @@ export function toMarkdown(s) {
     if (pr.crossArea) flags.push('cross-area ownership');
     if (pr.baselineDrift.length) flags.push('main changed the same paths since audit baseline');
     if (pr.checks.state !== 'observed-complete') flags.push('checks incomplete/unknown');
+    if (pr.requiredChecks.state !== 'passed') flags.push('required CI not verified: ' +
+      JSON.stringify({ missing: pr.requiredChecks.missing, pending: pr.requiredChecks.pending,
+        failing: pr.requiredChecks.failing }));
+    if (pr.independentReview.state !== 'verified') flags.push('independent review not verified');
     if (pr.checksNote) flags.push('check data incomplete: ' + pr.checksNote);
     lines.push('- #' + pr.number + ': ' +
       (flags.length ? flags.join('; ') : 'still requires security and independent review'));
@@ -293,7 +328,7 @@ async function runCli() {
   process.stdout.write(args.includes('--json') ?
     JSON.stringify(data, null, 2) + '\n' : toMarkdown(data));
   if (data.stale || (data.compareNote.startsWith('not verified') || data.compareNote.startsWith('possibly incomplete')) ||
-      data.prs.some((pr) => pr.checksNote))
+      data.prs.some((pr) => pr.checksNote) || !data.requiredContexts)
     process.exitCode = 2;
   if (args.includes('--strict-overlap') && data.overlaps.length)
     process.exitCode = 2;
