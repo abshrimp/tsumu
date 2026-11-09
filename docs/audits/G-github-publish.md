@@ -122,3 +122,28 @@ A green CI result at `ece4bb9a` established regression coverage only for the fir
 - **Provider/hosting smoke:** The mock tests cannot establish live GitHub GraphQL/REST rate limits, hosting build settings or final content availability. Conduct a non-production publish→manual-edit→rollback→restore test against a dedicated disposable repository before production merge.
 
 The implementation, tests and findings continue to be consolidated in one G pull request. Full CI, CodeQL and cross-owner review are separate final gates; no assertion of zero remaining bugs is implied.
+
+## Post-import integration review (after PR #26)
+
+The import validator now shares the persisted SiteDoc graph contract. GitHub
+history restore must satisfy those same rules, but it is a distinct entry path
+that does not run the ordinary ZIP/doc asset-restoration pipeline.
+
+| ID | Severity | Finding | Correction and regression |
+| --- | --- | --- | --- |
+| AUD-G-013 | Medium | Browser validation intentionally defers inline SVG sanitization until import completion. GitHub history restored a document directly, bypassing that completion step, so a modified `icon.svg` could survive into exported-site HTML. | Share `sanitizeImportedInlineIcons` between normal imports and GitHub restore, after structure validation but before `restoreDoc`. Add a restore regression using active SVG markup. |
+| AUD-G-014 | Low | Authenticated history document JSON and publishing settings did not explicitly prohibit shared/private HTTP caching. | Send `Cache-Control: private, no-store` on successful history document, history list and publishing settings responses. Assert headers in route mock tests. |
+| AUD-G-015 | Medium | Rollback preserved newly added manual files, but it could resurrect an older manual file that had been intentionally removed from the current Git tree. | Read the historical generated-file manifest and replay deletions of historical manually owned files missing from the current tree using Git Trees `sha: null` edits. Preserve older generated files separately. Cover both cases with mock GitHub API regression tests. |
+
+**Remaining ownership ambiguity:** When a historical commit has no generated-file
+manifest, its generated and manual paths cannot be reliably distinguished.
+The rollback retains the previous behavior for that case; deletion preservation
+is guaranteed only when the selected historical tree carries usable ownership
+metadata. Do not represent this as a full guarantee for arbitrary Git commits.
+
+**Exact-head verification:** Earlier 14/14 green results cover the previous PR
+head, not these added corrections or the merged B/E contracts. Before merging,
+require the final PR head's CI, E2E and generated-format jobs to pass, review
+the integrated behavior, and run the previously documented disposable-repository
+publish→manual-edit/delete→rollback→restore smoke when credentials and an
+isolated target can be supplied. Production data is not a suitable test fixture.
