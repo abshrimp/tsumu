@@ -4,6 +4,7 @@ import type { Dict } from "../i18n";
 import help from "./en-help";
 
 const en: Dict = {
+  "同じパスに取り込んだHTMLページと通常ページ、または複数の取り込んだHTMLページがあります。Next.jsでは同じルートに両方を書き出せません。ページのURLを分けてください。": "Imported HTML and regular pages, or multiple imported HTML pages, share a path. Next.js cannot export both to the same route. Give each page a different URL.",
   "末尾": "End",
   "空のリストを変数［］とする": "Create an empty list in variable ［］",
   "リスト・{length}項目": "List · {length} items",
