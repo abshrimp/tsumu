@@ -70,13 +70,24 @@ test("AUD-J-016: server API and generated SSR refuse private destinations before
     assert.equal(outbound, 0, "a private address was fetched");
     assert.equal(local, 0, "a private address was sent to the local fetch");
 
-    // Positive control: a literal public IP may pass and reach a mocked network.
+    // Positive controls distinguish the API's network policy from the
+    // generated SSR's stricter explicit-origin allowlist. A public IP is
+    // permitted by the API, but not by a site that did not allowlist it.
     const allowed = "https://1.1.1.1/public";
     assert.equal((await assertPublicUrl(allowed)).href, allowed);
-    const response = await requestPublic(allowed, {}, "https://published.example", localFetch);
-    assert.equal(response.status, 200);
-    assert.equal(outbound, 1);
+    await assert.rejects(
+      requestPublic(allowed, {}, "https://published.example", localFetch),
+      /origin is not allowed/,
+    );
+    assert.equal(outbound, 0);
     assert.equal(local, 0);
+
+    // Relative same-origin data APIs must continue working through the
+    // generated framework's local fetch without an external network call.
+    const response = await requestPublic("/api/safe", {}, "https://published.example", localFetch);
+    assert.equal(response.status, 200);
+    assert.equal(local, 1);
+    assert.equal(outbound, 0);
   } finally {
     globalThis.fetch = previousFetch;
   }
