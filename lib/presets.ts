@@ -317,7 +317,8 @@ export function makeField(kind: FieldKind): DocNode {
     select: {
       name: tr("選択肢"),
       field: {
-        options: [tr("選択してください"), tr("選択肢A"), tr("選択肢B")],
+        options: [tr("選択してください"), tr("選択肢A"), tr("選択肢B")]
+          .map((value) => ({ label: value, value })),
       },
       attrId: "choice",
       styles: {

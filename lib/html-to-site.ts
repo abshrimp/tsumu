@@ -485,7 +485,10 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
         warn(tr("一部のHTML要素をカスタムコードとして保持しました。"));
         return add(common);
       }
-      const options = tag === "select" ? Array.from(element.querySelectorAll("option")).map((option) => option.textContent || "") : undefined;
+      const options = tag === "select" ? Array.from(element.querySelectorAll("option")).map((option) => ({
+        label: option.textContent || "",
+        value: option.getAttribute("value") ?? option.textContent ?? "",
+      })) : undefined;
       if (!common.attrId && element.getAttribute("name")) common.attrId = element.getAttribute("name")!;
       common.field = {
         kind: kind as NonNullable<DocNode["field"]>["kind"],
@@ -493,10 +496,10 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
         ...(options ? { options } : {}),
         ...(element.getAttribute("placeholder") ? { placeholder: element.getAttribute("placeholder")! } : {}),
         ...((tag === "textarea" ? element.textContent || "" :
-          tag === "select" ? (element as HTMLSelectElement).selectedOptions[0]?.textContent || "" :
+          tag === "select" ? (element as HTMLSelectElement).selectedOptions[0]?.value || "" :
           element.getAttribute("value") || "") ? {
             defaultValue: tag === "textarea" ? element.textContent || "" :
-              tag === "select" ? (element as HTMLSelectElement).selectedOptions[0]?.textContent || "" :
+              tag === "select" ? (element as HTMLSelectElement).selectedOptions[0]?.value || "" :
               element.getAttribute("value") || "",
           } : {}),
         ...(element.hasAttribute("checked") ? { checked: true } : {}),

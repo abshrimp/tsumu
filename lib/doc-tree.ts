@@ -92,7 +92,8 @@ export function validDocNodeShape(value: unknown): boolean {
   if (value.code != null && (!isObject(value.code) || typeof value.code.html !== "string")) return false;
   if (value.field != null && (!isObject(value.field) || !FIELD_KINDS.has(value.field.kind as string) ||
       (value.field.options != null && (!Array.isArray(value.field.options) ||
-        !value.field.options.every(option => typeof option === "string"))))) return false;
+        !value.field.options.every(option => isObject(option) &&
+          typeof option.label === "string" && typeof option.value === "string"))))) return false;
   if (value.scripts != null && !validDocumentScripts(value.scripts)) return false;
   return true;
 }

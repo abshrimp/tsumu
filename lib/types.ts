@@ -37,6 +37,11 @@ export type InputType =
   | "color"
   | "range";
 
+export interface FieldOption {
+  label: string;
+  value: string;
+}
+
 export interface FieldContent {
   kind: FieldKind;
   /** kind="input" のときのHTML input type */
@@ -48,7 +53,7 @@ export interface FieldContent {
   /** 未入力のときに薄く出す案内文（{変数} を使える） */
   placeholder?: string;
   /** select の選択肢（{変数} を使える） */
-  options?: string[];
+  options?: FieldOption[];
   /** checkbox / radio: 最初からチェックしておく */
   checked?: boolean;
   /**

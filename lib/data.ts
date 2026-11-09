@@ -1463,7 +1463,10 @@ export function mapNodeTokens(node: DocNode, fn: (name: string) => string | null
     for (const k of ["label", "defaultValue", "placeholder", "min", "max", "step", "accept"] as const) {
       if (f[k]) f[k] = mapVarTokens(f[k]!, fn);
     }
-    if (f.options) f.options = f.options.map((o) => mapVarTokens(o, fn));
+    if (f.options) f.options = f.options.map((o) => ({
+      label: mapVarTokens(o.label, fn),
+      value: mapVarTokens(o.value, fn),
+    }));
   }
   for (const s of node.scripts ?? []) mapStepTokens(s.steps, fn);
 }
