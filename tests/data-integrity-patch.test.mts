@@ -105,3 +105,28 @@ test("preflight rejects a stale base as a conflict rather than validating agains
     }
   });
 });
+
+test("page folders cannot disappear while assigned pages still reference them", async () => {
+  await withDatabase(async db => {
+    const original = fixture();
+    original.pageFolders = [{ id: "folder", name: "Folder" }];
+    original.pages.p.folderId = "folder";
+    assert.equal(validateDocValue(original), null);
+    await saveCurrentDoc(db, "audit", JSON.stringify(original), null);
+    const invalid = [
+      { ...original, pageFolders: [] },
+      { ...original, pageFolders: [{ id: "folder", name: "One" }, { id: "folder", name: "Two" }] },
+      { ...original, pages: { p: { ...original.pages.p, folderId: "missing" } } },
+    ];
+    for (const bad of invalid) {
+      assert.notEqual(validateDocValue(bad), null);
+      await assert.rejects(saveDocPatch(db, "audit", createDocPatch(original, bad as SiteDoc)!, "1"), InvalidDocPatchError);
+      assert.equal((await readCurrentDoc(db, "audit"))!.rev, "1");
+    }
+    const move = structuredClone(original);
+    delete move.pages.p.folderId;
+    move.pageFolders = [];
+    assert.equal((await saveDocPatch(db, "audit", createDocPatch(original, move)!, "1")).kind, "saved");
+    assert.equal(validateDocValue(JSON.parse((await readCurrentDoc(db, "audit"))!.body)), null);
+  });
+});

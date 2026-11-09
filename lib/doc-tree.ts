@@ -171,5 +171,23 @@ export function validSiteDoc(parsed: unknown): boolean {
       !order.every(id => typeof id === "string" && Object.hasOwn(parsed.pages as object, id))) {
     return false;
   }
+
+  // Folder ownership is editorial metadata, but a missing/duplicate folder
+  // makes pages disappear from the intended folder after reopening.
+  const folderIds = new Set<string>();
+  if (parsed.pageFolders != null) {
+    if (!Array.isArray(parsed.pageFolders)) return false;
+    for (const folder of parsed.pageFolders) {
+      if (!record(folder) || typeof folder.id !== "string" || !safeCollectionId(folder.id) ||
+          typeof folder.name !== "string" || folderIds.has(folder.id)) return false;
+      folderIds.add(folder.id);
+    }
+  }
+  for (const page of Object.values(parsed.pages)) {
+    const folderId = (page as Record<string, unknown>).folderId;
+    if (folderId !== undefined && (typeof folderId !== "string" || !folderIds.has(folderId))) {
+      return false;
+    }
+  }
   return true;
 }

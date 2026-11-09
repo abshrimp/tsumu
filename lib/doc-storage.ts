@@ -152,7 +152,12 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
   // The UPDATE below still has WHERE rev = base: a concurrent write between
   // this read and the UPDATE cannot bypass the check.
   const referenceSensitive = patch.some(op => {
-    if (op.path[0] === "components") return true;
+    if (op.path[0] === "components" || op.path[0] === "pageFolders") return true;
+    if (op.path[0] === "pages") {
+      if (op.path.length === 1) return true;
+      return "value" in op && !!op.value && typeof op.value === "object" &&
+        !Array.isArray(op.value) && Object.hasOwn(op.value, "folderId");
+    }
     if (op.path[0] !== "nodes") return false;
     if (op.path.length === 1) return true;
     if (!("value" in op) || !op.value || typeof op.value !== "object" || Array.isArray(op.value)) return false;
