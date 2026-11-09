@@ -65,3 +65,46 @@ test("safe methods are not treated as CSRF writes and non-browser requests work"
   }
   assert.equal(isCrossSiteWrite(request("DELETE")), false);
 });
+
+test("empty security headers are invalid, not evidence of a non-browser request", () => {
+  const cases: Record<string, string>[] = [
+    { origin: "" },
+    { origin: "   " },
+    { origin: "", "sec-fetch-site": "same-origin" },
+    { "sec-fetch-site": "" },
+    { "sec-fetch-site": "", origin: "https://editor.example.test" },
+  ];
+  for (const headers of cases) {
+    assert.equal(isCrossSiteWrite(request("POST", headers)), true, JSON.stringify(headers));
+  }
+});
+
+test("forwarded hosts must be authorities, not URLs that normalize to a trusted origin", () => {
+  for (const host of [
+    "ignored@editor.example.test",
+    "editor.example.test/ignored",
+    "editor.example.test?ignored",
+    "editor.example.test#ignored",
+    "editor.example.test\\ignored",
+    "ed\titor.example.test",
+  ]) {
+    assert.equal(isCrossSiteWrite(request("PATCH", {
+      origin: "https://editor.example.test",
+      "x-forwarded-host": host,
+      "x-forwarded-proto": "https",
+    })), true, host);
+  }
+});
+
+test("valid proxy authorities retain case, port and IPv6 normalization", () => {
+  for (const [host, origin] of [
+    ["EDITOR.EXAMPLE.TEST", "https://editor.example.test"],
+    ["editor.example.test:443", "https://editor.example.test"],
+    ["editor.example.test:8443", "https://editor.example.test:8443"],
+    ["[::1]:8443", "https://[::1]:8443"],
+  ]) {
+    assert.equal(isCrossSiteWrite(request("POST", {
+      origin, "x-forwarded-host": host, "x-forwarded-proto": "https",
+    })), false, host);
+  }
+});
