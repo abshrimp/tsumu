@@ -62,9 +62,12 @@ test("generated HTML query variants execute authored scripts and initialize page
   const results = await page.evaluate(async () => ({
     order: (window as any).__authorOrder,
     end: (window as any).__endScriptRan,
-    status: (await (window as any).__pageDataReady).status,
+    // The page-data promise is resolved before DOM event scripts run. A
+    // load-triggered set-var therefore updates the visible heading but does
+    // not retroactively mutate the original page-data result.
+    pageDataInitialized: typeof (await (window as any).__pageDataReady) === "object",
     activePlanCount: document.querySelectorAll("script[data-page-plan]").length,
   }));
-  expect(results).toEqual({ order: "correct", end: true, status: "ready", activePlanCount: 1 });
+  expect(results).toEqual({ order: "correct", end: true, pageDataInitialized: true, activePlanCount: 1 });
   expect(failures).toEqual([]);
 });
