@@ -45,6 +45,7 @@ test("corrupt steps and conditions are skipped without losing later valid action
     null, false, 123,
     { kind: "if", cond: null, then: [{ kind: "hide", target: "banner" }] },
     { kind: "transform", source: "x", into: "x" },
+    { kind: "set-var", into: 99, value: "malformed" },
     { kind: "list-display", mode: "filter", array: "rows", conds: [null] },
     { kind: "hide", target: "banner" },
   ];
