@@ -17,9 +17,11 @@ import { join as join_2, join as join_3, join as join_4, join as join_5, join as
 import { fileURLToPath } from "node:url";
 import { assetFileName, nodeAssetStore, nodeDatabase } from "../lib/node-storage";
 import { readCurrentDoc, saveCurrentDoc } from "../lib/doc-storage";
+import * as siteModel from "../lib/site-model";
 import * as sites from "../lib/sites";
-import { deleteSite as deleteSite_2, insertSite as insertSite_2, deleteSite as deleteSite_3, insertSite as insertSite_3, listSites as listSites_2, deleteSite as deleteSite_4, getSite as getSite_2, getSiteRoomKey as getSiteRoomKey_2, insertSite as insertSite_4, deleteSite as deleteSite_5, getSite as getSite_3, insertSite as insertSite_5, isSiteId as isSiteId_2, normalizeSiteInput as normalizeSiteInput_2, updateSite } from "../lib/sites";
-import { isSiteRole, permits } from "../lib/site-access";
+import { isSiteId as isSiteId_2, isSiteRole, normalizeSiteInput as normalizeSiteInput_2 } from "../lib/site-model";
+import { deleteSite as deleteSite_2, insertSite as insertSite_2, deleteSite as deleteSite_3, insertSite as insertSite_3, listSites as listSites_2, deleteSite as deleteSite_4, getSite as getSite_2, getSiteRoomKey as getSiteRoomKey_2, insertSite as insertSite_4, deleteSite as deleteSite_5, getSite as getSite_3, insertSite as insertSite_5, updateSite } from "../lib/sites";
+import { permits } from "../lib/site-access";
 import { ZipArchive, ZipBuilder } from "../lib/zip";
 import { createSiteBackup } from "../lib/site-backup";
 import { parseSiteImport, EDITABLE_ASSETS_PATH, EDITABLE_DOC_PATH } from "../lib/site-import";
@@ -672,7 +674,7 @@ function api(db: Db, read = readCurrentDoc) {
   }
   const source = stripTypeScriptTypes(readFileSync(new URL("../app/api/sites/route.ts", import.meta.url), "utf8"))
     .replace(/^import[\s\S]*?;\n/gm, "").replace(/^export /gm, "");
-  const injected = { DEFAULT_BRANCH: sites.DEFAULT_BRANCH, DEFAULT_PREVIEW_BRANCH: sites.DEFAULT_PREVIEW_BRANCH, deleteSite: sites.deleteSite, getSite: sites.getSite, insertSite: sites.insertSite, isSiteId: sites.isSiteId, listSites: sites.listSites, normalizeSiteInput: sites.normalizeSiteInput, newSiteId: () => "copy", NextResponse, dbUnavailable: () => { throw new Error("Unexpected fallback"); }, serverTr: async () => (text: string) => text,
+  const injected = { DEFAULT_BRANCH: siteModel.DEFAULT_BRANCH, DEFAULT_PREVIEW_BRANCH: siteModel.DEFAULT_PREVIEW_BRANCH, deleteSite: sites.deleteSite, getSite: sites.getSite, insertSite: sites.insertSite, isSiteId: siteModel.isSiteId, listSites: sites.listSites, normalizeSiteInput: siteModel.normalizeSiteInput, newSiteId: () => "copy", NextResponse, dbUnavailable: () => { throw new Error("Unexpected fallback"); }, serverTr: async () => (text: string) => text,
     requireAuth: async () => null, requireSiteAccess: async () => null, dbConfigured: () => true, getDb: async () => db, userMessage,
     readSiteDocument: read, saveSiteDocument: saveCurrentDoc,
     getSiteRoomKey: sites.getSiteRoomKey,

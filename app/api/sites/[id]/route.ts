@@ -8,13 +8,15 @@ import { userMessage } from "../../../../lib/errors";
 import { cleanupAbandonedDocuments, eraseSiteDocument } from "../../../../lib/site-document-service";
 import { jsonErrorStatus, readJsonObjectLimited } from "../../../../lib/api-json";
 import {
+  isSiteId,
+  normalizeSiteInput,
+  type SiteInput,
+} from "../../../../lib/site-model";
+import {
   deleteSite,
   getSite,
   getSiteRoomKey,
-  isSiteId,
-  normalizeSiteInput,
   updateSite,
-  type SiteInput,
 } from "../../../../lib/sites";
 
 export const maxDuration = 30;

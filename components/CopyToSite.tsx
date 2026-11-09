@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ExternalLink, LoaderCircle, Search, TriangleAlert } from "lucide-react";
 import { useEditor } from "../lib/store";
 import { currentSiteId, loadLocalSites, sitePath } from "../lib/site";
-import type { SiteRecord } from "../lib/sites";
+import type { SiteRecord } from "../lib/site-model";
 import { buildPagePayload, copyPagesToSite } from "../lib/page-transfer";
 import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { userMessage } from "../lib/errors";

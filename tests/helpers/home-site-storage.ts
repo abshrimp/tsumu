@@ -2,7 +2,7 @@ import { build, type Plugin } from "./bundle";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import * as React from "react";
-import type { SiteInput, SiteRecord } from "../../lib/sites";
+import type { SiteInput, SiteRecord } from "../../lib/site-model";
 import { fakeIndexedDB } from "./fake-indexeddb";
 
 const require = createRequire(resolve("package.json"));

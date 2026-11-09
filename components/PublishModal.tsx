@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   CloudOff,
@@ -13,12 +13,11 @@ import {
   RotateCcw,
   TriangleAlert,
 } from "lucide-react";
+import { base64ToBytes, utf8ToBase64 as textToBase64 } from "../lib/base64";
 import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { usePendingImport } from "../lib/use-pending-import";
 import { docFingerprint, useEditor } from "../lib/store";
 import BackupFileControls from "./BackupFileControls";
-import StaticPublishModal from "./StaticPublishModal";
-import NetlifyPublishModal from "./NetlifyPublishModal";
 import { CheckList, docWithSvgFilters } from "./PublishShared";
 import { showAlert, showConfirm } from "../lib/dialog";
 import { publishConflictMessage, type ExpectedPublishTarget } from "../lib/publish-preconditions";
@@ -44,23 +43,8 @@ import {
   serializeGeneratedManifest,
 } from "../lib/publish-files";
 
-/** UTF-8 のテキストを base64 にする（大きな文字列でも引数の上限を超えないよう、分けて処理する） */
-function textToBase64(text: string): string {
-  const bytes = new TextEncoder().encode(text);
-  let bin = "";
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  }
-  return btoa(bin);
-}
-
-/** base64 をバイト列に戻す */
-function base64ToBytes(base64: string): Uint8Array {
-  const bin = atob(base64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
-}
+const StaticPublishModal = lazy(() => import("./StaticPublishModal"));
+const NetlifyPublishModal = lazy(() => import("./NetlifyPublishModal"));
 
 /** Git の blob の SHA（sha1("blob <長さ>\0" + 内容)）。既存のツリーと一致するかの判定に使う */
 async function gitBlobSha(base64: string): Promise<string> {
@@ -472,28 +456,32 @@ export default function PublishModal({
 
   if (targets?.provider === "netlify") {
     return (
-      <NetlifyPublishModal
-        conf={{ site: targets.site, configured: targets.configured, error: targets.production.error }}
-        onClose={onClose}
-      />
+      <Suspense fallback={null}>
+        <NetlifyPublishModal
+          conf={{ site: targets.site, configured: targets.configured, error: targets.production.error }}
+          onClose={onClose}
+        />
+      </Suspense>
     );
   }
   if (targets?.provider === "cloudflare") {
     return (
-      <StaticPublishModal
-        conf={{
-          site: targets.site,
-          provider: targets.provider,
-          configured: targets.configured,
-          test: {
-            project: targets.test.project ?? "", url: targets.test.url, error: targets.test.error,
-          },
-          production: {
-            project: targets.production.project ?? "", url: targets.production.url, error: targets.production.error,
-          },
-        }}
-        onClose={onClose}
-      />
+      <Suspense fallback={null}>
+        <StaticPublishModal
+          conf={{
+            site: targets.site,
+            provider: targets.provider,
+            configured: targets.configured,
+            test: {
+              project: targets.test.project ?? "", url: targets.test.url, error: targets.test.error,
+            },
+            production: {
+              project: targets.production.project ?? "", url: targets.production.url, error: targets.production.error,
+            },
+          }}
+          onClose={onClose}
+        />
+      </Suspense>
     );
   }
 

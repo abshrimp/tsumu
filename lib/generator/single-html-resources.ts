@@ -1,4 +1,5 @@
 import { zipMediaMime } from "../zip-mime";
+import { bytesToBase64 } from "../base64";
 import { createIntegrityVerifier } from "../resource-integrity";
 import type { GeneratedProject } from "../generator";
 import { readAssetBytes, withSiteAssetUrl } from "../assets";
@@ -34,17 +35,9 @@ export class HtmlOutput {
   join() { return this.parts.join(""); }
 }
 
-function base64(bytes: Uint8Array): string {
-  const chunks: string[] = [];
-  for (let i = 0; i < bytes.length; i += 8192) {
-    chunks.push(String.fromCharCode(...bytes.subarray(i, i + 8192)));
-  }
-  return btoa(chunks.join(""));
-}
-
 function dataUrl(bytes: Uint8Array, mime: string) {
   check(4 * Math.ceil(bytes.length / 3) + mime.length + 13);
-  return "data:" + mime + ";base64," + base64(bytes);
+  return "data:" + mime + ";base64," + bytesToBase64(bytes);
 }
 
 function isEditorApi(url: URL): boolean {

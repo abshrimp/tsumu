@@ -11,7 +11,8 @@ import type {
   DocChangeMessage,
 } from "./lib/collab";
 import { parseActivityUser, recordActivity, type ActivityUser } from "./lib/activity";
-import { isSiteId, getSiteRoomKey, recordSiteSavedAt } from "./lib/sites";
+import { isSiteId } from "./lib/site-model";
+import { getSiteRoomKey, recordSiteSavedAt } from "./lib/sites";
 import { getAccountRole, isEmailAllowed, parseAllowedEmails } from "./lib/allowlist";
 import { collaborationIdentityAllowed } from "./lib/anonymous";
 import { isDocPatch } from "./lib/doc-patch";

@@ -8,7 +8,7 @@ import { userMessage } from "../../../../lib/errors";
 import { verifyAssetToken } from "../../../../lib/asset-token";
 import { assetCacheControl } from "../../../../lib/asset-cache";
 import { dbConfigured, getDb } from "../../../../lib/db";
-import { isSiteId } from "../../../../lib/sites";
+import { isSiteId } from "../../../../lib/site-model";
 import { requireSiteAccess } from "../../../../lib/site-access";
 import { siteHasAsset } from "../../../../lib/site-asset-access";
 

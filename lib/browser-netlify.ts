@@ -1,6 +1,6 @@
 "use client";
 
-import { isSiteId } from "./sites";
+import { isSiteId } from "./site-model";
 import { siteKey } from "./site";
 import { storageKey } from "./storage-keys";
 

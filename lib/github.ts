@@ -1,7 +1,7 @@
 import { envVar } from "./env";
 import type { Tr } from "./i18n-server";
 import type { PublishTarget } from "./generator";
-import { DEFAULT_BRANCH, isSafeBranch, isSafeRepo, type SiteDest } from "./sites";
+import { DEFAULT_BRANCH, isSafeBranch, isSafeRepo, type SiteDest } from "./site-model";
 
 /**
  * 公開先（GitHub のリポジトリ）の設定と、GitHub API の呼び出し。

@@ -1,4 +1,5 @@
 import { blake3 } from "@noble/hashes/blake3";
+import { bytesToBase64 as asBase64 } from "./base64";
 import { envVar } from "./env";
 import type { PublishTarget } from "./generator";
 import { assertGeneratedPaths } from "./generator/output-paths";
@@ -121,10 +122,6 @@ export async function readZipRequest(request: Request): Promise<ArrayBuffer> {
   let offset = 0;
   for (const chunk of chunks) { result.set(chunk, offset); offset += chunk.byteLength; }
   return result.buffer;
-}
-
-function asBase64(bytes: Uint8Array): string {
-  return Buffer.from(bytes).toString("base64");
 }
 
 /** Wrangler's Pages asset hash: BLAKE3(base64(file bytes) + extension), first 16 bytes. */

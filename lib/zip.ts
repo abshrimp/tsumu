@@ -1,3 +1,5 @@
+import { base64ToBytes as decodeBase64, bytesToBase64 as encodeBase64 } from "./base64";
+
 const crcTable = Uint32Array.from({ length: 256 }, (_, n) => {
   for (let bit = 0; bit < 8; bit++) n = (n >>> 1) ^ (n & 1 ? 0xedb88320 : 0);
   return n;
@@ -18,30 +20,6 @@ function computeCrc32(bytes: Uint8Array): number {
     crc = (crc >>> 8) ^ crcTable[(crc ^ bytes[i]) & 255];
   }
   return (crc ^ 0xffffffff) >>> 0;
-}
-
-function decodeBase64(value: string): Uint8Array<ArrayBuffer> {
-  const clean = value.replace(/\s+/g, "");
-  if (typeof Buffer !== "undefined") {
-    const buf = Buffer.from(clean, "base64");
-    const out = new Uint8Array(buf.byteLength);
-    out.set(buf);
-    return out;
-  }
-  const binary = atob(clean);
-  const out = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
-  return out;
-}
-
-function encodeBase64(bytes: Uint8Array): string {
-  if (typeof Buffer !== "undefined") return Buffer.from(bytes).toString("base64");
-  let binary = "";
-  const step = 0x8000;
-  for (let i = 0; i < bytes.byteLength; i += step) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + step));
-  }
-  return btoa(binary);
 }
 
 function decodeZipName(bytes: Uint8Array, utf8Flag: boolean, onInvalid: () => Error): string {

@@ -14,14 +14,16 @@ import {
 import {
   DEFAULT_BRANCH,
   DEFAULT_PREVIEW_BRANCH,
-  getSite,
-  insertSite,
-  deleteSite,
   isSiteId,
-  listSites,
   newSiteId,
   normalizeSiteInput,
   type SiteInput,
+} from "../../../lib/site-model";
+import {
+  getSite,
+  insertSite,
+  deleteSite,
+  listSites,
 } from "../../../lib/sites";
 
 export const maxDuration = 30;

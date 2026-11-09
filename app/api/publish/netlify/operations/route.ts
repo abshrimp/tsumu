@@ -6,7 +6,7 @@ import {
   netlifyAccount, createNetlifyProject, netlifyHistory, restoreNetlifyDeployment,
   netlifyOAuthConfig, validNetlifyId,
 } from "../../../../../lib/netlify-publish";
-import { isSiteId } from "../../../../../lib/sites";
+import { isSiteId } from "../../../../../lib/site-model";
 
 export const maxDuration = 30;
 const NO_STORE = { "Cache-Control": "private, no-store" };

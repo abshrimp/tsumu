@@ -3,7 +3,7 @@ import { dbUnavailable, storeUnavailable } from "../../../lib/unavailable";
 import { serverTr } from "../../../lib/i18n-server";
 import { requireAuth } from "../../../lib/server";
 import { requireSiteAccess } from "../../../lib/site-access";
-import { isSiteId } from "../../../lib/sites";
+import { isSiteId } from "../../../lib/site-model";
 import { siteHasAsset, siteOwnsAssets } from "../../../lib/site-asset-access";
 import { authConfigured } from "../../../auth";
 import { allowedEmails } from "../../../lib/allowlist";

@@ -25,7 +25,7 @@ import { runChecks as runChecks_2 } from "../lib/generator/checks";
 import { type Page, type SiteDoc } from "../lib/types";
 import { assertPublicUrl, BlockedUrlError as BlockedUrlError_2, fetchPublic as fetchPublic_2, isPrivateHost, readTextLimited as readTextLimited_2, TooLargeError as TooLargeError_2 } from "../lib/safe-fetch";
 import { activeContentNames, isOwnClip, parseClipPayload } from "../lib/clip-transfer";
-import { normalizeSiteInput } from "../lib/sites";
+import { normalizeSiteInput } from "../lib/site-model";
 import { githubClient } from "../lib/github";
 import { makeBox } from "../lib/presets";
 
@@ -585,7 +585,7 @@ function fixture(route: keyof typeof inputs, authorized = true, model?: typeof r
     "next/server": { NextResponse },
     "../../../lib/i18n-server": { serverTr: async () => (value: string) => value },
     "../../../lib/server": { requireAuth: async () => authorized ? null : NextResponse.json({}, { status: 401 }) },
-    "../../../lib/api-json": { JsonContentTypeError, readJsonLimited },
+    "../../../lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited },
   };
   const POST = route === "fetch-json" ? load("../app/api/fetch-json/route.ts", {
     ...common,
@@ -697,8 +697,8 @@ for (const route of ["fetch-json", "ai"] as const) {
       assert.equal((await f.POST(request(route, JSON.stringify(inputs[route]), { "Content-Type": mime }))).status, 415);
     }
     const invalidBodies = route === "fetch-json"
-      ? ["{broken", "null", "{}", '{"method":{},"url":"https://example.org"}', null]
-      : ["{broken", "null", "{}", null];
+      ? ["{broken", "null", "[]", "{}", '{"method":{},"url":"https://example.org"}', null]
+      : ["{broken", "null", "[]", "{}", null];
     for (const value of invalidBodies) {
       assert.equal((await f.POST(request(route, value))).status, 400);
     }

@@ -19,8 +19,10 @@ import { createDocPatch, applyDocPatch, applyDocPatchAtRevision, isDocPatch as i
 import { getDbFromBinding as getDbFromBinding_2, type Db, getDbFromBinding as getDbFromBinding_3, getDbFromBinding as getDbFromBinding_4 } from "../lib/db";
 import { nodeDatabase } from "../lib/node-storage";
 import * as sites from "../lib/sites";
-import { insertSite as insertSite_2, isSiteId, insertSite as insertSite_3, DEFAULT_BRANCH, DEFAULT_PREVIEW_BRANCH, normalizeSiteInput, insertSite as insertSite_4 } from "../lib/sites";
+import { DEFAULT_BRANCH, DEFAULT_PREVIEW_BRANCH, isSiteId, normalizeSiteInput } from "../lib/site-model";
+import { insertSite as insertSite_2, insertSite as insertSite_3, insertSite as insertSite_4 } from "../lib/sites";
 import { DatabaseSync } from "node:sqlite";
+import { build as esbuildBuild } from "esbuild";
 import { transformSync } from "./helpers/bundle";
 import { userMessage as userMessage_2, userMessage as userMessage_3 } from "../lib/errors";
 import { StructuredDocumentStore, type DocumentSqlStorage, type SiteSaveResult, type SiteSnapshot } from "../lib/structured-document-store";
@@ -2876,7 +2878,7 @@ test("editor storage keys use the tsumu-* namespace with zero legacy unprefixed 
   }
 });
 
-test("heavy editor modules stay out of eager initial editor imports", () => {
+test("heavy editor modules stay out of eager initial editor imports", async () => {
   for (const file of [...sourceFiles("app"), ...sourceFiles("components"), ...sourceFiles("lib")]) {
     const text = readFileSync(file, "utf8");
     assert.doesNotMatch(
@@ -2904,6 +2906,70 @@ test("heavy editor modules stay out of eager initial editor imports", () => {
     readFileSync("components/style-panel/FontPicker.tsx", "utf8"),
     /^\s*import\s+(?!type\b).*from\s+["']\.\.\/\.\.\/lib\/google-font-catalog["']/m,
   );
+
+  const bundle = await esbuildBuild({
+    entryPoints: ["components/Home.tsx", "components/Editor.tsx"],
+    bundle: true,
+    splitting: true,
+    format: "esm",
+    platform: "browser",
+    write: false,
+    outdir: "/tmp/tsumu-bundle-check",
+    metafile: true,
+    external: ["react", "react-dom", "react/*", "next/*", "next-auth/*", "lucide-react"],
+  });
+  const staticInputsFor = (entry: string): Set<string> => {
+    const outputs = bundle.metafile.outputs;
+    const entryOut = Object.entries(outputs).find(([, info]) => info.entryPoint === entry)?.[0];
+    assert.ok(entryOut, `Missing output for ${entry}`);
+    const seen = new Set<string>();
+    const inputs = new Set<string>();
+    const queue = [entryOut];
+    while (queue.length) {
+      const current = queue.shift()!;
+      if (seen.has(current) || !outputs[current]) continue;
+      seen.add(current);
+      for (const inp of Object.keys(outputs[current].inputs)) inputs.add(inp);
+      for (const imp of outputs[current].imports) {
+        if (!imp.external && imp.kind !== "dynamic-import") queue.push(imp.path);
+      }
+    }
+    return inputs;
+  };
+
+  const homeStatic = [...staticInputsFor("components/Home.tsx")];
+  for (const forbidden of [
+    "lib/db.ts",
+    "lib/sites.ts",
+    "lib/site-access.ts",
+    "node_modules/parse5/",
+    "node_modules/acorn/",
+    "components/AllowedAccounts.tsx",
+    "components/SiteMembers.tsx",
+  ]) {
+    assert.equal(
+      homeStatic.some((p) => p.includes(forbidden)),
+      false,
+      `Home.tsx static bundle unexpectedly pulled in ${forbidden}`,
+    );
+  }
+
+  const editorStatic = [...staticInputsFor("components/Editor.tsx")];
+  for (const forbidden of [
+    "lib/db.ts",
+    "lib/sites.ts",
+    "lib/site-access.ts",
+    "node_modules/acorn/",
+    "components/AiChat.tsx",
+    "components/StaticPublishModal.tsx",
+    "components/NetlifyPublishModal.tsx",
+  ]) {
+    assert.equal(
+      editorStatic.some((p) => p.includes(forbidden)),
+      false,
+      `Editor.tsx static bundle unexpectedly pulled in ${forbidden}`,
+    );
+  }
 });
 });
 

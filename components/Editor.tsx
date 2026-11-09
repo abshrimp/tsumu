@@ -36,12 +36,12 @@ import RightPanel from "./RightPanel";
 import LeaveAnimator from "./LeaveAnimator";
 import DialogHost from "./DialogHost";
 import TooltipLayer from "./Tooltip";
-import AiChat from "./AiChat";
+import { toggleAi, useAi } from "../lib/ai-store";
 import { closeHelp, openHelp, stopGuide, toggleHelp, useHelp } from "../lib/help";
 import { userMessage } from "../lib/errors";
 import SafeBoundary from "./SafeBoundary";
 import { getLang, tr } from "../lib/i18n";
-import { readLocalStorage } from "../lib/local-storage";
+import { readLocalStorage, removeLocalStorage, writeLocalStorage } from "../lib/local-storage";
 import { useApplyEditorTheme } from "../lib/editor-theme";
 import { useServerStatus } from "../lib/status";
 import { currentSiteId, siteApi, siteKey } from "../lib/site";
@@ -50,6 +50,7 @@ import { connectEditorPageHistory } from "../lib/editor-page-history";
 import { storageKey } from "../lib/storage-keys";
 import { trackPanelResize } from "../lib/panel-resize";
 
+const AiChat = lazy(() => import("./AiChat"));
 const ScriptEditor = lazy(() => import("./ScriptEditor"));
 const Tutorial = lazy(() => import("./Tutorial"));
 const HelpCenter = lazy(() => import("./HelpCenter"));
@@ -66,11 +67,7 @@ function clampPanel(w: number, side: "l" | "r"): number {
 }
 
 function readFlag(key: string): boolean {
-  try {
-    return window.localStorage.getItem(key) === "1";
-  } catch {
-    return false;
-  }
+  return readLocalStorage(key) === "1";
 }
 
 /** サーバーに保存していない変更が残っているか（ブラウザを閉じても残るフラグ） */
@@ -84,12 +81,9 @@ const SAVE_RETRY_MAX_MS = 60_000;
 const HELP_SEEN_KEY = storageKey("help-seen-v1");
 
 function setUnsyncedFlag(on: boolean) {
-  try {
-    if (on) window.localStorage.setItem(UNSYNCED_KEY, "1");
-    else window.localStorage.removeItem(UNSYNCED_KEY);
-  } catch {
-    // 保存できなくても、同期そのものには影響しない
-  }
+  // 保存できなくても、同期そのものには影響しない
+  if (on) writeLocalStorage(UNSYNCED_KEY, "1");
+  else removeLocalStorage(UNSYNCED_KEY);
 }
 
 /**
@@ -285,20 +279,17 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
     (side === "l" ? setClosedL : setClosedR)((c) => (open === undefined ? !c : !open));
   }, []);
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const aiOpen = useAi((s) => s.open);
   const helpOpen = useHelp((s) => s.open);
   const hasGuide = useHelp((s) => !!s.guide);
   const [pasteNotice, setPasteNotice] = useState<string | null>(null);
   const internalClipboardOwned = useRef(false);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(PANEL_L_W_KEY, String(panelL));
-      window.localStorage.setItem(PANEL_R_W_KEY, String(panelR));
-      window.localStorage.setItem(PANEL_L_CLOSED_KEY, closedL ? "1" : "0");
-      window.localStorage.setItem(PANEL_R_CLOSED_KEY, closedR ? "1" : "0");
-    } catch {
-      return;
-    }
+    writeLocalStorage(PANEL_L_W_KEY, String(panelL));
+    writeLocalStorage(PANEL_R_W_KEY, String(panelR));
+    writeLocalStorage(PANEL_L_CLOSED_KEY, closedL ? "1" : "0");
+    writeLocalStorage(PANEL_R_CLOSED_KEY, closedR ? "1" : "0");
   }, [panelL, panelR, closedL, closedR]);
 
   useEffect(() => installNoDblClickSelect(), []);
@@ -343,11 +334,8 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
     }
     // 開いたことを記録するのは、実際に開くとき（開発時の StrictMode で effect が2回動いても開くように）
     const timer = window.setTimeout(() => {
-      try {
-        window.localStorage.setItem(HELP_SEEN_KEY, "1");
-      } catch {
-        // 記録できなくても開く
-      }
+      // 記録できなくても開く
+      writeLocalStorage(HELP_SEEN_KEY, "1");
       openHelp();
     }, 600);
     return () => window.clearTimeout(timer);
@@ -715,12 +703,7 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
         if (!data.rev || !data.doc?.pages || !data.doc?.nodes || !data.doc?.pageOrder?.length) {
           throw new Error("Invalid document snapshot");
         }
-        let unsynced = false;
-        try {
-          unsynced = window.localStorage.getItem(UNSYNCED_KEY) === "1";
-        } catch {
-          unsynced = false;
-        }
+        const unsynced = readFlag(UNSYNCED_KEY);
         const local = useEditor.getState().doc;
         if (
           (unsynced || cloudDirty.current || local !== localBeforeLoad) &&
@@ -1417,9 +1400,13 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
           {pasteNotice}
         </div>
       )}
-      <SafeBoundary label={tr("AI")}>
-        <AiChat />
-      </SafeBoundary>
+      {aiOpen && (
+        <SafeBoundary label={tr("AI")} onClose={() => toggleAi(false)}>
+          <Suspense fallback={null}>
+            <AiChat />
+          </Suspense>
+        </SafeBoundary>
+      )}
       {helpOpen && (
         <SafeBoundary label={tr("Help")} onClose={closeHelp}>
           <Suspense fallback={null}>

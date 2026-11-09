@@ -26,6 +26,7 @@ import {
   type Lang,
 } from "./lang";
 import { LOCALES } from "./locales";
+import { readLocalStorage, writeLocalStorage } from "./local-storage";
 import { storageKey } from "./storage-keys";
 
 export { LANG_COOKIE, type Lang } from "./lang";
@@ -43,12 +44,9 @@ export type Catalog = { lang: Lang; messages: Dict };
 
 function detectLang(): Lang {
   if (typeof window === "undefined") return "ja";
-  try {
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    if (isLang(saved)) return saved;
-  } catch {
-    // localStorage が使えない環境では、ブラウザの言語に合わせる
-  }
+  // localStorage が使えない環境では、ブラウザの言語に合わせる
+  const saved = readLocalStorage(STORAGE_KEY);
+  if (isLang(saved)) return saved;
   return pickLang(navigator.languages?.length ? navigator.languages : [navigator.language || ""]);
 }
 
@@ -64,11 +62,8 @@ export function getLang(): Lang {
 
 /** 言語を変えてページを読み込み直す */
 export function setLang(lang: Lang) {
-  try {
-    window.localStorage.setItem(STORAGE_KEY, lang);
-  } catch {
-    // 保存できなくても、クッキーで引き継ぐ
-  }
+  // 保存できなくても、クッキーで引き継ぐ
+  writeLocalStorage(STORAGE_KEY, lang);
   document.cookie = `${LANG_COOKIE}=${lang}; path=/; max-age=31536000; samesite=lax`;
   window.location.reload();
 }

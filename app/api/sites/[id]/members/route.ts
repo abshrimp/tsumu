@@ -5,8 +5,8 @@ import { dbConfigured, getDb } from "../../../../../lib/db";
 import { allowedEmails, getAccountRole, isEmailAllowed } from "../../../../../lib/allowlist";
 import { isValidEmail } from "../../../../../lib/email";
 import { serverTr } from "../../../../../lib/i18n-server";
-import { isSiteId } from "../../../../../lib/sites";
-import { isSiteRole, listSiteMembers, requireSiteAccess } from "../../../../../lib/site-access";
+import { isSiteId, isSiteRole } from "../../../../../lib/site-model";
+import { listSiteMembers, requireSiteAccess } from "../../../../../lib/site-access";
 import { jsonErrorStatus, readJsonObjectLimited } from "../../../../../lib/api-json";
 
 type Ctx = { params: Promise<{ id: string }> };

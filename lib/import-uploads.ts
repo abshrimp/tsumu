@@ -1,5 +1,5 @@
 import { ASSET_FETCH_CONCURRENCY, mapLimit } from "./assets";
-import { newSiteId } from "./sites";
+import { newSiteId } from "./site-model";
 
 /** 取り消しを受け持つのは、最も外側の取り込みだけ。新しいアップロードで返されたパスを記録する。 */
 export async function withImportUploads<T>(

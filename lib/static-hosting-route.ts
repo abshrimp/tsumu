@@ -4,7 +4,7 @@ import type { PublishTarget } from "./generator";
 import { staticPublishConfig, type StaticPublishConfig } from "./publish-provider";
 import { requireSiteAccess } from "./site-access";
 import { siteDestOf, siteIdOf } from "./site-server";
-import type { SiteDest } from "./sites";
+import type { SiteDest } from "./site-model";
 
 export const STATIC_NO_STORE = { "Cache-Control": "private, no-store" } as const;
 

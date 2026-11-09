@@ -80,11 +80,17 @@ export function zipCssPreviewUrls(
   let work = 0;
   let variants = 0;
   const empty = "data:text/css;charset=utf-8,";
+  const isUnreserved = (point: number) =>
+    (point >= 0x61 && point <= 0x7a) ||
+    (point >= 0x41 && point <= 0x5a) ||
+    (point >= 0x30 && point <= 0x39) ||
+    point === 0x2d || point === 0x2e || point === 0x5f || point === 0x7e;
   const encode = (css: string) => {
     let length = empty.length;
-    for (const c of css) {
-      const point = c.codePointAt(0)!;
-      length += /^[A-Za-z0-9_.~-]$/.test(c) ? 1 : point < 128 ? 3 : point < 2048 ? 6 : point < 65536 ? 9 : 12;
+    for (let i = 0; i < css.length; i++) {
+      const point = css.codePointAt(i)!;
+      if (point > 0xffff) i++;
+      length += isUnreserved(point) ? 1 : point < 128 ? 3 : point < 2048 ? 6 : point < 65536 ? 9 : 12;
       if (length > ZIP_CSS_LIMITS.output || work + length > ZIP_CSS_LIMITS.work) throw limitError();
     }
     work += length;

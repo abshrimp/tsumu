@@ -1,7 +1,7 @@
 import { tr } from "./i18n";
 import { emptyDest, localSiteIdInUse, loadLocalSites, saveLocalSites, withLocalSiteListLock } from "./site";
 import { createBrowserDoc, deleteBrowserDoc } from "./browser-doc-storage";
-import { newSiteId, type SiteRecord } from "./sites";
+import { newSiteId, type SiteRecord } from "./site-model";
 import { isEditorDocument, parseEditableZip, parseSiteImport, restoreImportAssets } from "./site-import";
 import { IMPORT_LIMITS, validateImportedDoc } from "./site-import-format";
 import { convertHtmlFile, convertHtmlZipSite, isHtmlFile } from "./html-file-import";

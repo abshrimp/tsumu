@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { DatabaseSync } from "node:sqlite";
 import { transformSync } from "./bundle";
 import { getDbFromBinding, type Db, type D1LikeDatabase } from "../../lib/db";
+import * as siteModel from "../../lib/site-model";
 import * as sites from "../../lib/sites";
 import * as docStorage from "../../lib/doc-storage";
 import { recordActivity } from "../../lib/activity";
@@ -132,14 +133,14 @@ export async function setup(t: TestContext) {
   };
   const notifications: Array<{ id: string; message: unknown; roomKey: unknown }> = [];
   const shared = {
-    ...sites, ...docStorage, ...services, NextResponse, recordActivity, isDocPatch,
+    ...siteModel, ...sites, ...docStorage, ...services, NextResponse, recordActivity, isDocPatch,
     JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited,
     IMPORT_LIMITS, validateImportedDoc, extractAssetReferences, siteOwnsAssets, userMessage,
     newSiteId: () => "destination",
     getDb: async () => db, dbConfigured: () => true, requireAuth: async () => null, sessionUser: async () => null,
     requireSiteAccess: async () => null, siteRole: async () => "owner",
     serverTr: async () => (value: string) => value,
-    siteIdOf: async (value: unknown) => sites.isSiteId(value) ? value : NextResponse.json({}, { status: 400 }),
+    siteIdOf: async (value: unknown) => siteModel.isSiteId(value) ? value : NextResponse.json({}, { status: 400 }),
     notifyDocUpdated: (id: string, message: unknown, roomKey: unknown) => { hooks.beforeNotify?.(); notifications.push({ id, message, roomKey }); },
   };
   const route = (name: string) => {

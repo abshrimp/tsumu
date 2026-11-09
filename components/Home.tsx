@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { signOut } from "next-auth/react";
 import { isEscapeKey } from "../lib/keys";
 import { useEscapeToClose } from "../lib/use-escape-to-close";
@@ -33,8 +33,6 @@ import LanguageSelector from "./LanguageSelector";
 import EditorAppearanceSelector from "./EditorAppearanceSelector";
 import { useApplyEditorTheme } from "../lib/editor-theme";
 import { relativeTime } from "../lib/time";
-import AllowedAccounts from "./AllowedAccounts";
-import SiteMembers from "./SiteMembers";
 import { useServerStatus } from "../lib/status";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { createInitialDoc } from "../lib/presets";
@@ -60,7 +58,10 @@ import {
   type SiteDest,
   type SiteInput,
   type SiteRecord,
-} from "../lib/sites";
+} from "../lib/site-model";
+
+const AllowedAccounts = lazy(() => import("./AllowedAccounts"));
+const SiteMembers = lazy(() => import("./SiteMembers"));
 
 /** サイトの一覧をどこに保存しているか（server = D1、local = このブラウザ） */
 type Store = "server" | "local";
@@ -528,7 +529,9 @@ function AppSettings({ auth, onClose }: { auth: boolean; onClose: () => void }) 
           <section className="home-set-sec">
             <h3>{tr("Accounts with access")}</h3>
             <p className="home-field-hint">{tr("Email addresses that can sign in to this editor with Google.")}</p>
-            <AllowedAccounts />
+            <Suspense fallback={null}>
+              <AllowedAccounts />
+            </Suspense>
           </section>
         )}
 
@@ -1045,7 +1048,11 @@ export default function Home() {
           }
         />
       )}
-      {membersSite && <SiteMembers siteId={membersSite.id} siteName={membersSite.name} onClose={() => setMembersSite(null)} />}
+      {membersSite && (
+        <Suspense fallback={null}>
+          <SiteMembers siteId={membersSite.id} siteName={membersSite.name} onClose={() => setMembersSite(null)} />
+        </Suspense>
+      )}
       {settingsOpen && <AppSettings auth={!!status?.auth && !readOnly}
         onClose={() => setSettingsOpen(false)} />}
       <DialogHost />

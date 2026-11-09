@@ -4,12 +4,11 @@ import { serverTr } from "./i18n-server";
 import {
   DEFAULT_BRANCH,
   DEFAULT_PREVIEW_BRANCH,
-  getSite,
-  getSiteRoomKey,
   isSiteId,
   normalizeSiteInput,
   type SiteDest,
-} from "./sites";
+} from "./site-model";
+import { getSite, getSiteRoomKey } from "./sites";
 
 /** リクエストのサイトの ID（?site= か、本文の site。必須） */
 export async function siteIdOf(value: unknown): Promise<string | NextResponse> {

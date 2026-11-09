@@ -40,7 +40,8 @@ import { parseAiRequest } from "./lib/ai/request";
 const css = ${JSON.stringify(readEditorCss())};
 import { loadLocale } from "./lib/i18n";
 void loadLocale().then(async () => {
-  const { default: AiChat, useAi } = await import("./components/AiChat");
+  const { default: AiChat } = await import("./components/AiChat");
+  const { useAi } = await import("./lib/ai-store");
   const { default: ScriptEditor } = await import("./components/ScriptEditor");
   const { default: Canvas } = await import("./components/Canvas");
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);

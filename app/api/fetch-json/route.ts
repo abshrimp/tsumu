@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { serverTr } from "../../../lib/i18n-server";
 import { requireAuth } from "../../../lib/server";
 import { BlockedUrlError, fetchPublic, readTextLimited, TooLargeError } from "../../../lib/safe-fetch";
-import { JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
+import { jsonErrorStatus, readJsonObjectLimited } from "../../../lib/api-json";
 
 export const maxDuration = 30;
 
@@ -15,18 +15,13 @@ export async function POST(req: Request) {
   const denied = await requireAuth("editor");
   if (denied) return denied;
 
-  let url: string;
-  let method: string | undefined;
-  let headers: unknown;
-  let body: unknown;
+  let payload: Record<string, unknown>;
   try {
-    ({ url, method, headers, body } = await readJsonLimited(req, MAX_REQUEST_BYTES) as {
-      url: string; method?: string; headers?: unknown; body?: unknown;
-    });
+    payload = await readJsonObjectLimited(req, MAX_REQUEST_BYTES);
   } catch (error) {
-    const status = error instanceof RangeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400;
-    return NextResponse.json({ error: tr("Invalid request (request body)") }, { status });
+    return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: jsonErrorStatus(error) });
   }
+  const { url, method, headers, body } = payload;
   // メソッド・ヘッダー・本文（データの取得ブロックの「リクエストの設定」）
   const verb = typeof method === "string" ? method.toUpperCase() : method == null ? "GET" : "";
   if (!["GET", "POST", "PUT", "PATCH", "DELETE"].includes(verb)) {

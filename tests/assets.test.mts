@@ -1251,7 +1251,7 @@ function assetDeleteRoute({ backend = "d1", configured = true, siteExists = true
       siteHasAsset: async () => true,
       siteOwnsAssets: async (_db: unknown, _site: string, paths: string[]) => !paths.includes("assets/unowned.png"),
     },
-    "../../../lib/sites": { isSiteId: () => true },
+    "../../../lib/site-model": { isSiteId: () => true },
     "../../../auth": { authConfigured: () => false },
     "../../../lib/allowlist": { allowedEmails: () => [] },
     "../../../lib/kv": { assetStore: () => ({ async delete() { deleted++; } }), MAX_ASSET_BYTES: 25 * 1024 * 1024 },

@@ -18,7 +18,7 @@ export function aiChatDoc(): SiteDoc {
 
 /** 非公開の送信の入り口だけを公開し、通信以外は、実際のチャット・編集・履歴の処理を使う。 */
 export function aiChatFixture() {
-  const source = readFileSync("components/AiChat.tsx", "utf8") + "\nexport { ask as askForTest }; export const cancelForTest = () => pendingRequest?.abort();";
+  const source = readFileSync("components/AiChat.tsx", "utf8") + "\nexport { ask as askForTest, useAi }; export const cancelForTest = () => pendingRequest?.abort();";
   const code = transformSync(source, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
   const module = { exports: {} as any };
   new Function("require", "module", "exports", code)(createRequire(resolve("components/AiChat.tsx")), module, module.exports);
@@ -37,7 +37,8 @@ import { useEditor } from "./lib/store";
 import { makeText } from "./lib/presets";
 import { loadLocale } from "./lib/i18n";
 void loadLocale().then(async () => {
-  const { default: AiChat, useAi } = await import("./components/AiChat");
+  const { default: AiChat } = await import("./components/AiChat");
+  const { useAi } = await import("./lib/ai-store");
   const { NumField } = await import("./components/controls");
 const doc = ${JSON.stringify(aiChatDoc())};
 useEditor.getState().replaceDoc(doc);

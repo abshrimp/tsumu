@@ -39,7 +39,7 @@ import EditorAppearanceSelector from "./EditorAppearanceSelector";
 import { useDocumentConfirmation } from "../lib/use-document-confirmation";
 import { closeHelp, toggleHelp, useHelp } from "../lib/help";
 import { useServerStatus } from "../lib/status";
-import { toggleAi, useAi, useAiAvailability } from "./AiChat";
+import { toggleAi, useAi, useAiAvailability } from "../lib/ai-store";
 import { toggleCommentMode, useComments } from "../lib/comment-store";
 import { useEscapeToClose } from "../lib/use-escape-to-close";
 import SafeBoundary from "./SafeBoundary";

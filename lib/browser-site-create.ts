@@ -3,7 +3,7 @@
 import { createBrowserDoc, deleteBrowserDoc } from "./browser-doc-storage";
 import { createInitialDoc } from "./presets";
 import { emptyDest, loadLocalSites, localSiteIdInUse, saveLocalSites, withLocalSiteListLock } from "./site";
-import { newSiteId, normalizeSiteInput, type SiteInput, type SiteRecord } from "./sites";
+import { newSiteId, normalizeSiteInput, type SiteInput, type SiteRecord } from "./site-model";
 import { tr } from "./i18n";
 
 /** Shared by the home screen and an explicitly authorized external editor.

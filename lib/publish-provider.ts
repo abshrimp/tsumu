@@ -1,6 +1,6 @@
 import { envVar } from "./env";
 import type { PublishTarget } from "./generator";
-import { isSiteId } from "./sites";
+import { isSiteId } from "./site-model";
 
 export type PublishProvider = "github" | "netlify" | "cloudflare";
 type HostingProvider = Exclude<PublishProvider, "github">;

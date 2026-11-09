@@ -2,7 +2,7 @@ import { envVar } from "./env";
 import { hostingProjectName, publishProvider } from "./publish-provider";
 import { PublishPublicError } from "./publish-security";
 import type { PublishTarget } from "./generator";
-import { isSiteId } from "./sites";
+import { isSiteId } from "./site-model";
 
 const API = "https://api.netlify.com/api/v1";
 const ACCOUNT_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;

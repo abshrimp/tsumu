@@ -11,7 +11,7 @@ import {
   isSiteId,
   type SiteDest,
   type SiteRecord,
-} from "./sites";
+} from "./site-model";
 import { storageKey } from "./storage-keys";
 import { withLocalSiteListLock } from "./local-site-lock";
 export { withLocalSiteListLock };

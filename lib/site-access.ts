@@ -6,13 +6,9 @@ import { auth, authConfigured } from "../auth";
 import { anonymousAllowed } from "./anonymous";
 import { serverTr } from "./i18n-server";
 import { isValidEmail } from "./email";
+import { isSiteRole, type SiteRole } from "./site-model";
 
-export type SiteRole = "owner" | "editor" | "viewer";
 type SiteAction = "view" | "edit" | "manage";
-
-export function isSiteRole(value: unknown): value is SiteRole {
-  return value === "owner" || value === "editor" || value === "viewer";
-}
 
 export function permits(role: SiteRole | null, action: SiteAction): boolean {
   return role === "owner" || (role === "editor" && action !== "manage") || (role === "viewer" && action === "view");

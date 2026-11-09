@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { LoaderCircle, UserPlus, X } from "lucide-react";
 import { tr } from "../lib/i18n";
-import type { SiteRole } from "../lib/site-access";
+import type { SiteRole } from "../lib/site-model";
 import { useEscapeToClose } from "../lib/use-escape-to-close";
 
 type Member = { email: string; role: SiteRole };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { readLocalStorage, writeLocalStorage } from "./local-storage";
 import { storageKey } from "./storage-keys";
 
 /** エディターの UI だけに適用し、公開サイトのスタイルとは切り離す。 */
@@ -11,11 +12,8 @@ const listeners = new Set<() => void>();
 let activeThemeEffects = 0;
 
 function storedPreference(): EditorThemePreference {
-  try {
-    const value = window.localStorage.getItem(STORAGE_KEY);
-    if (value === "light" || value === "dark") return value;
-  } catch { /* Storage may be unavailable. */ }
-  return "system";
+  const value = readLocalStorage(STORAGE_KEY);
+  return value === "light" || value === "dark" ? value : "system";
 }
 
 function snapshot(): EditorThemePreference {
@@ -48,7 +46,7 @@ export function useEditorThemePreference(): EditorThemePreference {
 
 export function setEditorThemePreference(preference: EditorThemePreference) {
   selected = preference;
-  try { window.localStorage.setItem(STORAGE_KEY, preference); } catch { /* Storage is optional. */ }
+  writeLocalStorage(STORAGE_KEY, preference);
   notify();
 }
 
