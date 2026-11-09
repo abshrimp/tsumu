@@ -8,7 +8,7 @@ import { canvasHtml } from "../../lib/canvas-html";
  */
 
 import { isEnterKey } from "../../lib/keys";
-import { createElement, useContext, type ReactNode } from "react";
+import { createElement, memo, useContext, type ReactNode } from "react";
 import { useEditor } from "../../lib/store";
 import { mediaSrc } from "../../lib/assets";
 import { applyList, listFromOf, toListItems } from "../../lib/data";
@@ -36,7 +36,7 @@ import {
 } from "./render";
 
 /** インスタンス / リスト2件目以降の描画（選択不可・data-ghostでスタイルのみ適用） */
-function GhostView({
+function GhostViewInner({
   id,
   isTop,
   itemVars,
@@ -190,7 +190,9 @@ function GhostView({
   );
 }
 
-export function NodeView({
+const GhostView = memo(GhostViewInner);
+
+function NodeViewInner({
   id,
   isTop,
   itemVars,
@@ -202,8 +204,10 @@ export function NodeView({
 }): ReactNode {
   const doc = useEditor((s) => s.doc);
   const mode = useEditor((s) => s.mode);
-  const selectedIds = useEditor((s) => s.selectedIds);
-  const editingText = useEditor((s) => s.editingText);
+  // Subscribe to the selected/editing status of this node rather than the whole
+  // selection array. A click must not re-render every sibling in a large canvas.
+  const isSelected = useEditor((s) => s.selectedIds.includes(id));
+  const editing = useEditor((s) => s.editingText === id);
   const setEditingText = useEditor((s) => s.setEditingText);
   const updateDoc = useEditor((s) => s.updateDoc);
   const setActivePage = useEditor((s) => s.setActivePage);
@@ -223,7 +227,7 @@ export function NodeView({
   };
   if (importedClass(node.htmlClass)) common.className = importedClass(node.htmlClass);
   if (node.attrId) common.id = node.attrId;
-  if (mode === "design" && selectedIds.includes(id)) {
+  if (mode === "design" && isSelected) {
     common["data-sel"] = "true";
     common["data-tutorial"] = "selected-node";
   }
@@ -431,7 +435,6 @@ export function NodeView({
   });
   if (leafView) return leafView;
 
-  const editing = editingText === id;
   const tag = resolveTag(node, isTop);
   const children: ReactNode[] = [];
   // 子要素の無いテキストは、編集中の中身を lib/editable が直接描く（変数をチップ表示）
@@ -564,3 +567,6 @@ export function NodeView({
   // ボタンの文字を書き換えている間は span にする（button の中ではスペースキーなどが押す操作になる）
   return createElement(tag === "button" && editing ? "span" : tag, common, children.length ? children : undefined);
 }
+
+/** Preserve unchanged subtrees when selection or canvas chrome changes. */
+export const NodeView = memo(NodeViewInner);
