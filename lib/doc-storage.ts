@@ -1,6 +1,7 @@
-import { hasValidChildren, MAX_NODE_DEPTH, validAssetEntry, validComponentEntry, validNodeForest } from "./doc-tree";
+import { hasValidChildren, MAX_NODE_DEPTH, validAssetEntry, validComponentEntry, validDocNodeShape, validDocPageShape, validSiteDoc } from "./doc-tree";
 import type { Db, ResultSet } from "./db";
-import { isDocPatch, type DocPatch } from "./doc-patch";
+import { applyDocPatch, isDocPatch, type DocPatch } from "./doc-patch";
+import type { SiteDoc } from "./types";
 
 /**
  * 編集データの保存（D1 の docs テーブル。1サイト = 1行で、id はサイトID）。
@@ -38,22 +39,7 @@ export function validateDocBody(raw: string): string | null {
 }
 
 export function validateDocValue(parsed: unknown): string | null {
-  const record = (value: unknown): value is Record<string, unknown> =>
-    !!value && typeof value === "object" && !Array.isArray(value);
-  if (!record(parsed) || typeof parsed.siteName !== "string" ||
-      !record(parsed.pages) || !record(parsed.nodes) || !record(parsed.assets) ||
-      !Array.isArray(parsed.pageOrder) || !parsed.pageOrder.length) {
-    return "不正なリクエスト";
-  }
-  if (!Object.entries(parsed.assets).every(([id, a]) => validAssetEntry(id, a)) ||
-      !validNodeForest(parsed.pages, parsed.nodes, parsed.components)) return "不正なリクエスト";
-  const order = parsed.pageOrder;
-  const pages = parsed.pages as Record<string, unknown>;
-  if (new Set(order).size !== order.length ||
-      !order.every(id => typeof id === "string" && Object.hasOwn(pages, id))) {
-    return "不正なリクエスト";
-  }
-  return null;
+  return validSiteDoc(parsed) ? null : "不正なリクエスト";
 }
 
 /** 保存先の上限を超えた値は SQLITE_TOOBIG になる（D1 では「string or blob too big」）。大きさのエラーとして返す */
@@ -155,8 +141,45 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
       const valid = collection === "assets" ? validAssetEntry(id, item) :
         collection === "components" ? validComponentEntry(id, item) :
         hasValidChildren(item) && "id" in item && item.id === id &&
-        (collection !== "pages" || ("slug" in item && typeof item.slug === "string"));
+        (collection === "pages"
+          ? "slug" in item && typeof item.slug === "string" && validDocPageShape(item)
+          : validDocNodeShape(item));
       if (!valid) throw new InvalidDocPatchError();
+    }
+  }
+  // An ordinary leaf/property edit stays on the SQL-only fast path. Changes
+  // to a component definition, instance, or non-empty child list can create a
+  // second-order reference cycle even when the ordinary node tree is valid.
+  // Validate those against the exact optimistic-lock base revision first.
+  // The UPDATE below still has WHERE rev = base: a concurrent write between
+  // this read and the UPDATE cannot bypass the check.
+  const referenceSensitive = patch.some(op => {
+    if (op.path[0] === "components" || op.path[0] === "pageFolders" ||
+        op.path[0] === "favicon" || op.path[0] === "appleTouchIcon" ||
+        op.path[0] === "ogImage" || op.path[0] === "pwa") return true;
+    if (op.path[0] === "assets") return op.path.length === 1 || "remove" in op;
+    if (op.path[0] === "pages") {
+      if (op.path.length === 1) return true;
+      return "value" in op && !!op.value && typeof op.value === "object" &&
+        !Array.isArray(op.value) &&
+        (Object.hasOwn(op.value, "folderId") || Object.hasOwn(op.value, "ogImage"));
+    }
+    if (op.path[0] !== "nodes") return false;
+    if (op.path.length === 1) return true;
+    if (!("value" in op) || !op.value || typeof op.value !== "object" || Array.isArray(op.value)) return false;
+    const node = op.value as Record<string, unknown>;
+    return node.type === "instance" || Object.hasOwn(node, "image") || Object.hasOwn(node, "media") ||
+      (Array.isArray(node.children) && node.children.length > 0);
+  });
+  if (referenceSensitive) {
+    const current = await readCurrentDoc(db, siteId);
+    if (!current) return { kind: "missing" };
+    if (current.rev !== base) return { kind: "conflict", current };
+    try {
+      const next = applyDocPatch(JSON.parse(current.body) as SiteDoc, patch);
+      if (validateDocValue(next)) throw new InvalidDocPatchError();
+    } catch {
+      throw new InvalidDocPatchError();
     }
   }
   const treeOps = patch.filter(op => op.path[0] === "nodes" || op.path[0] === "pages" || op.path[0] === "components");

@@ -12,7 +12,7 @@ const state = () => useEditor.getState();
 const node = (id: string, children: string[] = []) => ({ ...makeBox(), id, children });
 const doc = (): SiteDoc => ({
   siteName: "Test", assets: {}, pageOrder: ["p"],
-  pages: { p: { id: "p", name: "Home", slug: "", children: [] } }, nodes: {}, components: {},
+  pages: { p: { id: "p", name: "Home", title: "Home", description: "", slug: "", children: [] } }, nodes: {}, components: {},
 });
 function open(d: SiteDoc) {
   state().endGesture(); state().replaceDoc(d); state().setActivePage("p"); state().setInsertMode("inside");
