@@ -5,7 +5,7 @@ import type { SiteDoc } from "../../lib/types";
 
 export function varExplorerDoc(): SiteDoc {
   return {
-    siteName: "Variable picker", assets: {}, pageOrder: ["p", "q"],
+    schemaVersion: 1, siteName: "Variable picker", assets: {}, pageOrder: ["p", "q"],
     pages: {
       p: { id: "p", name: "P", slug: "", title: "P", description: "", children: ["search", "target"], pageScripts: [{
         id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [{

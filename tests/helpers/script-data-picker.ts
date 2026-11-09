@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import type { SiteDoc } from "../../lib/types";
 
 export function scriptDataPickerDoc(): SiteDoc {
-  return { siteName: "Data choices", assets: {}, nodes: {}, pageOrder: ["p"], pages: {
+  return { schemaVersion: 1, siteName: "Data choices", assets: {}, nodes: {}, pageOrder: ["p"], pages: {
     p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: [], pageScripts: [{
       id: "s", trigger: "load", pos: { x: 32, y: 32 }, steps: [
         { id: "fetch", kind: "fetch", as: "data", url: "https://example.test/data", sample: {

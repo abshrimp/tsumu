@@ -8,7 +8,7 @@ import type { FieldContent, SiteDoc } from "../../lib/types";
 
 export function selectDefaultDoc(field: Partial<FieldContent> = {}, query = ""): SiteDoc {
   return {
-    siteName: "Select defaults", assets: {}, pageOrder: ["home"],
+    schemaVersion: 1, siteName: "Select defaults", assets: {}, pageOrder: ["home"],
     pages: { home: { id: "home", name: "Home", title: "Home", description: "", slug: "", query, children: ["choice", "result"] } },
     nodes: {
       choice: { ...makeBox(), id: "choice", attrId: "choice", type: "field", field: { kind: "select", options: ["A", "B"], defaultValue: "B", ...field } },

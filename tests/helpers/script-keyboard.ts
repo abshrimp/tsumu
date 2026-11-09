@@ -4,7 +4,7 @@ import type { SiteDoc } from "../../lib/types";
 
 export function scriptKeyboardDoc(): SiteDoc {
   return {
-    siteName: "Script keyboard scope", assets: {}, nodes: {}, pageOrder: ["p", "q", "r"],
+    schemaVersion: 1, siteName: "Script keyboard scope", assets: {}, nodes: {}, pageOrder: ["p", "q", "r"],
     pages: {
       p: { id: "p", name: "P", slug: "", title: "", description: "", children: [], pageScripts: [
         { id: "script", trigger: "load", pos: { x: 32, y: 32 }, steps: [{ id: "open", kind: "open-page", pageId: "q" }] },

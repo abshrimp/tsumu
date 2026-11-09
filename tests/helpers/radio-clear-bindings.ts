@@ -40,7 +40,7 @@ export function radioClearDoc(clearOnChange = false): SiteDoc {
     } },
   ];
   return {
-    siteName: "Radio clear bindings", assets: {}, pageOrder: ["home"],
+    schemaVersion: 1, siteName: "Radio clear bindings", assets: {}, pageOrder: ["home"],
     pages: { home: { id: "home", name: "Home", title: "Home", description: "", slug: "",
       children: nodes.filter((node) => !radios.includes(node)).map((node) => node.id),
     } },

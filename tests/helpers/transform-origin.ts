@@ -5,7 +5,7 @@ import type { SiteDoc } from "../../lib/types";
 
 export function transformOriginDoc(): SiteDoc {
   return {
-    siteName: "Transform origins", assets: {}, pageOrder: ["p", "q"],
+    schemaVersion: 1, siteName: "Transform origins", assets: {}, pageOrder: ["p", "q"],
     pages: {
       p: { id: "p", name: "P", slug: "", title: "", description: "", children: ["a", "b"] },
       q: { id: "q", name: "Q", slug: "q", title: "", description: "", children: ["c"] },

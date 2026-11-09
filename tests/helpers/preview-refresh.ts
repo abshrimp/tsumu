@@ -12,7 +12,7 @@ export function previewRefreshDoc(): SiteDoc {
     { ...makeText("{response.label}: {total}"), id: "other-result" },
   ];
   return {
-    siteName: "Preview refresh ordering", assets: {}, pageOrder: ["home", "other"],
+    schemaVersion: 1, siteName: "Preview refresh ordering", assets: {}, pageOrder: ["home", "other"],
     nodes: Object.fromEntries(nodes.map((node) => [node.id, node])),
     pages: Object.fromEntries(["home", "other"].map((id) => [id, {
       id, name: id, title: id, description: "", slug: id === "home" ? "posts/[slug]" : "other",
