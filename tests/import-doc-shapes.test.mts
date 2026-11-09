@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createInitialDoc } from "../lib/presets";
 import { parseSiteImport, validateImportedDoc } from "../lib/site-import";
+import { sanitizeImportedSvg } from "../lib/imported-svg";
 
 const encoder = new TextEncoder();
 
@@ -39,4 +40,18 @@ test("imported page style maps cannot contain malformed declarations", () => {
 test("valid documents retain editable node styles after validation", () => {
   const doc = createInitialDoc();
   assert.equal(validateImportedDoc(doc), doc);
+});
+
+
+test("non-browser import strips active or external SVG content rather than bypassing sanitization", () => {
+  const hostile = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10" ' +
+    'onload="globalThis.injected=1"><script>alert(1)</script>' +
+    '<foreignObject><div onclick="alert(2)">unsafe</div></foreignObject>' +
+    '<rect width="10" height="10" fill="url(https://remote.example/payload)"/>' +
+    '<circle cx="5" cy="5" r="3"/></svg><img src=x onerror="alert(3)">';
+  const cleaned = sanitizeImportedSvg(hostile);
+  assert.match(cleaned, /<svg\b/);
+  assert.match(cleaned, /<circle\b/);
+  assert.doesNotMatch(cleaned, /onload|onerror|<script|foreignobject|https?:|<img|alert\(/i);
+  assert.ok(!cleaned.includes('fill="url('));
 });
