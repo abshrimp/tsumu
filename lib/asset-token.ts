@@ -66,7 +66,11 @@ export async function verifyAssetToken(
   sig: string | null,
   now = Date.now()
 ): Promise<boolean> {
-  if (!exp || !sig || !/^\d{1,16}$/.test(exp) || Number(exp) < now) return false;
+  // HMAC-SHA256のBase64URL表現はパディング無しで43文字。巨大・非正規入力を
+  // Base64デコードや鍵インポートに渡さず、公開GETからの過剰な処理を避ける。
+  if (!exp || !sig || !/^\d{1,16}$/.test(exp) || !/^[A-Za-z0-9_-]{43}$/.test(sig)) return false;
+  const expiry = Number(exp);
+  if (!Number.isSafeInteger(expiry) || expiry < now || expiry > now + ASSET_TOKEN_TTL) return false;
   const key = await hmacKey();
   const bytes = fromB64Url(sig);
   if (!key || !bytes) return false;
