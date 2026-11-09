@@ -28,7 +28,8 @@ import { showAlert, showConfirm } from "./dialog";
 import { refreshClonedIds } from "./cloneIds";
 import { tr } from "./i18n";
 import { readLocalStorage } from "./local-storage";
-import { DOC_STORAGE_KEY, siteKey, touchLocalSite } from "./site";
+import { currentSiteId, siteKey, touchLocalSite } from "./site";
+import { readBrowserDoc, writeBrowserDoc } from "./browser-doc-storage";
 import { localSaveBlock, type LocalSaveResult } from "./local-save";
 import {
   buildClipPayload,
@@ -40,8 +41,6 @@ import {
 import { storageKey } from "./storage-keys";
 import { MAX_NODE_DEPTH, maxSubtreeDepth, validSiteDoc } from "./doc-tree";
 
-// ブラウザ保存はサイトごとに分ける（開いているサイトは URL で決まり、開いている間は変わらない）
-const STORAGE_KEY = siteKey(DOC_STORAGE_KEY);
 const PUBLISHED_KEY = siteKey(storageKey("published-v1"));
 const PUBLISHED_HASH_KEY = siteKey(storageKey("published-hash-v1"));
 const ACTIVE_PAGE_KEY = siteKey(storageKey("active-page-v1"));
@@ -323,29 +322,10 @@ export function insertPointFor(
   return { parent, index: childrenOf(doc, parent).indexOf(selected.id) + 1 };
 }
 
-// Per-tab baseline. Another tab may save a newer document while this tab is
-// editing; an old autosave must never silently overwrite it.
-let lastKnownLocalRaw: string | null | undefined;
-let corruptLocalSnapshot = false;
-
-function loadDoc(): SiteDoc {
-  if (typeof window !== "undefined") {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      lastKnownLocalRaw = raw;
-      if (raw !== null) {
-        const parsed = JSON.parse(raw) as unknown;
-        if (validSiteDoc(parsed)) return parsed as SiteDoc;
-        corruptLocalSnapshot = true;
-      }
-    } catch {
-      // Preserve malformed bytes for recovery; do not overwrite them with a
-      // freshly initialized site on the next autosave.
-      if (lastKnownLocalRaw !== undefined) corruptLocalSnapshot = true;
-    }
-  }
-  return createInitialDoc();
-}
+// Per-tab baseline. A stale tab cannot overwrite a document from another tab.
+let lastKnownBrowserRaw: string | null = null;
+let browserSnapshotUnavailable = false;
+let browserHydration: Promise<void> | null = null;
 
 /** 前回開いていたページ。削除済みなら先頭ページへ安全に戻す */
 function loadActivePageId(doc: SiteDoc): string {
@@ -619,7 +599,7 @@ function commitActiveTextEdit() {
 }
 
 export const useEditor = create<EditorStore>((set, get) => {
-  const initialDoc = loadDoc();
+  const initialDoc = createInitialDoc();
   // 保存した編集位置のブレークポイントを確かめるため、先にサイトの設定を反映する
   applyBreakpoints(initialDoc);
   const savedUi = loadUi(initialDoc);
@@ -1932,37 +1912,44 @@ if (typeof window !== "undefined") {
   });
 }
 
-/** ドキュメントの自動保存（Editorコンポーネントから購読） */
-export function persistDoc(doc: SiteDoc): LocalSaveResult {
-  try {
-    let blocked = localSaveBlock();
-    if (blocked) return blocked;
-    if (corruptLocalSnapshot) return "error";
-    const json = JSON.stringify(doc);
-    const currentRaw = window.localStorage.getItem(STORAGE_KEY);
-    if (lastKnownLocalRaw === undefined) lastKnownLocalRaw = currentRaw;
-    const unchanged = currentRaw === json;
-    // Another tab changed this site's data after our last observed version.
-    // Reject rather than silently rolling its newer edits back. The caller
-    // retains the unsaved in-memory document and warns before unloading.
-    if (!unchanged && currentRaw !== lastKnownLocalRaw) return "error";
-    // 読み込み中の削除も確認し、同一内容の早期成功・直後の再保存を防ぐ。
-    blocked = localSaveBlock();
-    if (blocked) return blocked;
-    if (!unchanged) {
-      window.localStorage.setItem(STORAGE_KEY, json);
-      lastKnownLocalRaw = json;
-      blocked = localSaveBlock();
-      if (blocked) return blocked;
-      // 開いただけでは変わらず、中身が変わったときだけホームの「最終編集」を進める。
-      touchLocalSite();
-    } else {
-      lastKnownLocalRaw = currentRaw;
+/** Load the browser document before cloud reconciliation or the first autosave. */
+export function hydrateBrowserDoc(): Promise<void> {
+  browserHydration ??= (async () => {
+    try {
+      const raw = await readBrowserDoc(currentSiteId());
+      lastKnownBrowserRaw = raw;
+      if (raw === null) return;
+      const parsed: unknown = JSON.parse(raw);
+      if (!validSiteDoc(parsed)) {
+        browserSnapshotUnavailable = true;
+        return;
+      }
+      useEditor.getState().replaceDoc(parsed as SiteDoc);
+    } catch (error) {
+      // Never overwrite a document that could not be loaded.
+      browserSnapshotUnavailable = true;
+      console.error("[Tsumu] Failed to load browser document", error);
     }
-    // localStorage はトランザクションではない。重なった削除を成功とせず、
-    // さらに後の削除は storage イベントで通知する。文書・削除記録は消さない。
-    return localSaveBlock() ?? "saved";
-  } catch {
+  })();
+  return browserHydration;
+}
+
+/** Autosave with an atomic revision check across browser tabs. */
+export async function persistDoc(doc: SiteDoc): Promise<LocalSaveResult> {
+  try {
+    const blocked = localSaveBlock();
+    if (blocked) return blocked;
+    if (browserSnapshotUnavailable) return "error";
+    const json = JSON.stringify(doc);
+    const result = await writeBrowserDoc(currentSiteId(), json, lastKnownBrowserRaw);
+    if (result === "conflict") return "error";
+    const deleted = localSaveBlock();
+    if (deleted) return deleted;
+    if (lastKnownBrowserRaw !== json) touchLocalSite();
+    lastKnownBrowserRaw = json;
+    return "saved";
+  } catch (error) {
+    console.error("[Tsumu] Failed to save browser document", error);
     return "error";
   }
 }

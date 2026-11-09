@@ -3,7 +3,7 @@
 import { isEnterKey } from "../lib/keys";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { toggleCommentMode } from "../lib/comment-store";
-import { insertPointFor, persistDoc, useEditor } from "../lib/store";
+import { hydrateBrowserDoc, insertPointFor, persistDoc, useEditor } from "../lib/store";
 import type { SiteDoc } from "../lib/types";
 import { localSaveState, watchLocalSaveBlock, warnForDeletedLocalSave, type LocalSaveSnapshot } from "../lib/local-save";
 import type {
@@ -158,12 +158,18 @@ export default function Editor({ onReady }: EditorProps = {}) {
   const cloudState = useEditor((s) => s.cloudState);
   // DB未設定と一時的な503を区別する。判定できない間は安全側で離脱を保護する。
   const browserOnly = useServerStatus()?.db === false;
+  const localSaveQueue = useRef<Promise<void>>(Promise.resolve());
   const saveLocalDoc = useCallback((snapshot: SiteDoc) => {
-    const result = localSiteDeleted.current ? "deleted" : persistDoc(snapshot);
-    if (result === "deleted") localSiteDeleted.current = true;
-    if (result === "saved") markSaved();
-    else useEditor.setState({ savedAt: null });
-    setLocalSave({ doc: snapshot, result });
+    const run = async () => {
+      const attempt = localSiteDeleted.current ? "deleted" : await persistDoc(snapshot);
+      const result = localSiteDeleted.current ? "deleted" : attempt;
+      if (result === "deleted") localSiteDeleted.current = true;
+      if (result === "saved") markSaved();
+      else useEditor.setState({ savedAt: null });
+      setLocalSave({ doc: snapshot, result });
+    };
+    // Serialize attempts so every write uses the last committed baseline.
+    localSaveQueue.current = localSaveQueue.current.then(run, run);
   }, [markSaved]);
   useEffect(() => watchLocalSaveBlock((result) => {
     if (result === "deleted") localSiteDeleted.current = true;
@@ -481,7 +487,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     if (link.href !== href) link.href = href;
   }, [doc.customFonts]);
 
-  // 自動保存（500msデバウンス、localStorage = 高速キャッシュ）
+  // 自動保存（500msデバウンス、IndexedDB）
   useEffect(() => {
     if (!initialLoadComplete) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -559,6 +565,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
 
   // 起動時：サーバーのドキュメントを取得（あれば正とする）
   const runSyncFromServer = useCallback(async () => {
+    await hydrateBrowserDoc();
     const s = useEditor.getState();
     const localBeforeLoad = s.doc;
     cloudReady.current = false;
