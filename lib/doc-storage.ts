@@ -154,6 +154,13 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
   // The UPDATE below still has WHERE rev = base: a concurrent write between
   // this read and the UPDATE cannot bypass the check.
   const referenceSensitive = patch.some(op => {
+    // SQL-only updates validate page/node/asset shapes and page ordering, but
+    // other site-level fields have no SQL type checks. Use the canonical
+    // SiteDoc validator for those updates before changing persisted JSON.
+    if (op.path.length === 1 &&
+        !["siteName", "pageOrder", "pages", "nodes", "assets", "components"].includes(op.path[0])) {
+      return true;
+    }
     if (op.path[0] === "components" || op.path[0] === "pageFolders" ||
         op.path[0] === "favicon" || op.path[0] === "appleTouchIcon" ||
         op.path[0] === "ogImage" || op.path[0] === "pwa") return true;
