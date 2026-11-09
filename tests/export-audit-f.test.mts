@@ -514,8 +514,11 @@ test("AUD-F-016: custom keyframes and motion settings cannot escape generated CS
       duration: 1, delay: 0, easing: "ease" },
     { id: "easing", trigger: "hover", keyframes: "fade-in",
       duration: 1, delay: 0, easing: "ease; } body { --__AUDIT_EASING_BREAKOUT__: yes; } /*" },
+    { id: "transition", trigger: "state", property: "opacity, transform",
+      duration: 0.2, delay: 0, easing: "ease" },
   ];
   const css = generateExportProject(site, "html").files["styles/site.css"];
   assert.match(css, /@keyframes anim-visible-valid/);
+  assert.match(css, /transition: opacity, transform 0\.2s ease 0s;/);
   assert.doesNotMatch(css, /__AUDIT_KF_BREAKOUT__|__AUDIT_EASING_BREAKOUT__/);
 });

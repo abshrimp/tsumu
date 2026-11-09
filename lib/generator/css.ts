@@ -200,7 +200,8 @@ export function generateSiteCss(
       Number.isFinite(m.duration) && Number.isFinite(m.delay) &&
       (m.repeat === undefined || Number.isFinite(m.repeat)) &&
       safeCssDeclarationValue(m.easing) &&
-      (!m.property || safeCssPropertyName(m.property) !== null) &&
+      (!m.property || m.property.split(",").every((part) =>
+        safeCssPropertyName(part.trim()) !== null)) &&
       (!m.direction || ["normal", "reverse", "alternate"].includes(m.direction)) &&
       (!m.fillMode || ["both", "forwards", "backwards", "none"].includes(m.fillMode)) &&
       (!m.keyframes || m.keyframes === "custom" && (!m.customKeyframes?.trim() ||
