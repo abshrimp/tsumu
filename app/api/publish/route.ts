@@ -388,7 +388,13 @@ export async function POST(req: Request) {
         pushSha(path, sha);
       }
     }
-    const preserved = [...new Set([...Object.keys(serverPlan.kept), ...keptPaths, ...protectedEntries.keys()])];
+    // Client-supplied keep hints are never allowed to resurrect obsolete
+    // generated files. Only entries independently classified as manual (or
+    // the current protected GitHub configuration) can be retained.
+    if (keptPaths.some(path => !Object.hasOwn(serverPlan.kept, path) && !protectedEntries.has(path))) {
+      return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
+    }
+    const preserved = [...new Set([...Object.keys(serverPlan.kept), ...protectedEntries.keys()])];
     const kept = keptTreeEntries(entries, preserved);
     if (!kept || keptPaths.some(path => Object.hasOwn(body.files, path) || Object.hasOwn(assetShas, path))) {
       return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
