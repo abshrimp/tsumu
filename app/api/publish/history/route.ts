@@ -13,7 +13,18 @@ import {
 import type { PublishTarget } from "../../../../lib/generator";
 import { userMessage } from "../../../../lib/errors";
 import { destParam, siteDestOf, siteIdOf } from "../../../../lib/site-server";
-import { DOC_PATH, protectedTreeEdits, type TreeEntry } from "../../../../lib/publish-files";
+import {
+  DOC_PATH,
+  GENERATED_MANIFEST_PATH,
+  conflictingCommitPaths,
+  isProtectedPath,
+  isSafeCommitPath,
+  keptTreeEntries,
+  parseGeneratedManifest,
+  planPublish,
+  protectedTreeEdits,
+  type TreeEntry,
+} from "../../../../lib/publish-files";
 
 import { matchesPublishTarget, publishConflictMessage } from "../../../../lib/publish-preconditions";
 
@@ -165,18 +176,57 @@ export async function POST(req: Request) {
     const srcRes = await gh(`/git/commits/${sha}`);
     if (!srcRes.ok) await fail(tr("指定した版の取得"), srcRes);
     const src = (await srcRes.json()) as { tree: { sha: string }; message: string };
-    // .github/ は戻さず、いまの先端のものを引き継ぐ（公開と同じく、エディタからは書き込ませない）
-    const topLevel = async (commit: string): Promise<TreeEntry[]> => {
-      const res = await gh(`/git/trees/${commit}`);
+    // A rollback replaces the generated site, not manually maintained files.
+    // Compare full snapshots and keep manual files added after the old commit.
+    // Refuse partial trees, since an omitted file could otherwise be deleted.
+    const readTree = async (commit: string): Promise<TreeEntry[]> => {
+      const res = await gh(`/git/trees/${commit}?recursive=1`);
       if (!res.ok) await fail(tr("ツリーの取得"), res);
       const result = (await res.json()) as { tree?: TreeEntry[]; truncated?: boolean };
-      // A partial top-level tree cannot reliably preserve workflows on rollback.
-      if (result.truncated || !Array.isArray(result.tree)) {
+      if (result.truncated || !Array.isArray(result.tree) ||
+          result.tree.some(entry => !isSafeCommitPath(entry.path))) {
         throw new Error(tr("公開先のファイル一覧をすべて取得できなかったため、公開を中止しました"));
       }
       return result.tree;
     };
-    const edits = protectedTreeEdits(await topLevel(src.tree.sha), await topLevel(current));
+    const [sourceEntries, currentEntries] = await Promise.all([
+      readTree(src.tree.sha), readTree(current),
+    ]);
+    const leaf = (entries: TreeEntry[]) => entries.filter(
+      entry => (entry.type === "blob" || entry.type === "commit") && !!entry.sha
+    );
+    const currentBlobs: Record<string, string> = Object.create(null);
+    for (const entry of leaf(currentEntries)) currentBlobs[entry.path] = entry.sha!;
+
+    // Match the commit endpoint: a malformed ownership manifest is a hard
+    // stop, not permission to delete unclassified manual files.
+    let generated: Record<string, string> | null = null;
+    const manifestSha = currentBlobs[GENERATED_MANIFEST_PATH];
+    if (manifestSha) {
+      const res = await gh(`/git/blobs/${manifestSha}`);
+      if (!res.ok) await fail(tr("ツリーの取得"), res);
+      const data = (await res.json()) as { content?: unknown; encoding?: unknown };
+      if (typeof data.content !== "string" || (data.encoding && data.encoding !== "base64")) {
+        throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
+      }
+      generated = parseGeneratedManifest(Buffer.from(data.content, "base64").toString("utf8"));
+      if (!generated) throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
+    }
+    const sourcePaths = leaf(sourceEntries).map(entry => entry.path);
+    const manual = planPublish(currentBlobs, generated, sourcePaths);
+    const keptPaths = Object.keys(manual.kept).filter(path => !isProtectedPath(path));
+    const kept = keptTreeEntries(currentEntries, keptPaths);
+    if (!kept || conflictingCommitPaths([...sourcePaths.filter(path => !isProtectedPath(path)), ...keptPaths])) {
+      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 409 });
+    }
+    // Preserve .github as a whole subtree. Do not also write its nested files
+    // in this Git Trees API request; that could replace the subtree.
+    const sourceRoot = sourceEntries.filter(entry => !entry.path.includes("/"));
+    const currentRoot = currentEntries.filter(entry => !entry.path.includes("/"));
+    const edits = [
+      ...protectedTreeEdits(sourceRoot, currentRoot),
+      ...kept.filter(entry => !sourcePaths.includes(entry.path)),
+    ];
     let treeSha = src.tree.sha;
     if (edits.length) {
       const treeRes = await gh(`/git/trees`, {
