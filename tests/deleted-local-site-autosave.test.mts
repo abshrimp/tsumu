@@ -11,9 +11,10 @@ const source = (await build({
 })).outputFiles[0].text;
 const require = createRequire(resolve('package.json'));
 afterEach(() => { mock.reset(); mock.timers.reset(); });
-function fixture() {
+function fixture(initialRaw?: string) {
   mock.timers.enable({ apis: ["setTimeout"] });
   const values = new Map<string, string>();
+  if (initialRaw !== undefined) values.set("tsumu-doc-v1:autosave-test", initialRaw);
   const writes: string[] = [];
   const storage: Storage = {
     get length() { return values.size; }, key: i => [...values.keys()][i] ?? null,
@@ -253,4 +254,30 @@ test('an authoritative server save is not blocked by a deleted browser copy', as
     assert.equal(f.isLocalSiteDeleted(), true);
     assert.equal(f.values.has(f.key), false);
   } finally { f.dispose(); }
+});
+
+test("a stale browser tab cannot overwrite a newer tab's document", () => {
+  const f = fixture();
+  try {
+    const original = f.useEditor.getState().doc;
+    assert.equal(f.persistDoc(original), "saved");
+    const remote = { ...original, siteName: "Remote tab change" };
+    f.storage.setItem(f.key, JSON.stringify(remote));
+    const local = { ...original, siteName: "Local unsaved edit" };
+    assert.equal(f.persistDoc(local), "error");
+    assert.deepEqual(JSON.parse(f.storage.getItem(f.key)!), remote);
+    assert.equal(f.useEditor.getState().doc, original, "an unsafe save does not discard in-memory work");
+  } finally { f.dispose(); }
+});
+
+test("invalid browser JSON is preserved instead of being replaced with a blank site", () => {
+  for (const malformed of ["{not-json", JSON.stringify({ pages: {}, pageOrder: ["lost"], nodes: {}, assets: {} })]) {
+    const f = fixture(malformed);
+    try {
+      const fresh = f.useEditor.getState().doc;
+      assert.ok(fresh.pageOrder.length);
+      assert.equal(f.persistDoc(fresh), "error");
+      assert.equal(f.storage.getItem(f.key), malformed);
+    } finally { f.dispose(); }
+  }
 });

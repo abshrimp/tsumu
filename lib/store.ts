@@ -38,7 +38,7 @@ import {
   type ClipPayload,
 } from "./clip-transfer";
 import { storageKey } from "./storage-keys";
-import { MAX_NODE_DEPTH, maxSubtreeDepth } from "./doc-tree";
+import { MAX_NODE_DEPTH, maxSubtreeDepth, validSiteDoc } from "./doc-tree";
 
 // ブラウザ保存はサイトごとに分ける（開いているサイトは URL で決まり、開いている間は変わらない）
 const STORAGE_KEY = siteKey(DOC_STORAGE_KEY);
@@ -295,18 +295,25 @@ export function insertPointFor(
   return { parent, index: childrenOf(doc, parent).indexOf(selected.id) + 1 };
 }
 
+// Per-tab baseline. Another tab may save a newer document while this tab is
+// editing; an old autosave must never silently overwrite it.
+let lastKnownLocalRaw: string | null | undefined;
+let corruptLocalSnapshot = false;
+
 function loadDoc(): SiteDoc {
   if (typeof window !== "undefined") {
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const doc = JSON.parse(raw) as SiteDoc;
-        if (doc.pages && doc.nodes && doc.pageOrder?.length) {
-          return doc;
-        }
+      lastKnownLocalRaw = raw;
+      if (raw !== null) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (validSiteDoc(parsed)) return parsed as SiteDoc;
+        corruptLocalSnapshot = true;
       }
     } catch {
-      // 壊れたデータは無視して新規作成
+      // Preserve malformed bytes for recovery; do not overwrite them with a
+      // freshly initialized site on the next autosave.
+      if (lastKnownLocalRaw !== undefined) corruptLocalSnapshot = true;
     }
   }
   return createInitialDoc();
@@ -1899,17 +1906,27 @@ export function persistDoc(doc: SiteDoc): LocalSaveResult {
   try {
     let blocked = localSaveBlock();
     if (blocked) return blocked;
+    if (corruptLocalSnapshot) return "error";
     const json = JSON.stringify(doc);
-    const unchanged = window.localStorage.getItem(STORAGE_KEY) === json;
+    const currentRaw = window.localStorage.getItem(STORAGE_KEY);
+    if (lastKnownLocalRaw === undefined) lastKnownLocalRaw = currentRaw;
+    const unchanged = currentRaw === json;
+    // Another tab changed this site's data after our last observed version.
+    // Reject rather than silently rolling its newer edits back. The caller
+    // retains the unsaved in-memory document and warns before unloading.
+    if (!unchanged && currentRaw !== lastKnownLocalRaw) return "error";
     // 読み込み中の削除も確認し、同一内容の早期成功・直後の再保存を防ぐ。
     blocked = localSaveBlock();
     if (blocked) return blocked;
     if (!unchanged) {
       window.localStorage.setItem(STORAGE_KEY, json);
+      lastKnownLocalRaw = json;
       blocked = localSaveBlock();
       if (blocked) return blocked;
       // 開いただけでは変わらず、中身が変わったときだけホームの「最終編集」を進める。
       touchLocalSite();
+    } else {
+      lastKnownLocalRaw = currentRaw;
     }
     // localStorage はトランザクションではない。重なった削除を成功とせず、
     // さらに後の削除は storage イベントで通知する。文書・削除記録は消さない。

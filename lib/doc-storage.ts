@@ -1,4 +1,4 @@
-import { hasValidChildren, MAX_NODE_DEPTH, validAssetEntry, validComponentEntry, validNodeForest } from "./doc-tree";
+import { hasValidChildren, MAX_NODE_DEPTH, validAssetEntry, validComponentEntry, validSiteDoc } from "./doc-tree";
 import type { Db, ResultSet } from "./db";
 import { applyDocPatch, isDocPatch, type DocPatch } from "./doc-patch";
 import type { SiteDoc } from "./types";
@@ -39,22 +39,7 @@ export function validateDocBody(raw: string): string | null {
 }
 
 export function validateDocValue(parsed: unknown): string | null {
-  const record = (value: unknown): value is Record<string, unknown> =>
-    !!value && typeof value === "object" && !Array.isArray(value);
-  if (!record(parsed) || typeof parsed.siteName !== "string" ||
-      !record(parsed.pages) || !record(parsed.nodes) || !record(parsed.assets) ||
-      !Array.isArray(parsed.pageOrder) || !parsed.pageOrder.length) {
-    return "不正なリクエスト";
-  }
-  if (!Object.entries(parsed.assets).every(([id, a]) => validAssetEntry(id, a)) ||
-      !validNodeForest(parsed.pages, parsed.nodes, parsed.components ?? {})) return "不正なリクエスト";
-  const order = parsed.pageOrder;
-  const pages = parsed.pages as Record<string, unknown>;
-  if (new Set(order).size !== order.length ||
-      !order.every(id => typeof id === "string" && Object.hasOwn(pages, id))) {
-    return "不正なリクエスト";
-  }
-  return null;
+  return validSiteDoc(parsed) ? null : "不正なリクエスト";
 }
 
 /** 保存先の上限を超えた値は SQLITE_TOOBIG になる（D1 では「string or blob too big」）。大きさのエラーとして返す */

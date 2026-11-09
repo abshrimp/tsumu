@@ -156,3 +156,20 @@ export function validNodeForest(pages: Record<string, unknown>, nodes: Record<st
   }
   return processed === dependencies.size;
 }
+
+/** Shared integrity check for server saves and browser-cache reopening. */
+export function validSiteDoc(parsed: unknown): boolean {
+  const record = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === "object" && !Array.isArray(value);
+  if (!record(parsed) || typeof parsed.siteName !== "string" ||
+      !record(parsed.pages) || !record(parsed.nodes) || !record(parsed.assets) ||
+      !Array.isArray(parsed.pageOrder) || !parsed.pageOrder.length) return false;
+  if (!Object.entries(parsed.assets).every(([id, asset]) => validAssetEntry(id, asset)) ||
+      !validNodeForest(parsed.pages, parsed.nodes, parsed.components ?? {})) return false;
+  const order = parsed.pageOrder;
+  if (new Set(order).size !== order.length ||
+      !order.every(id => typeof id === "string" && Object.hasOwn(parsed.pages as object, id))) {
+    return false;
+  }
+  return true;
+}
