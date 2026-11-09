@@ -4,11 +4,12 @@ import { serverTr } from "../../../lib/i18n-server";
 import { requireAuth } from "../../../lib/server";
 import { dbConfigured, getDb } from "../../../lib/db";
 import { userMessage } from "../../../lib/errors";
-import { readCurrentDoc, saveCurrentDoc } from "../../../lib/doc-storage";
+import { IMPORT_LIMITS } from "../../../lib/import-limits";
+import { readTextLimited, TooLargeError } from "../../../lib/safe-fetch";
+import { readCurrentDoc, validateDocValue } from "../../../lib/doc-storage";
 import {
   DEFAULT_BRANCH,
   DEFAULT_PREVIEW_BRANCH,
-  deleteSite,
   getSite,
   insertSite,
   isSiteId,
@@ -43,12 +44,22 @@ export async function POST(req: Request) {
   if (denied) return denied;
   if (!dbConfigured()) return await dbUnavailable();
 
-  const input = (await req.json().catch(() => null)) as (SiteInput & { copyFrom?: unknown }) | null;
-  if (!input || typeof input !== "object") {
+  let input: SiteInput & { copyFrom?: unknown; importId?: unknown; initialDoc?: unknown };
+  try {
+    const raw = await readTextLimited(new Response(req.body, { headers: req.headers }), IMPORT_LIMITS.docBytes + 1024);
+    input = JSON.parse(raw);
+  } catch (error) {
+    const status = error instanceof TooLargeError ? 413 : 400;
+    return NextResponse.json({ error: tr(status === 413 ? "インポートするファイルが大きすぎます。" : "リクエストが正しくありません") }, { status });
+  }
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   }
-  const copyFrom = input.copyFrom;
-  if (copyFrom !== undefined && !isSiteId(copyFrom)) {
+  const { copyFrom, importId, initialDoc } = input;
+  const importing = importId !== undefined || initialDoc !== undefined;
+  if ((copyFrom !== undefined && !isSiteId(copyFrom)) ||
+      (importing && (copyFrom !== undefined || typeof importId !== "string" || !/^[a-z0-9]{10}$/.test(importId) ||
+        validateDocValue(initialDoc) || (initialDoc as { siteName: string }).siteName !== input.name))) {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   }
   const parsed = normalizeSiteInput(input, {
@@ -71,21 +82,16 @@ export async function POST(req: Request) {
     if (copyFrom && !src && !(await getSite(db, copyFrom))) {
       return NextResponse.json({ error: tr("複製するサイトが見つかりません") }, { status: 404 });
     }
-    const id = newSiteId();
-    await insertSite(db, id, parsed.value);
-    if (copyFrom) {
-      try {
-        if (src) {
-          const saved = await saveCurrentDoc(db, id, src.body, null);
-          if (saved.kind !== "saved") throw new Error("作成できませんでした");
-        }
-      } catch (e) {
-        await deleteSite(db, id).catch(() => {});
-        throw e;
-      }
+    const id = typeof importId === "string" ? importId : newSiteId();
+    if (importing && await getSite(db, id)) {
+      return NextResponse.json({ error: tr("サイトを作成できませんでした。") }, { status: 409 });
     }
+    await insertSite(db, id, parsed.value, importing ? JSON.stringify(initialDoc) : src?.body);
     return NextResponse.json({ site: await getSite(db, id) });
   } catch (e) {
+    if (importing && e instanceof Error && /UNIQUE constraint failed: sites\.id/i.test(e.message)) {
+      return NextResponse.json({ error: tr("サイトを作成できませんでした。") }, { status: 409 });
+    }
     return NextResponse.json({ error: tr(userMessage(e, "作成できませんでした")) }, { status: 502 });
   }
 }

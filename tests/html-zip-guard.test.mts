@@ -140,3 +140,72 @@ test("failure after an upload removes exactly the new archive asset", async () =
     assert.deepEqual(deleted, ["assets/first"]);
   } finally { globalThis.fetch = before; }
 });
+
+test("archive-local script and stylesheet integrity is checked before uploading a single asset", async () => {
+  for (const tag of ['<link href=assets/a.css rel=stylesheet integrity="sha512-AAAA">',
+    '<script type=module src=assets/a.js integrity="sha256-AAAA"></script>']) {
+    const zip = new JSZip().file("site/index.html", tag).file("site/assets/a.css", ".x{color:red}")
+      .file("site/assets/a.js", "globalThis.unverified = true");
+    const fetch = globalThis.fetch;
+    let uploads = 0;
+    globalThis.fetch = async () => { uploads++; return Response.json({ path: "assets/new" }); };
+    try {
+      await assert.rejects(readHtmlZip(await zip.generateAsync({ type: "uint8array" })), /integrity/i);
+      assert.equal(uploads, 0);
+    } finally { globalThis.fetch = fetch; }
+  }
+});
+
+test("valid empty files and comments containing a ZIP signature can be imported", async () => {
+  const { openImportZip } = await import("../lib/zip-directory");
+  const original = new JSZip().file("site/index.html", "<p>Home</p>").file("site/empty.css", "");
+  original.comment = "ordinary PK\u0005\u0006" + "x".repeat(28);
+  const zip = await openImportZip(await original.generateAsync({ type: "uint8array" }), 200);
+  const { assetEntries } = inspectHtmlZip(zip);
+  assert.equal(assetEntries[0].name, "site/empty.css");
+  assert.equal((await readZipEntryLimited(assetEntries[0], 16)).length, 0);
+});
+
+test("corrupt stored bytes do not silently replace an imported document or asset", async () => {
+  const { openImportZip } = await import("../lib/zip-directory");
+  const original = new JSZip().file("a.js", "original-payload");
+  const bytes = Buffer.from(await original.generateAsync({ type: "uint8array", compression: "STORE" }));
+  const start = bytes.indexOf("original-payload");
+  assert.ok(start >= 0);
+  bytes[start] ^= 1;
+  const zip = await openImportZip(bytes, 200);
+  await assert.rejects(readZipEntryLimited(zip.file("a.js")!, 100), /CRC/i);
+});
+
+test("a forged zero size cannot discard a nonempty deflated member", async () => {
+  const { openImportZip } = await import("../lib/zip-directory");
+  const original = new JSZip().file("payload.txt", "not empty");
+  const bytes = Buffer.from(await original.generateAsync({ type: "uint8array", compression: "DEFLATE" }));
+  const central = bytes.indexOf(Buffer.from([80, 75, 1, 2]));
+  bytes.writeUInt32LE(0, 14); bytes.writeUInt32LE(0, 22);
+  bytes.writeUInt32LE(0, central + 16); bytes.writeUInt32LE(0, central + 24);
+  await assert.rejects(openImportZip(bytes, 200));
+});
+
+test("ZIP local and central filenames must identify the same member", async () => {
+  const { openImportZip } = await import("../lib/zip-directory");
+  const bytes = Buffer.from(await new JSZip().file("a.txt", "hello").generateAsync({ type: "uint8array" }));
+  bytes[30] = "b".charCodeAt(0);
+  await assert.rejects(openImportZip(bytes, 200), /ファイル一覧/);
+});
+
+test("true DEFLATE empty members survive validation", async () => {
+  const { deflateRawSync } = await import("node:zlib");
+  const { openImportZip, zipEntrySize } = await import("../lib/zip-directory");
+  const bytes = Buffer.from(await new JSZip().file("empty.txt", "").generateAsync({ type: "uint8array" }));
+  const central = bytes.indexOf(Buffer.from([80, 75, 1, 2]));
+  const compressed = deflateRawSync(Buffer.alloc(0));
+  const encoded = Buffer.concat([bytes.subarray(0, central), compressed, bytes.subarray(central)]);
+  const shifted = central + compressed.length;
+  encoded.writeUInt16LE(8, 8); encoded.writeUInt32LE(compressed.length, 18);
+  encoded.writeUInt16LE(8, shifted + 10); encoded.writeUInt32LE(compressed.length, shifted + 20);
+  encoded.writeUInt32LE(shifted, encoded.length - 6);
+  const entry = (await openImportZip(encoded, 200)).file("empty.txt")!;
+  assert.equal(zipEntrySize(entry), 0);
+  assert.equal((await readZipEntryLimited(entry, 10)).length, 0);
+});

@@ -1,3 +1,4 @@
+import { createIntegrityVerifier } from "../resource-integrity";
 import type { GeneratedProject } from "../generator";
 import { readAssetBytes } from "../assets";
 import { iterateCssAssetReferences, escapeCssAssetUrl } from "../css-assets";
@@ -56,24 +57,11 @@ function isEditorApi(url: URL): boolean {
   return /^\/api(?:\/|$)/i.test(new URL("/" + path, EXPORT_BASE).pathname);
 }
 
-async function verifyIntegrity(bytes: Uint8Array<ArrayBuffer>, metadata: string) {
-  if (!metadata.trim()) return;
-  const hashes = metadata.trim().split(/\s+/).map(token =>
-    /^sha(256|384|512)-([A-Za-z0-9+/=_-]+)(?:\?.*)?$/.exec(token)).filter(hash => hash !== null);
-  const strongest = hashes.reduce((best, hash) => Math.max(best, Number(hash[1])), 0);
-  if (hashes.length && globalThis.crypto?.subtle) {
-    const digest = await crypto.subtle.digest("SHA-" + strongest, bytes);
-    const expected = base64(new Uint8Array(digest)).replace(/=+$/, "");
-    if (hashes.some(hash => Number(hash[1]) === strongest &&
-        hash[2].replace(/-/g, "+").replace(/_/g, "/").replace(/=+$/, "") === expected)) return;
-  }
-  throw new Error("Cannot embed resource: integrity metadata could not be verified.");
-}
-
 export type ResourceRequest = (url: string, init: RequestInit) => Promise<Response>;
 type Resource = { bytes: Uint8Array<ArrayBuffer>; mime: string; base: URL };
 
 export function singleHtmlResources(source: GeneratedProject, request: ResourceRequest, hasImportMap: boolean) {
+  const verifyIntegrity = createIntegrityVerifier();
   const resources = new Map<string, Resource>();
   const embedded = new Map<string, string>();
   const sheets = new Map<string, string>();

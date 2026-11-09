@@ -1,6 +1,8 @@
+import { rebindImportedAssetUrls } from "./imported-asset-urls";
+import { IMPORT_LIMITS } from "./import-limits";
 import { validAssetEntry, validNodeForest } from "./doc-tree";
 import type JSZip from "jszip";
-import { openImportZip } from "./zip-directory";
+import { openImportZip, zipEntrySize } from "./zip-directory";
 import type { Asset, SiteDoc } from "./types";
 import { isEmbeddedAssetUrl, uploadStaticAsset } from "./assets";
 import { decodePortableDoc } from "./portable-doc";
@@ -21,15 +23,7 @@ export interface SiteImport {
   warnings: string[];
 }
 
-export const IMPORT_LIMITS = {
-  zipBytes: 100 * 1024 * 1024,
-  docBytes: 12 * 1024 * 1024,
-  expandedBytes: 300 * 1024 * 1024,
-  assetBytes: 25 * 1024 * 1024,
-  entries: 500,
-  assets: 250,
-  localAssetBytes: 2 * 1024 * 1024,
-} as const;
+export { IMPORT_LIMITS } from "./import-limits";
 
 const decoder = new TextDecoder("utf-8", { fatal: true });
 const suspicious = new Set(["__proto__", "prototype", "constructor"]);
@@ -54,7 +48,7 @@ export function validateImportedDoc(value: unknown): SiteDoc {
       !assertOrdinaryObject(doc.pages) || !assertOrdinaryObject(doc.nodes) ||
       !assertOrdinaryObject(doc.assets) ||
       !Array.isArray(doc.pageOrder) || !doc.pageOrder.length ||
-      doc.pageOrder.length > 500 || Object.keys(doc.nodes).length > 25000 ||
+      doc.pageOrder.length > 500 || Object.keys(doc.pages).length > 500 || Object.keys(doc.nodes).length > 25000 ||
       Object.keys(doc.assets).length > IMPORT_LIMITS.assets) {
     throw new Error("ページ・要素・アセット情報が不正な編集データです。");
   }
@@ -95,12 +89,6 @@ function pathOK(path: string): boolean {
   return !!path && !path.includes("\\") && !path.startsWith("/") &&
     !path.includes("\0") && path.split("/").every((part) => part && part !== "." && part !== "..");
 }
-function uncompressedSize(entry: JSZip.JSZipObject): number | null {
-  const size = (entry as unknown as { _data?: { uncompressedSize?: number } })
-    ._data?.uncompressedSize;
-  return Number.isFinite(size) && size! >= 0 ? size! : null;
-}
-
 function findEditDoc(entries: JSZip.JSZipObject[]) {
   return entries.find((entry) => /^(?:[^/]+\/)?_tsumu\/doc\.json$/i.test(entry.name));
 }
@@ -133,7 +121,7 @@ export async function parseSiteImport(
   let size = 0;
   for (const entry of entries) {
     if (!pathOK(entry.name)) throw new Error("ZIPに安全でないファイルパスがあります。");
-    const n = uncompressedSize(entry);
+    const n = zipEntrySize(entry);
     if (n === null) throw new Error("ZIP内のファイルサイズが正しくありません。");
     if (n > IMPORT_LIMITS.expandedBytes || (size += n) > IMPORT_LIMITS.expandedBytes) {
       throw new Error("ZIP展開後のデータが大きすぎます。");
@@ -175,7 +163,7 @@ export async function parseSiteImport(
       if (!original.dataUrl) warnings.push("ZIPにアセットがありません: " + original.name);
       continue;
     }
-    const n = uncompressedSize(entry);
+    const n = zipEntrySize(entry);
     if (n !== null && n > IMPORT_LIMITS.assetBytes) {
       warnings.push("サイズが大きいためアセットを取り込めません: " + original.name);
       continue;
@@ -199,11 +187,16 @@ export async function restoreImportAssets(
 ): Promise<{ doc: SiteDoc; warnings: string[]; createdPaths: string[] }> {
   const doc = structuredClone(imported.doc);
   const warnings = [...imported.warnings];
-  let number = 0;
+  let number = 0, embeddedBytes = 0;
+  const countEmbedded = (url?: string) => {
+    embeddedBytes += url?.length ?? 0;
+    if (embeddedBytes > IMPORT_LIMITS.docBytes) throw new Error("編集データが容量上限を超えています。");
+  };
   for (const [id, asset] of Object.entries(doc.assets)) {
     number++;
     progress("アセットを復元中… " + number + " / " + Object.keys(doc.assets).length);
-    let bytes = imported.assets.get(id);
+    const archived = imported.assets.get(id);
+    let bytes = archived;
     if (!bytes && isEmbeddedAssetUrl(asset.dataUrl)) {
       try {
         const blob = await (await fetch(asset.dataUrl)).blob();
@@ -222,23 +215,25 @@ export async function restoreImportAssets(
           svgFilter: asset.svgFilter ?? result.svgFilter,
           ...(result.path ? { dataUrl: undefined } : { path: undefined }),
         };
-        continue;
       } catch (e) {
         warnings.push("アセットを保存できませんでした: " + asset.name + " (" + String(e instanceof Error ? e.message : e) + ")");
+        // The manifest bytes take precedence over an older embedded copy.
+        if (archived) delete asset.dataUrl;
+        delete asset.path;
         if (bytes.byteLength <= IMPORT_LIMITS.localAssetBytes && !asset.dataUrl) {
           const blob = new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mime });
           asset.dataUrl = await blobToDataUrl(blob);
         }
       }
-    }
-    if (asset.dataUrl) {
-      delete asset.path;
+      countEmbedded(doc.assets[id].dataUrl);
       continue;
     }
+    delete asset.dataUrl;
     if (!bytes) warnings.push("アセットを取得できませんでした: " + asset.name);
     // Do not point at an unrelated asset key in the destination installation.
     if (asset.path) delete asset.path;
   }
+  rebindImportedAssetUrls(imported.doc, doc);
   return { doc, warnings: [...new Set(warnings)], createdPaths };
 }
 

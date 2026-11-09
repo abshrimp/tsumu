@@ -1,5 +1,7 @@
 import type { Asset, BreakpointDef, DocNode, NodeStyles, Page, SiteDoc, StyleMap, StyleState } from "./types";
 import { genId } from "./presets";
+import { escapeStyleContent } from "./css-assets";
+import { MAX_NODE_DEPTH } from "./doc-tree";
 import { assetSrc } from "./assets";
 import { DEFAULT_BREAKPOINTS, MAX_BREAKPOINTS, normalizeBreakpoints } from "./style";
 import { zipStylesheet } from "./zip-css";
@@ -162,6 +164,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       }
       const source = zipStylesheet(asset);
       if (source) {
+        if (element.getAttribute("integrity")?.trim()) throw new Error("Cannot import a stylesheet with unverified integrity metadata.");
         const converted = mediaCss(element, resolveCss(source.source, asset));
         if (converted !== null) sheets.push(converted);
         else {
@@ -228,6 +231,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     }
     return min <= max ? { min, max } : null;
   };
+  let declarationWork = 0, emittedStyleChars = 0;
   const collect = (rules: CSSRuleList, range: MediaRange) => {
     for (const rule of Array.from(rules)) {
       if (rule.type === CSSRule.MEDIA_RULE) {
@@ -257,13 +261,14 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
           declarations.push({ name, value, important });
         });
         if (!declarations.length) continue;
+        let retain = false;
         for (const originalSelector of splitSelectors(item.selectorText)) {
           const selector = originalSelector.trim();
           const stateMatch = /:(hover|focus|active)$/i.exec(selector);
           const state = (stateMatch?.[1]?.toLowerCase() || "default") as StyleState;
           const baseSelector = stateMatch ? selector.slice(0, -stateMatch[0].length) : selector;
           if (!baseSelector || /::|(^|[^\\]):/.test(baseSelector)) {
-            unusedRules.push(item.cssText);
+            retain = true;
             warn(tr("一部のCSSセレクターはカスタムCSSとして保持しました。"));
             continue;
           }
@@ -272,12 +277,13 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
             // Global selectors such as :root do not have a Tsumu node;
             // retain their declarations instead of silently losing variables.
             if (Array.from(matches).some((el) => el === parsed.documentElement || el === parsed.head)) {
-              unusedRules.push(item.cssText);
+              retain = true;
               warn(tr("一部のCSSルールはカスタムCSSとして保持しました。"));
               continue;
             }
-            for (const element of Array.from(matches)) {
-              if (parsedRules.length >= 200000) throw new Error("too-many-matches");
+            declarationWork += matches.length * declarations.length;
+            for (const element of matches) {
+              if (parsedRules.length >= 200000 || declarationWork > 2000000) throw new Error("too-many-matches");
               parsedRules.push({
                 element, state, range, score: specificity(selector), order: ++order, declarations,
               });
@@ -286,10 +292,11 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
             if (error instanceof Error && error.message === "too-many-matches") {
               throw new Error(tr("HTMLの要素数が多すぎます。"));
             }
-            unusedRules.push(item.cssText);
+            retain = true;
             warn(tr("一部のCSSセレクターを解析できませんでした。"));
           }
         }
+        if (retain) unusedRules.push(item.cssText);
       } else {
         unusedRules.push(rule.cssText);
         warn(tr("一部のCSSルールはカスタムCSSとして保持しました。"));
@@ -369,6 +376,8 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
           const after = values.get(key);
           if (at.id === "base" || before !== after) {
             // A rule that only applied at wider widths must be cancelled here.
+            emittedStyleChars += key.length + (after?.length ?? 6);
+            if (emittedStyleChars > MAX_HTML_CHARS) throw new Error(tr("HTMLのスタイルが複雑すぎます。"));
             if (after !== undefined) props[key] = after;
             else if (at.id !== "base") props[key] = "revert";
           }
@@ -411,13 +420,14 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     nodes[node.id] = node;
     return node.id;
   };
-  const convert = (element: Element): string | null => {
+  const convert = (element: Element, depth = 1): string | null => {
     const tag = element.tagName.toLowerCase();
     if (SKIP_TAGS.has(tag)) return null;
     if (UNSAFE_TAGS.has(tag)) {
       warn(tr("埋め込み要素は安全上の理由で変換対象から除外しました。"));
       return null;
     }
+    if (depth > MAX_NODE_DEPTH) throw new Error(tr("HTMLの要素数が多すぎます。"));
     const id = genId("node");
     const visual = nodeStyle(element);
     const sourceClass = keepOriginalClasses
@@ -533,6 +543,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       if (child.nodeType === Node.TEXT_NODE) {
         const value = (child.textContent || "").replace(/\s+/g, " ").trim();
         if (!value) continue;
+        if (depth >= MAX_NODE_DEPTH) throw new Error(tr("HTMLの要素数が多すぎます。"));
         const textId = genId("node");
         common.children.push(add({
           id: textId, type: "box", name: tr("テキスト"), semantic: "span",
@@ -540,7 +551,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
           styles: { base: { default: {} } },
         }));
       } else if (child.nodeType === Node.ELEMENT_NODE) {
-        const childId = convert(child as Element);
+        const childId = convert(child as Element, depth + 1);
         if (childId) common.children.push(childId);
       }
     }
@@ -564,7 +575,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
   const pageId = genId("page");
   const name = parsed.title.trim() || tr("HTMLから変換したページ");
   const description = parsed.head.querySelector('meta[name="description"]')?.getAttribute("content") || "";
-  const retainedCss = unusedRules.length ? "<style>\n" + [...new Set(unusedRules)].join("\n") + "\n</style>" : "";
+  const retainedCss = unusedRules.length ? "<style>\n" + escapeStyleContent(unusedRules.join("\n")) + "\n</style>" : "";
   const headMarkup = [unusedHead.join("\n"), retainedCss].filter(Boolean).join("\n");
   const page: Page = {
     id: pageId, name, title: name, slug: "", description, children: roots,

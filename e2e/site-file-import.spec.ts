@@ -3,6 +3,7 @@ import JSZip from "jszip";
 import { createInitialDoc, makeImage } from "../lib/presets";
 import { DOC_STORAGE_KEY } from "../lib/site";
 import { serializePortableDoc } from "../lib/portable-doc";
+import { generateExportProject } from "../lib/export-formats";
 import { IMPORT_LIMITS } from "../lib/site-import";
 import { storageKey } from "../lib/storage-keys";
 
@@ -154,25 +155,29 @@ test("invalid JSON is rejected without creating a site", async ({ page }) => {
   expect((await getLocalSite(page)).list).toHaveLength(0);
 });
 
-test("local file import persists the SiteDoc on the server when configured", async ({ page }) => {
+for (const lost of [false, true]) test(`server import saves the first revision with the site (response lost: ${lost})`, async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("tsumu-lang", "ja"));
   const doc = fixture();
   let stored: unknown = null;
-  const siteId = "imported-server-site";
+  let siteId = "";
   await page.route("**/api/sites**", async route => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/sites" && route.request().method() === "GET")
       return route.fulfill({ json: { sites: [] } });
-    if (path === "/api/sites" && route.request().method() === "POST")
+    if (path === "/api/sites" && route.request().method() === "POST") {
+      const input = route.request().postDataJSON();
+      siteId = input.importId;
+      stored = input.initialDoc;
+      if (lost) return route.abort("connectionreset");
       return route.fulfill({ json: { site: { id: siteId, name: doc.siteName } } });
+    }
     if (path === "/api/sites/" + siteId && route.request().method() === "GET")
       return route.fulfill({ json: { site: { id: siteId, name: doc.siteName } } });
     return route.fulfill({ status: 400, json: { error: "Unexpected site API" } });
   });
   await page.route("**/api/doc?**", async route => {
     if (route.request().method() === "PUT") {
-      stored = route.request().postDataJSON();
-      return route.fulfill({ json: { ok: true, rev: "1", savedAt: 1 } });
+      throw new Error("The initial import must already contain the document.");
     }
     return route.fulfill({ json: { exists: true, doc: stored, rev: "1", savedAt: 1 } });
   });
@@ -181,7 +186,46 @@ test("local file import persists the SiteDoc on the server when configured", asy
   await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
     name: "site.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(doc)),
   });
-  await expect(page).toHaveURL(/\/sites\/imported-server-site$/, { timeout: 30000 });
+  await expect(page).toHaveURL(/\/sites\/[a-z0-9]{10}$/, { timeout: 30000 });
   await expect(page.locator(".app")).toBeVisible({ timeout: 30000 });
   expect(stored).toMatchObject({ siteName: doc.siteName, pages: doc.pages, nodes: doc.nodes });
+});
+
+test("importing archived CSS keeps style end tags as literal content in the published page", async ({ page }) => {
+  await localMode(page);
+  const zip = new JSZip().file("index.html", '<link rel="stylesheet" href="theme.css"><p>CSS probe</p>')
+    .file("theme.css", '@supports (display: grid) {p::before{content:"</StYlE><script>globalThis.cssExecuted=1</script><style>";}}');
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+  await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
+    name: "styles.zip", mimeType: "application/zip", buffer: await zip.generateAsync({ type: "nodebuffer" }),
+  });
+  await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
+  const { doc } = await getLocalSite(page);
+  const files = generateExportProject(doc, "html").files;
+  const output = await page.context().newPage();
+  await output.route("https://published.test/**", route => {
+    const path = new URL(route.request().url()).pathname.slice(1) || "index.html";
+    return Object.hasOwn(files, path) ? route.fulfill({ body: files[path],
+      contentType: path.endsWith(".js") ? "text/javascript" : path.endsWith(".css") ? "text/css" : "text/html" }) : route.abort();
+  });
+  await output.goto("https://published.test/");
+  expect(await output.evaluate(() => (globalThis as typeof globalThis & { cssExecuted?: number }).cssExecuted)).toBeUndefined();
+  await expect.poll(() => output.locator("p").first().evaluate(p => getComputedStyle(p, "::before").content)).toContain("</StYlE><script>");
+});
+
+test("an external HTML base retains external stylesheet integrity even with a local namesake", async ({ page }) => {
+  await localMode(page);
+  const zip = new JSZip().file("index.html", '<base href="https://cdn.example.test/web/"><link rel=stylesheet href=theme.css integrity=sha256-AAAA><p>External</p>')
+    .file("theme.css", "p{color:red}");
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+  await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
+    name: "external.zip", mimeType: "application/zip", buffer: await zip.generateAsync({ type: "nodebuffer" }),
+  });
+  await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
+  const { doc } = await getLocalSite(page);
+  const head = doc.pages[doc.pageOrder[0]].customTopHtml;
+  expect(head).toContain('href="https://cdn.example.test/web/theme.css"');
+  expect(head).toContain('integrity="sha256-AAAA"');
 });

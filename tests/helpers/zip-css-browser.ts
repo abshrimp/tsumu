@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { buildSync, transformSync } from "esbuild";
 import JSZip from "jszip";
 import { resolve } from "node:path";
@@ -12,7 +13,7 @@ const PROBE_FONT = "AAEAAAAKAIAAAwAgT1MvMkU3R2wAAAEoAAAAYGNtYXAADACrAAABkAAAADRn
 const fixtureFiles: Record<string, string | Buffer> = {
   "site/index.html": `<!doctype html><html><head>
     <link rel="icon" href="data:,">
-    <link id="main-sheet" rel="stylesheet" href="css/main.css?version=3#sheet" media="screen" title="Base" integrity="sha256-not-the-rewritten-css">
+    <link id="main-sheet" rel="stylesheet" href="css/main.css?version=3#sheet" media="screen" title="Base" integrity="__ORIGINAL_CSS_INTEGRITY__">
     <link id="namespace-sheet" rel="stylesheet" href="css/namespaces.css" media="screen">
     <link id="print-sheet" rel="stylesheet" href="css/print.css" media="print">
     <link id="disabled-sheet" rel="stylesheet" href="css/disabled.css" disabled>
@@ -207,7 +208,10 @@ export async function zipCssBrowser(page: Page, storage: "local" | "remote") {
   await page.goto("https://zip-editor.test/");
   await page.addScriptTag({ content: zipCssBrowserBundle });
   const zip = new JSZip();
-  for (const [name, source] of Object.entries(fixtureFiles)) zip.file(name, source);
+  const integrity = "sha256-" + createHash("sha256").update(fixtureFiles["site/css/main.css"]).digest("base64");
+  for (const [name, source] of Object.entries(fixtureFiles)) {
+    zip.file(name, name === "site/index.html" ? String(source).replace("__ORIGINAL_CSS_INTEGRITY__", integrity) : source);
+  }
   const base64 = await zip.generateAsync({ type: "base64" });
   const doc = await page.evaluate((input) => (window as any).zipCssHarness.importZip(input), base64) as SiteDoc;
   return {

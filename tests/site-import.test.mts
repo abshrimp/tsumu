@@ -202,3 +202,43 @@ test("imports reject page roots shared with another page or parent node", () => 
   nested.nodes.extra = { ...structuredClone(doc.nodes[child]), id: "extra", children: [child] };
   assert.throws(() => validateImportedDoc(nested), /親子関係/);
 });
+
+test("editable ZIP imports accept a zero-byte asset alongside the document", async () => {
+  const doc = fixture();
+  const zip = new JSZip().file(EDITABLE_DOC_PATH, JSON.stringify(doc))
+    .file(EDITABLE_ASSETS_PATH, JSON.stringify({ version: 1, assets: { "original-image": "assets/empty.svg" } }))
+    .file("assets/empty.svg", "");
+  const result = await parseSiteImport(await zip.generateAsync({ type: "uint8array" }), "zip");
+  assert.equal(result.assets.get("original-image")?.length, 0);
+});
+
+test("restored URLs follow the newly stored asset without copying a signature into the new document", async () => {
+  const { restoreImportAssets } = await import("../lib/site-import");
+  const doc = fixture();
+  const asset = doc.assets["original-image"];
+  asset.name = "data.txt";
+  asset.mimeType = "text/plain";
+  const old = "/api/assets/file?path=assets%2Fold-reference";
+  const page = doc.pages[doc.pageOrder[0]];
+  page.customEndHtml = '<!-- ' + old + ' --><script>const literal="' + old + '"</script>' +
+    '<img data-src="' + old + '" src="' + old + '&amp;sig=private#icon"><style>i{background:url(' + old + ')}</style>';
+  page.bodyStyles = { base: { default: { backgroundImage: 'url("' + old + '#icon")' } } };
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ path: "assets/new" });
+  try {
+    const { doc: restored, createdPaths } = await restoreImportAssets({
+      doc, assets: new Map([[asset.id, enc.encode("contents")]]), warnings: [],
+    });
+    assert.deepEqual(createdPaths, ["assets/new"]);
+    const p = restored.pages[page.id];
+    assert.ok(p.customEndHtml?.includes('data-src="' + old + '" src="/api/assets/file?path=assets%2Fnew#icon"'));
+    assert.ok(p.customEndHtml?.includes("url(/api/assets/file?path=assets%2Fnew)"));
+    assert.ok(p.customEndHtml?.includes('<!-- ' + old + ' --><script>const literal="' + old + '"'));
+    assert.ok(!p.customEndHtml?.includes("private"));
+    assert.equal(p.bodyStyles?.base?.default?.backgroundImage, 'url("/api/assets/file?path=assets%2Fnew#icon")');
+    assert.equal(doc.assets[asset.id].path, "assets/old-reference");
+    const missing = await restoreImportAssets({ doc, assets: new Map(), warnings: [] });
+    assert.equal(missing.doc.assets[asset.id].path, undefined);
+    assert.ok(!missing.doc.pages[page.id].customEndHtml?.includes(' src="' + old));
+  } finally { globalThis.fetch = original; }
+});
