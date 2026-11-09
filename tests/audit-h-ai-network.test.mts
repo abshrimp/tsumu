@@ -79,6 +79,23 @@ test("a cancelled DNS preflight never begins a network lookup", async () => {
   await assert.rejects(assertPublicUrl("https://example.test/", controller.signal), BlockedUrlError);
 });
 
+test("private DNS answers are refused even when the hostname looks public", async (t) => {
+  const dns = process.getBuiltinModule("node:dns/promises");
+  assert.ok(dns);
+  t.mock.method(dns, "lookup", async () => [{ address: "169.254.169.254", family: 4 }]);
+  await assert.rejects(assertPublicUrl("https://remote.example.test/"), BlockedUrlError);
+});
+
+test("abort cancels a DNS lookup that has not resolved", async (t) => {
+  const dns = process.getBuiltinModule("node:dns/promises");
+  assert.ok(dns);
+  t.mock.method(dns, "lookup", async () => new Promise<never>(() => {}));
+  const controller = new AbortController();
+  const pending = assertPublicUrl("https://remote.example.test/", controller.signal);
+  controller.abort();
+  await assert.rejects(pending, BlockedUrlError);
+});
+
 test("AI replay is atomic if another change invalidates its document snapshot", () => {
   const source = fixture();
   const context = buildAiContext(source, { pageId: "p" });
