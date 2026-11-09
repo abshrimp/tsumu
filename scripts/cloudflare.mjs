@@ -67,8 +67,8 @@ export function normalizeStorageConfig(config) {
   const server = bindings.db && bindings.kv && bindings.doc;
   if (server) return { config, mode: "server" };
   const normalized = structuredClone(config);
-  normalized.d1_databases = (normalized.d1_databases ?? []).filter(b => b.binding !== "DB");
-  normalized.kv_namespaces = (normalized.kv_namespaces ?? []).filter(b => b.binding !== "ASSETS_KV");
+  if (normalized.d1_databases) normalized.d1_databases = normalized.d1_databases.filter(b => b.binding !== "DB");
+  if (normalized.kv_namespaces) normalized.kv_namespaces = normalized.kv_namespaces.filter(b => b.binding !== "ASSETS_KV");
   return { config: normalized, mode: "browser" };
 }
 
