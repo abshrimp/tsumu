@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SlotIndex, type SlotPoint } from "../components/script-editor/slot-index";
 import { filterNumbersOf, mapStep, numberFilters } from "../components/script-editor/step-tree";
-import { scriptInputDoc } from "../lib/data";
+import { dataVarNames, pageVariableIndex, scriptInputDoc } from "../lib/data";
 import type { ScriptStep, SiteDoc } from "../lib/types";
 
 function brute(slots: SlotPoint[], kind: SlotPoint["kind"], x: number, y: number) {
@@ -170,4 +170,30 @@ test("preview excludes duplicated step IDs from every containing script", () => 
   assert.equal(preview.pages.p.pageScripts![1].steps.length, 0);
   assert.equal(preview.nodes.c.scripts![0].steps.length, 0);
   assert.equal(doc.pages.p.pageScripts![0].steps.length, 1);
+});
+
+test("shared variable index matches per-step exclusion including duplicate producer IDs", () => {
+  const doc = {
+    pages: { p: { children: [], pageScripts: [{ id: "script", steps: [
+      { id: "unique", kind: "set-var", value: "1", into: "one" },
+      { id: "repeated", kind: "set-var", value: "2", into: "two" },
+      { id: "repeated", kind: "set-var", value: "3", into: "three" },
+      { id: "another", kind: "set-var", value: "4", into: "two" },
+      { id: "nested", kind: "repeat", times: 1, then: [
+        { id: "inner", kind: "set-var", value: "5", into: "__proto__" },
+      ] },
+    ] }] } },
+    nodes: {},
+  } as unknown as SiteDoc;
+  const index = pageVariableIndex(doc, "p");
+  for (const stepId of ["unique", "repeated", "another", "inner", "missing"]) {
+    const expected = dataVarNames(doc, "p", stepId);
+    const fromIndex = new Set(index.names.filter((name) => index.hasOther(name, stepId)));
+    assert.deepEqual(fromIndex, expected, "step " + stepId);
+  }
+  assert.equal(index.hasOther("one", "unique"), false);
+  assert.equal(index.hasOther("two", "repeated"), true);
+  assert.equal(index.hasOther("three", "repeated"), false);
+  assert.equal(index.hasOther("__proto__", "inner"), false);
+  assert.equal(index.hasOther("slug", "unique"), true);
 });
