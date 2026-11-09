@@ -45,6 +45,8 @@ test("Docker runtime is non-root and local credentials are excluded from the bui
   assert.equal(imageRefs[0][1], read(".nvmrc").trim() + "-slim");
   assert.equal(imageRefs[0][1], imageRefs[1][1]);
   assert.equal(imageRefs[0][2], imageRefs[1][2]);
+  assert.match(dockerfile, /^COPY --from=build --chown=node:node \/app\/\.next\/standalone \.\/$/m);
+  assert.match(dockerfile, /^COPY --from=build --chown=node:node \/app\/\.next\/static \.\/\.next\/static$/m);
   assert.match(dockerfile, /^USER node$/m);
   assert.match(dockerfile, /^VOLUME \/data$/m);
   assert.match(dockerfile, /chown node:node \/data/);
