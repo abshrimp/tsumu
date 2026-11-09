@@ -1667,6 +1667,13 @@ export const SCRIPT_RUNTIME = `function (env) {
           ? new IntersectionObserver(function (entries) {
               entries.forEach(function (en) {
                 if (!en.isIntersecting) return;
+                // A queued notification may arrive after page navigation.
+                // Detached elements must not mutate matching IDs on the new page.
+                if (!alive || !root.contains(en.target)) {
+                  io.unobserve(en.target);
+                  return;
+                }
+                syncPage();
                 io.unobserve(en.target);
                 fire(en.target, "in-view");
               });
