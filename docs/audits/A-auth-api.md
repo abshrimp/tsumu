@@ -159,3 +159,12 @@
 | AUD-A-010 | Low（不正入力・処理量） | 署名パラメータ付き`GET /api/assets/file`は、ルートでHMACを検証するためミドルウェアのセッション判定を通過できる設計。旧`verifyAssetToken`は署名文字列の長さ・文字集合を確かめず、任意の長い`sig`を`atob`・`Uint8Array`変換へ渡していた。HTTPプロキシ等によるURL長の制限は配備依存であり、実際のDoSは再現未確認。 | `verifyAssetToken`で、HMAC-SHA256署名のパディングなしBase64URL表現（43文字）以外を鍵インポートより前に拒否。期限は安全整数・期限内のみ受理。既発行の署名形式と1時間の有効期限は変更しない。 `tests/asset-token-batch.test.mts` に長大・非正規の署名入力を追加。 |
 
 署名URLの期限内の再利用は、プレビューが別オリジンからファイルを取得するための仕様であり、この修正で失効条件は変わらない。
+
+
+## 六次監査：JSON APIのメディアタイプ（2026-11-09）
+
+| ID | 重要度 | 発見・対処 | 回帰テスト |
+| --- | --- | --- | --- |
+| AUD-A-011 | Low（CSRFに対する追加防御） | 署名API以外の一部JSON更新APIは、本文のJSONとしての構造だけを検査し、`text/plain`でも受け入れていた。これによりブラウザの単純なフォーム・fetchリクエストでもJSONを送れ、CSRF防御の負担がOrigin/Fetch Metadataに集中する。これ自体による認証回避・CSRF成立は未確認。 | `POST /api/allowed-users`、`POST /api/comments`、`PATCH /api/sites/[id]`を`application/json`要求に統一し、不一致は415。共通リーダーの寛容な切替分岐は削除。実クライアント側のJSONヘッダー指定は既存通り。各テストで`text/plain`がデータ更新前に拒否されることを確認。 |
+
+**注意:** Content-Typeの検証はCSRF対策の代わりではなく、既存のOrigin・Fetch Metadata検証を維持する。認証設定・匿名利用・署名URLの公開範囲も変更しない。
