@@ -46,6 +46,7 @@ import { useServerStatus } from "../lib/status";
 import { currentSiteId, siteApi, siteKey } from "../lib/site";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { storageKey } from "../lib/storage-keys";
+import { trackPanelResize } from "../lib/panel-resize";
 
 const PANEL_MIN = { l: 200, r: 240 } as const;
 
@@ -95,29 +96,26 @@ function PanelResizer({
   side: "l" | "r";
   onResize: (w: number) => void;
 }) {
+  const resizeCleanup = useRef<(() => void) | null>(null);
+  useEffect(() => () => resizeCleanup.current?.(), []);
   return (
     <div
       className="panel-resizer"
       onPointerDown={(e) => {
-        if (e.button !== 0) return;
+        if (e.button !== 0 || resizeCleanup.current) return;
         e.preventDefault();
-        const target = e.currentTarget;
-        target.setPointerCapture(e.pointerId);
-        const startX = e.clientX;
-        const startW = width;
-        document.body.classList.add("is-resizing-panel");
-        const onMove = (ev: PointerEvent) => {
-          onResize(clampPanel(startW + (ev.clientX - startX) * dir, side));
-        };
-        const onUp = () => {
-          target.removeEventListener("pointermove", onMove);
-          target.removeEventListener("pointerup", onUp);
-          target.removeEventListener("pointercancel", onUp);
-          document.body.classList.remove("is-resizing-panel");
-        };
-        target.addEventListener("pointermove", onMove);
-        target.addEventListener("pointerup", onUp);
-        target.addEventListener("pointercancel", onUp);
+        let cleanup: (() => void) | null = null;
+        cleanup = trackPanelResize(
+          e,
+          e.currentTarget,
+          width,
+          dir,
+          (nextWidth) => onResize(clampPanel(nextWidth, side)),
+          () => {
+            if (resizeCleanup.current === cleanup) resizeCleanup.current = null;
+          },
+        );
+        resizeCleanup.current = cleanup;
       }}
     />
   );
