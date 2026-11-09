@@ -3,6 +3,7 @@ import { serverTr } from "../../../lib/i18n-server";
 import { recordPublish, requireAuth } from "../../../lib/server";
 import {
   branchPath as toBranchPath,
+  advanceBranchRef,
   configError,
   githubClient,
   previewEnabled,
@@ -440,25 +441,19 @@ export async function POST(req: Request) {
     if (!commitRes.ok) await fail(tr("コミットの作成"), commitRes);
     const commitSha = (await commitRes.json()).sha;
 
-    // 4. Reject concurrent updates instead of overwriting a newer branch head.
-    if (branchExists) {
-      const upRes = await gh(`/git/refs/heads/${branchPath}`, {
-        method: "PATCH",
-        body: JSON.stringify({ sha: commitSha, force: false }),
-      });
-      if (upRes.status === 422 || upRes.status === 409) return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
-      if (!upRes.ok) await fail(tr("ブランチの更新"), upRes);
-    } else {
-      const createRes = await gh(`/git/refs`, {
-        method: "POST",
-        body: JSON.stringify({ ref: `refs/heads/${branch}`, sha: commitSha }),
-      });
-      if (createRes.status === 422 || createRes.status === 409) return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
-      if (!createRes.ok) await fail(tr("ブランチの作成"), createRes);
+    // 4. Never force an update. Resolve ambiguous transport errors by reading
+    // back GitHub's ref before asking the user to publish again.
+    if (!(await advanceBranchRef(gh, fail, branch, commitSha, branchExists, tr))) {
+      return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
     }
 
-    // 右下の「公開」にホバーしたときに出す、最後の公開と公開した人
-    await recordPublish(siteId, target);
+    // The GitHub commit already exists: a local history bookkeeping failure
+    // must not turn successful publication into a misleading 502/retry.
+    try {
+      await recordPublish(siteId, target);
+    } catch {
+      console.warn("Publish completed, but the local publication record could not be updated", { siteId, target });
+    }
     return NextResponse.json({
       ok: true,
       commit: commitSha,
