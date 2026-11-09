@@ -1,4 +1,5 @@
 import { validAssetEntry, validNodeForest } from "./doc-tree";
+import { isSafeImportedSvg } from "./imported-svg";
 import type { SiteDoc } from "./types";
 
 export const IMPORT_LIMITS = {
@@ -56,7 +57,10 @@ function validImportedNode(value: unknown): boolean {
       !["audio", "video"].includes(value.media.kind as string) ||
       typeof value.media.src !== "string")) return false;
   if (value.icon != null && (!isImportObject(value.icon) ||
-      typeof value.icon.name !== "string" || typeof value.icon.svg !== "string")) return false;
+      typeof value.icon.name !== "string" || typeof value.icon.svg !== "string" ||
+      // Browser imports sanitize icons before persistence. Direct server API
+      // imports must not accept unsanitized executable SVG via initialDoc.
+      (typeof window === "undefined" && !isSafeImportedSvg(value.icon.svg)))) return false;
   if (value.code != null && (!isImportObject(value.code) || typeof value.code.html !== "string")) return false;
   if (value.field != null && (!isImportObject(value.field) ||
       !["input", "textarea", "select", "checkbox", "radio", "file", "submit"].includes(value.field.kind as string) ||
