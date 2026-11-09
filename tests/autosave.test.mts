@@ -33,6 +33,20 @@ function harness() {
   return { state, scope, effect, tick, requests, retries: () => retries, later: () => later, unsynced: () => unsynced };
 }
 
+test("reopening an already synchronized document does not create an unsynced flag", () => {
+  const h = harness();
+  const saved = h.scope.lastSyncedDoc.current;
+  h.state.doc = saved as typeof h.state.doc;
+  h.scope.observedDoc.current = saved;
+  h.effect();
+  h.tick();
+  assert.equal(h.state.cloudState, "synced");
+  assert.equal(h.unsynced(), false);
+  assert.equal(h.scope.cloudDirty.current, false);
+  assert.equal(h.requests.length, 0);
+  assert.equal(h.scope.activeCloudSave.current, null);
+});
+
 test("pending debounce is already shown as unsaved, before the network request starts", async () => {
   const h = harness();
   h.effect();
