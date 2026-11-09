@@ -42,6 +42,7 @@ export const SCRIPT_RUNTIME = `function (env) {
   var cache = new Map();
   function parse(el) {
     var raw = el.getAttribute("data-scripts") || "[]";
+    if (raw.length > 5 * 1024 * 1024) return [];
     var v = cache.get(raw);
     if (!v) {
       try {
@@ -49,6 +50,13 @@ export const SCRIPT_RUNTIME = `function (env) {
       } catch (e) {
         v = [];
       }
+      // Imported or manually edited documents must not crash all event
+      // listeners when data-scripts contains a non-array or invalid entries.
+      if (!Array.isArray(v)) v = [];
+      else v = v.filter(function (entry) {
+        return entry && typeof entry === "object" &&
+          typeof entry.trigger === "string" && Array.isArray(entry.steps);
+      });
       cache.set(raw, v);
     }
     return v;
@@ -630,6 +638,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*#if*/
       function test(c, self, sc) {
+        if (!c || typeof c !== "object") return false;
         /*#var*/
         if (c.subject === "var") {
           if (!c.left || !String(c.left).trim()) return false;
@@ -1278,7 +1287,10 @@ export const SCRIPT_RUNTIME = `function (env) {
           case "list-display": {
             if (!st.array) break;
             if (st.mode === "filter") {
-              if (!st.conds || !st.conds.length) break;
+              if (!Array.isArray(st.conds) || !st.conds.length ||
+                  !st.conds.every(function (c) {
+                    return c && typeof c === "object" && typeof c.field === "string";
+                  })) break;
               var fs = (filters.get(st.array) || []).slice();
               var key = st.no != null ? "n" + st.no : "f" +
                 st.conds.map(function (c) { return c.field; }).sort().join("|");
@@ -1317,7 +1329,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           /*/store*/
           /*#setvar*/
           case "transform": {
-            if (!st.source || !st.into) break;
+            if (!st.source || !st.into || !st.transform || typeof st.transform !== "object") break;
             var inputValue = sc && (has(sc, st.source) ? sc[st.source] : dig(sc, st.source));
             var sourceRoot = st.source.split(".")[0];
             var localShadows = !!(sc && (has(sc, st.source) || has(sc, sourceRoot)));
@@ -1457,6 +1469,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           while (active() && i < steps.length) {
             if (!active.consume()) return Promise.resolve();
             var st = steps[i++];
+            if (!st || typeof st !== "object" || typeof st.kind !== "string") continue;
             if (st.kind === "break-loop") {
               if (depth > 0) return Promise.resolve(LOOP_BREAK);
               continue;
@@ -1471,7 +1484,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             /*#if*/
             if (st.kind === "if") {
               var branch = testConditions(st, self, scopeOf(cx)) ? st.then : st.else;
-              if (branch && branch.length) {
+              if (Array.isArray(branch) && branch.length) {
                 return runSteps(branch, self, cx, active, depth, (nesting || 0) + 1).then(function (flow) {
                   return flow === LOOP_BREAK ? LOOP_BREAK : next();
                 });
@@ -1481,7 +1494,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             /*/if*/
             /*#repeat*/
             if (st.kind === "repeat") {
-              if (!st.then || !st.then.length) continue;
+              if (!Array.isArray(st.then) || !st.then.length) continue;
               var count = numericAmount(st.times, self, scopeOf(cx), lookup);
               if (!Number.isInteger(count) || count < 0 || count > 1000) continue;
               var forever = typeof st.times === "number" && st.times === 0;
@@ -1491,7 +1504,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             /*/repeat*/
             /*#each*/
             if (st.kind === "for-each") {
-              if (!st.then || !st.then.length) continue;
+              if (!Array.isArray(st.then) || !st.then.length) continue;
               return each(st, self, cx, 0, active, null, depth, nesting || 0).then(next);
             }
             /*/each*/
