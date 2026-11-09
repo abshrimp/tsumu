@@ -19,14 +19,14 @@ export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const siteId = await siteIdOf(params.get("site"));
   if (siteId instanceof NextResponse) return siteId;
-  const dayParam = params.get("day");
+  const dayParams = params.getAll("day");
+  if (dayParams.length > 1 || (dayParams.length === 1 && !/^[0-6]$/.test(dayParams[0]))) {
+    return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
+  }
+  const day = dayParams.length ? Number(dayParams[0]) : null;
   try {
     const db = await getDb();
-    if (dayParam !== null) {
-      const day = Number(dayParam);
-      if (!Number.isInteger(day) || day < 0 || day > 6) {
-        return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
-      }
+    if (day !== null) {
       const rs = await db.execute({
         sql: "SELECT body FROM site_backups WHERE site_id = ? AND day = ?",
         args: [siteId, day],
