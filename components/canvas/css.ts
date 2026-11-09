@@ -6,6 +6,7 @@ import { escapeStyleContent } from "../../lib/css-assets";
 import { keyframesCss, motionCss } from "../../lib/motion";
 import type { Breakpoint, NodeStyles, SiteDoc, StyleState } from "../../lib/types";
 import { customStateSelector } from "../../lib/custom-states";
+import { cssQuotedAttributeValue } from "../../lib/css-selector";
 import {
   bpChain,
   isHiddenAt,
@@ -99,13 +100,13 @@ export function buildCanvasCss(
       const comp = doc.components?.[node.componentId ?? ""];
       if (comp) walk(comp.rootId);
       if (isHiddenAt(node, bp)) {
-        const safeId = JSON.stringify(id);
+        const safeId = cssQuotedAttributeValue(id);
         rules.push(`.cv-root :is([data-node=${safeId}], [data-instance-node~=${safeId}]) { display: none !important; }`);
       }
       return;
     }
     // 通常の data-node と、インスタンス内の data-ghost の両方に効かせる
-    const safeId = JSON.stringify(id);
+    const safeId = cssQuotedAttributeValue(id);
     const sel = `.cv-root :is([data-node=${safeId}], [data-ghost=${safeId}])`;
 
     // モーション（transitionは常時、animationはプレビュー時のみ・画面内トリガーは即時再生）
