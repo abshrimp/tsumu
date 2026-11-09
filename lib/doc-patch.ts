@@ -8,6 +8,12 @@ export type DocPatchOp =
 export type DocPatch = DocPatchOp[];
 // D1 のバインド数上限内に収める。大規模な置き換えは従来の全体保存を使う。
 export const MAX_PATCH_OPS = 32;
+
+/** Canonical SQLite JSON path for patch targets. All segments are validated IDs. */
+export function docPatchSqlPath(path: readonly string[]): string {
+  if (!path.length || !path.every(isDocumentId)) throw new Error("Invalid document path");
+  return "$" + path.map(part => `."${part}"`).join("");
+}
 const COLLECTIONS = new Set(["pages", "nodes", "assets", "components"]);
 const REQUIRED = new Set(["schemaVersion", "pages", "nodes", "assets", "pageOrder", "siteName"]);
 const record = (value: unknown): value is Record<string, unknown> =>
