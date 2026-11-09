@@ -273,3 +273,30 @@ test("AUD-F-006: HTML export reports a page slug that collides with the CSS file
   assert.doesNotThrow(() => generateExportProject(site, "nextjs"),
     "Next.js uses a different output tree without this HTML static-file collision");
 });
+
+test("AUD-F-007: generated names remain unambiguous on case-insensitive filesystems", async () => {
+  const { assertGeneratedPaths } = await import("../lib/generator/output-paths");
+  const { buildAssetNames } = await import("../lib/generator/names");
+  assert.throws(() => assertGeneratedPaths({
+    files: { "About/index.html": "page", "about/index.html": "other" },
+    binaries: {}, remoteAssets: {},
+  }), /Case-insensitive generated file collision/);
+  assert.throws(() => assertGeneratedPaths({
+    files: { "ASSETS": "file", "assets/logo.png": "image" },
+    binaries: {}, remoteAssets: {},
+  }), /file\/directory collision/);
+  for (const path of ["CON.txt", "public/nul/file", "public/name.", "public/invalid?file"]) {
+    assert.throws(() => assertGeneratedPaths({
+      files: { [path]: "content" }, binaries: {}, remoteAssets: {},
+    }), /Unsafe generated/);
+  }
+
+  const site = doc();
+  site.assets["upper"] = { id: "upper", name: "Logo.PNG", mimeType: "image/png",
+    width: 1, height: 1, dataUrl: "data:image/png;base64,AQID" };
+  site.assets["lower"] = { id: "lower", name: "logo.png", mimeType: "image/png",
+    width: 1, height: 1, dataUrl: "data:image/png;base64,AQID" };
+  const names = buildAssetNames(site);
+  assert.notEqual(names.get("upper")?.toLowerCase(), names.get("lower")?.toLowerCase());
+  assert.match(names.get("lower")!, /-2\.png$/i);
+});
