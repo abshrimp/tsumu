@@ -19,6 +19,7 @@ import {
   isProtectedPath,
   isSafeCommitPath,
   parseGeneratedManifest,
+  planPublish,
   keptTreeEntries,
   type TreeEntry,
 } from "../../../lib/publish-files";
@@ -272,6 +273,7 @@ export async function POST(req: Request) {
       body.action !== "commit" ||
       !body.files ||
       typeof body.files !== "object" ||
+      Array.isArray(body.files) ||
       !Object.keys(body.files).length
     ) {
       return NextResponse.json(
@@ -282,6 +284,12 @@ export async function POST(req: Request) {
 
     const assetShas = body.assetShas ?? {};
     const keptPaths = body.keptPaths ?? [];
+    if (!assetShas || typeof assetShas !== "object" || Array.isArray(assetShas) ||
+        Object.values(body.files).some(value => typeof value !== "string") ||
+        Object.values(assetShas).some(value => typeof value !== "string" || !value) ||
+        Object.keys(body.files).some(path => Object.hasOwn(assetShas, path))) {
+      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+    }
     if (!Array.isArray(keptPaths) || !keptPaths.every((path) => typeof path === "string")) {
       return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
     }
@@ -341,6 +349,35 @@ export async function POST(req: Request) {
     }
     const protectedEntries = new Map(entries.filter(e =>
       isProtectedPath(e.path) && (e.type === "blob" || e.type === "commit")).map(e => [e.path, e]));
+
+    // Do not trust the caller's keptPaths to enumerate every manual file. A
+    // malformed or partial client request must not turn tree replacement into
+    // deletion of unrelated files. Determine ownership from the pinned head.
+    const existingBlobs: Record<string, string> = Object.create(null);
+    for (const entry of entries) {
+      if ((entry.type === "blob" || entry.type === "commit") && entry.sha) {
+        existingBlobs[entry.path] = entry.sha;
+      }
+    }
+    let previousGenerated: Record<string, string> | null = null;
+    const previousGeneratedSha = existingBlobs[GENERATED_MANIFEST_PATH];
+    if (previousGeneratedSha) {
+      const manifestRes = await gh(`/git/blobs/${previousGeneratedSha}`);
+      if (!manifestRes.ok) await fail(tr("ツリーの取得"), manifestRes);
+      const data = (await manifestRes.json()) as { content?: unknown; encoding?: unknown };
+      if (typeof data.content !== "string" || (data.encoding && data.encoding !== "base64")) {
+        throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
+      }
+      previousGenerated = parseGeneratedManifest(Buffer.from(data.content, "base64").toString("utf8"));
+      if (!previousGenerated) {
+        throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
+      }
+    }
+    const serverPlan = planPublish(
+      existingBlobs,
+      previousGenerated,
+      [...Object.keys(body.files), ...Object.keys(assetShas)]
+    );
     for (const [path, sha] of Object.entries(assetShas)) {
       if (isProtectedPath(path)) {
         if (!protectedEntries.has(path) || protectedEntries.get(path)!.sha !== sha) {
@@ -350,7 +387,7 @@ export async function POST(req: Request) {
         pushSha(path, sha);
       }
     }
-    const preserved = [...new Set([...keptPaths, ...protectedEntries.keys()])];
+    const preserved = [...new Set([...Object.keys(serverPlan.kept), ...keptPaths, ...protectedEntries.keys()])];
     const kept = keptTreeEntries(entries, preserved);
     if (!kept || keptPaths.some(path => Object.hasOwn(body.files, path) || Object.hasOwn(assetShas, path))) {
       return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
