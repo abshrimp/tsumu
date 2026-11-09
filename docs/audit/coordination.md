@@ -46,3 +46,38 @@ After each merge, capture the new `main` SHA, affected file paths, regression re
 ## Non-destructive practice
 
 Never run destructive security tests on real user data or production. Use mock services, synthetic SiteDocs and isolated environments. Do not auto-merge unrelated PRs or force-push shared refs during orchestration.
+
+
+## Current required-CI and review evidence (M extension)
+
+The live reporter now obtains active default-branch Rulesets and evaluates each
+PR's *required* check context against the exact application/integration ID. It
+does not infer merge readiness from the presence of unrelated green jobs. The
+new pure helpers live in `scripts/audit/merge-gates.mjs`, with
+regression cases in `tests/audit-merge-gates.test.mts`.
+Its data is read-only and may become obsolete as soon as a PR head moves.
+
+- A missing Ruleset, unavailable review API, truncated check-run page, absent
+  required context, pending run, or failed job blocks a "verified" designation.
+- A review of an older commit, an approval from the PR author, or a comment
+  without approval is not exact-head independent review evidence.
+- GitHub's `required_approving_review_count=0` setting on the
+  Tsumu main Ruleset does **not** waive the audit plan's independent verification.
+  Reviewers using the PR author's same GitHub login cannot supply an
+  independent GitHub approval, even when different agents conducted the work;
+  record their separate technical verification and any unverified reviewer
+  requirement explicitly rather than inventing an approval.
+- CodeQL and workflow success cannot demonstrate that the complete open
+  alert backlog is empty. The API for the actual open security/dependency alerts
+  must be independently checked before final clearance.
+
+### Non-audit PRs
+
+Review *all* open PRs, not just A–J/M. On 2026-11-09 an additional
+performance PR #34 began changing `components/script-editor/useScriptDrag.ts`,
+which was already modified by audit-C PR #23. This is a real same-path overlap
+despite all 11 audit PRs being overlap-free at the earlier snapshot.
+Integrate C's correctness and cancellation fixes first, then have #34 follow
+the resulting main and rerun drag/selection/performance regression tests.
+Never treat the GitHub `mergeable` field as validation of
+compatibility between two *unmerged* PRs.
