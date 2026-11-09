@@ -16,6 +16,8 @@ import and UI PRs). All fixes are under `audit/B-data-sync`, PR #31.
 | SiteDoc has a nonempty `pageOrder` referring only to distinct, existing pages | `validSiteDoc`, SQL `pageGuard`, `tests/doc-patch.test.mts` |
 | Node IDs match their entries, children exist, have one owner, form an acyclic forest, and stay within 256 levels | `validNodeForest`, SQL `treeGuard`, `tests/merge-structural-limits.test.mts` |
 | Component master IDs are distinct, non-nested and existent; component instances resolve; component expansion is acyclic | `validNodeForest`, `tests/data-integrity.test.mts` |
+| Node types, semantics, styles, and node/page field shapes are safe for rendering | `validDocNodeShape` / `validDocPageShape` in `lib/doc-tree.ts`, `tests/data-integrity-patch.test.mts` |
+| Moving or inserting component instances cannot introduce reference cycles; long component graphs use iterative traversal | `canPlaceComponentNodes` / `componentsReachable`, `tests/component-cycle-placement.test.mts` |
 | A page's folder exists; folder IDs are unique | `validSiteDoc`, `tests/data-integrity-patch.test.mts` |
 | Asset IDs used by images, media, icons and OGP references exist | `validSiteDoc`, `tests/data-integrity-patch.test.mts` |
 | Structural collections cannot use inherited JS object-property IDs | `safeCollectionId`, `tests/data-integrity.test.mts` |
@@ -78,6 +80,8 @@ automatic local collaborative editing.
 | AUD-B-006 (high) | Open malformed browser JSON; initial doc fallback autosaves | Preserve the original malformed bytes instead of replacing them |
 | AUD-B-007 (medium) | Remove a page folder while leaving a page assigned to it | Reject until the page assignment is also updated |
 | AUD-B-008 (medium) | Remove an asset that remains referenced by nodes/site/page metadata | Reject until references are cleared in the same revision |
+| AUD-J-015 (medium, resolved by B) | Persist `styles: null`, an unknown node kind, or a page with malformed required fields | Reject both full snapshots and individual node/page PATCHes; do not advance revision |
+| AUD-B-009 (high) | Move or insert an A instance inside B's master when A already depends on B | Leave document and Undo/Redo history unchanged, while permitting legal placements |
 
 ## Persistence and history test inventory
 
@@ -85,7 +89,9 @@ automatic local collaborative editing.
   multi-operation writes, old revision conflicts, invalid forests, seven-day
   backup slots, large stored docs.
 - `tests/data-integrity-patch.test.mts`: component cycles, missing refs,
-  stale base, fast-path writes, folder/asset consistency.
+  invalid node/page type and style shapes, stale base, fast-path writes, folder/asset consistency.
+- `tests/component-cycle-placement.test.mts`: legal and cyclic instance placement,
+  rejection without history changes, iterative traversal across long component chains.
 - `tests/data-integrity.test.mts`: snapshot invariants, forbidden IDs,
   long valid component chains without stack overflow.
 - `tests/merge-structural-limits.test.mts`, `tests/merge-deletion.test.mts`,
@@ -134,3 +140,9 @@ confirmed no conflict with other workstreams. Relevant CI: TypeScript,
 unit/integration tests, i18n, framework generation, browser shards,
 CodeQL, Cloudflare Workers build. The merge and final audit decision belongs
 to the integration owner.
+
+## Independent cross-area handoff (J and D)
+
+The independent J audit reported `AUD-J-015`: malformed node/page shapes were accepted by the document save boundary even though the import validator rejected them. This is resolved in B by reusable node/page shape checks; E should align the separate import route once PRs are integrated. The D reviewer flagged component instance moves/inserts, which could compose new cycles without changing a component definition. These paths now reject cyclic placements before an edit is committed.
+
+E/J also flagged `AUD-J-014`: imports can contain absent asset IDs while B's save boundary rejects them. This is **assigned to E**, not fixed by changing B's stricter storage invariant, and remains an integration gate. No assertion is made that all B/E/J cross-route verification has completed until merged main is independently checked.
