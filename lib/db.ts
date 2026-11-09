@@ -244,17 +244,6 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
         ].map((sql) => binding.prepare(sql))
       )
       .then(async () => {
-        // Existing installations get the provider column without discarding any sites.
-        const columns = await binding.prepare("PRAGMA table_info(sites)").all();
-        if (!columns.results.some(row => row.name === "git_provider")) {
-          try {
-            await binding.prepare("ALTER TABLE sites ADD COLUMN git_provider TEXT NOT NULL DEFAULT 'github' CHECK (git_provider IN ('github', 'gitlab'))").all();
-          } catch (error) {
-            // Other Workers may have completed the same schema change concurrently.
-            const current = await binding.prepare("PRAGMA table_info(sites)").all();
-            if (!current.results.some(row => row.name === "git_provider")) throw error;
-          }
-        }
         const rows = await binding.prepare("SELECT version FROM storage_schema WHERE name='main'").all();
         if (Number(rows.results?.[0]?.version) !== 1) {
           throw new Error("Unsupported storage schema");

@@ -12,17 +12,14 @@ import {
   serializeTransform,
   resolveStyles,
   isInitialValue,
-  initialValueOf,
+  explicitDefaultValue,
 } from "../../lib/style";
 import { Grp, NumField, PropNum, Seg, unitConverter, useInspector } from "../controls";
 import { tr } from "../../lib/i18n";
 import { I, Sec } from "./shared";
 
-// 明示的に選んだ方式は、通常時や大きい画面の値を上書きしなければならない。
-// 右クリックメニューでのリセットと入力欄を空にする操作は、それぞれ別の意味のまま残す。
-function explicitDefault(insp: ReturnType<typeof useInspector>, prop: string): string | null {
-  return isInitialValue(prop, insp.get(prop).baseline) ? null : initialValueOf(prop) ?? null;
-}
+const explicitDefault = (insp: ReturnType<typeof useInspector>, prop: string) =>
+  explicitDefaultValue(prop, insp.get(prop).baseline);
 
 /* ---------- 重なり順 ---------- */
 

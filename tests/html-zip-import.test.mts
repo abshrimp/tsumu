@@ -1082,20 +1082,21 @@ test("failure after an upload removes exactly the new archive asset", async () =
   const zip = new ZipBuilder().file("index.html", "<html></html>").file("first.js", "x").file("second.js", "y");
   const bytes = await zip.toBytes();
   const before = globalThis.fetch;
-  const deleted: string[] = [];
+  const deleted: Array<{ site: string | null; path: string | null }> = [];
   let posts = 0;
   try {
     globalThis.fetch = async (url, init) => {
       if (init?.method === "DELETE") {
-        deleted.push(new URL(String(url), "https://editor.test").searchParams.get("path")!);
+        const parsed = new URL(String(url), "https://editor.test");
+        deleted.push({ site: parsed.searchParams.get("site"), path: parsed.searchParams.get("path") });
         return new Response();
       }
       return ++posts === 1 ? Response.json({ path: "assets/first", name: "first.js" }) :
         Response.json({ error: "upload failed" }, { status: 500 });
     };
-    await assert.rejects(readHtmlZip(bytes), /upload failed/);
+    await assert.rejects(readHtmlZip(bytes, undefined, undefined, [], false, "site-target"), /upload failed/);
     assert.equal(posts, 2);
-    assert.deepEqual(deleted, ["assets/first"]);
+    assert.deepEqual(deleted, [{ site: "site-target", path: "assets/first" }]);
   } finally { globalThis.fetch = before; }
 });
 

@@ -1,4 +1,4 @@
-/** Reconstruct the editor stylesheet in the same order as the root layout. */
+/** Reconstruct the editor stylesheet in cascade order across root and site layouts. */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -6,9 +6,18 @@ let cachedCss: string | undefined;
 
 export function readEditorCss(): string {
   if (cachedCss !== undefined) return cachedCss;
-  const layout = readFileSync(resolve("app/layout.tsx"), "utf8");
-  const sheets = [...layout.matchAll(/^import ["']\.\/(.+\.css)["'];?$/gm)].map((match) => match[1]);
-  if (!sheets.length) throw new Error("No editor stylesheets imported by app/layout.tsx");
-  cachedCss = sheets.map((file) => readFileSync(resolve("app", file), "utf8")).join("\n");
+  const extract = (file: string, base: string) =>
+    [...readFileSync(resolve(file), "utf8").matchAll(/^import ["'](.+\.css)["'];?$/gm)]
+      .map((match) => resolve(base, match[1]));
+  const rootSheets = extract("app/layout.tsx", "app");
+  const siteSheets = extract("app/sites/[id]/layout.tsx", "app/sites/[id]");
+  const darkSheet = resolve("app/styles/editor-dark.css");
+  const sheets = [
+    ...rootSheets.filter((sheet) => sheet !== darkSheet),
+    ...siteSheets,
+    ...rootSheets.filter((sheet) => sheet === darkSheet),
+  ];
+  if (!sheets.length) throw new Error("No editor stylesheets imported by layout files");
+  cachedCss = sheets.map((file) => readFileSync(file, "utf8")).join("\n");
   return cachedCss;
 }

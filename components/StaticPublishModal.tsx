@@ -26,7 +26,7 @@ interface Target {
   error: string | null;
 }
 
-export interface StaticPublishModalConfig {
+interface StaticPublishModalConfig {
   provider: StaticPublishProvider;
   site: string;
   configured: boolean;

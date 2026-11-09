@@ -1,13 +1,15 @@
 "use client";
 
+import { lazy, Suspense } from "react";
 import { FileStack, Globe, Images, Layers, SquarePlus } from "lucide-react";
 import { useEditor } from "../lib/store";
 import SitePanel from "./SitePanel";
 import { tr } from "../lib/i18n";
 import { AddTab } from "./left-panel/AddTab";
-import { AssetsTab } from "./left-panel/AssetsTab";
 import { LayersTab } from "./left-panel/LayersTab";
 import { PagesTab } from "./left-panel/PagesTab";
+
+const AssetsTab = lazy(() => import("./left-panel/AssetsTab").then((mod) => ({ default: mod.AssetsTab })));
 
 /* ============ パネル本体 ============ */
 
@@ -44,7 +46,11 @@ export default function LeftPanel() {
       {leftTab === "layers" && <LayersTab />}
       {leftTab === "add" && <AddTab />}
       {leftTab === "pages" && <PagesTab />}
-      {leftTab === "assets" && <AssetsTab />}
+      {leftTab === "assets" && (
+        <Suspense fallback={null}>
+          <AssetsTab />
+        </Suspense>
+      )}
       {leftTab === "site" && <SitePanel />}
     </aside>
   );

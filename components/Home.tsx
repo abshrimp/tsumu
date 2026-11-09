@@ -35,11 +35,11 @@ import { useApplyEditorTheme } from "../lib/editor-theme";
 import { relativeTime } from "../lib/time";
 import { useServerStatus } from "../lib/status";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
-import { createInitialDoc } from "../lib/presets";
 import { createLocalBrowserSite } from "../lib/browser-site-create";
 import { resolveMcpEndpoint } from "../lib/external-edit/config";
 import { createBrowserDoc, deleteBrowserDoc, readBrowserDoc } from "../lib/browser-doc-storage";
 import { siteThumbnailImages, type SiteThumbnailImage } from "../lib/site-thumbnail";
+import { storageKey } from "../lib/storage-keys";
 import type { SiteDoc } from "../lib/types";
 import {
   SITE_SCOPED_KEYS,
@@ -80,6 +80,7 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 
 /** 新しいサイトの最初の編集データを、エディタが読み込む場所に置いておく（サイト名を反映するため） */
 async function seedDoc(id: string, name: string): Promise<boolean> {
+  const { createInitialDoc } = await import("../lib/presets");
   const doc = createInitialDoc();
   doc.siteName = name;
   return createBrowserDoc(id, JSON.stringify(doc));
@@ -98,6 +99,7 @@ async function copyLocalDoc(from: string, to: string, name: string): Promise<voi
   const raw = await readBrowserDoc(from);
   let data = raw;
   if (data === null) {
+    const { createInitialDoc } = await import("../lib/presets");
     const doc = createInitialDoc();
     doc.siteName = name;
     data = JSON.stringify(doc);
@@ -114,6 +116,11 @@ async function forgetLocal(id: string): Promise<void> {
     } catch {
       // 文書の削除は確定している。画面の設定の後片付けは、できる範囲で行えばよい。
     }
+  }
+  try {
+    window.sessionStorage.removeItem(siteKey(storageKey("import-warnings-v1"), id));
+  } catch {
+    // セッション限りの警告の削除も、できる範囲で行えばよい。
   }
 }
 

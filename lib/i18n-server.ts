@@ -3,8 +3,8 @@
  */
 
 import { cookies, headers } from "next/headers";
-import { LANG_COOKIE, loadDicts, translate, type Catalog, type Lang } from "./i18n";
-import { isLang, parseAcceptLanguage, pickLang } from "./lang";
+import { loadDicts, translate, type Catalog } from "./i18n";
+import { isLang, LANG_COOKIE, parseAcceptLanguage, pickLang, type Lang } from "./lang";
 
 export type Tr = (key: string, vars?: Record<string, string | number>) => string;
 

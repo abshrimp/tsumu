@@ -1,6 +1,6 @@
 import { tr } from "./i18n";
-import { emptyDest, localSiteIdInUse, loadLocalSites, saveLocalSites, withLocalSiteListLock } from "./site";
-import { createBrowserDoc, deleteBrowserDoc } from "./browser-doc-storage";
+import { emptyDest } from "./site";
+import { commitLocalBrowserSite } from "./browser-site-create";
 import { newSiteId, type SiteRecord } from "./site-model";
 import { isEditorDocument, parseEditableZip, parseSiteImport, restoreImportAssets } from "./site-import";
 import { IMPORT_LIMITS, validateImportedDoc } from "./site-import-format";
@@ -24,17 +24,10 @@ async function localWrite(doc: string, name: string): Promise<string> {
   const id = newSiteId();
   const now = Date.now();
   const site: SiteRecord = { ...emptyDest(), id, name, createdAt: now, updatedAt: now };
-  let created = false;
   try {
-    created = await createBrowserDoc(id, doc);
-    if (!created) throw new Error("Document already exists");
-    await withLocalSiteListLock(() => {
-      const list = loadLocalSites({ strict: true });
-      if (localSiteIdInUse(id, list) || !saveLocalSites([site, ...list])) throw new Error("Site list write failed");
-    });
+    await commitLocalBrowserSite(site, doc, () => new Error("Site list write failed"));
     return id;
   } catch {
-    if (created) await deleteBrowserDoc(id).catch(() => {});
     throw new Error(tr("Could not save the site in this browser. Check available storage and browser settings."));
   }
 }

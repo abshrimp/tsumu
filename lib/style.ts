@@ -459,6 +459,11 @@ export function sameValue(a: string | undefined, b: string | undefined): boolean
   return normValue(a) === normValue(b);
 }
 
+/** 明示的に選んだ既定値は、通常時や大きい画面で初期値以外が効いているときだけ CSS の初期値で上書きする */
+export function explicitDefaultValue(prop: string, baseline: string | undefined): string | null {
+  return isInitialValue(prop, baseline) ? null : initialValueOf(prop) ?? null;
+}
+
 /**
  * 欄を空にしたときに書き込む値。パソコン以外の幅の通常時は、消すと大きい画面の値が効くため、
  * 大きい画面で初期値以外が効いているときだけ、CSS の初期値で上書きする（null = 設定を消す）。
@@ -472,9 +477,7 @@ export function clearedValue(
   theme: PageTheme = "light"
 ): string | null {
   if (theme === "dark" || bp === "base" || state !== "default") return null;
-  const baseline = baselineValue(node, bp, state, prop);
-  if (isInitialValue(prop, baseline)) return null;
-  return initialValueOf(prop) ?? null;
+  return explicitDefaultValue(prop, baselineValue(node, bp, state, prop));
 }
 
 /** 比べるための正規化（"0px" と "0"、空白や大文字の違いなど） */

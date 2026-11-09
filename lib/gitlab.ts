@@ -147,12 +147,3 @@ export function gitlabClient(conf: Required<TargetConfig>, tr: Tr) {
   return { request, fail, head, tree, blob, snapshot, history };
 }
 
-/** SHA-1 of a Git blob, used for verifying uploaded files and manifests. */
-export async function gitlabBlobSha(bytes: Uint8Array): Promise<string> {
-  const prefix = new TextEncoder().encode("blob " + bytes.length + "\0");
-  const data = new Uint8Array(prefix.length + bytes.length);
-  data.set(prefix);
-  data.set(bytes, prefix.length);
-  const digest = await crypto.subtle.digest("SHA-1", data);
-  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
-}

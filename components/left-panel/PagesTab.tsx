@@ -5,7 +5,7 @@
  */
 
 import { isEnterKey, isEscapeKey } from "../../lib/keys";
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   Folder,
   FolderOpen,
@@ -26,7 +26,6 @@ import { useEditor } from "../../lib/store";
 import { useDocumentConfirmation } from "../../lib/use-document-confirmation";
 import { Icon } from "../icons";
 import { ContextMenu, type CtxMenuItem } from "../NodeContextMenu";
-import CopyToSiteModal from "../CopyToSite";
 import { Dropdown } from "../controls";
 import { showConfirm } from "../../lib/dialog";
 import { tr } from "../../lib/i18n";
@@ -34,6 +33,8 @@ import { useDragAutoScroll } from "./drag";
 import { siteKey } from "../../lib/site";
 import { storageKey } from "../../lib/storage-keys";
 import { pagePanelItems } from "../../lib/page-panel-order";
+
+const CopyToSiteModal = lazy(() => import("../CopyToSite"));
 
 /* ============ ページ ============ */
 
@@ -816,7 +817,11 @@ export function PagesTab() {
       {ctx && pages[ctx.id] && (
         <ContextMenu x={ctx.x} y={ctx.y} items={pageMenuItems(ctx.id)} onClose={() => setCtx(null)} />
       )}
-      {copyIds && <CopyToSiteModal pageIds={copyIds} onClose={() => setCopyIds(null)} />}
+      {copyIds && (
+        <Suspense fallback={null}>
+          <CopyToSiteModal pageIds={copyIds} onClose={() => setCopyIds(null)} />
+        </Suspense>
+      )}
     </div>
   );
 }

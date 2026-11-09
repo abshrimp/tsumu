@@ -29,8 +29,6 @@ import { LOCALES } from "./locales";
 import { readLocalStorage, writeLocalStorage } from "./local-storage";
 import { storageKey } from "./storage-keys";
 
-export { LANG_COOKIE, type Lang } from "./lang";
-
 export const LANGS: { value: Lang; label: string }[] = (Object.keys(LANGUAGES) as Lang[]).map(
   (value) => ({ value, label: LANGUAGES[value].label })
 );

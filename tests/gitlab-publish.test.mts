@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { gitlabBlobSha, gitlabClient } from "../lib/gitlab";
+import { gitBlobSha } from "../lib/git-blob-sha";
+import { gitlabClient } from "../lib/gitlab";
 import { isSafeRepo, normalizeSiteInput } from "../lib/site-model";
 import { targetConfig } from "../lib/github";
 import { matchesPublishTarget } from "../lib/publish-preconditions";
@@ -53,7 +54,7 @@ test("GitLab blob hashes match Git's content-addressed SHA-1", async () => {
   for (const content of ["", "hello", "\u65e5\u672c\u8a9e", "a".repeat(131071)]) {
     const bytes = new TextEncoder().encode(content);
     const expected = createHash("sha1").update("blob " + bytes.length + "\0").update(bytes).digest("hex");
-    assert.equal(await gitlabBlobSha(bytes), expected);
+    assert.equal(await gitBlobSha(bytes), expected);
   }
 });
 
@@ -150,9 +151,9 @@ test("GitLab publish creates missing live branch on non-empty repos and reuses u
   process.env.GITLAB_TOKEN = "glpat-test";
   process.env.PUBLISH_PROVIDER = "github";
   const docJson = JSON.stringify(createInitialDoc());
-  const docSha = await gitlabBlobSha(new TextEncoder().encode(docJson));
+  const docSha = await gitBlobSha(new TextEncoder().encode(docJson));
   const logoBytes = new TextEncoder().encode("logo-bytes");
-  const logoSha = await gitlabBlobSha(logoBytes);
+  const logoSha = await gitBlobSha(logoBytes);
   const dest = { gitProvider: "gitlab" as const, repo: "group/project", branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null };
   const route = load("../../app/api/publish/gitlab/route.ts", {
     "next/server": { NextResponse: StubNextResponse },
@@ -252,7 +253,7 @@ test("GitLab rollback caps changed blob fetches rather than total unchanged site
   process.env.GITLAB_TOKEN = "glpat-test";
   process.env.PUBLISH_PROVIDER = "github";
   const docJson = JSON.stringify(createInitialDoc());
-  const docSha = await gitlabBlobSha(new TextEncoder().encode(docJson));
+  const docSha = await gitBlobSha(new TextEncoder().encode(docJson));
   const oldPageSha = "1".repeat(40);
   const curPageSha = "2".repeat(40);
   const curHead = "3".repeat(40);

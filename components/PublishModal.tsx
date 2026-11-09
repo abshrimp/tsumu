@@ -43,21 +43,14 @@ import {
   serializeGeneratedManifest,
 } from "../lib/publish-files";
 
+import { gitBlobSha as gitBlobShaOf } from "../lib/git-blob-sha";
+
 const StaticPublishModal = lazy(() => import("./StaticPublishModal"));
 const NetlifyPublishModal = lazy(() => import("./NetlifyPublishModal"));
 
 /** Git の blob の SHA（sha1("blob <長さ>\0" + 内容)）。既存のツリーと一致するかの判定に使う */
 async function gitBlobSha(base64: string): Promise<string> {
   return gitBlobShaOf(base64ToBytes(base64));
-}
-
-async function gitBlobShaOf(body: Uint8Array): Promise<string> {
-  const header = new TextEncoder().encode(`blob ${body.length}\0`);
-  const buf = new Uint8Array(header.length + body.length);
-  buf.set(header);
-  buf.set(body, header.length);
-  const digest = await crypto.subtle.digest("SHA-1", buf);
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /** これより大きいテキストは先に blob にして、ツリーを作るリクエストを軽くする */

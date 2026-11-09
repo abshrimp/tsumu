@@ -27,7 +27,7 @@ import {
   type BrowserNetlifyAccount, type BrowserNetlifySite,
 } from "../lib/browser-netlify";
 
-export interface NetlifyPublishModalConfig {
+interface NetlifyPublishModalConfig {
   site: string;
   configured: boolean;
   error: string | null;

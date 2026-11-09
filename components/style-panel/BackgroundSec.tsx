@@ -9,7 +9,7 @@ import { useEditor } from "../../lib/store";
 import { assetDocUrl, assetSrc } from "../../lib/assets";
 import { cssAssetReferences, escapeCssAssetUrl } from "../../lib/css-assets";
 import ImagePicker from "../ImagePicker";
-import { parseNumeric, isInitialValue, initialValueOf, sameValue, type PropInfo } from "../../lib/style";
+import { parseNumeric, isInitialValue, explicitDefaultValue, sameValue, type PropInfo } from "../../lib/style";
 import {
   Dropdown,
   FillControl,
@@ -58,8 +58,7 @@ export function differsFrom(info: PropInfo, dflt: string): boolean {
 export function BackgroundSec() {
   const insp = useInspector();
   const assets = useEditor((s) => s.doc.assets);
-  const explicitDefault = (prop: string) => isInitialValue(prop, insp.get(prop).baseline)
-    ? null : initialValueOf(prop) ?? null;
+  const explicitDefault = (prop: string) => explicitDefaultValue(prop, insp.get(prop).baseline);
   const imageInfo = insp.get("backgroundImage");
   const colorInfo = insp.get("backgroundColor");
   const bgImage = imageInfo.value;

@@ -497,6 +497,18 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
     };
   }, [initialLoadComplete]);
 
+  // 既定の Google Fonts はホーム画面では読み込まず、エディタに入ったときに読み込む
+  useEffect(() => {
+    const id = "preset-google-fonts";
+    if (document.getElementById(id)) return;
+    const link = document.createElement("link");
+    link.id = id;
+    link.rel = "stylesheet";
+    link.href =
+      "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=M+PLUS+Rounded+1c:wght@400;500;700&family=Noto+Sans+JP:wght@100..900&family=Noto+Serif+JP:wght@200..900&family=Roboto:wght@400;500;700&family=Zen+Maru+Gothic:wght@400;500;700&display=swap";
+    document.head.appendChild(link);
+  }, []);
+
   // 追加した Google Fonts を、エディタのプレビュー用に読み込む
   useEffect(() => {
     const families = doc.customFonts ?? [];

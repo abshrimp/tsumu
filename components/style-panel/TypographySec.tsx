@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { ancestorsOf, findParentOf, useEditor } from "../../lib/store";
 import type { Breakpoint, DocNode, PageTheme, SiteDoc, StyleState } from "../../lib/types";
-import { getProp, resolveThemeStyleMap, isInitialValue, initialValueOf } from "../../lib/style";
+import { getProp, resolveThemeStyleMap, isInitialValue, explicitDefaultValue } from "../../lib/style";
 import {
   Dropdown,
   Grp,
@@ -88,8 +88,7 @@ export function TypographySec({ node }: { node: DocNode }) {
   const updateTargets = useEditor((s) => s.updateTargets);
   // オフの状態を選ぶのはリセットではない。ホバーやフォーカスでは、通常時のスタイルを
   // 再び受け継ぐのではなく、明示的に上書きする必要がある場合がある。
-  const explicitDefault = (prop: string) => isInitialValue(prop, insp.get(prop).baseline)
-    ? null : initialValueOf(prop) ?? null;
+  const explicitDefault = (prop: string) => explicitDefaultValue(prop, insp.get(prop).baseline);
   const clamp = !isInitialValue("WebkitLineClamp", insp.get("WebkitLineClamp").value);
   // ここでの行数の制限を外すときは、より大きいブレークポイントから受け継いだ制限も
   // 打ち消す必要がある。display の既定値は要素ごとに異なり、全体共通の解除の値は無い。

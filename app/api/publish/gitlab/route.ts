@@ -5,7 +5,8 @@ import { recordPublish, requireAuth } from "../../../../lib/server";
 import { requireSiteAccess } from "../../../../lib/site-access";
 import { siteIdOf, siteDestOf } from "../../../../lib/site-server";
 import { configError, targetConfig, type TargetConfig } from "../../../../lib/github";
-import { gitlabBlobSha, gitlabClient } from "../../../../lib/gitlab";
+import { gitBlobSha } from "../../../../lib/git-blob-sha";
+import { gitlabClient } from "../../../../lib/gitlab";
 import { matchesPublishTarget, publishConflictMessage } from "../../../../lib/publish-preconditions";
 import { siteHasAsset } from "../../../../lib/site-asset-access";
 import { assetStore } from "../../../../lib/kv";
@@ -159,7 +160,7 @@ export async function POST(req: Request) {
         const invalid = validatePublishDocument(bytes, tr);
         if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
       }
-      return NextResponse.json({ ok: true, path: asset.path, sha: await gitlabBlobSha(bytes) });
+      return NextResponse.json({ ok: true, path: asset.path, sha: await gitBlobSha(bytes) });
     }
 
     if (body.action !== "commit" || !body.files || typeof body.files !== "object" ||
@@ -189,13 +190,13 @@ export async function POST(req: Request) {
     const committedHashes: Record<string, string> = Object.create(null);
     for (const [path, text] of Object.entries(files)) {
       const content = text as string;
-      const hash = await gitlabBlobSha(new TextEncoder().encode(content));
+      const hash = await gitBlobSha(new TextEncoder().encode(content));
       actual[path] = { hash, content };
       committedHashes[path] = hash;
     }
     for (const asset of assets) {
       const bytes = await assetBytes(siteId, asset, tr);
-      const hash = await gitlabBlobSha(bytes);
+      const hash = await gitBlobSha(bytes);
       if (assetShas[asset.path] !== hash) return conflict(tr, 400);
       actual[asset.path] = { hash, content: Buffer.from(bytes).toString("base64"), encoding: "base64" };
       committedHashes[asset.path] = hash;

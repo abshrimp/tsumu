@@ -279,7 +279,7 @@ export async function readHtmlZip(
       assets, html, source,
       zip: { path, assetIds: assets.map(a => a.id) }, name: htmlEntry.name,
     };
-  }, uploaded);
+  }, uploaded, siteId);
 }
 
 /** 編集可能なサイトへの取り込み: アセットは1回だけアップロードしながら、すべての HTML のページを取り込む。 */

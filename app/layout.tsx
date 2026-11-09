@@ -1,14 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import "./styles/side-panels.css";
 import "./styles/canvas-and-dialogs.css";
 import "./styles/accounts-and-loading.css";
-import "./styles/tooltips.css";
-import "./styles/help-and-guides.css";
-import "./styles/page-folders.css";
 import "./styles/home.css";
-import "./styles/comments.css";
-import "./styles/font-add.css";
 import "./styles/editor-dark.css";
 import { serverLang, serverTr } from "../lib/i18n-server";
 
@@ -34,19 +28,6 @@ export default async function RootLayout({
 }) {
   return (
     <html lang={await serverLang()}>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        {/* キャンバスプレビュー用フォント */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=M+PLUS+Rounded+1c:wght@400;500;700&family=Noto+Sans+JP:wght@100..900&family=Noto+Serif+JP:wght@200..900&family=Roboto:wght@400;500;700&family=Zen+Maru+Gothic:wght@400;500;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
       <body>{children}</body>
     </html>
   );

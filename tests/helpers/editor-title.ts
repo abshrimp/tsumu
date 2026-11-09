@@ -98,12 +98,14 @@ window.disposeTitleFixture = () => root.unmount();
           path: require.resolve("next/dist/client/components/server-async-storage.browser"),
         }));
         build.onResolve({ filter: /^(title-page|title-layout|title-error)$/ }, (args) => ({ path: args.path, namespace: "fixture" }));
+        build.onResolve({ filter: /\.css$/, namespace: "fixture" }, (args) => ({ path: args.path, namespace: "fixture" }));
         build.onResolve({ filter: /^\.\.\/\.\.\/error$/, namespace: "fixture" }, () => ({ path: "title-root-error", namespace: "fixture" }));
         build.onResolve({ filter: /^\.\.\/lib\/i18n$/, namespace: "fixture" }, (args) => ({ path: args.path, namespace: "fixture" }));
         build.onResolve({ filter: /^\.\.\/\.\.\/\.\.\//, namespace: "fixture" }, (args) => ({ path: args.path, namespace: "fixture" }));
         build.onLoad({ filter: /.*/, namespace: "fixture" }, (args) => {
           let contents: string;
-          if (args.path === "title-page") contents = `const fetch = window.titleFetch;\n${pageSource}`;
+          if (args.path.endsWith(".css")) contents = "";
+          else if (args.path === "title-page") contents = `const fetch = window.titleFetch;\n${pageSource}`;
           else if (args.path === "title-layout") contents = layoutSource;
           else if (args.path === "title-error") contents = errorSource;
           else if (args.path === "title-root-error") contents = rootErrorSource;

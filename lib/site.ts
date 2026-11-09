@@ -46,7 +46,6 @@ export const SITE_SCOPED_KEYS = [
   storageKey("scroll-v1"),
   storageKey("collapsed-v1"),
   storageKey("page-folders-closed-v1"),
-  storageKey("import-warnings-v1"),
 ];
 
 /** API の URL に、いま開いているサイトを付ける */

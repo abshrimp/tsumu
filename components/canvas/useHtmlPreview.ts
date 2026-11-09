@@ -2,21 +2,42 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Asset, HtmlZipPage } from "../../lib/types";
-import { htmlZipSource } from "../../lib/html-zip-source";
 import { zipAssetClosure, zipCssUrl, zipStylesheet } from "../../lib/zip-css";
 import { assetDocUrl, withSignedAssetUrls, zipPreviewRoots } from "../../lib/assets";
 import { tr } from "../../lib/i18n";
 
+type HtmlZipSource = typeof import("../../lib/html-zip-source").htmlZipSource;
 type RewriteScriptUrls = typeof import("../../lib/html-zip-script-assets").rewriteHtmlZipScriptUrls;
+let cachedHtmlZipSource: HtmlZipSource | undefined;
+let loadingHtmlZipSource: Promise<HtmlZipSource> | undefined;
 let cachedRewriteScripts: RewriteScriptUrls | undefined;
 let loadingRewriteScripts: Promise<RewriteScriptUrls> | undefined;
 
 // 署名付き URL の有効期限は1時間。動いている iframe をやり直さずに済むよう、期限の前に更新を促す。
 export const HTML_PREVIEW_REFRESH_MS = 50 * 60 * 1000;
 export function useHtmlPreview(src: string, assets: Record<string, Asset>, zip?: HtmlZipPage) {
-  const baseHtml = useMemo(() => htmlZipSource(src, zip, assets,
-    asset => zipStylesheet(asset) ? zipCssUrl(asset.id) : assetDocUrl(asset)), [src, zip, assets]);
-  const needsScriptRewrite = Boolean(zip?.assetIds.length && /<script[\s>]/i.test(baseHtml));
+  const needsZipSource = Boolean(zip?.assetIds.some((id) => Boolean(assets[id]?.zip?.path)));
+  const [zipSourceReady, setZipSourceReady] = useState(() => Boolean(cachedHtmlZipSource));
+  useEffect(() => {
+    if (!needsZipSource || cachedHtmlZipSource) return;
+    let cancelled = false;
+    loadingHtmlZipSource ??= import("../../lib/html-zip-source").then(
+      (mod) => (cachedHtmlZipSource = mod.htmlZipSource),
+      (error) => { loadingHtmlZipSource = undefined; throw error; },
+    );
+    void loadingHtmlZipSource
+      .then(() => { if (!cancelled) setZipSourceReady(true); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [needsZipSource]);
+  const baseHtml = useMemo(
+    () => needsZipSource && cachedHtmlZipSource
+      ? cachedHtmlZipSource(src, zip, assets, (asset) => zipStylesheet(asset) ? zipCssUrl(asset.id) : assetDocUrl(asset))
+      : src,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [src, zip, assets, needsZipSource, zipSourceReady],
+  );
+  const needsScriptRewrite = Boolean(zip?.assetIds.length && (!needsZipSource || cachedHtmlZipSource) && /<script[\s>]/i.test(baseHtml));
   const [scriptReady, setScriptReady] = useState(() => Boolean(cachedRewriteScripts));
   useEffect(() => {
     if (!needsScriptRewrite || cachedRewriteScripts) return;
@@ -42,7 +63,7 @@ export function useHtmlPreview(src: string, assets: Record<string, Asset>, zip?:
   const [result, setResult] = useState<{ src: string; key: string; revision: number; html: string; error?: string; needsRefresh?: boolean }>();
   const refresh = useCallback(() => setRevision((n) => n + 1), []);
   useEffect(() => {
-    if (!src.trim() || (needsScriptRewrite && !cachedRewriteScripts)) return;
+    if (!src.trim() || (needsZipSource && !cachedHtmlZipSource) || (needsScriptRewrite && !cachedRewriteScripts)) return;
     const controller = new AbortController();
     const isZip = prepared.includes("tsumu-zip-css:");
     let timer: ReturnType<typeof setTimeout>;
@@ -65,8 +86,9 @@ export function useHtmlPreview(src: string, assets: Record<string, Asset>, zip?:
     return () => { controller.abort(); clearTimeout(timer); };
     // key includes only reachable dependencies, so unrelated editor changes do not restart signing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prepared, key, revision, needsScriptRewrite, scriptReady]);
-  const current = (!needsScriptRewrite || cachedRewriteScripts) && result?.src === prepared && result.key === key ? result : undefined;
+  }, [prepared, key, revision, needsZipSource, zipSourceReady, needsScriptRewrite, scriptReady]);
+  const current = (!needsZipSource || cachedHtmlZipSource) && (!needsScriptRewrite || cachedRewriteScripts) &&
+    result?.src === prepared && result.key === key ? result : undefined;
   // 最初のフレームであっても、解決していない内部の CSS の URL はサンドボックスに渡さない。
   return {
     html: current?.html ?? "", error: current?.error,

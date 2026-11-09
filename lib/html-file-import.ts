@@ -53,7 +53,7 @@ export async function convertHtmlFile(
       return requireEditableHtmlContent(convertHtmlToSite(converted.html, {
         breakpoints: options.breakpoints, assets: converted.assets, sourceName: converted.zip.path.split("/").pop(),
       }));
-    }, uploaded);
+    }, uploaded, siteId);
   }
   if (!isHtmlFile(file.name)) throw new Error(tr("Choose an HTML file or ZIP containing HTML."));
   if (file.size > IMPORT_LIMITS.docBytes) throw new Error(tr("The import file is too large."));
