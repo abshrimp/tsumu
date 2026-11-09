@@ -7,9 +7,9 @@ import type { GeneratedProject } from "../generator";
 import { obfuscateVarNames, pagePlan } from "../data";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
-import { assetSrc } from "../assets";
+import { assetMediaUrl, assetSrc } from "../assets";
 import { importedAssetUrl, isZipJavascript } from "./imported-assets";
-import { cssValue, usedGoogleFonts } from "./css";
+import { cssValue, rawHtmlWithBodyStyles, usedGoogleFonts } from "./css";
 import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
 import { unnestLinks } from "./page";
 import { hasVars } from "../vars";
@@ -274,7 +274,7 @@ function render(ctx: Context, id: string, top: boolean): string {
     if (n.type === "divider") return "<hr" + commonAttrs + ">";
     if (n.type === "image" && n.image) {
       const im = n.image;
-      const src = im.assetId ? resource(ctx, im.assetId) : sourceHref(ctx, im.src);
+      const src = im.assetId ? assetMediaUrl(resource(ctx, im.assetId), im.assetSuffix) : sourceHref(ctx, im.src);
       const imageAttrs = attr("src", hasVars(src) ? EMPTY_GIF : (src || EMPTY_GIF)) +
         (hasVars(src) ? attr("data-static-src", src) : "") +
         (hasVars(src) && ctx.template ? attr("data-image-src-parts", templateParts(src)) : "") +
@@ -301,12 +301,16 @@ function render(ctx: Context, id: string, top: boolean): string {
     if (n.type === "media" && n.media) {
       const media = n.media;
       const tag = media.kind === "audio" ? "audio" : "video";
-      const src = media.assetId ? resource(ctx, media.assetId) : sourceHref(ctx, media.src);
-      if (!src) return "";
-      return "<" + tag + commonAttrs + attr("src", src) + " controls" +
+      const src = media.assetId ? assetMediaUrl(resource(ctx, media.assetId), media.assetSuffix) : media.src.trim() ? sourceHref(ctx, media.src) : "";
+      const sources = (media.sources ?? []).map((source) => {
+        const url = source.assetId ? assetMediaUrl(resource(ctx, source.assetId), source.assetSuffix) : source.src.trim() ? sourceHref(ctx, source.src) : "";
+        return url.trim() ? "<source" + attr("src", url) + attr("type", source.type) + attr("media", source.media) + ">" : "";
+      }).join("");
+      if (!src.trim() && !sources) return "";
+      return "<" + tag + commonAttrs + attr("src", src.trim() ? src : undefined) + " controls" +
         flag("loop", media.loop) + flag("autoplay", media.autoplay) +
         flag("muted", media.muted || media.autoplay) + (tag === "video" ? " playsinline" : "") +
-        "></" + tag + ">";
+        ">" + sources + "</" + tag + ">";
     }
     if (n.type === "embed" && n.embed) {
       const src = embedSrc(n.embed);
@@ -357,15 +361,6 @@ function render(ctx: Context, id: string, top: boolean): string {
     } finally { ctx.form = wasForm; }
     return "<" + tag + commonAttrs + extra + ">" + body + "</" + tag + ">";
   } finally { ctx.seen.delete(id); }
-}
-
-/** Raw HTML pages already contain their complete original document. */
-function importedHtml(next: GeneratedProject, page: Page): string {
-  const slug = page.slug.replace(/^\/+|\/+$/g, "");
-  const source = next.files["app/" + (slug ? slug + "/" : "") + "route.ts"];
-  const match = /^const html = (.+);$/m.exec(source || "");
-  if (!match) throw new Error("Could not read HTML page: " + page.name);
-  return JSON.parse(match[1]) as string;
 }
 
 /**
@@ -514,7 +509,11 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
     outputPaths.add(path);
     const prefix = pagePrefix(path);
     if (page.rawHtml?.trim()) {
-      files[path] = rewriteRootUrls(importedHtml(next, page), prefix, scriptSources);
+      // Render with the shared HTML/CSS generators. Next.js route filenames and
+      // serialized TypeScript are framework output, not a source of page data.
+      const html = rawHtmlWithBodyStyles(normalized, page,
+        cssValue(normalized, "rawHtml", page.rawHtml, assets), assets);
+      files[path] = rewriteRootUrls(html, prefix, scriptSources);
       continue;
     }
     const ctx: Context = {

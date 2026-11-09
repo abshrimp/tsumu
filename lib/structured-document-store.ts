@@ -238,7 +238,7 @@ export class StructuredDocumentStore {
               JSON.stringify(previous.children) !== JSON.stringify(node.children)) {
             fast = false; break;
           }
-          for (const ref of [node.image, node.media]) {
+          for (const ref of [node.image, node.media, ...(object(node.media) && Array.isArray(node.media.sources) ? node.media.sources : [])]) {
             if (!object(ref) || ref.assetId === undefined) continue;
             if (typeof ref.assetId !== "string" ||
                 !this.query("SELECT 1 FROM document_entries WHERE bucket='assets' AND entry_id=? LIMIT 1", ref.assetId).length) {

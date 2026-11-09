@@ -186,15 +186,15 @@ function buildNode(
     if (spec[key] !== undefined && typeof spec[key] !== "string") throw new Error(`${key} must be a string`);
   }
   if (spec.link !== undefined) validateLink(spec.link);
-  if (spec.id && (Object.hasOwn(doc.nodes, spec.id) || !validNodeId(spec.id))) throw new Error("node id already exists or is invalid");
   if (spec.children !== undefined && (!Array.isArray(spec.children) || (spec.type !== "box" && spec.children.length))) throw new Error("only boxes can contain child elements");
   if (spec.level !== undefined && (!Number.isInteger(spec.level) || spec.level < 1 || spec.level > 6)) throw new Error("heading level must be between 1 and 6");
   const breakpoints = new Set(normalizeBreakpoints(doc.breakpoints).map((b) => b.id));
   const responsive = Array.isArray(spec.responsive) ? spec.responsive.map((r) => r?.breakpoint) : Object.keys(spec.responsive ?? {});
   if (responsive.some((bp) => !breakpoints.has(bp))) throw new Error("unknown responsive breakpoint");
-  if (spec.ref && refs.has(spec.ref)) throw new Error(`ref "${spec.ref}" already exists; use the existing element`);
+  validateNewRef(spec.ref, doc, refs);
   const id = spec.id || newId();
   if (spec.ref) refs.set(spec.ref, id);
+  validateNewNodeId(id, doc, refs);
   const common = {
     id,
     semantic: "auto" as DocNode["semantic"],
@@ -526,9 +526,9 @@ function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<st
             break;
           }
           if (node.id === target.rootId) throw new Error("the component root cannot be duplicated");
-          if (op.ref && refs.has(op.ref)) throw new Error(`ref "${op.ref}" already exists`);
+          validateNewRef(op.ref, doc, refs);
           const copyId = op.newId || newId();
-          if (typeof copyId !== "string" || !validNodeId(copyId)) throw new Error("invalid node id");
+          if (op.ref) refs.set(op.ref, copyId);
           const makeId = duplicateIdFactory(doc, copyId);
           const clones: DocNode[] = [];
           let n = 0;
@@ -536,7 +536,7 @@ function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<st
             const src = doc.nodes[id];
             const c = structuredClone(src);
             c.id = as ?? `${copyId}_${(n += 1)}`;
-            if (Object.hasOwn(doc.nodes, c.id)) throw new Error("duplicate node id already exists");
+            validateNewNodeId(c.id, doc, refs);
             clones.push(c);
             c.children = src.children.map((k) => clone(k));
             return c.id;
@@ -545,7 +545,6 @@ function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<st
           refreshClonedIds(doc, target.pageId, clones, target.rootId ? [target.rootId] : [], undefined, makeId);
           for (const c of clones) doc.nodes[c.id] = c;
           parent.list.splice(parent.list.indexOf(node.id) + 1, 0, made);
-          if (op.ref) refs.set(op.ref, made);
           applied.push({ op: "duplicate", id: node.id, newId: made });
           break;
         }
@@ -656,6 +655,24 @@ export function applyAiOps(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs 
 
 function validNodeId(id: string): boolean {
   return /^[\w-]{1,64}$/.test(id) && !["__proto__", "constructor", "prototype"].includes(id);
+}
+
+const RESERVED_TARGETS = new Set(["page", "body", BODY_NODE_ID]);
+
+// Refs disappear from the replay log. Keep them disjoint from concrete IDs and
+// special targets so validation and client replay always address the same node.
+function validateNewRef(ref: string | undefined, doc: SiteDoc, refs: Map<string, string>) {
+  if (ref === undefined) return;
+  if (typeof ref !== "string" || !ref.trim()) throw new Error("ref must be a non-empty string");
+  if (RESERVED_TARGETS.has(ref) || Object.hasOwn(doc.nodes, ref) || refs.has(ref)) {
+    throw new Error(`ref "${ref}" conflicts with an existing element, ref or reserved target`);
+  }
+}
+
+function validateNewNodeId(id: string, doc: SiteDoc, refs: Map<string, string>) {
+  if (typeof id !== "string" || !validNodeId(id) || RESERVED_TARGETS.has(id) || Object.hasOwn(doc.nodes, id) || refs.has(id)) {
+    throw new Error("node id is invalid or conflicts with an existing element, ref or reserved target");
+  }
 }
 
 function validateLink(link: AiLink | null) {

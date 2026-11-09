@@ -126,10 +126,17 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     const src = assetSrc(asset);
     if (src) bySrc.set(src, asset);
   }
-  const getAsset = (src: string) => bySrc.get(src);
-  const hasAssetSuffix = (src: string) => !bySrc.has(src) &&
-    [...bySrc.keys()].some(url => src.startsWith(url + "#") ||
-      (!url.startsWith("data:") && src.startsWith(url + "&")));
+  const getAsset = (src: string) => {
+    const exact = bySrc.get(src);
+    if (exact) return { asset: exact, suffix: "" };
+    for (const [url, asset] of bySrc) {
+      if (src.startsWith(url + "#")) return { asset, suffix: src.slice(url.length) };
+      if (!url.startsWith("data:") && src.startsWith(url + "&")) {
+        return { asset, suffix: "?" + src.slice(url.length + 1) };
+      }
+    }
+    return undefined;
+  };
 
   // Read inline and packaged stylesheets in document order. Never fetch remote CSS.
   const sheets: string[] = [];
@@ -462,28 +469,17 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       ...(sourceClass ? { htmlClass: sourceClass } : {}),
       ...(sourceAttrs ? { htmlAttrs: sourceAttrs } : {}),
     };
-    if (["img", "video", "audio"].includes(tag)) {
-      const sources = [element, ...Array.from(element.querySelectorAll("source"))];
-      // An assetId represents the whole file, not an SVG view or media time
-      // range. Keep these uses as HTML so preview, export and later imports
-      // retain their suffixes. Check before safeUrl rejects data URL fragments.
-      if (sources.some(source => hasAssetSuffix((source.getAttribute("src") || "").trim()))) {
-        common.type = "code";
-        common.code = { html: element.outerHTML };
-        warn(tr("一部のHTML要素をカスタムコードとして保持しました。"));
-        return add(common);
-      }
-    }
     if (tag === "img") {
       common.type = "image";
       const src = safeUrl(element.getAttribute("src") || "");
-      const asset = getAsset(src);
+      const matched = getAsset(src);
+      const asset = matched?.asset;
       common.image = {
         src: asset ? "" : src,
         alt: element.getAttribute("alt") || "",
         width: parseSize(element.getAttribute("width"), asset?.width || 800),
         height: parseSize(element.getAttribute("height"), asset?.height || 500),
-        ...(asset ? { assetId: asset.id } : {}),
+        ...(asset ? { assetId: asset.id, ...(matched?.suffix ? { assetSuffix: matched.suffix } : {}) } : {}),
       };
       if (!common.styles.base.default?.width) common.styles.base.default = { ...common.styles.base.default, width: "auto" };
       return add(common);
@@ -533,9 +529,18 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     }
     if (tag === "video" || tag === "audio") {
       common.type = "media";
-      const src = safeUrl(element.getAttribute("src") || element.querySelector("source")?.getAttribute("src") || "");
-      const asset = getAsset(src);
-      common.media = { kind: tag, src: asset ? "" : src, ...(asset ? { assetId: asset.id } : {}),
+      const reference = (source: Element) => {
+        const src = safeUrl(source.getAttribute("src") || "");
+        const matched = getAsset(src);
+        return matched ? { src: "", assetId: matched.asset.id,
+          ...(matched.suffix ? { assetSuffix: matched.suffix } : {}) } : { src };
+      };
+      const sources = Array.from(element.children).filter(source => source.tagName.toLowerCase() === "source")
+        .map(source => ({ ...reference(source),
+          ...(source.hasAttribute("type") ? { type: source.getAttribute("type")! } : {}),
+          ...(source.hasAttribute("media") ? { media: source.getAttribute("media")! } : {}),
+        }));
+      common.media = { kind: tag, ...reference(element), ...(sources.length ? { sources } : {}),
         autoplay: element.hasAttribute("autoplay"),
         loop: element.hasAttribute("loop"), muted: element.hasAttribute("muted") };
       return add(common);
