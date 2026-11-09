@@ -189,6 +189,7 @@ function ScriptEditorInner({
   const activePageId = useEditor((s) => s.activePageId);
   const editingComponentId = useEditor((s) => s.editingComponentId);
   const updateDoc = useEditor((s) => s.updateDoc);
+  const updatePageScripts = useEditor((s) => s.updatePageScripts);
   const canUndo = useEditor((s) => s.past.length > 0);
   const canRedo = useEditor((s) => s.future.length > 0);
   const page = doc.pages[activePageId];
@@ -451,8 +452,8 @@ function ScriptEditorInner({
   }, [scripts, peekId, peekScope]);
 
   const commit = useCallback((next: PageScript[]) => {
-    updateDoc((d) => applyPageScripts(d, activePageId, nodeIds, numberFilters(next)));
-  }, [updateDoc, activePageId, nodeIds]);
+    updatePageScripts(activePageId, nodeIds, numberFilters(next));
+  }, [updatePageScripts, activePageId, nodeIds]);
   const deleteSelected = () => {
     if (!selectedList.length) return;
     commit(removeKeys(scripts, selectedList));
