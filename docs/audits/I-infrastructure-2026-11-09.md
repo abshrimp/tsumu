@@ -14,7 +14,7 @@
 |---|---|---|---|
 | AUD-I-001 | Medium | CIがActionのバージョンタグを直接参照し、タグ移動により実行コードが変わり得る。checkoutの認証情報も作業領域に保持されていた。 | checkout・setup-node・upload-artifactを確認済みの40桁commit SHAへ固定し、すべてのcheckoutでpersist-credentialsを無効化。設定テストを追加。 |
 | AUD-I-002 | Medium | 必須のcheckジョブにnpm監査とCloudflare Workerビルドがなく、依存関係・Worker専用の失敗を必須チェックにできなかった。 | 既存のcheckにWorker build・本番依存と全依存のhigh以上のnpm auditを統合。既存Rulesetの必須ジョブ名を維持。 |
-| AUD-I-003 | Medium | Dockerビルドコンテキストにローカルの.npmrc、Preview生成設定、生成サンプルが入り得た。秘密情報や不要なファイル混入の原因となる。 | .dockerignoreに除外項目を追加。 |
+| AUD-I-003 | Medium | Dockerビルドコンテキストにルートまたはサブディレクトリの.env、.npmrc、Preview生成設定等が入り得た。秘密情報や不要なファイル混入の原因となる。 | .dockerignoreに再帰パターンを含む除外項目を追加。 |
 | AUD-I-004 | Medium | Cloudflareの本番デプロイ時にD1/KVが未設定でもバインディングを静かに削除し、ブラウザのみへの保存へ切り替えられた。 | 本番deployは不足IDで失敗する設計にし、TSUMU_ALLOW_BROWSER_ONLY_DEPLOY=trueが明示された場合だけ従来のブラウザ保存を許可。buildとPreviewは維持。異常系テストを追加。 |
 | AUD-I-005 | Low | JSONCブロックコメントが閉じられず、末尾に付いた場合にパーサが残りを無視して有効な設定と扱う可能性があった。 | 未終端コメントを例外に変更し、失敗/成功の回帰テストを追加。 |
 | AUD-I-006 | Low | エディタの共通HTTPレスポンスヘッダーにX-Content-Type-Optionsと明示的なReferrer-Policyがなかった。 | 全パスのnosniff、strict-origin-when-cross-originを追加。設定を読み込むテストを追加。 |
@@ -22,6 +22,9 @@
 | AUD-I-008 | Medium | DockerのNode.jsベースイメージが可変タグのみで、同じソースで異なるイメージを使う可能性があった。 | ビルド/ランタイム両段階を同一の検証済みマルチプラットフォームSHA256 index digestで固定。Digest・Nodeバージョン一致テストを追加。 |
 | AUD-I-009 | Medium | 公開Worker Previewのpreviews.varsにトークン・シークレットらしい変数名を平文で設定しても拒否しなかった。 | 代表的な認証情報名を拒否し、Preview自身のシークレットで設定するよう促す。テストと日英文書を追加。 |
 | AUD-I-010 | Low | DependabotがnpmとGitHub Actionsは監視する一方、Dockerベースイメージの更新を対象にしていなかった。 | 週次Docker更新を追加。 |
+| AUD-I-011 | Medium | 本番デプロイ時に追加CLI引数で検証済みの--config/--envやデプロイ先を上書きでき、保存先チェックを迂回し得た。 | 設定・環境・Worker名などを変更する引数を拒否。カスタム設定はWRANGLER_CONFIGに統一し、拒否テストを追加。 |
+| AUD-I-012 | Medium | DockerのNext.js配布ファイルがroot所有で、nodeユーザーからキャッシュ等の書込が失敗し得た。 | COPY --chown=node:nodeを両コピーに適用し、非rootファイル所有テストを追加。 |
+| AUD-I-013 | Low | CIのnpxコマンドが、バイナリ不足時に意図しないパッケージ取得を実行し得た。 | Playwright/Next/OpenNext起動に--no-installを付け、意図しない外部取得を防止。 |
 
 重要度は成立条件が設定ミスやサプライチェーンに依存することを考慮した暫定評価。Critical/Highが不存在であるとの判定ではない。
 
