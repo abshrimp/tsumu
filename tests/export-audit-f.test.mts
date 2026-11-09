@@ -395,6 +395,9 @@ test("AUD-F-012: browser exports use decoded, deep credential scanning like GitH
   step.headers = [{ name: "Authorization", value: "Bearer {private}" }];
   assert.ok(exportLimitations(site, "html").length > 0,
     "browser exports must never accept Authorization headers");
+  step.headers = [{ name: "Metadata-Flavor", value: "Google" }];
+  assert.ok(exportLimitations(site, "html").length > 0,
+    "metadata service headers must retain previous export restrictions");
   step.headers = [];
   step.url = "https://public.example/data?api_key=%7Bkey%7D";
   assert.deepEqual(exportLimitations(site, "html"), [],

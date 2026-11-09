@@ -230,7 +230,13 @@ export function exportLimitations(
   // names, nested JSON credentials, and URL-encoded form bodies.
   // Next.js is handled separately because existing server-side authenticated
   // fetching needs an explicit environment-variable migration design.
-  add(hasPublishCredentials(doc),
+  // Metadata service headers were blocked by the previous export-specific
+  // rule and must remain denied even though they are not typical user secrets.
+  const metadataHeaders = pages.some((page) => pagePlan(doc, page.id).steps.some(
+    (step) => step.kind === "fetch" && (step.headers ?? []).some((header) =>
+      /^(?:metadata-flavor|x-metadata-token)$/i.test(header.name.trim()))
+  ));
+  add(hasPublishCredentials(doc) || metadataHeaders,
     "データ取得に認証用ヘッダーや秘密のAPIキーが含まれています。ブラウザ向けコードに書き出すと第三者にも見えるため、公開APIに変更するかサーバー側で安全に中継してください。");
 
   if (["react", "vue", "nuxt", "sveltekit"].includes(options.framework)) {
