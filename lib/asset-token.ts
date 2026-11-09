@@ -70,7 +70,7 @@ export async function verifyAssetToken(
   // Base64デコードや鍵インポートに渡さず、公開GETからの過剰な処理を避ける。
   if (!exp || !sig || !/^\d{1,16}$/.test(exp) || !/^[A-Za-z0-9_-]{43}$/.test(sig)) return false;
   const expiry = Number(exp);
-  if (!Number.isSafeInteger(expiry) || expiry < now || expiry > now + ASSET_TOKEN_TTL) return false;
+  if (!Number.isSafeInteger(expiry) || expiry < now) return false;
   const key = await hmacKey();
   const bytes = fromB64Url(sig);
   if (!key || !bytes) return false;
