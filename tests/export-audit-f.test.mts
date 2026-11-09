@@ -403,3 +403,28 @@ test("AUD-F-012: browser exports use decoded, deep credential scanning like GitH
   assert.deepEqual(exportLimitations(site, "html"), [],
     "pure variable placeholders are not literal credentials");
 });
+
+test("AUD-F-013: Next.js credential fetch stays in server files, not client-distributed assets", async () => {
+  const { hasPublishCredentials } = await import("../lib/publish-security");
+  const site = doc();
+  const sentinel = "AUDIT_NOT_A_REAL_SECRET_SENTINEL_0529";
+  site.pages.public.pageScripts = [{
+    id: "load", trigger: "load", pos: { x: 0, y: 0 },
+    steps: [{ id: "fetch", kind: "fetch", as: "data",
+      url: "https://public.example/private",
+      headers: [{ name: "Authorization", value: "Bearer " + sentinel }] }],
+  }];
+  assert.equal(hasPublishCredentials(site), true,
+    "GitHub Push must detect literal credential-like headers");
+  const project = generateExportProject(site, "nextjs");
+  assert.match(project.files["app/page.tsx"], /fetchPublic/,
+    "existing authenticated server fetch behavior is preserved pending design approval");
+  const publicSources = Object.entries(project.files)
+    .filter(([path, content]) =>
+      path.startsWith("public/") ||
+      (path.startsWith("components/") && /^(?:"use client"|'use client')/.test(content)))
+    .map(([path, content]) => path + ":\\n" + content)
+    .join("\\n");
+  assert.ok(!publicSources.includes(sentinel),
+    "server-side fetch settings must not be duplicated into browser-distributed files");
+});
