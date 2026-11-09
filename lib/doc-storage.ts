@@ -1,6 +1,7 @@
 import { hasValidChildren, MAX_NODE_DEPTH, validAssetEntry, validComponentEntry, validNodeForest } from "./doc-tree";
 import type { Db, ResultSet } from "./db";
-import { isDocPatch, type DocPatch } from "./doc-patch";
+import { applyDocPatch, isDocPatch, type DocPatch } from "./doc-patch";
+import type { SiteDoc } from "./types";
 
 /**
  * 編集データの保存（D1 の docs テーブル。1サイト = 1行で、id はサイトID）。
@@ -157,6 +158,31 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
         hasValidChildren(item) && "id" in item && item.id === id &&
         (collection !== "pages" || ("slug" in item && typeof item.slug === "string"));
       if (!valid) throw new InvalidDocPatchError();
+    }
+  }
+  // An ordinary leaf/property edit stays on the SQL-only fast path. Changes
+  // to a component definition, instance, or non-empty child list can create a
+  // second-order reference cycle even when the ordinary node tree is valid.
+  // Validate those against the exact optimistic-lock base revision first.
+  // The UPDATE below still has WHERE rev = base: a concurrent write between
+  // this read and the UPDATE cannot bypass the check.
+  const referenceSensitive = patch.some(op => {
+    if (op.path[0] === "components") return true;
+    if (op.path[0] !== "nodes") return false;
+    if (op.path.length === 1) return true;
+    if (!("value" in op) || !op.value || typeof op.value !== "object" || Array.isArray(op.value)) return false;
+    const node = op.value as Record<string, unknown>;
+    return node.type === "instance" || (Array.isArray(node.children) && node.children.length > 0);
+  });
+  if (referenceSensitive) {
+    const current = await readCurrentDoc(db, siteId);
+    if (!current) return { kind: "missing" };
+    if (current.rev !== base) return { kind: "conflict", current };
+    try {
+      const next = applyDocPatch(JSON.parse(current.body) as SiteDoc, patch);
+      if (validateDocValue(next)) throw new InvalidDocPatchError();
+    } catch {
+      throw new InvalidDocPatchError();
     }
   }
   const treeOps = patch.filter(op => op.path[0] === "nodes" || op.path[0] === "pages" || op.path[0] === "components");

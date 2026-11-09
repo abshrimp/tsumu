@@ -85,7 +85,6 @@ test("SQL patches preserve nulls, arrays, additions and removals without fetchin
     delete next.nodes["node-1"];
     next.nodes["node-2"] = { ...base.nodes["node-1"], id: "node-2", text: 'quote " and 日本語', custom: { nullable: null, flag: false, zero: 0 } } as any;
     next.pages.home.children = ["node-2"];
-    next.components = {};
     const patch = createDocPatch(base, next)!;
     statements.length = 0;
     const result = await saveDocPatch(db, "s1", patch, "1");
