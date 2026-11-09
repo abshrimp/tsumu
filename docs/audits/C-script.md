@@ -55,7 +55,7 @@
 | AUD-C-003 | Medium（データ消失） | 自分自身の子スロットへステップをドロップすると、元ステップを取り除いた後の挿入失敗をコミットし、ブロックが消える | `useScriptDrag.ts`：挿入先がない場合は元データをコミットしない。`script-drag-lifecycle.test.mts` |
 | AUD-C-004 | Medium（可用性） | 値変更スクリプト内の複数 `set-value` が同期的に同一changeイベントを再発火し、無限再帰する | 要素・イベント単位の同期再入防止。`script-runtime-reentrancy.test.mts` |
 | AUD-C-005 | Medium（データ整合性） | 非有限数やJSON非対応値を変数に入れられ、比較やJSON直列化で不整合になる | 比較と変数値の検証を強化。`script-nonfinite-values.test.mts` |
-| AUD-C-006 | Low〜Medium（性能・整合性） | ブラウザ側リスト絞り込みがOR成立後やAND不成立後も、同一・別ブロックの不要な条件を評価していた | SSRと同じ短絡評価。`script-conditions-shortcircuit.test.mts` |
+| AUD-C-006 | Low〜Medium（性能・整合性） | ブラウザ側リスト絞り込みがOR成立後やAND不成立後も、同一・別ブロックの不要な条件を評価していた | プレビュー／公開スクリプト／生成ページデータをSSRと同じ短絡評価に統一。`script-conditions-shortcircuit.test.mts` |
 | AUD-C-007 | Medium（データ整合性・可用性） | `setVarPath` が飛び番添字や配列の文字列キーを受け入れ、疎な巨大配列や別のデータ型に変化させる | 既存添字の更新または末尾への追加だけ許可し、不正な書込は原子的に拒否。`script-var-path-bounds.test.mts` |
 | AUD-C-008 | Medium（画面遷移・状態破壊） | hover-end遅延コールバックが元の要素をページ遷移で失っても発火し、新ページの要素を操作できる | 遷移時にhoverタイマーを破棄し、実行前に要素の接続とページ世代を再確認。`script-hover-cancellation.test.mts` |
 | AUD-C-009 | Medium（堅牢性） | 不正な `data-scripts` JSON、欠損した条件・加工、非文字列の代入先がイベント処理を例外で終了させる | 非配列・不正エントリ・無効なブロックを除外し、正常な後続処理を維持。`script-malformed-runtime.test.mts` |
