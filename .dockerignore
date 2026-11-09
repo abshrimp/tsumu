@@ -23,3 +23,11 @@ playwright-report
 *.sqlite3
 *.sql
 tsumu-data*.tgz
+
+# Also exclude private configuration under nested build-context paths.
+**/.env*
+**/.dev.vars*
+**/.npmrc
+**/wrangler.local.jsonc
+**/wrangler.generated.jsonc
+**/wrangler.preview.generated.jsonc
