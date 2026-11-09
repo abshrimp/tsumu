@@ -55,13 +55,17 @@ test("a source with no document can still be copied", async () => database(async
   assert.equal(await readCurrentDoc(db, "copy"), null);
 }));
 test("a captured source document remains usable if the source is deleted afterwards", async () => database(async db => {
-  await saveCurrentDoc(db, "source", '{"content":"saved"}', null);
+  const sourceDoc = createInitialDoc();
+  sourceDoc.siteName = "Saved";
+  await saveCurrentDoc(db, "source", JSON.stringify(sourceDoc), null);
   const response = await api(db, async (db, id) => { const snapshot = await readCurrentDoc(db, id); await sites.deleteSite(db, id); return snapshot; })();
   assert.equal(response.status, 200);
-  assert.equal((await readCurrentDoc(db, "copy"))?.body, '{"content":"saved"}');
+  assert.deepEqual(JSON.parse((await readCurrentDoc(db, "copy"))!.body), sourceDoc);
 }));
 test("an unsuccessful destination save is not reported as a completed copy", async () => database(async db => {
-  await saveCurrentDoc(db, "source", '{"content":"saved"}', null);
+  const sourceDoc = createInitialDoc();
+  sourceDoc.siteName = "Saved";
+  await saveCurrentDoc(db, "source", JSON.stringify(sourceDoc), null);
   await db.execute("CREATE TRIGGER fail_copy BEFORE INSERT ON docs WHEN NEW.id='copy' BEGIN SELECT RAISE(ABORT, 'simulated failure'); END");
   const response = await api(db)();
   assert.equal(response.status, 502);
