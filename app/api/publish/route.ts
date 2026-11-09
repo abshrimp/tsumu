@@ -111,7 +111,7 @@ export async function GET(req: Request) {
     previewEnabled: previewEnabled(dest),
     test: describe("test"),
     production: describe("production"),
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 export async function POST(req: Request) {
