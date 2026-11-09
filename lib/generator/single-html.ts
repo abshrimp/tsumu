@@ -145,8 +145,8 @@ export async function toSingleHtmlProject(
         for (const ref of urls.keys()) urls.set(ref, await resources.embed(ref, base));
         set("srcset", rewriteSrcsetUrls(get("srcset"), ref => urls.get(ref)!, SINGLE_HTML_LIMIT));
       }
-    } else if (node.namespaceURI === "http://www.w3.org/2000/svg" && name === "image") {
-      // SVG images use href rather than HTML src. href wins over legacy xlink:href.
+    } else if (node.namespaceURI === "http://www.w3.org/2000/svg" && (name === "image" || name === "feImage")) {
+      // SVG の画像・フィルター画像は href を使い、旧 xlink:href より優先する。
       const key = attrs.has("href") ? "href" : "xlink:href";
       if (get(key)) set(key, await resources.embed(get(key), base));
     } else if (name === "style") {
