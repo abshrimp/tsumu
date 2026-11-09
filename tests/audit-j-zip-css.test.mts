@@ -18,7 +18,6 @@ function seeded(seed: number) {
     return value >>> 0;
   };
 }
-const encoder = new TextEncoder();
 
 test("AUD-J-007: ZIP extraction round-trips bounded random bytes and rejects undersized output limits", async () => {
   const next = seeded(SEED ^ 0x707);
@@ -99,7 +98,8 @@ test("AUD-J-009: archive path normalization is rejected across editable and raw 
       .file(names[0], "first")
       .file(names[1], "second")
       .generateAsync({ type: "uint8array" });
-    assert.throws(() => inspectHtmlZip(await openImportZip(html, 200)), /重複したファイルパス/);
+    const parsed = await openImportZip(html, 200);
+    assert.throws(() => inspectHtmlZip(parsed), /重複したファイルパス/);
   }
 });
 
