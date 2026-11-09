@@ -123,6 +123,7 @@ export function withinScriptValueLimit(value: unknown): boolean {
 /** 変数に値を入れる（"記事.tags" のような入れ子は、元の値を変えずに途中を複製して入れる） */
 export function setVarPath(vars: Record<string, unknown>, name: string, value: unknown,
   accept?: (candidate: unknown) => boolean): string | undefined {
+  if (typeof name !== "string" || !name) return undefined;
   const owns = (obj: object, key: string | number) =>
     Object.prototype.hasOwnProperty.call(obj, key);
   // Object.defineProperty writes __proto__ as a normal own key, not as a
