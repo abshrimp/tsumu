@@ -6,13 +6,13 @@ export class JsonBodyTooLargeError extends RangeError {}
 export class JsonContentTypeError extends TypeError {}
 
 export async function readJsonLimited(
-  req: Request, maxBytes: number, validateContentType = true,
+  req: Request, maxBytes: number,
 ): Promise<unknown> {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) {
     throw new RangeError("Invalid JSON request limit");
   }
   const type = req.headers.get("content-type");
-  if (validateContentType && type && type.split(";", 1)[0].trim().toLowerCase() !== "application/json") {
+  if (type && type.split(";", 1)[0].trim().toLowerCase() !== "application/json") {
     throw new JsonContentTypeError("Expected application/json");
   }
   const declared = req.headers.get("content-length");
