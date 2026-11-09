@@ -88,7 +88,7 @@ test('newly deferred global sources keep literals and item roots shadow fallback
   const doc = clientNestedDoc();
   const items: any[] = [{ name: 'Fallback' }, { name: 'Own', tags: [{ label: 'own' }] }, { name: 'Empty', tags: [] }, { name: 'Null', tags: null }, { name: 'Text', tags: 'not array' }];
   doc.pages.p.pageScripts![0].steps = [
-    { id: 'fetch', kind: 'fetch', as: 'response', url: 'https://example.test/products', sample: items },
+    { id: 'fetch', kind: 'fetch', as: 'response', url: 'https://example.test/products', preview: { sample: items } },
     { id: 'fallback-value', kind: 'set-var', value: 'a"{literal},b', into: 'tags' },
     { id: 'fallback', kind: 'transform', source: 'tags', into: 'tags', transform: { kind: 'split', separator: ',' } },
   ];
@@ -138,7 +138,7 @@ test('server fallback exposes only rendered fields and supports count without ac
   const doc = clientNestedDoc();
   const items = [{ label: 'red', privateField: 'UNUSED_PRIVATE_SENTINEL' }, { label: 'blue', privateField: 'UNUSED_PRIVATE_SENTINEL' }];
   doc.pages.p.pageScripts![0].steps = [
-    { id: 'fetch', kind: 'fetch', as: 'response', url: 'https://example.test/products', sample: items },
+    { id: 'fetch', kind: 'fetch', as: 'response', url: 'https://example.test/products', preview: { sample: items } },
     { id: 'alias', kind: 'set-var', value: '{response}', into: 'tags' },
   ];
   doc.nodes.reload.scripts![0].steps = [{ id: 'reload-raw', kind: 'set-var', value: 'outer', into: 'items' }, { id: 'reload-step', kind: 'transform', source: 'items', into: 'items', transform: { kind: 'split', separator: ',' } }];
@@ -169,7 +169,7 @@ test('dotted item roots block global fallback even when the leaf is missing', as
   const items = [{ name: 'Missing', info: {} }, { name: 'Null', info: null }, { name: 'Own', info: { tags: [{ label: 'own' }] } }];
   doc.nodes.tags.list!.from = 'info.tags';
   doc.pages.p.pageScripts![0].steps = [
-    { id: 'fetch', kind: 'fetch', as: 'response', url: 'https://example.test/products', sample: items },
+    { id: 'fetch', kind: 'fetch', as: 'response', url: 'https://example.test/products', preview: { sample: items } },
     { id: 'info', kind: 'set-var', value: '{response.2.info}', into: 'info' },
   ];
   const runtime = listRuntimeDom(await publishedClientNested(doc, 'app/page.tsx', items), scriptsFile(doc));
@@ -178,7 +178,7 @@ test('dotted item roots block global fallback even when the leaf is missing', as
 
 test('live global arrays update independently without overwriting item-local arrays', async () => {
   const doc = clientNestedDoc(), items = [{ name: 'First', labels: ['local'] }, { name: 'Second' }];
-  (doc.pages.p.pageScripts![0].steps[0] as { sample: unknown }).sample = items;
+  (doc.pages.p.pageScripts![0].steps[0] as { preview?: { sample?: unknown } }).preview = { sample: items };
   doc.nodes.tags.list!.from = 'labels'; doc.nodes.detail.text!.content = '{name}:{値}';
   for (const [id, value] of [['global-a', 'one,two'], ['global-b', 'three']]) {
     doc.nodes[id] = { ...makeText(id), id, attrId: id, semantic: 'button', scripts: [{
@@ -211,7 +211,7 @@ test('static filter values resolve server and item tokens once, preserving liter
     }
     const items = [{ name: 'First', needle: 'red{literal}', prefix: 'red', wanted: '{literal}', slug: 'red{literal}',
       tags: [{ label: 'red{literal}' }, { label: 'red' }, { label: '{literal}' }] }];
-    (doc.pages.p.pageScripts![0].steps[0] as { sample: unknown }).sample = items;
+    (doc.pages.p.pageScripts![0].steps[0] as { preview?: { sample?: unknown } }).preview = { sample: items };
     doc.pages.p.pageScripts![0].steps.push(
       { id: 'needle', kind: 'set-var', value: '{response.0.needle}', into: 'needle' },
       { id: 'prefix', kind: 'set-var', value: '{response.0.prefix}', into: 'prefix' },
@@ -241,7 +241,7 @@ test('static nested filters prefer each parent value over a conflicting server f
       { name: 'Empty', wanted: '', choice: {}, slug: '', tags },
       { name: 'Literal key', wanted: null, 'choice.wanted': null, choice: { wanted: 'red{literal}' }, slug: null, tags },
     ];
-    (doc.pages.p.pageScripts![0].steps[0] as { sample: unknown }).sample = items;
+    (doc.pages.p.pageScripts![0].steps[0] as { preview?: { sample?: unknown } }).preview = { sample: items };
     for (const into of ['wanted', 'choice', 'slug']) doc.pages.p.pageScripts![0].steps.push({
       id: `global-${into}`, kind: 'set-var', value: `{response.1.${into}}`, into,
     });
@@ -270,7 +270,7 @@ for (const not of [false, true]) test(`nested base filters preserve typed values
     { name: 'Array', wanted: [1, 2], tags },
     { name: 'Null', wanted: null, tags },
   ];
-  (doc.pages.p.pageScripts![0].steps[0] as { sample: unknown }).sample = items;
+  (doc.pages.p.pageScripts![0].steps[0] as { preview?: { sample?: unknown } }).preview = { sample: items };
   doc.pages.p.pageScripts![0].steps.push({id: 'global-wanted', kind: 'set-var', value: '{response.0.wanted}', into: 'wanted'});
   doc.pages.p.pageScripts![0].steps.push({
     id: 'typed-base-filter', kind: 'list-display', mode: 'filter', array: 'tags',

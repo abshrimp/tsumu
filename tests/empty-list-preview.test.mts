@@ -77,7 +77,7 @@ test("design retains empty-list guidance and templates without saving a preview 
 test("an empty outer array adds no preview row and recovers when data returns", async () => {
   const sample = [{ name: "First", tags: ["red"] }, { name: "Second", tags: [] }];
   const f = fixture(sample), saved = structuredClone(state().doc);
-  state().updateDoc((doc) => { (doc.pages.p.pageScripts![0].steps[0] as any).sample = []; });
+  state().updateDoc((doc) => { (doc.pages.p.pageScripts![0].steps[0] as any).preview.sample = []; });
   assert.equal(plain(f.render()), "");
   assert.doesNotMatch(f.render(), /cv-placeholder/);
   assert.match(f.render(false), /cv-placeholder/);

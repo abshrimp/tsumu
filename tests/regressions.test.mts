@@ -260,7 +260,7 @@ test("[slug] pages answer 404 when the API has no item, and metadata reads the s
   const doc = site([title]);
   doc.pages.p.slug = "items/[slug]";
   doc.pages.p.pageScripts = load([
-    { id: "f", kind: "fetch", url: "https://api.example.com/items/{slug}", as: "raw", sample: { title: "A" } },
+    { id: "f", kind: "fetch", url: "https://api.example.com/items/{slug}", as: "raw", preview: { sample: { title: "A" } } },
     { id: "v", kind: "set-var", value: "{raw}", into: "item" },
   ]);
   const isr = generateProject(doc).files["app/items/[slug]/page.tsx"];

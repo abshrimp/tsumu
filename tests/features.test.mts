@@ -82,7 +82,7 @@ test("fetch request options add a JSON content type only when sending a body", (
 test("field initial values follow the published browser values", () => {
   assert.equal(fieldInitialValue({ kind: "checkbox", checked: true }), "true");
   assert.equal(fieldInitialValue({ kind: "checkbox" }), "false");
-  assert.equal(fieldInitialValue({ kind: "select", options: ["A", "B"] }), "A");
+  assert.equal(fieldInitialValue({ kind: "select", options: ["A", "B"].map((value) => ({label:value,value})) }), "A");
   assert.equal(fieldInitialValue({ kind: "input", defaultValue: "Hi {name}" }, { name: "Ann" }), "Hi Ann");
   const defaultRadio = makeField("radio");
   assert.equal(defaultRadio.field?.group, "radio");
@@ -168,7 +168,7 @@ test("publish checks validate targets in every AND/OR if clause", () => {
 test("published fields interpolate variables and keep a live template for field values", () => {
   const name: DocNode = { ...makeBox(), id: "n", type: "field", attrId: "name", field: { kind: "input", placeholder: "Your name" } };
   const hello: DocNode = { ...makeBox(), id: "h", type: "field", attrId: "greet", field: { kind: "input", defaultValue: "Hi {name}", min: "1", required: true } };
-  const sel: DocNode = { ...makeBox(), id: "s", type: "field", attrId: "plan", field: { kind: "select", defaultValue: "{name}", options: ["{name}", "Guest"] } };
+  const sel: DocNode = { ...makeBox(), id: "s", type: "field", attrId: "plan", field: { kind: "select", defaultValue: "{name}", options: ["{name}", "Guest"].map((value) => ({label:value,value})) } };
   const cb: DocNode = { ...makeBox(), id: "c", type: "field", attrId: "ok", field: { kind: "checkbox", label: "For {name}" } };
   const doc = docWith([name, hello, sel, cb]);
   assert.equal(usesLiveFields(doc), true);
@@ -245,7 +245,7 @@ test("pageReadsQuery detects POST body variables and preserves explicit list tra
       trigger: "load",
       pos: { x: 0, y: 0 },
       steps: [
-        { id: "f1", kind: "fetch", url: "https://api.example.com/items", as: "items", sample: [{ id: 1 }] },
+        { id: "f1", kind: "fetch", url: "https://api.example.com/items", as: "items", preview: { sample: [{ id: 1 }] } },
         { id: "af", kind: "transform", source: "items", into: "count", transform: { kind: "length" } },
       ],
     },
@@ -289,7 +289,7 @@ test("slug page generateMetadata preserves description, noindex and openGraph", 
             trigger: "load",
             pos: { x: 0, y: 0 },
             steps: [
-              { id: "f", kind: "fetch", url: "https://api.example.com/posts", as: "posts", sample: [{ slug: "a", title: "Hello" }] },
+              { id: "f", kind: "fetch", url: "https://api.example.com/posts", as: "posts", preview: { sample: [{ slug: "a", title: "Hello" }] } },
               { id: "post-init", kind: "set-var", into: "post", value: "null" },
               { id: "select-post", kind: "for-each", array: "posts", then: [
                 { id: "match", kind: "if", cond: { subject: "var", target: "",

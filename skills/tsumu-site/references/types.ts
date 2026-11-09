@@ -320,7 +320,7 @@ export type ScriptStep = { id: string } & (
       body?: string;
       
       as?: string;
-      preview?: { sample?: unknown; totals?: Record<string, number>; fetchedAt?: number };
+      preview?: { sample?: unknown; totals?: Record<string, number>; fetchedAt?: number; };
     }
   | {
       kind: "if";

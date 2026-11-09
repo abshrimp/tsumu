@@ -64,7 +64,7 @@ test("nested if/repeat/for-each references are remapped while external targets a
     ] }],
     else: [{ id: "self", kind: "show", target: SELF_TARGET }, { id: "external-link", kind: "open-url", url: "#outside" }],
   });
-  original.nodes.entry.field = { kind: "select", defaultValue: "{menu.text}", placeholder: "{outside}", options: ["{entry}", "{outside}"] };
+  original.nodes.entry.field = { kind: "select", defaultValue: "{menu.text}", placeholder: "{outside}", options: ["{entry}", "{outside}"].map(value => ({label:value,value})) };
   original.nodes.readout.text!.content = "{menu.text} / {outside}";
   original.nodes.jump.link!.url = "https://example.test/{entry}/{outside}";
   original.nodes.readout.image = { src: "{entry}", alt: "", width: 1, height: 1 };
@@ -88,7 +88,7 @@ test("nested if/repeat/for-each references are remapped while external targets a
   assert.equal(readout.text!.content, `{${menu.attrId}.text} / {outside}`);
   assert.equal(readout.image!.src, `{${entry.attrId}}`);
   assert.equal(jump.link!.url, `https://example.test/{${entry.attrId}}/{outside}`);
-  assert.deepEqual(entry.field, { kind: "select", defaultValue: `{${menu.attrId}.text}`, placeholder: "{outside}", options: [`{${entry.attrId}}`, "{outside}"] });
+  assert.deepEqual(entry.field, { kind: "select", defaultValue: `{${menu.attrId}.text}`, placeholder: "{outside}", options: [`{${entry.attrId}}`, "{outside}"].map(value => ({label:value,value})) });
   const ids = identities(copied(original));
   assert.equal(new Set(ids).size, ids.length);
   assert.ok(ids.every((id) => !identities(Object.values(before.nodes)).includes(id)));

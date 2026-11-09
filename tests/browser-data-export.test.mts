@@ -47,7 +47,7 @@ async function runBrowserData(
 test("native HTML fetches JSON and composes list loops, length, and join", async () => {
   const doc = fixture([
     { id: "request", kind: "fetch", url: "https://data.example.test/items?group={group}", as: "rows",
-      sample: [{ id: 999, name: "editor-only" }] },
+      preview: { sample: [{ id: 999, name: "editor-only" }] } },
     { id: "requested-id", kind: "set-var", value: "{id}", into: "requestedId" },
     { id: "selected-init", kind: "set-var", value: "null", into: "selected" },
     { id: "find", kind: "for-each", array: "rows", then: [
