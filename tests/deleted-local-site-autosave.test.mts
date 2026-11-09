@@ -270,8 +270,11 @@ test("a stale browser tab cannot overwrite a newer tab's document", () => {
   } finally { f.dispose(); }
 });
 
-test("invalid browser JSON is preserved instead of being replaced with a blank site", () => {
-  for (const malformed of ["{not-json", JSON.stringify({ pages: {}, pageOrder: ["lost"], nodes: {}, assets: {} })]) {
+for (const [label, malformed] of [
+  ["unparseable", "{not-json"],
+  ["invalid structure", JSON.stringify({ pages: {}, pageOrder: ["lost"], nodes: {}, assets: {} })],
+] as const) {
+  test(`${label} browser JSON is preserved instead of being overwritten`, () => {
     const f = fixture(malformed);
     try {
       const fresh = f.useEditor.getState().doc;
@@ -279,5 +282,5 @@ test("invalid browser JSON is preserved instead of being replaced with a blank s
       assert.equal(f.persistDoc(fresh), "error");
       assert.equal(f.storage.getItem(f.key), malformed);
     } finally { f.dispose(); }
-  }
-});
+  });
+}
