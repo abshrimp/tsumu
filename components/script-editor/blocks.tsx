@@ -300,7 +300,12 @@ function StepChunkView({ scriptId, list, chunk }: {
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [rendered, setRendered] = useState(chunk.start === 0);
-  const [height, setHeight] = useState(chunk.estimatedHeight);
+  const measuredHeight = useRef<{ first: ScriptStep | undefined; last: ScriptStep | undefined; height: number } | null>(null);
+  const first = chunk.steps[0];
+  const last = chunk.steps[chunk.steps.length - 1];
+  const placeholderHeight = measuredHeight.current?.first === first &&
+    measuredHeight.current?.last === last
+    ? measuredHeight.current.height : chunk.estimatedHeight;
 
   useEffect(() => {
     const el = ref.current;
@@ -317,18 +322,19 @@ function StepChunkView({ scriptId, list, chunk }: {
     const el = ref.current;
     const measure = () => {
       const next = el.offsetHeight;
-      if (next > 0) setHeight((prev) => Math.abs(prev - next) > 1 ? next : prev);
+      if (next > 0) measuredHeight.current = { first, last, height: next };
     };
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [rendered]);
+  }, [rendered, first, last]);
 
   return (
     <div className="se-virtual-chunk" ref={ref}
-      style={rendered ? undefined : { height }} aria-hidden={rendered ? undefined : true}>
+      style={rendered ? undefined : { height: placeholderHeight }}
+      aria-hidden={rendered ? undefined : true}>
       {rendered && chunk.steps.map((step, i) => (
         <div key={step.id} className="se-item">
           <StepView step={step} loc={{ scriptId, list, index: chunk.start + i }} />
@@ -466,13 +472,13 @@ export function StackView({ script }: { script: PageScript }) {
   const ctx = useContext(Ctx);
   const ref = useRef<HTMLDivElement>(null);
   const [inViewport, setInViewport] = useState(false);
-  const [measured, setMeasured] = useState<{
+  const measured = useRef<{
     steps: ScriptStep[]; width: number; height: number;
   } | null>(null);
   const estimatedHeight = useMemo(() => estimateScriptStackHeight(script.steps), [script.steps]);
   const mounted = ctx.readOnly || !ctx.virtualizeStacks || inViewport;
-  const placeholder = measured?.steps === script.steps
-    ? measured : { width: 320, height: estimatedHeight };
+  const placeholder = measured.current?.steps === script.steps
+    ? measured.current : { width: 320, height: estimatedHeight };
 
   useEffect(() => {
     const el = ref.current;
@@ -490,9 +496,7 @@ export function StackView({ script }: { script: PageScript }) {
       const height = el.offsetHeight;
       const width = el.offsetWidth;
       if (height > 0 && width > 0) {
-        setMeasured((old) => old?.steps === script.steps &&
-          Math.abs(old.height - height) <= 1 && Math.abs(old.width - width) <= 1
-          ? old : { steps: script.steps, height, width });
+        measured.current = { steps: script.steps, height, width };
       }
     };
     measure();
