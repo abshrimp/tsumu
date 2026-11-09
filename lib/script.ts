@@ -280,20 +280,27 @@ export function applyPageScripts(
  * pageScriptsOf() creates display wrappers, so comparing only object identity
  * would turn an unchanged script into a new document/history entry.
  */
+function sameScript(a: Script, b: Script): boolean {
+  return a === b || (
+    a.id === b.id &&
+    a.trigger === b.trigger &&
+    a.keepOnShown === b.keepOnShown &&
+    a.steps === b.steps &&
+    a.pos.x === b.pos.x &&
+    a.pos.y === b.pos.y
+  );
+}
+
 function sameScriptList(a: Script[] | undefined, b: Script[] | undefined): boolean {
   if (a === b) return true;
   if ((a?.length ?? 0) !== (b?.length ?? 0)) return false;
-  return (a ?? []).every((script, i) => {
-    const other = b![i];
-    return script === other || (
-      script.id === other.id &&
-      script.trigger === other.trigger &&
-      script.keepOnShown === other.keepOnShown &&
-      script.steps === other.steps &&
-      script.pos.x === other.pos.x &&
-      script.pos.y === other.pos.y
-    );
-  });
+  return (a ?? []).every((script, i) => sameScript(script, b![i]));
+}
+
+/** Reuse stable script objects even when another script on the same node changes. */
+function reuseUnchangedScripts(before: Script[] | undefined, after: Script[] | undefined): Script[] | undefined {
+  if (!after || !before) return after;
+  return after.map((script, i) => before[i] && sameScript(before[i], script) ? before[i] : script);
 }
 
 function sameLink(a: LinkSetting | null, b: LinkSetting | null): boolean {
@@ -331,6 +338,8 @@ export function withPageScripts(
     if (sameLink(before.link, after.link) && sameScriptList(before.scripts, after.scripts)) {
       nodes[id] = before;
     } else {
+      if (sameLink(before.link, after.link)) after.link = before.link;
+      after.scripts = reuseUnchangedScripts(before.scripts, after.scripts);
       changedNodes = true;
     }
   }
@@ -338,6 +347,10 @@ export function withPageScripts(
   const saved = pages[pageId];
   const changedPage = !sameScriptList(page.scripts, saved.scripts) ||
     !sameScriptList(page.pageScripts, saved.pageScripts);
+  if (changedPage) {
+    if (saved.scripts) saved.scripts = reuseUnchangedScripts(page.scripts, saved.scripts);
+    if (saved.pageScripts) saved.pageScripts = reuseUnchangedScripts(page.pageScripts, saved.pageScripts);
+  }
   if (!changedNodes && !changedPage) return doc;
   return {
     ...doc,
