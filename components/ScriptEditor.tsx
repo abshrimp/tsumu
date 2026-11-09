@@ -320,7 +320,7 @@ function ScriptEditorInner({
   const highlightedSlotRef = useRef<HTMLElement | null>(null);
   // A drag can cross hundreds of insertion slots. Highlight only the changed
   // DOM node; never make the entire block editor render on pointer movement.
-  const setActiveSlot = useCallback((key: string | null) => {
+  const setActiveSlot = useCallback((key: string | null, measuredElement?: HTMLElement | null) => {
     const old = highlightedSlotRef.current;
     if (old && (old.dataset.slot !== key || !old.isConnected)) {
       old.classList.remove("is-active");
@@ -332,9 +332,13 @@ function ScriptEditorInner({
       return;
     }
     if (highlightedSlotRef.current?.classList.contains("is-active")) return;
-    const el = wsRef.current?.querySelector<HTMLElement>(
-      `[data-slot="${CSS.escape(key)}"]`
-    );
+    // Reuse the DOM element from the drag hit-test index instead of querying
+    // the entire workspace whenever the active drop target changes.
+    const el = measuredElement?.isConnected && measuredElement.dataset.slot === key
+      ? measuredElement
+      : wsRef.current?.querySelector<HTMLElement>(
+          `[data-slot="${CSS.escape(key)}"]`
+        );
     el?.classList.add("is-active");
     highlightedSlotRef.current = el ?? null;
   }, []);
