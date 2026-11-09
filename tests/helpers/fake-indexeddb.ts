@@ -1,9 +1,13 @@
 /**
  * Minimal asynchronous IndexedDB implementation for Node-only integration fixtures.
  * Browser E2E tests use Chromium's real IndexedDB instead.
+ * Supports single-store transactions with string keys/values used by document storage.
+ * Transactions on a store run in creation order (including readonly transactions).
+ * This is deliberately not a general IndexedDB implementation.
  */
 export function fakeIndexedDB(): IDBFactory {
   const databases = new Map<string, Map<string, Map<IDBValidKey, unknown>>>();
+  const queues = new WeakMap<Map<IDBValidKey, unknown>, (() => void)[]>();
   return {
     open(name: string) {
       const isNew = !databases.has(name);
@@ -17,32 +21,58 @@ export function fakeIndexedDB(): IDBFactory {
           stores.set(storeName, map);
           return {};
         },
-        transaction(storeName: string) {
+        transaction(storeName: string, mode = "readonly") {
           const map = stores.get(storeName);
           if (!map) throw new Error("Object store missing");
-          let pending = 0;
+          const queue = queues.get(map) ?? [];
+          queues.set(map, queue);
+          const requests: (() => void)[] = [];
+          let snapshot: Map<IDBValidKey, unknown>;
           let finished = false;
+          let started = false;
+          const release = () => {
+            const index = queue.indexOf(start);
+            queue.splice(index, 1);
+            if (index === 0 && queue.length) queueMicrotask(queue[0]);
+          };
           const transaction: any = {
             error: null,
             oncomplete: null, onerror: null, onabort: null,
             abort() {
               if (finished) return;
               finished = true;
-              transaction.error = new Error("Transaction aborted");
-              queueMicrotask(() => transaction.onabort?.());
+              requests.length = 0;
+              queueMicrotask(() => {
+                try { transaction.onabort?.(); } finally { release(); }
+              });
             },
           };
-          const maybeComplete = () => queueMicrotask(() => {
-            if (pending === 0 && !finished) {
-              finished = true;
-              transaction.oncomplete?.();
+          const pump = () => {
+            if (finished) return;
+            const next = requests.shift();
+            if (next) {
+              next();
+              queueMicrotask(pump);
+              return;
             }
-          });
-          function request(action: () => unknown): any {
-            pending++;
-            const item: any = { result: undefined, error: null, onsuccess: null, onerror: null };
-            queueMicrotask(() => {
-              if (finished) return;
+            // Only a completed transaction publishes its writes. Aborts discard them.
+            if (mode === "readwrite") {
+              map.clear();
+              for (const [key, value] of snapshot) map.set(key, value);
+            }
+            finished = true;
+            try { transaction.oncomplete?.(); } finally { release(); }
+          };
+          const start = () => {
+            if (finished || started) return;
+            started = true;
+            // Take the snapshot after preceding transactions have committed/aborted.
+            snapshot = new Map(map);
+            pump();
+          };
+          function enqueue(item: any, action: () => unknown) {
+            if (finished) throw new DOMException("Transaction finished", "TransactionInactiveError");
+            requests.push(() => {
               try {
                 item.result = action();
                 item.onsuccess?.();
@@ -51,46 +81,44 @@ export function fakeIndexedDB(): IDBFactory {
                 transaction.error = error;
                 item.onerror?.();
                 transaction.abort();
-              } finally {
-                pending--;
-                maybeComplete();
               }
             });
+          }
+          function request(action: () => unknown, write = false): any {
+            if (write && mode !== "readwrite") throw new DOMException("Readonly transaction", "ReadOnlyError");
+            const item: any = { result: undefined, error: null, onsuccess: null, onerror: null };
+            enqueue(item, action);
             return item;
           }
           const objectStore = {
-            get(id: IDBValidKey) { return request(() => map.get(id)); },
-            getKey(id: IDBValidKey) { return request(() => map.has(id) ? id : undefined); },
+            get(id: IDBValidKey) { return request(() => snapshot.get(id)); },
+            getKey(id: IDBValidKey) { return request(() => snapshot.has(id) ? id : undefined); },
             add(value: unknown, id: IDBValidKey) {
               return request(() => {
-                if (map.has(id)) throw new Error("Duplicate document");
-                map.set(id, value);
-              });
+                if (snapshot.has(id)) throw new DOMException("Duplicate document", "ConstraintError");
+                snapshot.set(id, value);
+                return id;
+              }, true);
             },
-            put(value: unknown, id: IDBValidKey) { return request(() => { map.set(id, value); }); },
-            delete(id: IDBValidKey) { return request(() => { map.delete(id); }); },
+            put(value: unknown, id: IDBValidKey) { return request(() => { snapshot.set(id, value); return id; }, true); },
+            delete(id: IDBValidKey) { return request(() => { snapshot.delete(id); }, true); },
             openCursor() {
-              pending++;
-              const entries = [...map.entries()];
+              let entries: [IDBValidKey, unknown][] | undefined;
               let index = 0;
-              const item: any = { result: null, onsuccess: null, onerror: null };
+              const item: any = { result: null, error: null, onsuccess: null, onerror: null };
               const next = () => {
-                if (index >= entries.length) {
-                  item.result = null;
-                  item.onsuccess?.();
-                  pending--;
-                  maybeComplete();
-                  return;
-                }
+                entries ??= [...snapshot.entries()];
+                if (index >= entries.length) return null;
                 const [key, value] = entries[index++];
-                item.result = { key, value, continue: () => queueMicrotask(next) };
-                item.onsuccess?.();
+                return { key, value, continue: () => enqueue(item, next) };
               };
-              queueMicrotask(next);
+              enqueue(item, next);
               return item;
             },
           };
           transaction.objectStore = () => objectStore;
+          queue.push(start);
+          if (queue.length === 1) queueMicrotask(start);
           return transaction;
         },
       };
