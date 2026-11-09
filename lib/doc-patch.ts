@@ -1,4 +1,5 @@
 import type { SiteDoc } from "./types";
+import { isDocumentId } from "./document-id";
 
 /** 設定は項目単位、ページ・要素・画像・コンポーネントはID単位で置き換える。 */
 export type DocPatchOp =
@@ -11,8 +12,7 @@ const COLLECTIONS = new Set(["pages", "nodes", "assets", "components"]);
 const REQUIRED = new Set(["schemaVersion", "pages", "nodes", "assets", "pageOrder", "siteName"]);
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
-const safeKey = (key: unknown): key is string => typeof key === "string" &&
-  /^[a-zA-Z0-9_-]{1,200}$/.test(key) && !["__proto__", "constructor", "prototype"].includes(key);
+const safeKey = isDocumentId;
 
 export function isDocPatch(value: unknown): value is DocPatch {
   if (!Array.isArray(value) || !value.length || value.length > MAX_PATCH_OPS) return false;
