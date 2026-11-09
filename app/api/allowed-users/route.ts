@@ -34,11 +34,11 @@ async function requireMe(): Promise<string | NextResponse> {
     );
   }
   const session = await auth();
-  const email = session?.user?.email?.toLowerCase();
-  if (!email) {
+  const identity = session?.user?.email;
+  if (typeof identity !== "string" || !identity.trim()) {
     return NextResponse.json({ error: tr("ログインが必要です") }, { status: 401 });
   }
-  return email;
+  return identity.toLowerCase();
 }
 
 async function listResponse(me: string): Promise<NextResponse> {
