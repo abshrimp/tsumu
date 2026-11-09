@@ -581,8 +581,10 @@ export function PathMenu({
   }
 
   const known = root !== undefined;
-  const levelValue = at ? digPath(root, at) : root;
-  const rows = !known ? (at ? [] : UNKNOWN_ITEMS) : childOptions(levelValue);
+  // Building child options (often thousands of script variables) is only
+  // necessary for an open menu, not every closed dropdown on initial render.
+  const levelValue = open ? (at ? digPath(root, at) : root) : undefined;
+  const rows = !open ? [] : !known ? (at ? [] : UNKNOWN_ITEMS) : childOptions(levelValue);
   const join = (key: string) => (at ? `${at}.${key}` : key);
   /** 文字・数値だけのリスト（比べるときは「,」でつないだ文字になる） */
   const primitiveList = (v: unknown) =>
