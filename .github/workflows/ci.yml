@@ -16,7 +16,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -35,6 +35,28 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       - name: Audit all dependencies
         run: npm audit --audit-level=high
+      - name: Build and smoke-test the non-root Docker runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --tag tsumu:ci .
+          docker run --detach --name tsumu-ci --publish 127.0.0.1:3188:3000 \
+            --mount type=volume,source=tsumu-ci-data,target=/data tsumu:ci
+          cleanup() {
+            docker logs tsumu-ci || true
+            docker rm --force tsumu-ci || true
+            docker volume rm tsumu-ci-data || true
+          }
+          trap cleanup EXIT
+          test "$(docker exec tsumu-ci id -u)" = "1000"
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:3188/robots.txt; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Docker runtime did not respond to HTTP requests" >&2
+          exit 1
 
   e2e-shard:
     runs-on: ubuntu-latest

@@ -26,6 +26,7 @@
 | AUD-I-012 | Medium | DockerのNext.js配布ファイルがroot所有で、nodeユーザーからキャッシュ等の書込が失敗し得た。 | COPY --chown=node:nodeを両コピーに適用し、非rootファイル所有テストを追加。 |
 | AUD-I-013 | Low | CIのnpxコマンドが、バイナリ不足時に意図しないパッケージ取得を実行し得た。 | Playwright/Next/OpenNext起動に--no-installを付け、意図しない外部取得を防止。 |
 | AUD-I-014 | Medium | 本番deploy引数の拒否一覧がWranglerの--cwd、--env-file、--profile、--route、--assets等を許し、設定確認後の対象・環境・公開経路を変える余地が残っていた。 | 対象・環境・公開経路を上書きする追加オプションと引数区切り--を拒否。既存の--dry-runは保持し、拒否テストを拡充。 |
+| AUD-I-015 | Low（テスト不足） | DockerのNext.js standalone成果物が実際に起動できるか、非root実行ユーザー、/dataボリューム、HTTPの正常応答が静的テストだけでは証明できなかった。 | 既存の必須CI checkジョブ内にDocker image build・非root UID・/data volume・HTTPスモーク試験を追加。独立ジョブは増やさない。 |
 
 重要度は成立条件が設定ミスやサプライチェーンに依存することを考慮した暫定評価。Critical/Highが不存在であるとの判定ではない。
 
@@ -49,7 +50,7 @@ npmのallowScriptsはインストールスクリプト実行の許可設定で�
 
 | ジョブ・機構 | 検査対象 | 必須チェックとの関係 |
 |---|---|---|
-| check | npm ci、型検査、単体/統合テスト、i18n、Cloudflare Worker build、実行時と全依存のnpm audit | main Rulesetで必須 |
+| check | npm ci、型検査、単体/統合テスト、i18n、Cloudflare Worker build、実行時と全依存のnpm audit、Docker image build・非root HTTP smoke | main Rulesetで必須 |
 | e2e-shard (1〜4) | Playwright/Chromium。毎回テストを発見し、4分割。各シャードがNext.js buildを行う | main Rulesetで4件必須 |
 | generated-formats（Next.js/React/Vue/Nuxt/SvelteKit） | TypeScriptとJavaScriptの生成・ビルド・npm audit。対象形式のSSRと代表的なブラウザ動作も確認 | main Rulesetで5件必須 |
 | CodeQL | 別経路のコードスキャン（default setupと設定ファイル） | main RulesetのコードスキャンルールでHigh以上/Errorsを制限 |
@@ -113,3 +114,5 @@ docker build -t tsumu-audit-i .
 - 旧HEAD `3d02386cbc4640ca269d33e0915dc782c105352a` はCI 10/10ジョブ、CodeQLのJavaScript/TypeScript・Actions、Cloudflare Workers BuildsのGitHubチェックが成功。Cloudflareのチェックは実際のデプロイ・本番バインディングの検証を意味しない。追加修正後のHEADはCI再確認が必要。
 - Cloudflare公式資料によると、Wrangler CLIのグローバル引数には`--cwd`、`--env-file`、`--profile`、デプロイ引数には`--route`、`--assets`等が存在する。OpenNext CLIはWrangler引数も受け付ける。対象を上書きし得る引数を追加拒否した（AUD-I-014）。出典: https://developers.cloudflare.com/workers/wrangler/commands/workers/ 、https://opennext.js.org/cloudflare/cli 。
 - Docker Hubの`node:26.12.1-slim`（index digest `sha256:36793bcbb160a6a16cede1e62b93f84e26b78a972a8a4c0b879c1c12f22761ec`）にはスキャナ上High判定のOS/npmパッケージ脆弱性が残る。Dockerイメージの固定は脆弱性解消を意味しない。実際のTsumuへの到達可能性と修正可能なOSパッケージの検証はR-I-003として継続。https://hub.docker.com/layers/library/node/26.12.1-slim/images/sha256-80eccfd7e3fa8663c84881efb6b28c7411672a337aec1769f0fb9e3adc4a4d8b
+
+- CI必須 `check` 内で、Dockerを実際にビルドし、UID 1000の非rootプロセス、`/data`ボリューム、`/robots.txt` HTTP応答を検証するステップを追加した。新コミットでの実行成功確認前にはDocker動作検証済みと判断しない。マルチアーキテクチャ起動とOS CVEスキャンは引き続きR-I-003。
