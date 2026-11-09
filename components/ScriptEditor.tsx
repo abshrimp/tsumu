@@ -210,6 +210,15 @@ function ScriptEditorInner({
     () => pageScriptsOf(doc, nodeIds, activePageId),
     [doc, nodeIds, activePageId]
   );
+  const stepOwners = useMemo(() => {
+    const owners = new Map<string, string>();
+    for (const script of scripts) {
+      walkSteps(script.steps, (step) => {
+        if (!owners.has(step.id)) owners.set(step.id, script.id);
+      });
+    }
+    return owners;
+  }, [scripts]);
   const pageLoadScriptIds = useMemo(() => new Set(
     scripts.filter((s) => s.nodeId === PAGE_TARGET && s.trigger === "load").map((s) => s.id)
   ), [scripts]);
@@ -377,18 +386,27 @@ function ScriptEditorInner({
   const [menu, setMenu] = useState<Menu | null>(null);
   const [selectedList, setSelectedList] = useState<string[]>([]);
   const selected = useMemo(() => new Set(selectedList), [selectedList]);
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const scopedSelections = useMemo(() => {
+    const byScript = new Map<string, string[]>();
+    for (const key of selectedList) {
+      const owner = key.startsWith("script:") ? key.slice(7) :
+        key.startsWith("step:") ? stepOwners.get(key.slice(5)) : undefined;
+      if (!owner) continue;
+      const values = byScript.get(owner) ?? [];
+      values.push(key);
+      byScript.set(owner, values);
+    }
+    return byScript;
+  }, [selectedList, stepOwners]);
   /** 最後に選んだスクリプトほど後ろ（= 手前に描く）。重なったブロックを選んだら前に出す */
   const [front, setFront] = useState<string[]>([]);
   useEffect(() => {
     if (!selectedList.length) return;
-    const owners = scripts
-      .filter((sc) =>
-        selectedList.some((key) =>
-          key === `script:${sc.id}` ||
-          (key.startsWith("step:") && stepIn(sc.steps, key.slice(5)))
-        )
-      )
-      .map((sc) => sc.id);
+    const ids = new Set(selectedList.map((key) => key.startsWith("script:") ? key.slice(7) :
+      key.startsWith("step:") ? stepOwners.get(key.slice(5)) : undefined));
+    const owners = scripts.filter((script) => ids.has(script.id)).map((script) => script.id);
     if (!owners.length) return;
     setFront((prev) => {
       const next = [...prev.filter((id) => !owners.includes(id)), ...owners];
@@ -510,7 +528,7 @@ function ScriptEditorInner({
       );
       return;
     }
-    if (key && !selected.has(key)) setSelectedList([key]);
+    if (key && !selectedRef.current.has(key)) setSelectedList([key]);
     if (!key) setSelectedList([]);
     // 入力欄の操作はドラッグにしない
     if (t.closest("input, select, textarea, button, label")) return;
@@ -532,9 +550,9 @@ function ScriptEditorInner({
       ox: (e.clientX - r.left) / z,
       oy: (e.clientY - r.top) / z,
       h: r.height / z,
-      clickKey: key && selected.has(key) && selected.size > 1 ? key : undefined,
+      clickKey: key && selectedRef.current.has(key) && selectedRef.current.size > 1 ? key : undefined,
     };
-  }, [selected]);
+  }, []);
 
   const view = useMemo(() => {
     const p = drag?.payload;
@@ -547,7 +565,7 @@ function ScriptEditorInner({
     return scripts;
   }, [scripts, drag?.payload]);
 
-  const ctx = useMemo<EdCtx>(() => ({
+  const sharedCtx = useMemo<EdCtx>(() => ({
     doc,
     pageId: activePageId,
     scriptRootIds: extraRootsKey ? extraRootsKey.split(",") : [],
@@ -562,8 +580,8 @@ function ScriptEditorInner({
     focusNodeId,
     readOnly: false,
     activeSlot: null,
-    selected,
-    zOrder,
+    selected: new Set<string>(),
+    zOrder: new Map<string, number>(),
     // 取得のように後から呼ばれることがあるため、描画時点ではなく最新の状態に適用する
     updateStep: (stepId, fn) =>
       commit(
@@ -624,12 +642,14 @@ function ScriptEditorInner({
     openMenu: (e, target, key) => {
       e.preventDefault();
       e.stopPropagation();
-      if (!selected.has(key)) setSelectedList([key]);
+      if (!selectedRef.current.has(key)) setSelectedList([key]);
       setMenu({ x: e.clientX, y: e.clientY, target, key });
     },
   }), [doc, activePageId, extraRootsKey, targets, tree, scripts,
-    variableIndex, transformSources, pageLoadScriptIds, serverStepIds, elements, focusNodeId, selected,
-    zOrder, commit, updateDoc, nodeIds, arrays, samples, begin]);
+    variableIndex, transformSources, pageLoadScriptIds, serverStepIds, elements, focusNodeId,
+    commit, updateDoc, nodeIds, arrays, samples, begin]);
+  const ctx = useMemo<EdCtx>(() => ({ ...sharedCtx, selected, zOrder }),
+    [sharedCtx, selected, zOrder]);
 
   const runMenu = (action: "delete" | "duplicate") => {
     if (!menu) return;
@@ -936,11 +956,11 @@ function ScriptEditorInner({
               className="se-ws-inner"
               style={{ width: wsSize.w, height: wsSize.h, zoom }}
             >
-              <Ctx.Provider value={ctx}>
-                {view.map((s) => (
-                  <MemoStackView key={s.id} script={s} />
-                ))}
-              </Ctx.Provider>
+              {view.map((s) => (
+                <ScopedStackView key={s.id} script={s} shared={sharedCtx}
+                  selectedKeys={scopedSelections.get(s.id) ?? EMPTY_SCRIPT_KEYS}
+                  zIndex={zOrder.get(s.id)} />
+              ))}
             </div>
             {!scripts.length && (
               <div className="se-empty">
