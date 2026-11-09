@@ -9,6 +9,7 @@
 import type { BreakpointDef, DocNode, NodeStyles, Page, ScriptStep, SiteDoc } from "./types";
 import { buildClipPayload, mergeClipDeps, remapAssetIds, type ClipPayload } from "./clip-transfer";
 import { createInitialDoc, genId } from "./presets";
+import { cloneSteps, scriptUid } from "./script";
 import { copySlug, uniquePageNaming } from "./store";
 import { isLocalSiteDeleted } from "./site";
 import { readBrowserDoc, writeBrowserDoc } from "./browser-doc-storage";
@@ -138,12 +139,17 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
     for (const s of n.scripts ?? []) mapSteps(s.steps, toPage);
   }
 
+  // The page script editor addresses scripts and their nested blocks by ID.
+  // Copying the same page twice must not make edits or selection ambiguous.
+  const cloneScripts = <T extends { id: string; steps: ScriptStep[] }>(scripts: T[] | undefined): T[] | undefined =>
+    scripts?.map((s) => ({ ...s, id: scriptUid(), steps: cloneSteps(s.steps) }));
   const nodeMap = new Map<string, string>();
   for (const n of p.nodes) nodeMap.set(n.id, genId("node"));
   for (const raw of p.nodes) {
     const n = remapAssetIds(structuredClone(raw), assetMap);
     n.id = nodeMap.get(raw.id)!;
     n.children = n.children.map((c) => nodeMap.get(c)).filter((c): c is string => !!c);
+    if (n.scripts) n.scripts = cloneScripts(n.scripts);
     if (n.type === "instance" && n.componentId) {
       n.componentId = componentMap.get(n.componentId) ?? n.componentId;
     }
@@ -162,6 +168,8 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
       0
     );
     page.id = id;
+    if (page.scripts) page.scripts = cloneScripts(page.scripts);
+    if (page.pageScripts) page.pageScripts = cloneScripts(page.pageScripts);
     page.name = name;
     page.slug = slug;
     // コピー先のサイトと言語が違えば、ページの言語として残す（中身はコピー元の言語のまま）
