@@ -17,6 +17,7 @@
 | AUD-D-003 | Medium | Canvas element resize called the previous gesture's cleanup when another pointer started; it did not detect remote document replacement and had no Escape/visibility cancellation. | Resize node A with pointer 1 while pointer 2 starts; then apply a collaborator's edit to node B. The old drag must not overwrite any new document or accept late move events. | Fixed in `components/canvas/useCanvasDrag.ts`; regression: `tests/canvas-node-resize-lifecycle.test.mts` (CI pending). |
 | AUD-D-004 | Low | With a rendered element at 0px width, Shift corner-resize divided by the initial width and could write invalid `Infinitypx` CSS. | Select an element with zero rendered width and drag a corner with Shift; both dimensions must remain finite and undoable. | Fixed in Canvas resize hook; regression: `tests/canvas-node-resize-lifecycle.test.mts` (CI pending). |
 | AUD-D-005 | Medium (security) | The Canvas CSS builder appended arbitrary style-map names and values as raw CSS declarations; a malformed SiteDoc could escape the scoped rule. | Feed malformed CSS keys / stray declaration terminators and style-close tags through a SiteDoc; generated Canvas CSS must not contain new global selectors or HTML style termination. Valid data URLs and quoted semicolons must survive. | Fixed in `components/canvas/css.ts`; regression: `tests/canvas-css-declarations.test.mts` (CI pending). |
+| AUD-D-006 | Medium (security) | Canvas selection, resize lookup, drop-preview and moving-node overlay interpolated unquoted IDs in CSS attribute selectors; arbitrary SiteDoc IDs containing CSS punctuation could break selectors. | Create a document with an ID containing a quote, bracket, braces, newline, Unicode, or style-close tag. Canvas selectors must represent exactly that ID and must not produce another CSS rule. | Fixed with `lib/css-selector.ts` in `Canvas.tsx`, `canvas/useCanvasDrag.ts` and `canvas/css.ts`; regression: `tests/canvas-selector-escaping.test.mts` (CI pending). |
 
 ## Audit matrix
 
@@ -35,7 +36,8 @@
 - Panel resize pointer ownership, blur/visibility/capture-loss/unmount cleanup and concurrent left/right resize cursor reference-counting.
 - Canvas node resize pointer ownership; stale document / remote edit detection; Escape/visibility abort handlers; finite sizing at zero initial width.
 - CSS declaration containment for SiteDoc-derived style-map keys and values. Normal quoted strings, nested functions, URL data and custom properties are preserved.
-- Callback-level, store-level and CSS generation regressions for all five findings, including single-step Undo/Redo and invalidated gestures.
+- Consistent hex-escaped CSS attribute-selector quoting for arbitrary node IDs in Canvas previews, drag overlays and node targeting.
+- Callback-level, store-level and CSS generation regressions for all six findings, including single-step Undo/Redo and invalidated gestures.
 - `e2e/panel-resize.spec.ts` covers real-browser pointer cancellation and 1360/1024/900px panel layouts.
 
 ### Pending evidence
