@@ -31,7 +31,7 @@ const STEP_ALIASES: Record<string, StepPosition> = {
 
 const num = (s: string): number | null => {
   const t = s.trim();
-  if (!/^[-+]?(\d+\.?\d*|\.\d+)$/.test(t)) return null;
+  if (!/^[-+]?(\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?$/i.test(t)) return null;
   const value = Number(t);
   return Number.isFinite(value) ? value : null;
 };
@@ -57,6 +57,8 @@ export function parseEasing(value: string | undefined): Easing | null {
     const parts = steps[1].split(",");
     if (parts.length > 2) return null;
     const [countRaw, posRaw] = parts;
+    // CSS <integer> does not accept decimal/exponent number tokens.
+    if (!/^[-+]?\d+$/.test(countRaw?.trim() ?? "")) return null;
     const n = num(countRaw ?? "");
     const name = posRaw?.trim();
     const pos = name === undefined ? "jump-end" : Object.hasOwn(STEP_ALIASES, name) ? STEP_ALIASES[name] : null;
@@ -67,14 +69,14 @@ export function parseEasing(value: string | undefined): Easing | null {
   return null;
 }
 
-const round = (n: number) => Math.round(n * 100) / 100;
-
 /** CSS の値にする。キーワードやプリセットと同じ曲線なら、その書き方を使う */
 export function easingValue(e: Easing): string {
   if (e.kind === "steps") {
     return e.pos === "jump-end" ? `steps(${e.n})` : `steps(${e.n}, ${e.pos})`;
   }
-  const b = e.b.map(round) as Bezier;
+  // Preserve parsed/input precision. Pointer dragging already rounds its own
+  // coordinates; merely opening and applying must not change the curve.
+  const b = e.b;
   for (const [name, kb] of Object.entries(KEYWORDS)) {
     if (kb.every((v, i) => v === b[i])) return name;
   }
