@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { createRequire } from "node:module";
 import JSZip from "jszip";
 import { assetUsage } from "../lib/asset-usage";
-import { assetSrc } from "../lib/assets";
+import { assetSrc, mediaSrc } from "../lib/assets";
 import { convertHtmlFile } from "../lib/html-file-import";
 import { parseSiteImport, restoreImportAssets } from "../lib/site-import";
 import { exportProjectZip } from "../lib/exportZip";
@@ -19,6 +19,13 @@ function parseDocument(html: string) {
     if (!node) return node;
     if (cache.has(node)) return cache.get(node);
     const proxy = new Proxy(node, { get(target, key) {
+      if (key === "style") {
+        const declarations = (target.getAttribute?.("style") || "").split(";").map((part: string) => part.split(":"));
+        const entries = declarations.filter((pair: string[]) => pair.length === 2);
+        return { length: entries.length, item: (i: number) => entries[i][0],
+          getPropertyValue: (name: string) => entries.find((pair: string[]) => pair[0] === name)?.[1] || "",
+          getPropertyPriority: () => "" };
+      }
       if (key === "attributes") return Object.entries(target.attributes).map(([name, value]) => ({ name, value }));
       if (key === "namespaceURI") return "http://www.w3.org/1999/xhtml";
       if (key === "childNodes") return target.childNodes.map(wrap);
@@ -81,8 +88,8 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
     <img id="plain" src="view.svg" alt="Plain">
     <video id="plain-clip" src="clip.mp4"></video>
     <img id="view" src="view.svg?version=2#detail" alt="Detail">
-    <video id="clip" src="clip.mp4?version=3#t=5,10" controls></video>
-    <audio id="sound"><source src="sound.mp3#t=2,4" type="audio/mpeg"></audio></body></html>`)
+    <video id="clip" src="clip.mp4?version=3#t=5,10" style="opacity:0.5;transform:translateX(12px)" controls></video>
+    <audio id="sound"><source src="sound.mp3#t=2,4" type="audio/mpeg" media="(min-width: 600px)"><source src="clip.mp4#t=3" type="audio/mp4"></audio></body></html>`)
     .file("view.svg", '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8"><view id="detail" viewBox="0 0 6 4"/><rect width="12" height="8"/></svg>')
     .file("clip.mp4", "video fixture").file("sound.mp3", "audio fixture");
 
@@ -101,16 +108,26 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
     for (const [id, path, fragment, query] of cases) {
       const node = Object.values(doc.nodes).find(node => node.attrId === id)!;
       const asset = Object.values(doc.assets).find(asset => asset.zip?.path === path)!;
-      assert.equal(node.type, "code", id);
-      const element = parse(node.code!.html);
-      assert.equal(element.querySelector("[src]").getAttribute("src"), assetSrc(asset) + (local ? "" : query) + fragment);
+      assert.equal(node.type, id === "view" ? "image" : "media", id);
+      const ref = node.image || node.media!.sources?.[0] || node.media!;
+      assert.equal(ref.assetId, asset.id);
+      assert.equal(ref.assetSuffix, (local || !query ? "" : "?" + query.slice(1)) + fragment);
+      assert.equal(mediaSrc(doc, ref), assetSrc(asset) + (local ? "" : query) + fragment);
       assert.ok(assetUsage(doc).has(asset.id), path + " must remain in use");
     }
-    assert.ok(warnings.length, "custom HTML fallback must be disclosed");
-    assert.ok(Object.values(doc.nodes).find(node => node.attrId === "sound")!.code!.html.includes('type="audio/mpeg"'));
+    assert.equal(Object.values(doc.nodes).find(node => node.attrId === "sound")!.media!.sources![0].type, "audio/mpeg");
+    assert.ok(!warnings.some(message => message.includes("カスタムコード")));
+    const clip = Object.values(doc.nodes).find(node => node.attrId === "clip")!;
+    assert.equal(clip.styles.base.default.opacity, "0.5");
+    assert.equal(clip.styles.base.default.transform, "translateX(12px)");
+    assert.equal(clip.code, undefined);
+    const sound = Object.values(doc.nodes).find(node => node.attrId === "sound")!;
+    assert.equal(sound.media!.sources!.length, 2);
+    assert.equal(sound.media!.sources![0].media, "(min-width: 600px)");
+    assert.equal(sound.media!.sources![1].assetSuffix, "#t=3");
     assert.equal(uploads, 3);
     assert.equal(Object.keys(doc.assets).length, 3);
-    for (const framework of ["html", "nextjs", "vue", "sveltekit"] as const) {
+    for (const framework of ["html", "nextjs", "react", "vue", "nuxt", "sveltekit"] as const) {
       const before = structuredClone(doc);
       download = undefined;
       assert.deepEqual(await exportProjectZip(doc, framework), []);
@@ -120,6 +137,16 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
       const files = Object.values(archive.files).filter(entry => !entry.dir && !entry.name.includes("/_tsumu/"));
       const output = (await Promise.all(files.map(entry => entry.async("text")))).join("\n");
       assert.ok(!output.includes("/api/assets/file"), framework);
+      if (framework === "html") {
+        const page = files.find(entry => entry.name.endsWith("/index.html"))!;
+        const html = parse(await page.async("text"));
+        assert.equal(html.querySelectorAll("#clip").length, 1);
+        assert.equal(html.querySelector("#clip").tagName, "VIDEO");
+        assert.equal(html.querySelector("#clip").getAttribute("style"), undefined);
+        assert.equal(html.querySelector("#sound").getAttribute("src"), undefined);
+        assert.equal(html.querySelectorAll("#sound > source").length, 2);
+        assert.equal(html.querySelector("#sound > source").getAttribute("type"), "audio/mpeg");
+      }
       for (const [, path, fragment, query] of cases) {
         const asset = Object.values(doc.assets).find(asset => asset.zip?.path === path)!;
         const exported = "assets/" + buildAssetNames(doc).get(asset.id) +
@@ -140,8 +167,7 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
       for (const [id, path, fragment] of cases) {
         const node = Object.values(restored.nodes).find(node => node.attrId === id)!;
         const asset = Object.values(restored.assets).find(asset => asset.zip?.path === path)!;
-        assert.ok(node.code!.html.includes(assetSrc(asset) + fragment));
-        assert.ok(!node.code!.html.includes("data:"));
+        assert.equal(mediaSrc(restored, node.image || node.media!.sources?.[0] || node.media!), assetSrc(asset) + fragment);
         assert.ok(assetUsage(restored).has(asset.id));
       }
     }

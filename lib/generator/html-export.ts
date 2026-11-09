@@ -7,7 +7,7 @@ import type { GeneratedProject } from "../generator";
 import { obfuscateVarNames, pagePlan } from "../data";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
-import { assetSrc } from "../assets";
+import { assetMediaUrl, assetSrc } from "../assets";
 import { importedAssetUrl, isZipJavascript } from "./imported-assets";
 import { cssValue, rawHtmlWithBodyStyles, usedGoogleFonts } from "./css";
 import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
@@ -274,7 +274,7 @@ function render(ctx: Context, id: string, top: boolean): string {
     if (n.type === "divider") return "<hr" + commonAttrs + ">";
     if (n.type === "image" && n.image) {
       const im = n.image;
-      const src = im.assetId ? resource(ctx, im.assetId) : sourceHref(ctx, im.src);
+      const src = im.assetId ? assetMediaUrl(resource(ctx, im.assetId), im.assetSuffix) : sourceHref(ctx, im.src);
       const imageAttrs = attr("src", hasVars(src) ? EMPTY_GIF : (src || EMPTY_GIF)) +
         (hasVars(src) ? attr("data-static-src", src) : "") +
         (hasVars(src) && ctx.template ? attr("data-image-src-parts", templateParts(src)) : "") +
@@ -301,12 +301,16 @@ function render(ctx: Context, id: string, top: boolean): string {
     if (n.type === "media" && n.media) {
       const media = n.media;
       const tag = media.kind === "audio" ? "audio" : "video";
-      const src = media.assetId ? resource(ctx, media.assetId) : sourceHref(ctx, media.src);
-      if (!src) return "";
-      return "<" + tag + commonAttrs + attr("src", src) + " controls" +
+      const src = media.assetId ? assetMediaUrl(resource(ctx, media.assetId), media.assetSuffix) : media.src.trim() ? sourceHref(ctx, media.src) : "";
+      const sources = (media.sources ?? []).map((source) => {
+        const url = source.assetId ? assetMediaUrl(resource(ctx, source.assetId), source.assetSuffix) : source.src.trim() ? sourceHref(ctx, source.src) : "";
+        return url.trim() ? "<source" + attr("src", url) + attr("type", source.type) + attr("media", source.media) + ">" : "";
+      }).join("");
+      if (!src.trim() && !sources) return "";
+      return "<" + tag + commonAttrs + attr("src", src.trim() ? src : undefined) + " controls" +
         flag("loop", media.loop) + flag("autoplay", media.autoplay) +
         flag("muted", media.muted || media.autoplay) + (tag === "video" ? " playsinline" : "") +
-        "></" + tag + ">";
+        ">" + sources + "</" + tag + ">";
     }
     if (n.type === "embed" && n.embed) {
       const src = embedSrc(n.embed);

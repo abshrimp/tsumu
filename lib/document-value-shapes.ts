@@ -1,3 +1,4 @@
+import { validAssetSuffix } from "./media-url";
 /** Runtime checks for optional persisted fields shared by import, save and PATCH. */
 type Check = (value: unknown) => boolean;
 const record = (value: unknown): value is Record<string, unknown> =>
@@ -60,11 +61,14 @@ export function validNodeAdditionalFields(node: Record<string, unknown>): boolea
       optional(x.newTab, bool) && optional(x.pos, point)) &&
     nullable(node.image, x => record(x) &&
       str(x.src) && str(x.alt) && finite(x.width) && finite(x.height) &&
-      optional(x.assetId, str) && optional(x.priority, bool) &&
+      optional(x.assetId, str) && optional(x.assetSuffix, v => str(x.assetId) && validAssetSuffix(v)) && optional(x.priority, bool) &&
       optional(x.crispShadow, bool)) &&
     nullable(node.media, x => record(x) &&
       choice(x.kind, ["video", "audio"]) && str(x.src) &&
-      optional(x.assetId, str) &&
+      optional(x.assetId, str) && optional(x.assetSuffix, v => str(x.assetId) && validAssetSuffix(v)) &&
+      optional(x.sources, values => arrayOf(values, source => record(source) && str(source.src) &&
+        optional(source.assetId, str) && optional(source.assetSuffix, v => str(source.assetId) && validAssetSuffix(v)) &&
+        optional(source.type, str) && optional(source.media, str))) &&
       ["loop", "autoplay", "muted"].every(key => optional(x[key], bool))) &&
     nullable(node.embed, x => record(x) &&
       choice(x.kind, ["youtube", "map", "url"]) && str(x.src)) &&
