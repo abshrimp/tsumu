@@ -10,6 +10,7 @@ import { insertSite } from "../lib/sites";
 import * as comments from "../lib/comments";
 import type { ActivityUser } from "../lib/activity";
 import { userMessage } from "../lib/errors";
+import { JsonBodyTooLargeError, readJsonLimited } from "../lib/api-json";
 
 const author = { email: "author@example.com", name: "Author", image: null };
 const other = { email: "other@example.com", name: "Other", image: null };
@@ -98,7 +99,7 @@ function api(db: Db, user: ActivityUser | null = author) {
   const injected = {
     listCommentPage: comments.listCommentPage, parseCommentCursor: comments.parseCommentCursor,
     parseCommentAction: comments.parseCommentAction, runCommentAction: comments.runCommentAction,
-    NextResponse, userMessage,
+    NextResponse, userMessage, JsonBodyTooLargeError, readJsonLimited,
     serverTr: async () => (text: string) => text,
     requireAuth: async () => null, sessionUser: async () => user,
     dbConfigured: () => true, getDb: async () => db,
