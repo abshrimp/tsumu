@@ -165,7 +165,7 @@ function addTailwind(files: Record<string, string>, framework: ExportFormat) {
     files[config] = 'import tailwindcss from "@tailwindcss/vite";\n' + files[config];
     if (framework === "vue") files[config] = files[config]
       .replace("plugins: [vue()]", "plugins: [vue(), tailwindcss()]");
-    else {
+    else if (framework === "sveltekit") {
       // SvelteKit's scaffold calls sveltekit({ adapter: adapter() }), not
       // sveltekit(). Matching only the zero-argument call silently left
       // Tailwind's Vite plugin disabled and utility classes ungenerated.
