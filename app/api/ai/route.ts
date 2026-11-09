@@ -53,14 +53,14 @@ export async function POST(req: Request) {
   const { turns, context } = parsed;
   const failure = (e: unknown): { error: string; status: number } => {
     if (e instanceof AiApiError) {
-      console.error("AI request failed", { kind: e.kind, status: e.status, detail: e.message.slice(0, 500) });
+      console.error("AI request failed", { kind: e.kind, status: e.status });
       if (e.kind === "timeout") return { error: tr("AIの応答が時間内に完了しませんでした。もう一度お試しください。"), status: 504 };
       if (e.kind === "incomplete") return { error: tr("AIの編集を完了できませんでした。変更は適用していません。依頼を小さく分けてお試しください。"), status: 502 };
       if (e.kind === "auth") return { error: tr("AIサービスに接続できませんでした。管理者に確認してください"), status: 502 };
       if (e.kind === "rate") return { error: tr("AIの利用が混み合っています。少し待ってからお試しください"), status: 429 };
       return { error: tr("AIに問い合わせできませんでした（{status}）", { status: e.status ?? "?" }), status: 502 };
     }
-    console.error(e);
+    console.error("AI request failed unexpectedly", { kind: e instanceof Error ? e.name : typeof e });
     return { error: tr("AIに問い合わせできませんでした"), status: 502 };
   };
   const execute = async (emit: ((event: AiProgress) => void) | undefined, signal: AbortSignal): Promise<AiResult> => {
