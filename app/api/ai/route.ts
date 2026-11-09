@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { serverTr } from "../../../lib/i18n-server";
 import { requireAuth } from "../../../lib/server";
-import { applyAiOps, type AiOp } from "../../../lib/aiOps";
+import { applyAiOps, MAX_AI_ADDED_NODES, type AiOp } from "../../../lib/aiOps";
 import { AI_NOT_ENABLED, aiConfig } from "../../../lib/ai/config";
 import { AiApiError, runAi } from "../../../lib/ai/run";
 import { parseAiRequest, readAiRequest } from "../../../lib/ai/request";
@@ -53,24 +53,28 @@ export async function POST(req: Request) {
   const { turns, context } = parsed;
   const failure = (e: unknown): { error: string; status: number } => {
     if (e instanceof AiApiError) {
-      console.error("AI request failed", { kind: e.kind, status: e.status, detail: e.message.slice(0, 500) });
+      console.error("AI request failed", { kind: e.kind, status: e.status });
       if (e.kind === "timeout") return { error: tr("AIの応答が時間内に完了しませんでした。もう一度お試しください。"), status: 504 };
       if (e.kind === "incomplete") return { error: tr("AIの編集を完了できませんでした。変更は適用していません。依頼を小さく分けてお試しください。"), status: 502 };
       if (e.kind === "auth") return { error: tr("AIサービスに接続できませんでした。管理者に確認してください"), status: 502 };
       if (e.kind === "rate") return { error: tr("AIの利用が混み合っています。少し待ってからお試しください"), status: 429 };
       return { error: tr("AIに問い合わせできませんでした（{status}）", { status: e.status ?? "?" }), status: 502 };
     }
-    console.error(e);
+    console.error("AI request failed unexpectedly", { kind: e instanceof Error ? e.name : typeof e });
     return { error: tr("AIに問い合わせできませんでした"), status: 502 };
   };
   const execute = async (emit: ((event: AiProgress) => void) | undefined, signal: AbortSignal): Promise<AiResult> => {
     const refs = new Map<string, string>();
     const operations: AiOp[] = [];
+    const initialNodeCount = Object.keys(context.doc.nodes).length;
     const reply = await runAi(conf, turns, (input) => {
       const ops = (input as { operations?: unknown })?.operations;
       if (!Array.isArray(ops)) return { content: "operations must be an array", isError: true };
       const { applied, errors } = applyAiOps(context.doc, ops as AiOp[], context.target, refs);
       operations.push(...applied);
+      if (Object.keys(context.doc.nodes).length > initialNodeCount + MAX_AI_ADDED_NODES) {
+        throw new AiApiError("incomplete", undefined, "AI element growth limit reached");
+      }
       if (operations.length > 400) throw new AiApiError("incomplete", undefined, "Operation limit reached");
       const counts: Partial<Record<AiOp["op"], number>> = {};
       for (const op of applied) counts[op.op] = (counts[op.op] ?? 0) + 1;

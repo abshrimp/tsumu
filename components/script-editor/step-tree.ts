@@ -156,21 +156,35 @@ export function mapStep(
   stepId: string,
   fn: (s: ScriptStep) => ScriptStep
 ): PageScript[] {
-  const mapList = (list: ScriptStep[]): ScriptStep[] =>
-    list.map((s) =>
-      s.id === stepId
-        ? fn(s)
-        : s.kind === "if"
-          ? {
-              ...s,
-              then: mapList(s.then),
-              ...(s.else ? { else: mapList(s.else) } : {}),
-            }
-          : s.kind === "repeat" || s.kind === "for-each"
-            ? { ...s, then: mapList(s.then) }
-            : s
-    );
-  return scripts.map((s) => ({ ...s, steps: mapList(s.steps) }));
+  // Preserve untouched subtrees. Previously one input edit cloned every
+  // script, branch and block, producing large amounts of garbage.
+  const mapList = (list: ScriptStep[]): ScriptStep[] => {
+    let changed: ScriptStep[] | null = null;
+    list.forEach((step, index) => {
+      let next: ScriptStep = step;
+      if (step.id === stepId) {
+        next = fn(step);
+      } else if (step.kind === "if") {
+        const then = mapList(step.then);
+        const otherwise = step.else ? mapList(step.else) : undefined;
+        if (then !== step.then || otherwise !== step.else) {
+          next = { ...step, then, ...(step.else ? { else: otherwise } : {}) };
+        }
+      } else if (step.kind === "repeat" || step.kind === "for-each") {
+        const then = mapList(step.then);
+        if (then !== step.then) next = { ...step, then };
+      }
+      if (next !== step) {
+        changed ??= list.slice();
+        changed[index] = next;
+      }
+    });
+    return changed ?? list;
+  };
+  return scripts.map((script) => {
+    const steps = mapList(script.steps);
+    return steps === script.steps ? script : { ...script, steps };
+  });
 }
 
 /**
