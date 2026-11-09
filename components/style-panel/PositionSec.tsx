@@ -167,7 +167,7 @@ export function PositionSec() {
            */
           const swapAnchor = (from: string, to: string) =>
             insp.set({
-              [to]: insp.get(from).value ?? "0px",
+              [to]: isSet(insp.get(from).value) ? insp.get(from).value! : "0px",
               [from]: isSet(insp.get(from).baseline) ? "auto" : null,
             });
           return (
@@ -272,7 +272,7 @@ export function PositionSec() {
                   serializeTransform({
                     ...tf,
                     rotate: v ? (parseNumeric(v)?.num ?? 0) : 0,
-                  }) ?? insp.cleared("transform"),
+                  }) ?? (v === null ? insp.cleared("transform") : explicitDefault(insp, "transform")),
               })
             }
           />

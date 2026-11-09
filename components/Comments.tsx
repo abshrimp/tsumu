@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, ChevronsLeft, CornerDownLeft, Eye, EyeOff, MessageSquare, MoreHorizontal, Pencil, RotateCcw, Trash2, X } from "lucide-react";
 import { useEditor } from "../lib/store";
 import { commentId, openPostedComment, closeCommentIfOpen, useComments, type CommentDraft } from "../lib/comment-store";
@@ -42,7 +42,7 @@ export function usePageThreads(): CommentThread[] {
 /* ---------- 書き込み欄 ---------- */
 
 /** 送信していない本文（スレッドごと）。一覧へ戻ったり別のスレッドを開いたりしても失わないようにする */
-const unsentBodies = new Map<string, string>();
+const unsentBodies = new Map<string, { body: string }>();
 
 function Composer({
   placeholder,
@@ -64,11 +64,11 @@ function Composer({
   onSubmit: (body: string) => Promise<boolean> | boolean;
   onCancel?: () => void;
 }) {
-  const [body, setBodyState] = useState((draftKey && unsentBodies.get(draftKey)) || initial);
+  const [body, setBodyState] = useState((draftKey && unsentBodies.get(draftKey)?.body) || initial);
   const setBody = (next: string) => {
     setBodyState(next);
     if (!draftKey) return;
-    if (next) unsentBodies.set(draftKey, next);
+    if (next) unsentBodies.set(draftKey, { body: next });
     else unsentBodies.delete(draftKey);
   };
   const [busy, setBusy] = useState(false);
@@ -81,11 +81,16 @@ function Composer({
   const submit = async () => {
     const text = body.trim();
     if (disabled || !text || text.length > MAX_COMMENT_LENGTH || submitting.current) return;
+    const draft = draftKey ? unsentBodies.get(draftKey) : undefined;
     submitting.current = true;
     setBusy(true);
     try {
       const ok = await onSubmit(text);
-      if (ok) setBody("");
+      if (ok) {
+        setBodyState("");
+        // A remounted composer may already own a newer draft for this thread.
+        if (draftKey && unsentBodies.get(draftKey) === draft) unsentBodies.delete(draftKey);
+      }
     } finally {
       submitting.current = false;
       setBusy(false);
@@ -137,6 +142,24 @@ function Composer({
 
 /* ---------- スレッド ---------- */
 
+/** Confirmation belongs to the mounted discussion, not a later panel or edit. */
+function useCommentDeletion(scope: string, disabled: boolean) {
+  const pending = useRef<object | null>(null);
+  useLayoutEffect(() => {
+    pending.current = null;
+    return () => { pending.current = null; };
+  }, [scope, disabled]);
+  return () => {
+    if (disabled || pending.current) return null;
+    const token = {};
+    pending.current = token;
+    return {
+      current: () => pending.current === token,
+      finish: () => { if (pending.current === token) pending.current = null; },
+    };
+  };
+}
+
 function Message({ m, thread, unavailable }: { m: CommentMessage; thread: CommentThread; unavailable?: boolean }) {
   const user = useServerStatus()?.user ?? null;
   const run = useComments((s) => s.run);
@@ -146,6 +169,7 @@ function Message({ m, thread, unavailable }: { m: CommentMessage; thread: Commen
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const mine = isAuthor(m.author, user);
   const first = thread.messages[0]?.id === m.id;
+  const beginDeletion = useCommentDeletion(`${thread.id}:${m.id}:${editing}`, !!unavailable || !mine);
   return (
     <div className="cm-msg">
       <div className="cm-msg-head">
@@ -190,18 +214,23 @@ function Message({ m, thread, unavailable }: { m: CommentMessage; thread: Commen
                     icon: <Trash2 size={14} />,
                     danger: true,
                     onClick: async () => {
+                      const operation = beginDeletion();
+                      if (!operation) return;
                       setMenu(null);
-                      const all = first && thread.messages.length === 1;
-                      if (
-                        await showConfirm(all ? tr("このスレッドを削除します。") : tr("このコメントを削除します。"), {
-                          title: tr("コメントを削除しますか？"),
-                          okLabel: tr("削除"),
-                          danger: true,
-                        })
-                      ) {
-                        const ok = await run({ action: "delete-message", messageId: m.id });
-                        if (ok && useComments.getState().threadUnavailable) closeCommentIfOpen(thread.id);
-                      }
+                      try {
+                        const all = first && thread.messages.length === 1;
+                        if (
+                          await showConfirm(all ? tr("このスレッドを削除します。") : tr("このコメントを削除します。"), {
+                            title: tr("コメントを削除しますか？"),
+                            okLabel: tr("削除"),
+                            danger: true,
+                          })
+                        ) {
+                          if (!operation.current()) return;
+                          const ok = await run({ action: "delete-message", messageId: m.id });
+                          if (operation.current() && ok && useComments.getState().threadUnavailable) closeCommentIfOpen(thread.id);
+                        }
+                      } finally { operation.finish(); }
                     },
                   },
                 ]}
@@ -236,6 +265,7 @@ function ThreadView({ thread, onClose, unavailable, place, notices }: { thread: 
   const run = useComments((s) => s.run);
   const user = useServerStatus()?.user ?? null;
   const owner = thread.messages[0] ? isAuthor(thread.messages[0].author, user) : true;
+  const beginDeletion = useCommentDeletion(thread.id, unavailable || !owner);
   return (
     <>
       <div className="cm-detail-head">
@@ -261,15 +291,20 @@ function ThreadView({ thread, onClose, unavailable, place, notices }: { thread: 
             aria-label={tr("スレッドを削除")}
             disabled={unavailable}
             onClick={async () => {
-              if (
-                await showConfirm(tr("返信も含めて、このスレッドを削除します。"), {
-                  title: tr("スレッドを削除しますか？"),
-                  okLabel: tr("削除"),
-                  danger: true,
-                })
-              ) {
-                if (await run({ action: "delete-thread", threadId: thread.id })) onClose();
-              }
+              const operation = beginDeletion();
+              if (!operation) return;
+              try {
+                if (
+                  await showConfirm(tr("返信も含めて、このスレッドを削除します。"), {
+                    title: tr("スレッドを削除しますか？"),
+                    okLabel: tr("削除"),
+                    danger: true,
+                  })
+                ) {
+                  if (!operation.current()) return;
+                  if (await run({ action: "delete-thread", threadId: thread.id }) && operation.current()) onClose();
+                }
+              } finally { operation.finish(); }
             }}
           >
             <Trash2 size={13} />
