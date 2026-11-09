@@ -96,24 +96,22 @@ export function TargetSelect({
   /** field = 入力欄だけ / control = 入力欄とボタン */
   only?: "field" | "control";
 }) {
-  const { tree, targets } = useContext(Ctx);
-  // 動作の対象は ID 属性で指す。同じIDが複数あれば最初の要素だけを選べるようにする。
-  // IDの無い要素は、選んだときにIDを付ける
-  const firstOfId = new Set<string>();
-  const seen = new Set<string>();
-  for (const r of tree) {
-    if (r.attrId && !seen.has(r.attrId)) {
-      seen.add(r.attrId);
-      firstOfId.add(r.id);
-    }
-  }
+  const { tree, targets, targetLookup } = useContext(Ctx);
+  // Reuse the shared index: thousands of closed target inputs must not each
+  // rescan the entire node tree merely to display their current label.
+  const firstOfId = targetLookup?.firstNodeIds ?? new Set(
+    targets.map((target) => tree.find((row) => row.attrId === target.id)?.id).filter((id): id is string => !!id)
+  );
   const pickable = (r: TreeRow) =>
     (!r.attrId || firstOfId.has(r.id)) &&
     (only !== "field" || r.field) &&
     (only !== "control" || r.field || r.tag === "button");
-  const cur = tree.find((r) => r.attrId === value && firstOfId.has(r.id));
+  const cur = targetLookup
+    ? targetLookup.firstByAttr.get(value)
+    : tree.find((r) => r.attrId === value && firstOfId.has(r.id));
   const known =
-    value === "" || (!only && value === SELF_TARGET) || targets.some((t) => t.id === value);
+    value === "" || (!only && value === SELF_TARGET) ||
+    (targetLookup ? targetLookup.firstByAttr.has(value) : targets.some((t) => t.id === value));
   return (
     <NodePicker
       rows={tree}
@@ -227,6 +225,7 @@ export function NodePicker({
 
   // 選べる要素を含む枝だけを残す
   const visible = useMemo(() => {
+    if (!open) return [];
     const keep = new Set<string>();
     const stack: TreeRow[] = [];
     for (const r of rows) {
@@ -238,10 +237,11 @@ export function NodePicker({
       stack.push(r);
     }
     return rows.filter((r) => keep.has(r.id));
-  }, [rows, pickable]);
+  }, [open, rows, pickable]);
 
   const q = query.trim().toLowerCase();
   const shown = useMemo(() => {
+    if (!open) return [];
     if (q) {
       return visible.filter(
         (r) =>
@@ -259,12 +259,29 @@ export function NodePicker({
       if (closed.has(r.id)) hideBelow = r.depth;
     }
     return out;
-  }, [visible, q, closed, pickable]);
+  }, [open, visible, q, closed, pickable]);
 
-  const choices = [
+  const choices = useMemo(() => open ? [
     ...(q ? [] : special.map((sp) => ({ kind: "special" as const, sp }))),
     ...shown.filter(pickable).map((r) => ({ kind: "row" as const, r })),
-  ];
+  ] : [], [open, q, special, shown, pickable]);
+  const keyByRowId = useMemo(() => {
+    const index = new Map<string, number>();
+    choices.forEach((choice, i) => {
+      if (choice.kind === "row") index.set(choice.r.id, i);
+    });
+    return index;
+  }, [choices]);
+
+  useEffect(() => {
+    if (!open) return;
+    const idx = choices.findIndex((c) =>
+      c.kind === "special" ? c.sp.on : c.r.id === selectedId
+    );
+    setKey(Math.max(0, idx));
+    // Only initialize keyboard selection when the menu opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   useEffect(() => {
     // Scroll only the menu's own list. scrollIntoView() can also scroll the
@@ -287,10 +304,7 @@ export function NodePicker({
     if (!r) return;
     setPos(anchoredMenuPos(r, 300, 360));
     setQuery("");
-    const idx = choices.findIndex((c) =>
-      c.kind === "special" ? c.sp.on : c.r.id === selectedId
-    );
-    setKey(Math.max(0, idx));
+    setKey(0);
     setOpen(true);
   };
   const choose = (i: number) => {
@@ -300,7 +314,7 @@ export function NodePicker({
     if (c.kind === "special") onSpecial(c.sp.value);
     else onPick(c.r);
   };
-  const keyOf = (r: TreeRow) => choices.findIndex((c) => c.kind === "row" && c.r.id === r.id);
+  const keyOf = (r: TreeRow) => keyByRowId.get(r.id) ?? -1;
 
   return (
     <>
