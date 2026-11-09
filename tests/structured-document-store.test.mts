@@ -139,3 +139,43 @@ test("asset references are read directly from asset rows and erase clears both t
   assert.equal(Number(sqlite.prepare("SELECT COUNT(*) AS n FROM document_entries").get()!.n), 0);
   sqlite.close();
 });
+
+
+test("daily backups preserve the previous day's final SiteDoc, in small SQLite chunks", () => {
+  const { store, sqlite } = database();
+  const original = createInitialDoc();
+  original.customHeadHtml = "保存データ".repeat(150_000);
+  store.replace(JSON.stringify(original), null);
+  const yesterday = Date.now() - 86_400_000;
+  sqlite.prepare("UPDATE document_meta SET saved_at=? WHERE id=1").run(yesterday);
+  const edited = { ...original, siteName: "New day" };
+  const patch = createDocPatch(original, edited)!;
+  assert.equal(store.patch(patch, "1").kind, "saved");
+  const entries = store.listBackups();
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].day, new Date(yesterday).getUTCDay());
+  assert.equal(entries[0].savedAt, yesterday);
+  assert.deepEqual(JSON.parse(store.readBackup(entries[0].day)!), original);
+  assert.ok(Number(sqlite.prepare("SELECT COUNT(*) AS count FROM document_backup_chunks").get()!.count) > 1,
+    "Large backups are chunked into separate rows");
+  assert.equal(store.patch(createDocPatch(edited, { ...edited, siteName: "Same day" })!, "2").kind, "saved");
+  assert.equal(store.listBackups().length, 1, "do not overwrite the previous day's snapshot");
+  sqlite.close();
+});
+
+test("deletion seals the room permanently, even if an old RPC save arrives later", () => {
+  const { store, sqlite } = database();
+  const doc = createInitialDoc();
+  store.replace(JSON.stringify(doc), null);
+  store.erase();
+  assert.equal(store.snapshot(), null);
+  assert.equal(store.meta(), null);
+  assert.equal(store.readBackup(0), null);
+  assert.deepEqual(store.listBackups(), []);
+  assert.deepEqual(store.assetReferences(), []);
+  assert.deepEqual(store.replace(JSON.stringify(doc), null), { kind: "missing" });
+  assert.deepEqual(store.patch([{ path: ["siteName"], value: "Resurrect" }], "1"), { kind: "missing" });
+  store.erase(); // retries are idempotent
+  assert.equal(store.snapshot(), null);
+  sqlite.close();
+});

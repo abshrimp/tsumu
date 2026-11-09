@@ -6,11 +6,14 @@ import { dbConfigured, getDb } from "../../../lib/db";
 import { userMessage } from "../../../lib/errors";
 import { IMPORT_LIMITS, validateImportedDoc } from "../../../lib/site-import-format";
 import { readTextLimited, TooLargeError } from "../../../lib/safe-fetch";
-import { readSiteDocument, saveSiteDocument, eraseSiteDocument } from "../../../lib/site-document-service";
+import {
+  readSiteDocument, saveSiteDocument, eraseSiteDocument, cleanupAbandonedDocuments,
+} from "../../../lib/site-document-service";
 import {
   DEFAULT_BRANCH,
   DEFAULT_PREVIEW_BRANCH,
   getSite,
+  getSiteRoomKey,
   insertSite,
   deleteSite,
   isSiteId,
@@ -29,7 +32,9 @@ export async function GET() {
   if (denied) return denied;
   if (!dbConfigured()) return await dbUnavailable();
   try {
-    return NextResponse.json({ sites: await listSites(await getDb()) }, {
+    const db = await getDb();
+    await cleanupAbandonedDocuments(db, 1).catch(() => undefined);
+    return NextResponse.json({ sites: await listSites(db) }, {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (e) {
@@ -88,7 +93,7 @@ export async function POST(req: Request) {
     previewUrl: null,
   });
   if (!parsed.ok) return NextResponse.json({ error: tr(parsed.error) }, { status: 400 });
-  let createdSite: { id: string; db: Awaited<ReturnType<typeof getDb>> } | null = null;
+  let createdSite: { id: string; db: Awaited<ReturnType<typeof getDb>>; roomKey: string | null } | null = null;
   try {
     const db = await getDb();
     if (copyFrom && !(await getSite(db, copyFrom))) {
@@ -107,7 +112,7 @@ export async function POST(req: Request) {
     // The D1 site record and DO document are different transactional stores.
     // If document initialization fails, delete the newly created site record.
     await insertSite(db, id, parsed.value);
-    createdSite = { id, db };
+    createdSite = { id, db, roomKey: await getSiteRoomKey(db, id) };
     const content = initialBody ?? src?.body;
     if (content !== undefined) {
       const saved = await saveSiteDocument(db, id, content, null);
@@ -116,8 +121,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ site: await getSite(db, id) });
   } catch (e) {
     if (createdSite) {
-      await deleteSite(createdSite.db, createdSite.id).catch(() => undefined);
-      await eraseSiteDocument(createdSite.id).catch(() => undefined);
+      await deleteSite(createdSite.db, createdSite.id, createdSite.roomKey ?? undefined).catch(() => undefined);
+      await eraseSiteDocument(createdSite.roomKey).catch(() => undefined);
+      await cleanupAbandonedDocuments(createdSite.db, 1).catch(() => undefined);
     }
     if (e instanceof Error && /SQLITE_TOOBIG|too big/i.test(e.message)) {
       return NextResponse.json({ error: tr("ドキュメントが大きすぎて、保存先に入りきりません") }, { status: 413 });

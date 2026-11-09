@@ -69,18 +69,29 @@ export class StructuredDocumentStore {
   constructor(private readonly storage: DocumentSqlStorage) {
     this.query("CREATE TABLE IF NOT EXISTS document_meta (id INTEGER PRIMARY KEY CHECK(id=1), rev INTEGER NOT NULL, saved_at INTEGER NOT NULL, props TEXT NOT NULL)");
     this.query("CREATE TABLE IF NOT EXISTS document_entries (bucket TEXT NOT NULL, entry_id TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(bucket,entry_id))");
+    this.query("CREATE TABLE IF NOT EXISTS document_state (id INTEGER PRIMARY KEY CHECK(id=1), sealed INTEGER NOT NULL CHECK(sealed IN (0,1)))");
+    this.query("INSERT OR IGNORE INTO document_state(id,sealed) VALUES(1,0)");
+    this.query("CREATE TABLE IF NOT EXISTS document_backup_meta (day INTEGER PRIMARY KEY, saved_at INTEGER NOT NULL, bytes INTEGER NOT NULL)");
+    this.query("CREATE TABLE IF NOT EXISTS document_backup_chunks (day INTEGER NOT NULL, part INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY(day,part))");
   }
 
   private query(sql: string, ...params: Param[]): Row[] {
     return this.storage.sql.exec(sql, ...params).toArray();
   }
 
+  /** Deletion is permanent for this generation; a reused site ID gets a new DO. */
+  private sealed(): boolean {
+    return Number(this.query("SELECT sealed FROM document_state WHERE id=1")[0]?.sealed) === 1;
+  }
+
   meta(): { rev: string; savedAt: number } | null {
+    if (this.sealed()) return null;
     const row = this.query("SELECT rev,saved_at FROM document_meta WHERE id=1")[0];
     return row ? { rev: String(row.rev), savedAt: Number(row.saved_at) } : null;
   }
 
   snapshot(): SiteSnapshot | null {
+    if (this.sealed()) return null;
     const row = this.query("SELECT rev,saved_at,props FROM document_meta WHERE id=1")[0];
     if (!row) return null;
     const props: unknown = JSON.parse(String(row.props));
@@ -101,6 +112,45 @@ export class StructuredDocumentStore {
     return { body: JSON.stringify(doc), rev: String(row.rev), savedAt: Number(row.saved_at) };
   }
 
+  /**
+   * Keep the previous day's final snapshot before the first edit of a new UTC
+   * day. Snapshot data is chunked so even a 6MB+ document respects the DO's
+   * 8MB row limit. Seven weekday slots are rotated, not stored indefinitely.
+   */
+  private preservePreviousDay(savedAt: number, now: number): void {
+    if (savedAt >= Math.floor(now / 86_400_000) * 86_400_000) return;
+    const previous = this.snapshot();
+    if (!previous) return;
+    const day = new Date(savedAt).getUTCDay();
+    const rows = this.query("SELECT saved_at FROM document_backup_meta WHERE day=?", day);
+    if (rows.length && Number(rows[0].saved_at) >= savedAt) return;
+    const bytes = new TextEncoder().encode(previous.body).length;
+    this.query("DELETE FROM document_backup_chunks WHERE day=?", day);
+    this.query("INSERT INTO document_backup_meta(day,saved_at,bytes) VALUES(?,?,?) ON CONFLICT(day) DO UPDATE SET saved_at=excluded.saved_at,bytes=excluded.bytes",
+      day, savedAt, bytes);
+    // Slice by UTF-16 code units. Each chunk is at most ~750KB in UTF-8.
+    for (let i = 0, index = 0; i < previous.body.length; i += 250_000, index++) {
+      this.query("INSERT INTO document_backup_chunks(day,part,body) VALUES(?,?,?)",
+        day, index, previous.body.slice(i, i + 250_000));
+    }
+  }
+
+  listBackups(): Array<{ day: number; savedAt: number; bytes: number }> {
+    if (this.sealed()) return [];
+    return this.query("SELECT day,saved_at,bytes FROM document_backup_meta ORDER BY saved_at DESC")
+      .map(row => ({ day: Number(row.day), savedAt: Number(row.saved_at), bytes: Number(row.bytes) }));
+  }
+
+  readBackup(day: number): string | null {
+    if (!Number.isInteger(day) || day < 0 || day > 6 || this.sealed()) return null;
+    if (!this.query("SELECT 1 FROM document_backup_meta WHERE day=?", day).length) return null;
+    const chunks = this.query("SELECT body FROM document_backup_chunks WHERE day=? ORDER BY part", day);
+    if (!chunks.length) throw new Error("バックアップが破損しています");
+    const body = chunks.map(row => String(row.body)).join("");
+    parseDoc(body);
+    return body;
+  }
+
   /** Full initialization/import or a fallback snapshot save. */
   replace(raw: string, base: string | null): SiteSaveResult {
     const doc = parseDoc(raw);
@@ -110,11 +160,13 @@ export class StructuredDocumentStore {
       .map(([id, value]) => [bucket, id, checkedJson(value)] as const));
     const now = Date.now();
     const outcome = this.storage.transactionSync(() => {
+      if (this.sealed()) return "missing" as const;
       const current = this.meta();
       if (current && (expected === null || current.rev !== String(expected))) {
         return "conflict" as const;
       }
       if (!current && expected !== null) return "missing" as const;
+      if (current) this.preservePreviousDay(current.savedAt, now);
       this.query("DELETE FROM document_entries");
       for (const [bucket, id, body] of entries) {
         this.query("INSERT INTO document_entries(bucket,entry_id,body) VALUES(?,?,?)", bucket, id, body);
@@ -145,9 +197,11 @@ export class StructuredDocumentStore {
     if (expected === null) throw new Error("不正なリクエスト");
     const now = Date.now();
     const outcome = this.storage.transactionSync(() => {
-      const current = this.query("SELECT rev,props FROM document_meta WHERE id=1")[0];
+      if (this.sealed()) return "missing" as const;
+      const current = this.query("SELECT rev,props,saved_at FROM document_meta WHERE id=1")[0];
       if (!current) return "missing" as const;
       if (Number(current.rev) !== expected) return "conflict" as const;
+      this.preservePreviousDay(Number(current.saved_at), now);
       const props = JSON.parse(String(current.props)) as Record<string, unknown>;
       if (!object(props)) throw new Error("保存済み編集データが破損しています");
       const prepared: Array<{ id: string; body: string }> = [];
@@ -225,6 +279,7 @@ export class StructuredDocumentStore {
   }
 
   assetReferences(): Array<{ path: string; bytes: number | null }> {
+    if (this.sealed()) return [];
     return this.query("SELECT body FROM document_entries WHERE bucket='assets'").flatMap(row => {
       const asset = JSON.parse(String(row.body)) as { path?: unknown; bytes?: unknown };
       return typeof asset.path === "string"
@@ -233,10 +288,14 @@ export class StructuredDocumentStore {
     });
   }
 
+  /** A completed delete cannot be undone by any delayed RPC invocation. */
   erase(): void {
     this.storage.transactionSync(() => {
+      this.query("UPDATE document_state SET sealed=1 WHERE id=1");
       this.query("DELETE FROM document_entries");
       this.query("DELETE FROM document_meta");
+      this.query("DELETE FROM document_backup_chunks");
+      this.query("DELETE FROM document_backup_meta");
     });
   }
 }

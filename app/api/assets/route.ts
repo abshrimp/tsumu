@@ -141,6 +141,12 @@ export async function DELETE(req: Request) {
   try {
     if (dbConfigured()) {
       const db = await getDb();
+      if (db.backend === "d1") {
+        // DO metadata and KV are not one transaction. Physical deletion here
+        // can race a concurrent save/copy in another site. Keep immutable KV
+        // objects; orphan collection must use a separate, fenced GC protocol.
+        return NextResponse.json({ ok: true, kept: true });
+      }
       const refs = await otherSiteAssetReferences(db, siteId);
       if (refs.has(path)) return NextResponse.json({ ok: true, kept: true });
     }

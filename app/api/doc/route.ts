@@ -17,7 +17,7 @@ import {
   saveSiteDocument,
   patchSiteDocument,
 } from "../../../lib/site-document-service";
-import { getSite } from "../../../lib/sites";
+import { getSite, getSiteRoomKey } from "../../../lib/sites";
 import { userMessage } from "../../../lib/errors";
 import { isDocPatch } from "../../../lib/doc-patch";
 
@@ -145,9 +145,12 @@ async function save(req: Request, partial: boolean) {
       savedAt: result.savedAt,
       senderId,
     };
-    notifyDocUpdated(siteId, partial && isDocPatch(patch)
-      ? { ...metadata, type: "doc-patched", base: base!, patch }
-      : { ...metadata, type: "doc-updated", doc: input });
+    const roomKey = db.backend === "d1" ? await getSiteRoomKey(db, siteId) : null;
+    if (db.backend !== "d1" || roomKey) {
+      notifyDocUpdated(siteId, partial && isDocPatch(patch)
+        ? { ...metadata, type: "doc-patched", base: base!, patch }
+        : { ...metadata, type: "doc-updated", doc: input }, roomKey ?? undefined);
+    }
     return NextResponse.json({
       ok: true,
       rev: result.rev,

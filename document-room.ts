@@ -30,6 +30,12 @@ export class DocumentRoom extends DurableObject {
   listAssetReferences(): Array<{ path: string; bytes: number | null }> {
     return this.documents.assetReferences();
   }
+  listBackups(): Array<{ day: number; savedAt: number; bytes: number }> {
+    return this.documents.listBackups();
+  }
+  readBackup(day: number): string | null {
+    return this.documents.readBackup(day);
+  }
   eraseDocument(): void {
     this.documents.erase();
   }

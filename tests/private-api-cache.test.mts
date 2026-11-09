@@ -44,6 +44,7 @@ function load(path: string) {
     siteIdOf: async () => "site",
     listSites: async () => [{ id: "site", name: "Site" }],
     readActivity: async () => ({ items: [] }),
+    cleanupAbandonedDocuments: async () => undefined,
     usesDocumentRooms: () => false,
     documentAssetReferences: async () => [{ path: "assets/example.png", bytes: 256 }],
     parseCommentCursor: () => null,

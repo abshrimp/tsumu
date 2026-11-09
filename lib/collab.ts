@@ -87,7 +87,7 @@ export function collabRoomAvailable(): boolean {
  * Durable Object の無い環境（Node.js・Docker・next dev）では、同じプロセスの
  * /api/collab/events の接続へ届ける（lib/collab-events.ts）
  */
-export function notifyDocUpdated(siteId: string, message: DocChangeMessage): void {
+export function notifyDocUpdated(siteId: string, message: DocChangeMessage, roomKey?: string): void {
   publishDocUpdate(siteId, message);
   try {
     const cloudflare = getCloudflareContext();
@@ -95,10 +95,10 @@ export function notifyDocUpdated(siteId: string, message: DocChangeMessage): voi
     const namespace = env.COLLAB_ROOM as
       | DurableObjectNamespaceLike
       | undefined;
-    if (!namespace) return;
+    if (!namespace || !roomKey) return;
 
-    // 共同編集の部屋はサイトごと（名前 = サイトID）
-    const stub = namespace.get(namespace.idFromName(siteId));
+    // A collaboration room is scoped to one creation of a site ID.
+    const stub = namespace.get(namespace.idFromName(roomKey));
     const notification = stub
       .fetch("https://collab.internal/broadcast", {
         method: "POST",

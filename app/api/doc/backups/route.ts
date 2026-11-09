@@ -5,7 +5,10 @@ import { dbConfigured, getDb } from "../../../../lib/db";
 import { requireAuth } from "../../../../lib/server";
 import { userMessage } from "../../../../lib/errors";
 import { siteIdOf } from "../../../../lib/site-server";
-import { usesDocumentRooms } from "../../../../lib/site-document-service";
+import {
+  usesDocumentRooms, listSiteDocumentBackups, readSiteDocumentBackup,
+} from "../../../../lib/site-document-service";
+import { getSite } from "../../../../lib/sites";
 
 /**
  * サーバーに自動で残している日ごとのバックアップ（サイトごと・曜日ごとに7世代）。
@@ -26,15 +29,24 @@ export async function GET(req: Request) {
   }
   const day = dayParams.length ? Number(dayParams[0]) : null;
   try {
-    // The new DO document store intentionally does not migrate historical
-    // D1 backup generations. SQLite-backed Durable Objects provide PITR.
-    if (usesDocumentRooms()) {
-      if (day !== null) {
-        return NextResponse.json({ error: tr("バックアップが見つかりません") }, { status: 404 });
-      }
-      return NextResponse.json({ backups: [] }, { headers: { "Cache-Control": "private, no-store" } });
-    }
     const db = await getDb();
+    if (usesDocumentRooms()) {
+      if (!await getSite(db, siteId)) {
+        return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
+      }
+      if (day !== null) {
+        const body = await readSiteDocumentBackup(db, siteId, day);
+        if (body === null) {
+          return NextResponse.json({ error: tr("バックアップが見つかりません") }, { status: 404 });
+        }
+        return new NextResponse(body, {
+          headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "private, no-store" },
+        });
+      }
+      return NextResponse.json({ backups: await listSiteDocumentBackups(db, siteId) }, {
+        headers: { "Cache-Control": "private, no-store" },
+      });
+    }
     if (day !== null) {
       const rs = await db.execute({
         sql: "SELECT body FROM site_backups WHERE site_id = ? AND day = ?",

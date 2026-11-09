@@ -4,11 +4,12 @@ import { serverTr } from "../../../../lib/i18n-server";
 import { requireAuth } from "../../../../lib/server";
 import { dbConfigured, getDb } from "../../../../lib/db";
 import { userMessage } from "../../../../lib/errors";
-import { eraseSiteDocument } from "../../../../lib/site-document-service";
+import { cleanupAbandonedDocuments, eraseSiteDocument } from "../../../../lib/site-document-service";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../../lib/api-json";
 import {
   deleteSite,
   getSite,
+  getSiteRoomKey,
   isSiteId,
   normalizeSiteInput,
   updateSite,
@@ -88,9 +89,17 @@ export async function DELETE(_req: Request, ctx: Ctx) {
   try {
     const r = await load(ctx);
     if (r instanceof NextResponse) return r;
-    await deleteSite(r.db, r.site.id);
-    // Once the site record is gone, stale editors cannot re-create the document.
-    await eraseSiteDocument(r.site.id);
+    const roomKey = await getSiteRoomKey(r.db, r.site.id);
+    if (r.db.backend === "d1" && !roomKey) {
+      return NextResponse.json({ error: r.tr("サイトの保存先が見つかりません") }, { status: 409 });
+    }
+    // The D1 transaction also queues cleanup of this exact DO generation.
+    await deleteSite(r.db, r.site.id, roomKey ?? undefined);
+    if (roomKey) {
+      // Cleanup errors do not undo the already committed site deletion.
+      await eraseSiteDocument(roomKey).catch(() => undefined);
+      await cleanupAbandonedDocuments(r.db, 1).catch(() => undefined);
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     const tr = await serverTr();
