@@ -53,7 +53,7 @@ export async function GET(req: Request) {
         savedAt: Number(r.saved_at),
         bytes: Number(r.size),
       })),
-    });
+    }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (e) {
     return NextResponse.json(
       { error: tr(userMessage(e, "読み込めませんでした")) },
