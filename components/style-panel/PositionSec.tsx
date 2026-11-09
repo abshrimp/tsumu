@@ -12,10 +12,17 @@ import {
   serializeTransform,
   resolveStyles,
   isInitialValue,
+  initialValueOf,
 } from "../../lib/style";
 import { Grp, NumField, PropNum, Seg, unitConverter, useInspector } from "../controls";
 import { tr } from "../../lib/i18n";
 import { I, Sec } from "./shared";
+
+// Explicit mode choices must override normal-state/wider-screen values.
+// Context-menu resets and clearing an input retain their separate semantics.
+function explicitDefault(insp: ReturnType<typeof useInspector>, prop: string): string | null {
+  return isInitialValue(prop, insp.get(prop).baseline) ? null : initialValueOf(prop) ?? null;
+}
 
 /* ---------- 重なり順 ---------- */
 
@@ -103,17 +110,17 @@ export function PositionSec() {
           onChange={(v) => {
             // display: none が付いていれば（AIの編集などで付くことがある）、位置を選び直したときに外す
             const unhide: Record<string, string | null> = hidden
-              ? { display: null }
+              ? { display: insp.get("display").baseline?.trim().toLowerCase() === "none" ? "revert" : null }
               : {};
             // 小さい画面では、消すと大きい画面の配置が出てくるため初期値で打ち消す
             if (v === "auto")
               insp.set({
                 ...unhide,
-                position: insp.cleared("position"),
-                left: insp.cleared("left"),
-                right: insp.cleared("right"),
-                top: insp.cleared("top"),
-                bottom: insp.cleared("bottom"),
+                position: explicitDefault(insp, "position"),
+                left: explicitDefault(insp, "left"),
+                right: explicitDefault(insp, "right"),
+                top: explicitDefault(insp, "top"),
+                bottom: explicitDefault(insp, "bottom"),
               });
             else if (v === "custom")
               insp.set({
@@ -127,9 +134,9 @@ export function PositionSec() {
                 ...unhide,
                 position: "sticky",
                 top: "0px",
-                left: insp.cleared("left"),
-                right: insp.cleared("right"),
-                bottom: insp.cleared("bottom"),
+                left: explicitDefault(insp, "left"),
+                right: explicitDefault(insp, "right"),
+                bottom: explicitDefault(insp, "bottom"),
               });
           }}
         />
@@ -334,17 +341,18 @@ export function MainSizeField({
    * 設定を外す。パソコン幅以外では、消すとほかの画面幅の値が出てくるため初期値で上書きする
    * （パソコン幅で「残りを埋める」にした要素を、スマホ幅だけ解除できるように）
    */
-  const clear = (p: string): string | null => insp.cleared(p);
+  const clear = (p: string): string | null => explicitDefault(insp, p);
   /** 値を入れたときの、伸び縮みの設定 */
   const flexFor = (v: string | null): Record<string, string | null> => {
     if (axis !== "main") return {};
     const px = !!v && /px$/.test(v);
+    const reset = v === null ? (p: string) => insp.cleared(p) : clear;
     return {
-      flexGrow: clear("flexGrow"),
-      flexBasis: clear("flexBasis"),
+      flexGrow: reset("flexGrow"),
+      flexBasis: reset("flexBasis"),
       // px で決めた大きさは保つ（アイコンなどが隣の文字に押しつぶされないように）
-      flexShrink: px ? "0" : clear("flexShrink"),
-      ...(insp.get(minProp).value === "0" ? { [minProp]: clear(minProp) } : {}),
+      flexShrink: px ? "0" : reset("flexShrink"),
+      ...(insp.get(minProp).value === "0" ? { [minProp]: reset(minProp) } : {}),
     };
   };
   const setFill = (on: boolean) =>
