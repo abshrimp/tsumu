@@ -33,13 +33,30 @@ function fromB64Url(s: string): Uint8Array<ArrayBuffer> | null {
   }
 }
 
-/** 署名したクエリ（"exp=…&sig=…"）。署名の鍵が無い（ログインを使っていない）なら null */
-export async function signAssetPath(path: string, now = Date.now()): Promise<string | null> {
+/** 1リクエスト分の署名を、同じHMAC鍵と期限で発行する。重複パスは署名しない。 */
+export async function signAssetPaths(
+  paths: readonly string[],
+  now = Date.now(),
+): Promise<Map<string, string | null>> {
+  const unique = new Set(paths);
   const key = await hmacKey();
-  if (!key) return null;
+  const tokens = new Map<string, string | null>();
+  if (!key) {
+    for (const path of unique) tokens.set(path, null);
+    return tokens;
+  }
   const exp = now + ASSET_TOKEN_TTL;
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${path}\n${exp}`));
-  return `exp=${exp}&sig=${toB64Url(sig)}`;
+  const encoder = new TextEncoder();
+  for (const path of unique) {
+    const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(`${path}\n${exp}`));
+    tokens.set(path, `exp=${exp}&sig=${toB64Url(sig)}`);
+  }
+  return tokens;
+}
+
+/** 単一パスの署名。署名の鍵が無い（認証を使っていない）なら null。 */
+export async function signAssetPath(path: string, now = Date.now()): Promise<string | null> {
+  return (await signAssetPaths([path], now)).get(path) ?? null;
 }
 
 /** 署名が正しく、期限内か */
