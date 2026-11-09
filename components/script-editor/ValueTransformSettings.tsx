@@ -15,7 +15,6 @@ export const VALUE_TRANSFORM_LABELS: Record<ValueTransformKind, string> = {
   field: "リストから項目を取り出す",
   length: "リストの項目数を数える",
   math: "数値を計算する",
-  format: "表示用の文字にする",
   stringify: "JSON文字列に変換する",
   parse: "JSON文字列を読み取る",
   split: "文字列を分割する",
@@ -27,11 +26,10 @@ export const VALUE_TRANSFORM_LABELS: Record<ValueTransformKind, string> = {
 };
 
 export const VALUE_TRANSFORM_GROUPS: readonly { label: string; kinds: readonly ValueTransformKind[] }[] = [
-  { label: "値を取り出す", kinds: ["field"] },
-  { label: "値を調べる", kinds: ["length"] },
-  { label: "値を計算・変換する", kinds: ["math", "format", "stringify", "parse", "split", "join", "replace"] },
-  { label: "リストを加工する", kinds: ["sort", "append"] },
-  { label: "値を補う", kinds: ["fallback"] },
+  { label: "値の取得・補完", kinds: ["field", "fallback"] },
+  { label: "数値・文字列の加工", kinds: ["math", "split", "replace", "join"] },
+  { label: "リストの操作", kinds: ["length", "sort", "append"] },
+  { label: "JSONの変換", kinds: ["stringify", "parse"] },
 ];
 const MATH: readonly { value: NumericOperation; label: string }[] = [
   { value: "add", label: "足す" }, { value: "subtract", label: "引く" },

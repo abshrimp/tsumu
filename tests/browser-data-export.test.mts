@@ -51,10 +51,8 @@ test("native HTML fetches JSON and composes list loops, length, and join", async
     { id: "requested-id", kind: "set-var", value: "{id}", into: "requestedId" },
     { id: "selected-init", kind: "set-var", value: "null", into: "selected" },
     { id: "find", kind: "for-each", array: "rows", then: [
-      { id: "id-as-text", kind: "transform", source: "ループ.値.id", into: "currentId",
-        transform: { kind: "format" } },
       { id: "match", kind: "if", cond: { subject: "var", target: "",
-        left: "{currentId}", op: "eq", value: "{requestedId}" }, then: [
+        left: "{ループ.値.id}", op: "eq", value: "{requestedId}" }, then: [
         { id: "choose", kind: "set-var", into: "selected", value: "{ループ.値}" },
         { id: "break", kind: "break-loop" },
       ] },
