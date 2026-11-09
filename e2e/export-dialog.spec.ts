@@ -54,9 +54,9 @@ test("export settings use a compact grid and stack on narrow screens", async ({ 
   const modal = await openExport(page);
   const grid = modal.locator(".export-option-grid");
   await expect(grid).toHaveCSS("display", "grid");
-  await expect(grid).toHaveCSS("grid-template-columns", /\\d+px \\d+px/);
+  await expect(grid).toHaveCSS("grid-template-columns", /^\d+px \d+px$/);
   await page.setViewportSize({ width: 375, height: 812 });
-  await expect(grid).toHaveCSS("grid-template-columns", /\\d+px/);
+  await expect(grid).toHaveCSS("grid-template-columns", /^\d+px$/);
   const columns = await grid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length);
   expect(columns).toBe(1);
   const overflow = await modal.evaluate((element) => element.scrollWidth > element.clientWidth);
