@@ -55,7 +55,9 @@ test("Docker runtime is non-root and local credentials are excluded from the bui
   assert.match(dockerfile, /^VOLUME \/data$/m);
   assert.match(dockerfile, /chown node:node \/data/);
   for (const path of [".env*", ".dev.vars*", ".npmrc", "wrangler.local.jsonc",
-    "wrangler.generated.jsonc", "wrangler.preview.generated.jsonc", ".generated-export-smoke/"]) {
+    "wrangler.generated.jsonc", "wrangler.preview.generated.jsonc", ".generated-export-smoke/",
+    "**/.env*", "**/.dev.vars*", "**/.npmrc", "**/wrangler.local.jsonc",
+    "**/wrangler.generated.jsonc", "**/wrangler.preview.generated.jsonc"]) {
     assert.ok(ignored.includes(path), `${path} must be outside the Docker build context`);
   }
 });
