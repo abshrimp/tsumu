@@ -63,7 +63,7 @@ export function sanitizeClipboardSvg(source: string): string {
       } else if (name === "href" || name === "xlink:href" || name === "src") {
         // <use> must never load another SVG document, even a data: image.
         // Only references to IDs inside this sanitized SVG are permitted.
-        if (isUse ? !/^#[^\\s#\\"\x27<>]+$/.test(value)
+        if (isUse ? !/^#[A-Za-z0-9_.:-]+$/.test(value)
           : !value.startsWith("#") && !safeDataImage.test(value)) {
           element.removeAttribute(attr.name);
         }
