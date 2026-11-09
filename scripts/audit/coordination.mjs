@@ -23,7 +23,9 @@ export function ownerFor(path) {
   const p = path.toLowerCase().normalize('NFC');
   if (/^(docs\/audit\/|scripts\/audit\/|tests\/audit-coordination)/.test(p))
     return { owner: 'M', shared: false };
-  if (p.startsWith('.github/') || p.startsWith('scripts/') ||
+  const documentOwner = /^docs\/audits\/([a-j])[-.]/.exec(p);
+  if (documentOwner) return { owner: documentOwner[1].toUpperCase(), shared: false };
+  if (p.startsWith('.github/') || p.startsWith('scripts/') || p === '.dockerignore' ||
       /^(package(-lock)?\.json|tsconfig\.json|dockerfile|wrangler\.jsonc|custom-worker\.ts|open-next\.config\.ts|next\.config\.mjs|\.nvmrc)$/.test(p))
     return { owner: 'I', shared: true };
   if (/^(auth\.ts|middleware\.ts)$/.test(p) ||
@@ -36,12 +38,15 @@ export function ownerFor(path) {
   if (/^app\/api\/publish\//.test(p) ||
       /^lib\/(github|publish-)/.test(p) || p === 'components/publishmodal.tsx')
     return { owner: 'G', shared: COMMON.has(p) };
-  if (p.startsWith('lib/generator/') || /^lib\/(export|url-policy)/.test(p))
+  if (p.startsWith('lib/generator/') || /^lib\/(generator\.ts|export|url-policy)/.test(p) ||
+      p.startsWith('skills/tsumu-site/'))
     return { owner: 'F', shared: COMMON.has(p) };
   if (/^lib\/(html-|import-|imported-|site-import|zip-|css-assets|css-asset|assets|asset-upload|asset-usage|asset-display|asset-window|srcset)/.test(p) ||
       /^app\/api\/assets\//.test(p) ||
       /^components\/(imagepicker|left-panel\/assetstab)/.test(p))
     return { owner: 'E', shared: COMMON.has(p) };
+  if (/^lib\/(filter-edit|page-load-steps|page-query)/.test(p))
+    return { owner: 'C', shared: COMMON.has(p) };
   if (/^components\/(scripteditor|script-editor\/|varexplorer)/.test(p) ||
       /^lib\/(script|script-model\/|value-semantics|vars|variable-choice)/.test(p))
     return { owner: 'C', shared: COMMON.has(p) };
@@ -52,6 +57,19 @@ export function ownerFor(path) {
       /^lib\/(doc-|store|db\.ts|kv\.ts|merge|collab|local-|node-storage|cloud-save|site|sites|types\.ts|portable-doc|comment)/.test(p))
     return { owner: 'B', shared: COMMON.has(p) };
   if (p.startsWith('app/api/')) return { owner: 'A', shared: COMMON.has(p) };
+  if (p.startsWith('app/')) return { owner: 'D', shared: false };
+  if (/^components\/(aiactivity|aichat)/.test(p)) return { owner: 'H', shared: false };
+  if (/^components\/(allowedaccounts|googlesignin|useravatar)/.test(p))
+    return { owner: 'A', shared: false };
+  if (/^components\/(comments|copytosite|dataview)/.test(p))
+    return { owner: 'B', shared: false };
+  if (p.startsWith('components/')) return { owner: 'D', shared: false };
+  if (/^lib\/(activity|data\.ts|fields|storage-keys)/.test(p))
+    return { owner: 'B', shared: COMMON.has(p) };
+  if (/^lib\/(resource-integrity)/.test(p)) return { owner: 'E', shared: false };
+  if (/^lib\/(env\.ts|errors\.ts|server\.ts|status\.ts|unavailable\.ts)/.test(p))
+    return { owner: 'I', shared: false };
+  if (p.startsWith('lib/')) return { owner: 'D', shared: COMMON.has(p) };
   if (p.startsWith('tests/') || p.startsWith('e2e/')) {
     if (/(auth|csrf|allowed-user|api-)/.test(p)) return { owner: 'A', shared: false };
     if (/(import|zip|asset|html-to-site)/.test(p)) return { owner: 'E', shared: false };
