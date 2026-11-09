@@ -12,6 +12,7 @@ import { embedSrc, YOUTUBE_ALLOW } from "../embed";
 import { safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { pageDataPlan, pageDataServerIds } from "./browser-data";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
+import { cssValue } from "./css";
 
 export type NativeLanguage = "typescript" | "javascript";
 export type NativeView = "vue" | "sveltekit";
@@ -96,7 +97,8 @@ function common(ctx: Context, node: DocNode, className: string): string {
 /** Raw user-provided HTML is the only exception to native element templates. */
 function rawNode(ctx: Context, html: string, attrs = ""): string {
   const name = "rawBlock" + ctx.code.length;
-  ctx.code.push("const " + name + " = " + q(html) + ";");
+  // Embedded HTML/SVG uses the same exported resources as ordinary media nodes.
+  ctx.code.push("const " + name + " = " + q(cssValue(ctx.doc, "rawHtml", html, ctx.assets)) + ";");
   if (ctx.vue) return "<div" + attrs + ' v-html="' + name + '"></div>';
   return "<div" + attrs + ">{@html " + name + "}</div>";
 }
