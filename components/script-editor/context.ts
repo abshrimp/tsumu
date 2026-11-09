@@ -8,6 +8,7 @@ import { type PageArray, type PageVariableIndex } from "../../lib/data";
 import { type ScriptStep, type SiteDoc } from "../../lib/types";
 import { type Loc } from "./step-tree";
 import { type MenuTarget, type Target, type TreeRow } from "./targets";
+import type { FieldTargetIndex } from "./field-index";
 
 /* ---------- 描画コンテキスト ---------- */
 
@@ -30,6 +31,8 @@ export interface EdCtx {
     firstByAttr: ReadonlyMap<string, TreeRow>;
     firstNodeIds: ReadonlySet<string>;
   };
+  /** Field types and choices, shared instead of recalculated per condition. */
+  fieldLookup?: FieldTargetIndex;
   /** 要素選択で見せる、ページの要素の階層 */
   tree: TreeRow[];
   /** ページのスクリプト（絞り込みの番号を選ぶのに使う） */
