@@ -451,9 +451,11 @@ export async function deleteAssetRemote(asset: Asset): Promise<void> {
   if (!asset.path) return;
   const quoted = `"${asset.path}"`;
   // If other sites cannot be inspected, do not risk deleting their asset.
-  try {
-    if ((await otherBrowserDocs(currentSiteId())).some((raw) => raw.includes(quoted))) return;
-  } catch { return; }
+  if (typeof window !== "undefined") {
+    try {
+      if ((await otherBrowserDocs(currentSiteId())).some((raw) => raw.includes(quoted))) return;
+    } catch { return; }
+  }
   await fetch(siteApi("/api/assets", { path: asset.path }), {
     method: "DELETE",
   }).catch(() => {

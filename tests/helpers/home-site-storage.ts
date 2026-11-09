@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import * as React from "react";
 import type { SiteInput, SiteRecord } from "../../lib/sites";
+import { fakeIndexedDB } from "./fake-indexeddb";
 
 const require = createRequire(resolve("package.json"));
 const repo = resolve(".");
@@ -41,7 +42,7 @@ export async function homeSiteFixture(storage: Storage) {
   const previousFetch = globalThis.fetch;
   const location = { pathname: "/", search: "", href: "/" };
   Object.defineProperty(globalThis, "window", {
-    value: { localStorage: storage, location, history: { replaceState() {} },
+    value: { localStorage: storage, indexedDB: fakeIndexedDB(), location, history: { replaceState() {} },
       addEventListener() {}, removeEventListener() {}, }, configurable: true,
   });
   globalThis.fetch = async () => Response.json({}, { status: 503 });
