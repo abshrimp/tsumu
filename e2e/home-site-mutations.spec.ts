@@ -1,19 +1,19 @@
 import { expect, test } from "@playwright/test";
 import { createInitialDoc } from "../lib/presets";
-import { DOC_STORAGE_KEY, emptyDest, siteKey } from "../lib/site";
+import { emptyDest } from "../lib/site";
+import { browserDoc, browserDocIds, setBrowserDoc } from "./helpers/browser-doc";
 import { storageKey } from "../lib/storage-keys";
 import { homeSiteStorageBundle } from "../tests/helpers/home-site-storage";
 
 const listKey = storageKey("sites-v1");
-const sourceDocKey = siteKey(DOC_STORAGE_KEY, "source");
 const source = { ...emptyDest(), id: "source", name: "Original", createdAt: 1, updatedAt: 2 };
 let bundle: string;
 test.beforeAll(async () => { bundle = await homeSiteStorageBundle(); });
 
 type Action = "create" | "rename" | "duplicate" | "delete";
-type Failure = "list" | "document" | "read" | "corrupt" | "marker";
+type Failure = "list" | "read" | "corrupt" | "marker";
 const cases: [Action, Failure][] = [
-  ["create", "list"], ["create", "document"], ["rename", "list"], ["delete", "marker"],
+  ["create", "list"], ["rename", "list"], ["duplicate", "list"], ["delete", "marker"],
   ...(["create", "rename", "duplicate", "delete"] as const).flatMap((action): [Action, Failure][] => [
     [action, "read"], [action, "corrupt"],
   ]),
@@ -36,11 +36,11 @@ for (const [action, failure] of cases) {
     doc.customHeadHtml = "<style>/* Authored source content */</style>";
     const raw = JSON.stringify(doc);
     const list = JSON.stringify([source]);
-    await page.evaluate(({ listKey, sourceDocKey, list, raw }) => {
+    await page.evaluate(({ listKey, list }) => {
       localStorage.setItem("tsumu-lang", "ja");
       localStorage.setItem(listKey, list);
-      localStorage.setItem(sourceDocKey, raw);
-    }, { listKey, sourceDocKey, list, raw });
+    }, { listKey, list });
+    await setBrowserDoc(page, source.id, raw);
     await page.addScriptTag({ content: bundle });
     await expect(page.locator(".home-card")).toHaveCount(1);
 
@@ -54,7 +54,7 @@ for (const [action, failure] of cases) {
       else await page.locator("form.home-dialog input").first().fill("Retry name");
     };
     await openAction();
-    await page.evaluate(({ failure, listKey, docKey }) => {
+    await page.evaluate(({ failure, listKey }) => {
       const state = window as any;
       state.homeBlocked = true;
       state.homeRead = Storage.prototype.getItem;
@@ -65,12 +65,12 @@ for (const [action, failure] of cases) {
         return state.homeRead.call(this, key);
       };
       Storage.prototype.setItem = function (key, value) {
-        if (state.homeBlocked && ((failure === "marker" && key.startsWith("tsumu-site-deleted-v1:")) || (failure === "list" && key === listKey) || (failure === "document" && key.startsWith(`${docKey}:`)))) {
+        if (state.homeBlocked && ((failure === "marker" && key.startsWith("tsumu-site-deleted-v1:")) || (failure === "list" && key === listKey))) {
           throw new DOMException("Storage full", "QuotaExceededError");
         }
         state.homeWrite.call(this, key, value);
       };
-    }, { failure, listKey, docKey: DOC_STORAGE_KEY });
+    }, { failure, listKey });
     const submit = () => action === "delete"
       ? page.getByRole("dialog").getByRole("button", { name: "削除", exact: true }).click()
       : page.locator("form.home-dialog button[type=submit]").click();
@@ -79,14 +79,10 @@ for (const [action, failure] of cases) {
     await expect(error).toContainText("ブラウザの保存容量や設定を確認して、もう一度");
     await expect(page).toHaveURL("http://tsumu-home.test/");
     await expect(page.locator(".home-card-name")).toHaveText("Original");
-    expect(await page.evaluate(({ listKey, sourceDocKey }) => {
-      const state = window as any;
-      return {
-        list: state.homeRead.call(localStorage, listKey),
-        source: state.homeRead.call(localStorage, sourceDocKey),
-        docKeys: Object.keys(localStorage).filter((key) => key.startsWith("tsumu-doc-v1:")),
-      };
-    }, { listKey, sourceDocKey })).toEqual({ list: failure === "corrupt" ? "{unreadable JSON" : list, source: raw, docKeys: [sourceDocKey] });
+    expect(await page.evaluate((key) => (window as any).homeRead.call(localStorage, key), listKey))
+      .toBe(failure === "corrupt" ? "{unreadable JSON" : list);
+    expect(await browserDoc(page, source.id)).toBe(raw);
+    expect(await browserDocIds(page)).toEqual([source.id]);
     if (action !== "delete") {
       await expect(page.locator("form.home-dialog input").first()).toHaveValue("Retry name");
       await expect(page.locator("form.home-dialog button[type=submit]")).toBeEnabled();
@@ -106,17 +102,15 @@ for (const [action, failure] of cases) {
       await expect(page.locator("form.home-dialog,.dialog")).toHaveCount(0);
       await expect(page.locator(".home-card")).toHaveCount(action === "delete" ? 0 : action === "duplicate" ? 2 : 1);
     }
-    const saved = await page.evaluate(({ listKey, sourceDocKey, docKey }) => {
-      const sites = JSON.parse(localStorage.getItem(listKey)!);
-      return { sites, source: localStorage.getItem(sourceDocKey), firstDoc: sites[0] ? localStorage.getItem(`${docKey}:${sites[0].id}`) : null };
-    }, { listKey, sourceDocKey, docKey: DOC_STORAGE_KEY });
-    if (action === "delete") expect(saved.sites).toEqual([]);
+    const sites = await page.evaluate(key => JSON.parse(localStorage.getItem(key)!) as { id: string; name: string }[], listKey);
+    const firstDoc = sites[0] ? await browserDoc(page, sites[0].id) : null;
+    if (action === "delete") expect(sites).toEqual([]);
     else {
-      expect(saved.sites[0].name).toBe("Retry name");
-      if (action === "create") expect(JSON.parse(saved.firstDoc!).siteName).toBe("Retry name");
-      else expect(saved.firstDoc).toBe(raw);
+      expect(sites[0].name).toBe("Retry name");
+      if (action === "create") expect(JSON.parse(firstDoc!).siteName).toBe("Retry name");
+      else expect(firstDoc).toBe(raw);
     }
-    expect(saved.source).toBe(action === "delete" ? null : raw);
+    expect(await browserDoc(page, source.id)).toBe(action === "delete" ? null : raw);
     expect(errors).toEqual([]);
   });
 }
