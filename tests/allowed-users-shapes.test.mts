@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
+import { JsonBodyTooLargeError, readJsonLimited } from "../lib/api-json";
 
 function fixture() {
   class NextResponse extends Response {
@@ -23,6 +24,7 @@ function fixture() {
     "../../../lib/i18n-server": { serverTr: async () => (s: string) => s },
     "../../../lib/unavailable": { dbUnavailable: async () => NextResponse.json({}, { status: 503 }) },
     "../../../lib/db": { dbConfigured: () => true },
+    "../../../lib/api-json": { JsonBodyTooLargeError, readJsonLimited },
     "../../../lib/errors": { userMessage: (_e: unknown, fallback: string) => fallback },
     "../../../lib/allowlist": {
       addAllowedEmail: async (email: string) => { inserted.push(email); },
