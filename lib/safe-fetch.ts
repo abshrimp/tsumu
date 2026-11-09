@@ -49,15 +49,38 @@ function isPrivateIPv6(addr: string): boolean {
     first === 0x2002 || first === 0x3ffe || (first === 0x3fff && second < 0x1000);
 }
 
+/** DNS checks must not hang before the request's HTTP timeout starts. */
+function dnsWithDeadline<T>(work: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+  const deadline = AbortSignal.timeout(5_000);
+  const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
+  if (combined.aborted) return Promise.reject(new BlockedUrlError("DNS lookup cancelled"));
+  return new Promise<T>((resolve, reject) => {
+    const cleanup = () => combined.removeEventListener("abort", abort);
+    const abort = () => { cleanup(); reject(new BlockedUrlError("DNS lookup cancelled")); };
+    combined.addEventListener("abort", abort, { once: true });
+    try {
+      work().then(
+        (value) => { cleanup(); resolve(value); },
+        (error: unknown) => { cleanup(); reject(error); }
+      );
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
+  });
+}
+
 /** 名前解決した先が内部の宛先でないか（Node.js で動くときだけ確かめられる） */
-async function resolvesPrivate(hostname: string): Promise<boolean> {
+async function resolvesPrivate(hostname: string, signal?: AbortSignal): Promise<boolean> {
   if (hostname.startsWith("[") || parseIPv4(hostname)) return false;
+  if (signal?.aborted) throw new BlockedUrlError("request cancelled");
   if (isWorker()) return false;
   const { lookup } = builtin<typeof import("node:dns/promises")>("node:dns/promises");
   try {
-    const addrs = await lookup(hostname, { all: true });
+    const addrs = await dnsWithDeadline(() => lookup(hostname, { all: true }), signal);
     return !addrs.length || addrs.some((r) => (r.family === 6 ? isPrivateIPv6(r.address) : isPrivateHost(r.address)));
-  } catch {
+  } catch (error) {
+    if (error instanceof BlockedUrlError) throw error;
     throw new BlockedUrlError("DNS lookup failed");
   }
 }
@@ -143,7 +166,7 @@ export class BlockedUrlError extends Error {}
 export class TooLargeError extends Error {}
 
 /** 送ってよいURLか確かめる（だめなら BlockedUrlError） */
-export async function assertPublicUrl(raw: string): Promise<URL> {
+export async function assertPublicUrl(raw: string, signal?: AbortSignal): Promise<URL> {
   let url: URL;
   try {
     url = new URL(raw);
@@ -152,7 +175,8 @@ export async function assertPublicUrl(raw: string): Promise<URL> {
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new BlockedUrlError("protocol");
   if (url.username || url.password) throw new BlockedUrlError("credentials");
-  if (isPrivateHost(url.hostname) || (await resolvesPrivate(url.hostname))) {
+  if (signal?.aborted) throw new BlockedUrlError("request cancelled");
+  if (isPrivateHost(url.hostname) || (await resolvesPrivate(url.hostname, signal))) {
     throw new BlockedUrlError("private host");
   }
   return url;
@@ -165,20 +189,20 @@ export async function fetchPublic(
   maxRedirects = 5,
   maxResponseBytes = 5 * 1024 * 1024
 ): Promise<Response> {
-  let url = await assertPublicUrl(raw);
+  const signal = init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000);
+  let url = await assertPublicUrl(raw, signal);
   let method = (init.method ?? "GET").toUpperCase();
   let body = init.body;
   const headers = new Headers(init.headers);
   // 接続先やHTTPフレーミングを呼び出し側のヘッダーで上書きさせない。
   for (const name of ["host", "connection", "content-length", "transfer-encoding", "upgrade", "proxy-authorization", "proxy-connection"]) headers.delete(name);
-  const signal = init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000);
   for (let i = 0; ; i++) {
     const res = await fetchOnce(url, { ...init, signal, headers, method, body, redirect: "manual" }, maxResponseBytes);
     const location = res.headers.get("location");
     if (![301, 302, 303, 307, 308].includes(res.status) || !location) return res;
     await res.body?.cancel().catch(() => {});
     if (i >= maxRedirects) throw new BlockedUrlError("too many redirects");
-    const next = await assertPublicUrl(new URL(location, url).toString());
+    const next = await assertPublicUrl(new URL(location, url).toString(), signal);
     // 任意のヘッダーや本文には API キーなどが入るため、別オリジンへは転送しない。
     // 認証のない GET/HEAD の転送だけ許す（プロトコル・ポートの変更も別オリジン）。
     if (next.origin !== url.origin) {
@@ -205,7 +229,8 @@ export async function readTextLimited(res: Response, maxBytes: number): Promise<
   }
   const reader = res.body?.getReader();
   if (!reader) return "";
-  const decoder = new TextDecoder();
+  // JSON exchanged over HTTP is UTF-8; reject malformed bytes rather than silently replacing them.
+  const decoder = new TextDecoder("utf-8", { fatal: true });
   let bytes = 0;
   let out = "";
   for (;;) {
