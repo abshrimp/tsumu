@@ -677,6 +677,18 @@ export default function Canvas() {
     dropState,
   });
 
+  // Rebuild the potentially large stylesheet only when document styles change.
+  // Selection changes need a new stylesheet only when inspecting a non-default state.
+  const cssSelection = mode === "design" && styleState !== "default" ? selection : null;
+  const css = useMemo(
+    () => page
+      ? buildCanvasCss(doc, rootIds, breakpoint, mode, cssSelection, styleState, page.bodyStyles)
+      : "",
+    // rootIds and page are derived from doc, activePageId and editingComponentId.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [doc, activePageId, editingComponentId, breakpoint, mode, cssSelection, styleState]
+  );
+
   if (!page) return <div className="canvas-area" ref={areaRef} />;
 
   if (
@@ -746,16 +758,6 @@ export default function Canvas() {
       </div>
     );
   }
-
-  const css = buildCanvasCss(
-    doc,
-    rootIds,
-    breakpoint,
-    mode,
-    selection,
-    styleState,
-    page.bodyStyles
-  );
 
   const selNode =
     selection === BODY_NODE_ID
