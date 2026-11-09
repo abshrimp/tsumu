@@ -18,9 +18,9 @@ import {
   STATE_INFO,
   STATE_ORDER,
 } from "../style";
-import { keyframesCss, motionCss } from "../motion";
+import { KEYFRAMES, keyframesCss, motionCss } from "../motion";
 import { customStateSelector } from "../custom-states";
-import { safeCssDeclaration, safeCssDeclarationValue, safeCssPropertyName } from "../css-declaration";
+import { safeCssDeclaration, safeCssDeclarationValue, safeCssPropertyName, safeCssKeyframesBody } from "../css-declaration";
 
 /* ---------- フォント ---------- */
 
@@ -193,11 +193,26 @@ export function generateSiteCss(
   for (const node of Object.values(doc.nodes)) {
     const cls = classNames.get(node.id)!;
     // モーション（transition + animation）
-    const mCss = motionCss(node.motions, "paused", node.id);
+    // Imported documents can carry malformed easing, custom keyframes or
+    // identifiers. Drop only the invalid motion; preserve other animations.
+    const safeMotions = node.motions?.filter((m) =>
+      ["state", "hover", "active", "load", "in-view"].includes(m.trigger) &&
+      Number.isFinite(m.duration) && Number.isFinite(m.delay) &&
+      (m.repeat === undefined || Number.isFinite(m.repeat)) &&
+      safeCssDeclarationValue(m.easing) &&
+      (!m.property || safeCssPropertyName(m.property) !== null) &&
+      (!m.direction || ["normal", "reverse", "alternate"].includes(m.direction)) &&
+      (!m.fillMode || ["both", "forwards", "backwards", "none"].includes(m.fillMode)) &&
+      (!m.keyframes || m.keyframes === "custom" && (!m.customKeyframes?.trim() ||
+          safeCssKeyframesBody(m.customKeyframes)) ||
+        KEYFRAMES.some((keyframe) => keyframe.key === m.keyframes))
+    );
+    const mCss = motionCss(safeMotions, "paused", node.id);
     usedKeyframes.push(...mCss.usedKeyframes);
     customKeyframes.push(...mCss.customKeyframes);
     const motionDecls = mCss.base;
     for (const p of mCss.pseudo) {
+      if (p.pseudo !== ":hover" && p.pseudo !== ":active") continue;
       blocks.push(`.${cls}${p.pseudo} {\n${p.decls.map((d) => `  ${d}`).join("\n")}\n}`);
     }
     if (mCss.hasInView) {

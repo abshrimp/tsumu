@@ -43,3 +43,37 @@ export function safeCssDeclaration(name: unknown, value: unknown): string | null
   if (!prop || !safeCssDeclarationValue(value)) return null;
   return prop + ": " + value + ";";
 }
+
+/** Allow valid keyframe selectors and nested declaration content only.
+ * A closing brace at keyframe top level would escape the enclosing @keyframes.
+ */
+export function safeCssKeyframesBody(input: unknown): input is string {
+  if (typeof input !== "string" || input.length > 1_000_000) return false;
+  let quote = "", comment = false, depth = 0, blockEnd = 0, blocks = 0;
+  const selector = /^(?:from|to|[0-9]+(?:\.[0-9]+)?%)(?:\s*,\s*(?:from|to|[0-9]+(?:\.[0-9]+)?%))*$/i;
+  const trivia = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, " ").trim();
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i], next = input[i + 1];
+    if (ch === "<" && /^<\/style\b/i.test(input.slice(i, i + 12))) return false;
+    if (comment) { if (ch === "*" && next === "/") { comment = false; i++; } continue; }
+    if (quote) {
+      if (ch === "\\") i++;
+      else if (ch === quote) quote = "";
+      continue;
+    }
+    if (ch === "/" && next === "*") { comment = true; i++; continue; }
+    if (ch === "\\") { i++; continue; }
+    if (ch === '"' || ch === "'") { quote = ch; continue; }
+    if (ch === "{") {
+      if (depth !== 0 || !selector.test(trivia(input.slice(blockEnd, i)))) return false;
+      depth = 1; blocks++;
+    } else if (ch === "}") {
+      if (depth !== 1) return false;
+      depth = 0; blockEnd = i + 1;
+    } else if (ch === ";" && depth === 0) {
+      return false;
+    }
+  }
+  return blocks > 0 && depth === 0 && !quote && !comment &&
+    trivia(input.slice(blockEnd)) === "";
+}

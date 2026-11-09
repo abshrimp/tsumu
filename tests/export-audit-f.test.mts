@@ -491,3 +491,31 @@ test("AUD-F-015: exported CSS contains untrusted style-map values as declaration
     assert.match(css, /margin: 12px;/);
   }
 });
+
+test("AUD-F-016: custom keyframes and motion settings cannot escape generated CSS", async () => {
+  const { safeCssKeyframesBody } = await import("../lib/css-declaration");
+  for (const good of ["from { opacity: 0; } to { opacity: 1; }",
+    "0%, 30.5% { transform: translateX(0); } 100% { transform: translateX(1px); }",
+    "/* start */ from { background: url(data:image/png;base64,AQID); }"]) {
+    assert.equal(safeCssKeyframesBody(good), true, good);
+  }
+  for (const bad of ["from { opacity: 0; } } body { --__AUDIT_KF_BREAKOUT__: yes; } /*",
+    "from { opacity:0;", "from { opacity:0; } @import url(x);",
+    "body { color:red; }", 'from { content: "</style><script>x</script>"; }']) {
+    assert.equal(safeCssKeyframesBody(bad), false, bad);
+  }
+  const site = doc();
+  site.nodes.visible.motions = [
+    { id: "valid", trigger: "load", keyframes: "custom",
+      customKeyframes: "from { opacity: 0; } to { opacity: 1; }",
+      duration: 1, delay: 0, easing: "ease" },
+    { id: "broken", trigger: "load", keyframes: "custom",
+      customKeyframes: "from { opacity: 0; } } body { --__AUDIT_KF_BREAKOUT__: yes; } /*",
+      duration: 1, delay: 0, easing: "ease" },
+    { id: "easing", trigger: "hover", keyframes: "fade-in",
+      duration: 1, delay: 0, easing: "ease; } body { --__AUDIT_EASING_BREAKOUT__: yes; } /*" },
+  ];
+  const css = generateExportProject(site, "html").files["styles/site.css"];
+  assert.match(css, /@keyframes anim-visible-valid/);
+  assert.doesNotMatch(css, /__AUDIT_KF_BREAKOUT__|__AUDIT_EASING_BREAKOUT__/);
+});
