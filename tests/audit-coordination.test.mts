@@ -55,7 +55,7 @@ test('M check evidence is fail closed for pending, missing and failed runs', () 
   assert.equal(summarizeChecks([{ name: 'test', status: 'completed', conclusion: 'success' }]).state,
     'observed-complete');
   assert.equal(summarizeChecks([{ name: 'test', status: 'completed', conclusion: 'skipped' }]).state,
-    'observed-complete');
+    'not-passed');
   assert.equal(summarizeChecks([{ name: 'test', status: 'in_progress', conclusion: null }]).state,
     'not-passed');
   assert.equal(summarizeChecks([{ name: 'test', status: 'completed', conclusion: 'failure' }]).state,
