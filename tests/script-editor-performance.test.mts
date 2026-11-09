@@ -252,8 +252,7 @@ test("thousands of scripts with an identical start position are placed in source
 
 test("saving many scripts for one element retains their order and page-owned scripts", () => {
   const doc = { nodes: { box: { id: "box", type: "box", name: "Box",
-    children: [], styles: {}, link: null } }, pages: { page: { id: "page", children: [] } } }
-    as unknown as SiteDoc;
+    children: [], styles: {}, link: null } }, pages: { page: { id: "page", children: [] } } } as unknown as SiteDoc;
   const wait = (id: string): ScriptStep => ({ id, kind: "wait", seconds: 1 });
   const views: PageScript[] = Array.from({ length: 1200 }, (_, i) => ({
     id: `script-${i}`, nodeId: "box", trigger: "click", pos: { x: i, y: 0 },
