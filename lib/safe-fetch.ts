@@ -229,7 +229,8 @@ export async function readTextLimited(res: Response, maxBytes: number): Promise<
   }
   const reader = res.body?.getReader();
   if (!reader) return "";
-  const decoder = new TextDecoder();
+  // JSON exchanged over HTTP is UTF-8; reject malformed bytes rather than silently replacing them.
+  const decoder = new TextDecoder("utf-8", { fatal: true });
   let bytes = 0;
   let out = "";
   for (;;) {
