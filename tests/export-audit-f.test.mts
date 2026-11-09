@@ -241,3 +241,35 @@ test("AUD-F-005: every Tailwind export registers its CSS processing plugin", () 
       framework + ": missing Tailwind dependency");
   }
 });
+
+test("AUD-F-006: generated ZIPs reject file/directory collisions and unsafe paths", async () => {
+  const { assertGeneratedPaths } = await import("../lib/generator/output-paths");
+  const empty = { binaries: {}, remoteAssets: {} };
+  for (const path of ["../outside.txt", "/absolute.txt", "C:/drive.txt",
+    "a//b.txt", "a/./b.txt", "a/../b.txt", "a\\b.txt", "bad\u0000name"]) {
+    assert.throws(() => assertGeneratedPaths({ ...empty, files: { [path]: "x" } }),
+      /Unsafe generated/, JSON.stringify(path));
+  }
+  assert.throws(() => assertGeneratedPaths({
+    files: { "styles/site.css": "css", "styles/site.css/index.html": "html" },
+    binaries: {}, remoteAssets: {},
+  }), /file\/directory collision/);
+  assert.throws(() => assertGeneratedPaths({
+    files: { "public/assets/photo.png": "text" },
+    binaries: { "public/assets/photo.png": "AQID" }, remoteAssets: {},
+  }), /Duplicate generated/);
+  assert.doesNotThrow(() => assertGeneratedPaths({
+    files: { "styles/site.css": "css", "styles/globals.css": "css" },
+    binaries: { "public/assets/photo.png": "AQID" }, remoteAssets: {},
+  }));
+});
+
+test("AUD-F-006: HTML export reports a page slug that collides with the CSS file", () => {
+  const site = doc();
+  site.pages.private.unpublished = false;
+  site.pages.private.slug = "styles/site.css";
+  assert.throws(() => generateExportProject(site, "html"),
+    /file\/directory collision: styles\/site\.css/);
+  assert.doesNotThrow(() => generateExportProject(site, "nextjs"),
+    "Next.js uses a different output tree without this HTML static-file collision");
+});
