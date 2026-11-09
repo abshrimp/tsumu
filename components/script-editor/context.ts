@@ -25,6 +25,11 @@ export interface EdCtx {
   /** ページ外でも明示的に編集中のコンポーネントroot。 */
   scriptRootIds?: string[];
   targets: Target[];
+  /** Pre-indexed once per workspace, rather than scanning all rows per picker. */
+  targetLookup?: {
+    firstByAttr: ReadonlyMap<string, TreeRow>;
+    firstNodeIds: ReadonlySet<string>;
+  };
   /** 要素選択で見せる、ページの要素の階層 */
   tree: TreeRow[];
   /** ページのスクリプト（絞り込みの番号を選ぶのに使う） */
