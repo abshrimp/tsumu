@@ -37,7 +37,7 @@ const HEAD_BOOLEAN_ATTRS = new Set(["async", "defer", "disabled", "nomodule", "i
 function decodeEntities(value: string): string {
   const named: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0" };
   return value.replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi, (m, dec, hex, name) => {
-    if (name) return named[name.toLowerCase()] ?? m;
+    if (name) return Object.hasOwn(named, name.toLowerCase()) ? named[name.toLowerCase()] : m;
     const code = dec ? Number(dec) : parseInt(hex, 16);
     return code <= 0x10ffff ? String.fromCodePoint(code) : m;
   });
@@ -62,14 +62,15 @@ export function headHtmlToJsx(html: string, indent: string): string {
       // 属性名は JSX にそのまま書くので、名前の形でないもの（{ や ( を含むなど）も落とす
       if (name.startsWith("on") || name === "style" || !/^[a-z][a-z0-9._:-]*$/.test(name)) continue;
       const value = m[2] ?? m[3] ?? m[4];
-      const prop = HEAD_ATTR_NAMES[name] ?? name;
+      const mapped = Object.hasOwn(HEAD_ATTR_NAMES, name);
+      const prop = mapped ? HEAD_ATTR_NAMES[name] : name;
       if (HEAD_BOOLEAN_ATTRS.has(name)) {
         // disabled は link の HTML 属性だが、React の link 型には含まれていない。
         out.push(name === "disabled" ? ` {...{ disabled: true }}` : ` ${prop}`);
       } else if (name === "hidden" && value === undefined) {
         // hidden は until-found などの文字列値もあるため、値付きの属性は変えない。
         out.push(" hidden");
-      } else if (name in HEAD_ATTR_NAMES || HEAD_PLAIN_ATTRS.has(name) || name.includes("-")) {
+      } else if (mapped || HEAD_PLAIN_ATTRS.has(name) || name.includes("-")) {
         out.push(` ${prop}=${jsxHtmlString(value ?? "")}`);
       } else {
         // React の型に無い属性（language・scheme など）は、そのまま書くと型チェックで公開のビルドが止まる。
