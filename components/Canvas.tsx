@@ -24,6 +24,7 @@ import {
 } from "./controls";
 import { createScriptRuntime, type ScriptEnv } from "../lib/script-runtime";
 import { BODY_NODE_ID } from "../lib/types";
+import { cssQuotedAttributeValue } from "../lib/css-selector";
 import { BP_INFO, toggleShowDisplay } from "../lib/style";
 import { pageLangOf, siteLangOf } from "../lib/site-lang";
 import VarExplorer from "./VarExplorer";
@@ -545,7 +546,7 @@ export default function Canvas() {
       const inner = innerRef.current;
       const el = (selection === BODY_NODE_ID
         ? frame?.querySelector(".cv-root")
-        : frame?.querySelector(`[data-node="${selection}"]`)) as HTMLElement | null;
+        : frame?.querySelector(`[data-node=${cssQuotedAttributeValue(selection)}]`)) as HTMLElement | null;
       if (el && inner) {
         const er = el.getBoundingClientRect();
         const ir = inner.getBoundingClientRect();
@@ -627,7 +628,7 @@ export default function Canvas() {
     }
     // 兄弟・いとこ（共通の祖先がある）→ 選んでいる要素と同じ階層 / 無関係 → トップレベル
     const selEl = selection
-      ? frameRef.current?.querySelector(`[data-node="${selection}"]`)
+      ? frameRef.current?.querySelector(`[data-node=${cssQuotedAttributeValue(selection)}]`)
       : null;
     const selPath = selEl ? pathTo(selEl) : [];
     let k = 0;
@@ -898,14 +899,14 @@ export default function Canvas() {
       >
         <style>{css}</style>
         {elemDropTarget && (
-          <style>{`.cv-root [data-node="${elemDropTarget}"] { outline: 2px dashed var(--accent) !important; outline-offset: -2px; background-color: rgba(13, 153, 255, 0.06); }`}</style>
+          <style>{`.cv-root [data-node=${cssQuotedAttributeValue(elemDropTarget)}] { outline: 2px dashed var(--accent) !important; outline-offset: -2px; background-color: rgba(13, 153, 255, 0.06); }`}</style>
         )}
         {moveDrag && (
           <style>{`
             body { cursor: grabbing !important; }
             .cv-root { user-select: none; }
-            ${moveDrag.dragIds.map((id) => `.cv-root [data-node="${id}"]`).join(", ")} { opacity: 0.35; }
-            ${moveDrag.insideId ? `.cv-root [data-node="${moveDrag.insideId}"] { outline: 2px dashed var(--accent) !important; outline-offset: -2px; background-color: rgba(13, 153, 255, 0.06); }` : ""}
+            ${moveDrag.dragIds.map((id) => `.cv-root [data-node=${cssQuotedAttributeValue(id)}]`).join(", ")} { opacity: 0.35; }
+            ${moveDrag.insideId ? `.cv-root [data-node=${cssQuotedAttributeValue(moveDrag.insideId)}] { outline: 2px dashed var(--accent) !important; outline-offset: -2px; background-color: rgba(13, 153, 255, 0.06); }` : ""}
           `}</style>
         )}
         {moveDrag?.line && (

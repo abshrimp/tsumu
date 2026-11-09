@@ -11,6 +11,7 @@ import { ASSET_DRAG_TYPE, assetKind, nodeAssetSrc } from "../../lib/assets";
 import { useImageDrop } from "../../lib/image-drop";
 import { makeImage } from "../../lib/presets";
 import { canContainElements } from "../../lib/tags";
+import { cssQuotedAttributeValue } from "../../lib/css-selector";
 import type { Component, DocNode, SiteDoc } from "../../lib/types";
 
 /** Canvas から受け取る値 */
@@ -240,16 +241,18 @@ export function useCanvasDrag({
   };
 
   const startResize = (e: React.PointerEvent, dir: string) => {
-    resizeCleanup.current?.();
-    if (!selection) return;
+    // A second finger must not steal the first handle's drag.
+    if (resizeCleanup.current || e.button !== 0 || !selection) return;
     e.preventDefault();
     e.stopPropagation();
     const el = frameRef.current?.querySelector(
-      `[data-node="${selection}"]`
+      `[data-node=${cssQuotedAttributeValue(selection)}]`
     ) as HTMLElement | null;
     if (!el) return;
     resizing.current = true;
     const initial = useEditor.getState();
+    let expectedDoc = initial.doc;
+    let applying = false;
     const target = e.currentTarget;
     target.setPointerCapture(e.pointerId);
     const startX = e.clientX;
@@ -273,8 +276,8 @@ export function useCanvasDrag({
       const props: Record<string, string> = {};
       if (xSign !== 0) props.width = `${Math.max(4, Math.round(startW + dx))}px`;
       if (ySign !== 0) props.height = `${Math.max(4, Math.round(startH + dy))}px`;
-      if (ev.shiftKey && xSign !== 0 && ySign !== 0) {
-        // Shift: 比率固定（幅基準）
+      if (ev.shiftKey && xSign !== 0 && ySign !== 0 && startW > 0) {
+        // Shift: 比率固定（幅基準）。幅が0なら無限大のCSS値を書き込まない。
         const w = Math.max(4, Math.round(startW + dx));
         props.width = `${w}px`;
         props.height = `${Math.max(4, Math.round((w / startW) * startH))}px`;
@@ -283,7 +286,12 @@ export function useCanvasDrag({
         started = true;
         finishGesture = useEditor.getState().beginGesture();
       }
-      setStyleProps(selection, props, { transient: true });
+      applying = true;
+      try {
+        setStyleProps(selection, props, { transient: true });
+      } finally {
+        applying = false;
+      }
     };
     const onUp = (ev?: Event) => {
       if (ev && "pointerId" in ev && ev.pointerId !== e.pointerId) return;
@@ -293,6 +301,8 @@ export function useCanvasDrag({
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
       window.removeEventListener("blur", onUp);
+      window.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("visibilitychange", onVisibility);
       target.removeEventListener("lostpointercapture", onUp);
       unsubscribe();
       if (target.hasPointerCapture?.(e.pointerId)) target.releasePointerCapture(e.pointerId);
@@ -302,8 +312,22 @@ export function useCanvasDrag({
         if (!resizeCleanup.current) resizing.current = false;
       }, 0);
     };
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") {
+        ev.preventDefault();
+        ev.stopPropagation();
+        onUp();
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") onUp();
+    };
     const unsubscribe = useEditor.subscribe((next) => {
-      if (next.selection !== initial.selection || next.selectedIds !== initial.selectedIds ||
+      // Resize writes are synchronous. An unrelated document replacement (including
+      // remote updates) must invalidate the old gesture instead of being overwritten.
+      if (applying) expectedDoc = next.doc;
+      if (next.doc !== expectedDoc ||
+          next.selection !== initial.selection || next.selectedIds !== initial.selectedIds ||
           next.activePageId !== initial.activePageId || next.editingComponentId !== initial.editingComponentId ||
           next.breakpoint !== initial.breakpoint || next.styleState !== initial.styleState ||
           next.mode !== initial.mode || next.historyRevision !== initial.historyRevision) onUp();
@@ -313,6 +337,8 @@ export function useCanvasDrag({
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointercancel", onUp);
     window.addEventListener("blur", onUp);
+    window.addEventListener("keydown", onKey, true);
+    document.addEventListener("visibilitychange", onVisibility);
     target.addEventListener("lostpointercapture", onUp);
   };
 

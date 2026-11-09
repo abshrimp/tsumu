@@ -8,7 +8,7 @@ import { useContext, useMemo, type ReactNode } from "react";
 import { Plus, Repeat, IterationCw, Split, X } from "lucide-react";
 import { readableValue } from "../DataView";
 import { isLinkScriptId, TRIGGER_LABELS, TRIGGER_ORDER, type PageScript } from "../../lib/script";
-import { isDataStep, keyOfItem, pagePlan, toListItems, type FetchStep } from "../../lib/data";
+import { isDataStep, keyOfItem, toListItems, type FetchStep } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
 import { PAGE_TARGET, type ScriptStep, type ScriptTrigger } from "../../lib/types";
 import { tr } from "../../lib/i18n";
@@ -48,9 +48,7 @@ function ForEachView({
   }, [sample, step.array, outer]);
   // The pre-rendering plan does not run for-each. Warn only for a page-load script,
   // not for click/change handlers that can iterate client-side lists.
-  const pageLoad = ctx.scripts.some((s) => s.id === loc.scriptId &&
-    s.nodeId === PAGE_TARGET && s.trigger === "load");
-  const stuck = pageLoad && !pagePlan(ctx.doc, ctx.pageId).serverIds.has(step.id);
+  const stuck = ctx.pageLoadScriptIds.has(loc.scriptId) && !ctx.serverStepIds.has(step.id);
   return (
     <div className={`se-c${sel}`} {...handlers}>
       <div className="se-blk se-c-head" data-sel-key={key}>
