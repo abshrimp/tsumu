@@ -225,3 +225,24 @@ test("a cancelled thread deletion releases its lock so a later confirmed deletio
   h.setConfirm(async () => true); await remove();
   assert.equal(actions.length, 1); assert.equal(closed, 1);
 });
+
+for (const kind of ["message", "thread"]) test(`${kind} deletion closes the removed discussion after its own update unmounts the view`, async () => {
+  const h = harness();
+  const m = { id: "one", author: {}, body: "Original", at: 1 };
+  const panel = h.instance(kind === "message" ? h.Message : h.ThreadView, {
+    m, thread: { id: "thread", messages: [m] }, unavailable: false, place: "", notices: null,
+    onClose() { h.closed.push("thread"); },
+  });
+  h.setRun(async () => {
+    h.setCommentState({ threadUnavailable: true });
+    panel.unmount();
+    return true;
+  });
+  let remove: () => Promise<void>;
+  if (kind === "message") {
+    find(panel.render(), node => node.type === "button").props.onClick({ currentTarget: { getBoundingClientRect: () => ({ right: 200, bottom: 20 }) } });
+    remove = find(panel.render(), node => node.type === "ContextMenu").props.items.find((item: any) => item.key === "delete").onClick;
+  } else remove = find(panel.render(), node => node.props?.["aria-label"] === "スレッドを削除").props.onClick;
+  await remove();
+  assert.deepEqual(h.closed, ["thread"]);
+});

@@ -228,7 +228,7 @@ function Message({ m, thread, unavailable }: { m: CommentMessage; thread: Commen
                         ) {
                           if (!operation.current()) return;
                           const ok = await run({ action: "delete-message", messageId: m.id });
-                          if (operation.current() && ok && useComments.getState().threadUnavailable) closeCommentIfOpen(thread.id);
+                          if (ok && useComments.getState().threadUnavailable) closeCommentIfOpen(thread.id);
                         }
                       } finally { operation.finish(); }
                     },
@@ -302,7 +302,7 @@ function ThreadView({ thread, onClose, unavailable, place, notices }: { thread: 
                   })
                 ) {
                   if (!operation.current()) return;
-                  if (await run({ action: "delete-thread", threadId: thread.id }) && operation.current()) onClose();
+                  if (await run({ action: "delete-thread", threadId: thread.id })) onClose();
                 }
               } finally { operation.finish(); }
             }}
