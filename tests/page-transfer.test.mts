@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { makeBox } from "../lib/presets";
+import { walkSteps } from "../lib/script";
 import { applyPagePayload, buildPagePayload } from "../lib/page-transfer";
 import type { SiteDoc } from "../lib/types";
 
@@ -190,4 +191,40 @@ test("over-limit destination breakpoints cannot be silently truncated during cop
   const before = structuredClone(dst);
   assert.throws(() => applyPagePayload(dst, buildPagePayload(src, ["home"])), /画面幅|screen-width/);
   assert.deepEqual(dst, before);
+});
+
+
+test("repeated page copies give each node and page script independent block identities", () => {
+  const src = source(), dst = target();
+  const nested = (id: string) => [{ id, trigger: "click" as const, pos: { x: 0, y: 0 }, steps: [{
+    id: id + "-condition", kind: "if" as const,
+    cond: { subject: "visible" as const, target: "@self" },
+    then: [{ id: id + "-then", kind: "show" as const, target: "@self" }],
+    else: [{ id: id + "-else", kind: "hide" as const, target: "@self" }],
+  }] }];
+  src.nodes.a.scripts = nested("node-script");
+  src.pages.home.scripts = nested("loose-script");
+  src.pages.home.pageScripts = nested("page-script");
+  const payload = buildPagePayload(src, ["home"]);
+  const original = structuredClone(payload);
+  applyPagePayload(dst, payload);
+  applyPagePayload(dst, payload);
+
+  const seen = new Set<string>();
+  for (const id of dst.pageOrder.slice(2)) {
+    const page = dst.pages[id];
+    const node = dst.nodes[page.children[0]];
+    const scripts = [...(node.scripts ?? []), ...(page.pageScripts ?? []), ...(page.scripts ?? [])];
+    assert.equal(scripts.length, 3);
+    for (const script of scripts) {
+      assert.ok(!seen.has(script.id), "copied script ID must be unique");
+      seen.add(script.id);
+      walkSteps(script.steps, (step) => {
+        assert.ok(!seen.has(step.id), "copied nested step ID must be unique");
+        seen.add(step.id);
+      });
+    }
+  }
+  assert.equal(seen.size, 24, "two copies, three scripts each, four identities per script");
+  assert.deepEqual(payload, original);
 });
