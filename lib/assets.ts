@@ -327,55 +327,25 @@ export function mediaSrc(doc: SiteDoc, ref: { src: string; assetId?: string; ass
   return asset ? assetMediaUrl(resolved, ref.assetSuffix) : resolved;
 }
 
-const pendingSiteAssetTransfers = new Map<string, Set<Promise<void>>>();
-
-/** サイト間でコピー・貼り付けしたアセットの利用権限をサーバーに記録する */
+/** 貼り付け先で編集データを変更する前に、必要なファイルの利用権限を確定する。 */
 export async function transferSiteAssets(
   fromSite: string,
   toSite: string,
   paths: Iterable<string>,
-  options?: { strict?: boolean },
 ): Promise<void> {
-  const unique = [...new Set([...paths].filter((p) => typeof p === "string" && p.startsWith("assets/")))];
-  if (!fromSite || !toSite || fromSite === toSite || !unique.length) return;
-  if (!options?.strict && typeof window === "undefined") return;
-  const run = (async () => {
-    for (let offset = 0; offset < unique.length; offset += 500) {
-      const res = await fetch("/api/assets", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fromSite, toSite, paths: unique.slice(offset, offset + 500) }),
-      });
-      if (!res.ok && options?.strict) {
-        const data = await res.json().catch(() => null);
-        throw new Error(data?.error ?? tr("Couldn't copy"));
-      }
+  if (!fromSite || !toSite || fromSite === toSite) return;
+  const unique = [...new Set([...paths].filter(path => typeof path === "string" && path.startsWith("assets/")))];
+  for (let offset = 0; offset < unique.length; offset += 500) {
+    const response = await fetch("/api/assets", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fromSite, toSite, paths: unique.slice(offset, offset + 500) }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      throw new Error(data?.error ?? tr("Couldn't copy"));
     }
-  })();
-  let active = pendingSiteAssetTransfers.get(toSite);
-  if (!active) {
-    active = new Set();
-    pendingSiteAssetTransfers.set(toSite, active);
   }
-  const tracked = run.catch(() => {}).finally(() => {
-    active?.delete(tracked);
-    if (active && !active.size) pendingSiteAssetTransfers.delete(toSite);
-  });
-  active.add(tracked);
-  if (options?.strict) await run;
-  else await tracked;
-}
-
-/** 進行中のサイト間アセット権限引き継ぎがあるか（同期判定） */
-export function hasPendingSiteAssetTransfers(site: string = currentSiteId()): boolean {
-  return !!site && (pendingSiteAssetTransfers.get(site)?.size ?? 0) > 0;
-}
-
-/** 自動保存の前に、進行中のサイト間アセット権限引き継ぎの完了を待つ */
-export async function flushSiteAssetTransfers(site: string = currentSiteId()): Promise<void> {
-  if (!site) return;
-  const active = pendingSiteAssetTransfers.get(site);
-  if (active?.size) await Promise.allSettled([...active]);
 }
 
 /**

@@ -174,53 +174,29 @@ export function bpChain(bp: Breakpoint): Breakpoint[] {
   return BP_ORDER.slice(0, BP_ORDER.indexOf(bp) + 1);
 }
 
-/**
- * キャンバスに表示するためにスタイルを解決する。
- * default をカスケードで合成し、state を指定したときは、その state を上に重ねる。
- */
-function resolveStyleMap(
-  styles: NodeStyles | undefined,
-  bp: Breakpoint,
-  state: StyleState
-): StyleMap {
-  const out: StyleMap = {};
-  const chain = bpChain(bp);
-  // 後から効く値は、キーの並びでも後ろに置く（キャンバスのインラインの style は並び順に適用されるため、
-  // 大きい画面の padding-top → 小さい画面の padding → さらに小さい画面の padding-top が、CSS と同じように効く）
-  const put = (map: StyleMap | undefined) => {
-    for (const [k, v] of Object.entries(map ?? {})) {
-      delete out[k];
-      out[k] = v;
-    }
-  };
-  for (const b of chain) put(styles?.[b]?.default);
-  if (state !== "default") {
-    for (const b of chain) put(styles?.[b]?.[state]);
-  }
-  return out;
-}
-
-/** ライトのスタイルに、ダーク用の差分を重ねる。画面幅と状態の優先順位も保つ。 */
+/** ライトのスタイルにダーク用の差分を重ね、画面幅と状態の優先順位を保つ。 */
 export function resolveThemeStyleMap(
   styles: NodeStyles | undefined,
   darkStyles: NodeStyles | undefined,
   bp: Breakpoint,
   state: StyleState,
-  theme: PageTheme
+  theme: PageTheme,
+  includeBaseDefault = true,
 ): StyleMap {
-  if (theme === "light") return resolveStyleMap(styles, bp, state);
-  const out = resolveStyleMap(styles, bp, "default");
+  const out: StyleMap = {};
   const put = (map: StyleMap | undefined) => {
+    // Keep the order of shorthand and longhand declarations consistent with the stylesheet.
     for (const [key, value] of Object.entries(map ?? {})) {
       delete out[key];
       out[key] = value;
     }
   };
   const chain = bpChain(bp);
-  for (const b of chain) put(darkStyles?.[b]?.default);
+  for (const b of chain) if (includeBaseDefault || b !== "base") put(styles?.[b]?.default);
+  if (theme === "dark") for (const b of chain) put(darkStyles?.[b]?.default);
   if (state !== "default") {
     for (const b of chain) put(styles?.[b]?.[state]);
-    for (const b of chain) put(darkStyles?.[b]?.[state]);
+    if (theme === "dark") for (const b of chain) put(darkStyles?.[b]?.[state]);
   }
   return out;
 }

@@ -426,9 +426,9 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
       if (clip) {
         const { payload: copied, raw } = clip;
         event.preventDefault();
-        const paste = () => {
-          useEditor.getState().pasteClipboard(copied);
-          if (copied.site !== currentSiteId()) setPasteNotice(tr("Pasted elements from another site"));
+        const paste = async () => {
+          const applied = await useEditor.getState().pasteClipboard(copied);
+          if (applied && copied.site !== currentSiteId()) setPasteNotice(tr("Pasted elements from another site"));
         };
         // このブラウザのエディタでコピーしたものでなければ（他のウェブサイトが書き込んだかもしれない）、
         // 貼り付けるとすぐに動く HTML（カスタムコード・アイコン）を含む場合は、確認してから貼り付ける

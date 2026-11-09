@@ -230,7 +230,7 @@ export default function Header({
   const setPageTheme = useEditor((s) => s.setPageTheme);
   const mode = useEditor((s) => s.mode);
   const setMode = useEditor((s) => s.setMode);
-  const canUndo = useEditor((s) => s.past.length > 0);
+  const canUndo = useEditor((s) => s.pastePending || s.past.length > 0);
   const canRedo = useEditor((s) => s.future.length > 0);
   const undo = useEditor((s) => s.undo);
   const redo = useEditor((s) => s.redo);

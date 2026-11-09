@@ -77,6 +77,27 @@ describe("client-script-scope", () => {
     runtime.dispose();
   });
 
+  test("a fetch action resolves the clicked row URL in an exported client list", async () => {
+    const { doc, items } = clientScriptFixture();
+    doc.nodes.act.scripts![0].steps = [
+      { id: "fetch-item", kind: "fetch", url: "https://example.test/products/{name}", as: "chosen" },
+    ];
+    const html = await publishedClientNested(doc, "app/page.tsx", items);
+    const urls: string[] = [];
+    const runtime = listRuntimeDom(html, scriptsFile(doc), {
+      URL, location: { href: "https://example.test/" }, AbortController, TextDecoder, TextEncoder,
+      fetch: async (url: string) => { urls.push(url); return Response.json("loaded"); },
+    });
+    try {
+      await runtime.click("reload");
+      await runtime.click("act");
+      assert.deepEqual(urls, ["https://example.test/products/" + encodeURIComponent(items[0].name)]);
+      assert.equal(runtime.active("#result")[0].textContent, "loaded");
+    } finally {
+      runtime.dispose();
+    }
+  });
+
   test('script values read live browser variables and fields at execution and encode URL data once', async () => {
     const { doc, items } = clientScriptFixture();
     doc.nodes.act.scripts![0].steps.push(

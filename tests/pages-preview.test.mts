@@ -151,6 +151,22 @@ test("dark page style preview remains separate from the light canvas and HTML pa
   assert.match(darkHtml, /color-scheme: dark/);
 });
 
+test("canvas and export apply dark declarations after custom CSS while retaining unrelated custom values", () => {
+  applyBreakpoints({});
+  const doc = canvasMoveDoc();
+  const node = doc.nodes.a;
+  node.styles = { base: { default: { opacity: "1", color: "black" } } };
+  node.customCss = "color: red; opacity: 0.5;";
+  node.darkStyles = { base: { default: { color: "white" } } };
+  const preview = buildCanvasCss(doc, ["a"], "base", "preview", null, "default", undefined, undefined, "dark");
+  const published = generateSiteCss(doc, buildClassNames(doc), new Map());
+  // The last declaration of each property is the one the browser uses.
+  for (const css of [preview, published]) {
+    assert.match(css, /color: red;[\s\S]*color: white;/);
+    assert.doesNotMatch(css.slice(css.indexOf("opacity: 0.5;")), /opacity: 1;/);
+  }
+});
+
 test("published CSS uses the OS dark-mode preference and preserves responsive overrides", () => {
   applyBreakpoints({});
   const doc = canvasMoveDoc();

@@ -1,4 +1,4 @@
-import { describe, before, test } from "node:test";
+import { describe, before, test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import * as clips from "../lib/clip-transfer";
 import { buildClipPayload, parseClipPayload, remapAssetIds, type ClipPayload, clipboardPayload, clipHtml, readSystemClipPayload, writeClipPayload } from "../lib/clip-transfer";
@@ -83,6 +83,138 @@ test("copy and paste maps responsive styles and visibility by width rather than 
   assert.deepEqual(second.hiddenOn, copied.hiddenOn);
   assert.notEqual(second.id, copied.id);
   assert.deepEqual(clipboard.nodes[0], original.nodes.box);
+});
+
+function crossSiteImagePaste(t: TestContext) {
+  const original = source();
+  const image = makeImage();
+  original.nodes.box = { ...image, id: "box", image: { ...image.image!, src: "", assetId: "asset-photo" } };
+  original.assets["asset-photo"] = { id: "asset-photo", name: "photo.png", path: "assets/photo.png", width: 10, height: 10 };
+  const payload = buildClipPayload(original, { nodes: [original.nodes.box], rootIds: ["box"] });
+  payload.site = "source-site";
+  const destination = source();
+  state().replaceDoc(destination);
+  state().setActivePage("p");
+  state().select(null);
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { location: { pathname: "/sites/target-site" } } });
+  t.after(() => {
+    if (descriptor) Object.defineProperty(globalThis, "window", descriptor);
+    else Reflect.deleteProperty(globalThis, "window");
+  });
+  return { payload, destination };
+}
+
+test("cross-site paste commits only after the asset transfer succeeds in the same editing context", async (t) => {
+  const { payload, destination } = crossSiteImagePaste(t);
+  let pending = Promise.withResolvers<Response>();
+  const request = t.mock.method(globalThis, "fetch", async () => pending.promise);
+  const paste = state().pasteClipboard(payload);
+  assert.equal(state().doc, destination);
+  pending.resolve(Response.json({ error: "アセットをコピーできませんでした" }, { status: 502 }));
+  assert.equal(await paste, false);
+  assert.equal(state().doc, destination);
+  const error = useDialogs.getState().queue.at(-1)!;
+  assert.equal(error.message, "アセットをコピーできませんでした");
+  closeDialog(error.id);
+
+  pending = Promise.withResolvers<Response>();
+  const stale = state().pasteClipboard(payload);
+  state().updateDoc(doc => { doc.siteName = "Concurrent edit"; });
+  const edited = state().doc;
+  pending.resolve(Response.json({ ok: true }));
+  assert.equal(await stale, false);
+  assert.equal(state().doc, edited);
+  assert.equal(await state().pasteClipboard(payload), true);
+  assert.equal(request.mock.callCount(), 3);
+  assert.equal(state().doc.assets["asset-photo"].path, "assets/photo.png");
+  assert.equal(state().doc.siteName, "Concurrent edit");
+  state().undo();
+  assert.equal(state().doc, edited);
+});
+
+test("Undo cancels an in-flight paste before touching earlier edits, including on an empty history", async t => {
+  const { payload, destination } = crossSiteImagePaste(t);
+  const requests: PromiseWithResolvers<Response>[] = [];
+  t.mock.method(globalThis, "fetch", () => {
+    const request = Promise.withResolvers<Response>();
+    requests.push(request);
+    return request.promise;
+  });
+  for (const priorEdit of [false, true]) {
+    if (priorEdit) state().updateDoc(doc => { doc.siteName = "Keep my edit"; });
+    const before = state().doc;
+    const past = state().past;
+    const paste = state().pasteClipboard(payload);
+    assert.equal(state().pastePending, true);
+    state().undo();
+    assert.equal(state().pastePending, false);
+    requests.at(-1)!.resolve(Response.json({ ok: true }));
+    assert.equal(await paste, false);
+    assert.equal(state().doc, before);
+    assert.equal(state().past, past);
+  }
+  state().undo();
+  assert.equal(state().doc, destination);
+});
+
+test("repeated pastes use the preceding insertion and Undo removes the newest pending paste first", async t => {
+  const { payload, destination } = crossSiteImagePaste(t);
+  const next = structuredClone(payload);
+  next.nodes[0].name = "Second";
+  const requests: PromiseWithResolvers<Response>[] = [];
+  t.mock.method(globalThis, "fetch", () => {
+    const request = Promise.withResolvers<Response>();
+    requests.push(request);
+    return request.promise;
+  });
+  const first = state().pasteClipboard(payload);
+  const second = state().pasteClipboard(next);
+  const third = state().pasteClipboard(payload);
+  state().undo();
+  assert.equal(await third, false);
+  assert.equal(requests.length, 1);
+  requests[0].resolve(Response.json({ ok: true }));
+  assert.equal(await first, true);
+  const afterFirst = state().doc;
+  assert.equal(requests.length, 2);
+  requests[1].resolve(Response.json({ ok: true }));
+  assert.equal(await second, true);
+  const afterSecond = state().doc;
+  assert.equal(afterSecond.nodes[state().selection!].name, "Second");
+  state().undo();
+  assert.equal(state().doc, afterFirst);
+  state().undo();
+  assert.equal(state().doc, destination);
+  state().redo();
+  state().redo();
+  assert.equal(state().doc, afterSecond);
+});
+
+test("a superseded paste never consumes Undo after a selection, page, or document change", async t => {
+  const { payload, destination } = crossSiteImagePaste(t);
+  destination.pages.q = { ...destination.pages.p, id: "q", children: [] };
+  destination.pageOrder.push("q");
+  let request = Promise.withResolvers<Response>();
+  t.mock.method(globalThis, "fetch", () => request.promise);
+  for (const change of ["selection", "page", "document"]) {
+    state().replaceDoc(destination);
+    state().setActivePage("p");
+    state().select(null);
+    state().updateDoc(doc => { doc.siteName = "Before paste"; });
+    const before = state().doc;
+    request = Promise.withResolvers<Response>();
+    const first = state().pasteClipboard(payload);
+    const second = state().pasteClipboard(payload);
+    if (change === "selection") state().select("box");
+    if (change === "page") state().setActivePage("q");
+    if (change === "document") state().updateDoc(doc => { doc.siteName = "After paste"; });
+    assert.equal(state().pastePending, false);
+    state().undo();
+    assert.equal(state().doc, change === "document" ? before : destination);
+    request.resolve(Response.json({ ok: true }));
+    assert.deepEqual(await Promise.all([first, second]), [false, false]);
+  }
 });
 
 test("pasted nested masters map reversed breakpoint names without changing existing masters", () => {

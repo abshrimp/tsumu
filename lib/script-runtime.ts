@@ -1372,8 +1372,9 @@ export const SCRIPT_RUNTIME = `function (env) {
       // Requests outside initial page loading run in the browser. Published
       // sites require CORS from remote APIs; the editor uses its secure proxy.
       async function fetchAction(st, self, sc) {
-        if (typeof st.url !== "string" || !st.url.trim()) return null;
-        var url = resolveUrl(st.url, self, sc);
+        if (typeof st.url !== "string" && !(st.url && Array.isArray(st.url.scriptParts))) return null;
+        var url = resolveUrl(st.url, self, sc).trim();
+        if (!url) return null;
         // Reject schemeless remote hosts, credentials, and non-HTTP protocols.
         if (url.slice(0, 2) === "//" || url.length > 8192) return null;
         var target;

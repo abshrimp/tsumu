@@ -109,7 +109,16 @@ function buildNodeCss(
   const parts = extractPartStyles(map);
   if (hasAbsChild && !map.position) map.position = "relative";
   if (isHiddenAt(node, bp)) map.display = "none";
-  rules.push(`${sel} { ${cssBody(map)}${extra}${motionExtra} }`);
+  let declarations = cssBody(map) + extra + motionExtra;
+  if (extra && (bp !== "base" || pageTheme === "dark" || state !== "default")) {
+    // Custom CSS belongs to the base default rule in the export. Later rules still win.
+    const overrides = resolveThemeStyleMap(node.styles, node.darkStyles, bp, state, pageTheme, false);
+    extractSelectionStyles(overrides);
+    extractPartStyles(overrides);
+    if (isHiddenAt(node, bp)) overrides.display = "none";
+    declarations += " " + cssBody(overrides);
+  }
+  rules.push(`${sel} { ${declarations} }`);
   if (selMap) {
     rules.push(
       `${sel}::selection, ${sel} *::selection { ${cssBody(selMap)} }`

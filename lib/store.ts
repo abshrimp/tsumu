@@ -30,6 +30,7 @@ import type { DocPatch } from "./doc-patch";
 import { showAlert, showConfirm } from "./dialog";
 import { refreshClonedIds } from "./cloneIds";
 import { tr } from "./i18n";
+import { userMessage } from "./errors";
 import { readLocalStorage } from "./local-storage";
 import { currentSiteId, loadLocalSites, siteKey, touchLocalSite } from "./site";
 import { readBrowserDoc, writeBrowserDoc } from "./browser-doc-storage";
@@ -460,13 +461,14 @@ export interface EditorStore {
   setInsertMode: (m: InsertMode) => void;
 
   clipboard: ClipPayload | null;
+  pastePending: boolean;
   /** 要素をコピーする（複数選択中で nodeId を含むなら、選択中のすべての要素）。切り取りでは unlockedOnly で、削除する対象に合わせる。 */
   copyNode: (nodeId: string, opts?: { unlockedOnly?: boolean }) => void;
   /**
    * クリップボードの内容を、挿入先の設定（中へ / 後ろへ）に従って選択した位置に貼り付ける（何も選んでいなければページの末尾）。
    * external を渡すと、他のサイト（タブ）でコピーした要素を、使っているアセットやコンポーネントと一緒に貼り付ける
    */
-  pasteClipboard: (external?: ClipPayload) => void;
+  pasteClipboard: (external?: ClipPayload) => Promise<boolean>;
 
   /**
    * 開いているスクリプトの画面（null = 閉じている）。
@@ -628,7 +630,7 @@ function commitActiveTextEdit() {
   if (el instanceof HTMLElement && el.isContentEditable) el.blur();
 }
 
-export const useEditor = create<EditorStore>((set, get) => {
+export const useEditor = create<EditorStore>((set, get, api) => {
   const initialDoc = createInitialDoc();
   // 保存した編集の位置のブレークポイントを確かめるため、先にサイトの設定を反映する
   applyBreakpoints(initialDoc);
@@ -698,8 +700,154 @@ export const useEditor = create<EditorStore>((set, get) => {
     commitDoc(next, opts);
   };
 
+  const preparePaste = (payload: ClipPayload) => {
+    const clip = prepareClipBreakpoints(get().doc, payload);
+    if (!clip) {
+      void showAlert(tr("The source and destination screen-width settings differ or contain unknown references. Nothing was copied, to keep the appearance intact. Match the screen-width settings and try again."));
+      return null;
+    }
+    const idMap = new Map(clip.nodes.map((n) => [n.id, genId("node")]));
+    const clones = clip.nodes.map((n) => {
+      const c = structuredClone(n);
+      c.id = idMap.get(n.id)!;
+      c.children = n.children.map((cid) => idMap.get(cid)!);
+      return c;
+    });
+    const newRootIds = clip.rootIds.map((id) => idMap.get(id)!);
+
+    const { selection, doc, activePageId, editingComponentId } = get();
+    // 貼り付け先のページで ID 属性が重ならないように付け替える（中のスクリプトの参照も合わせる）
+    refreshEditorClones(doc, clones);
+    const editingComp = editingComponentId
+      ? doc.components?.[editingComponentId]
+      : null;
+    const { parent, index } = insertPointFor(
+      doc,
+      selection,
+      editingComp ? { kind: "node", id: editingComp.rootId } : { kind: "page", id: activePageId },
+      get().insertMode
+    );
+    // コピーしたもの単体では保存できても、置き先の深さを足すと、保存の上限を超える場合がある。
+    const parentDepth = parent.kind === "page" ? 0 : ancestorsOf(doc, parent.id).length + 1;
+    if (parentDepth + maxSubtreeDepth(Object.fromEntries(clones.map(n => [n.id, n])), newRootIds) > MAX_NODE_DEPTH) {
+      void showAlert(tr("Can't paste here"));
+      return null;
+    }
+    // 追加する予定の依存するものを、切り離した map に解決する。既存のマスターを使い回す場合まで含めて検査し、
+    // 貼り付けを拒否したときは、アセットや履歴を含む文書全体を変更しない。
+    const prepared = {
+      ...doc, nodes: { ...doc.nodes }, assets: { ...doc.assets },
+      ...(doc.components ? { components: { ...doc.components } } : {}),
+    };
+    const deps = mergeClipDeps(prepared, clip, {
+      preserveSourceOnCollision: !!clip.site && clip.site !== currentSiteId(),
+    });
+    for (const node of clones) {
+      if (node.type === "instance" && node.componentId) {
+        node.componentId = deps.componentIds.get(node.componentId) ?? node.componentId;
+      }
+    }
+    // コンポーネントの中には、そのコンポーネント自身（を含むインスタンス）を入れない（無限に入れ子になる）
+    const host = parent.kind === "node" ? componentOf(doc, parent.id) : null;
+    if (host) {
+      const pasted = clones.flatMap((n) =>
+        n.type === "instance" && n.componentId ? [n.componentId] : []
+      );
+      if (componentsReachable(prepared, pasted).has(host)) {
+        void showAlert(
+          tr("You can't put component \"{p1}\" inside itself (it would nest forever).", { p1: doc.components?.[host]?.name ?? "" }),
+          { title: tr("Can't paste here") }
+        );
+        return null;
+      }
+    }
+    const paths = clip.site && clip.site !== currentSiteId() ? [
+      ...Object.values(clip.assets).flatMap(asset => asset.path ? [asset.path] : []),
+      ...extractAssetReferences(JSON.stringify([clones, deps.componentNodes])),
+    ] : [];
+    const apply = () => {
+      get().updateDoc((d) => {
+        // 同じタブでも、コピーした後の取り消しや削除で失われた依存するものを戻す。残っているマスターを優先する。
+        d.assets = prepared.assets;
+        if (prepared.components) d.components = prepared.components;
+        if (prepared.customFonts) d.customFonts = prepared.customFonts;
+        if (prepared.adobeFonts) d.adobeFonts = prepared.adobeFonts;
+        if (prepared.uploadedFonts) d.uploadedFonts = prepared.uploadedFonts;
+        for (const n of deps.componentNodes) d.nodes[n.id] = n;
+        for (const n of clones) d.nodes[n.id] = remapAssetIds(n, deps.assetIds);
+        const list = childrenOf(d, parent);
+        list.splice(index === undefined ? list.length : index, 0, ...newRootIds);
+      });
+      set({
+        selection: newRootIds[newRootIds.length - 1] ?? null,
+        selectedIds: newRootIds,
+      });
+    };
+    return { paths, apply };
+  };
+
+  type PasteJob = {
+    payload: ClipPayload;
+    site: string;
+    resolve: (applied: boolean) => void;
+  };
+  const pendingPastes: PasteJob[] = [];
+  let applyingPaste = false;
+
+  const clearPendingPastes = () => {
+    for (const job of pendingPastes.splice(0)) job.resolve(false);
+    if (get().pastePending) set({ pastePending: false });
+  };
+
+  // Only a paste from this queue may advance the destination for the next paste.
+  api.subscribe((now, previous) => {
+    if (applyingPaste || !pendingPastes.length) return;
+    if (currentSiteId() !== pendingPastes[0].site || now.doc !== previous.doc ||
+        now.documentSession !== previous.documentSession || now.historyRevision !== previous.historyRevision ||
+        now.activePageId !== previous.activePageId || now.editingComponentId !== previous.editingComponentId ||
+        now.selection !== previous.selection || now.selectedIds !== previous.selectedIds ||
+        now.insertMode !== previous.insertMode || now.mode !== previous.mode || now.scriptEditor !== previous.scriptEditor) {
+      clearPendingPastes();
+    }
+  });
+
+  const drainPastes = async () => {
+    while (pendingPastes.length) {
+      const job = pendingPastes[0];
+      let applied = false;
+      try {
+        const plan = preparePaste(job.payload);
+        if (plan) {
+          if (plan.paths.length && job.site && job.payload.site) {
+            if (!get().pastePending) set({ pastePending: true });
+            await transferSiteAssets(job.payload.site, job.site, plan.paths);
+          }
+          if (pendingPastes[0] !== job) return;
+          if (currentSiteId() !== job.site) {
+            clearPendingPastes();
+            return;
+          }
+          applyingPaste = true;
+          try {
+            plan.apply();
+            applied = true;
+          } finally {
+            applyingPaste = false;
+          }
+        }
+      } catch (error) {
+        if (pendingPastes[0] !== job) return;
+        void showAlert(userMessage(error, tr("Couldn't paste")));
+      }
+      pendingPastes.shift();
+      job.resolve(applied);
+    }
+    if (get().pastePending) set({ pastePending: false });
+  };
+
   return {
     doc: initialDoc,
+    pastePending: false,
     docEditRevision: 0,
     documentSession: 0,
     past: [],
@@ -1230,91 +1378,13 @@ export const useEditor = create<EditorStore>((set, get) => {
 
     pasteClipboard: (external) => {
       const payload = external ?? get().clipboard;
-      if (!payload) return;
-      const clip = prepareClipBreakpoints(get().doc, payload);
-      if (!clip) {
-        void showAlert(tr("The source and destination screen-width settings differ or contain unknown references. Nothing was copied, to keep the appearance intact. Match the screen-width settings and try again."));
-        return;
-      }
-      const idMap = new Map(clip.nodes.map((n) => [n.id, genId("node")]));
-      const clones = clip.nodes.map((n) => {
-        const c = structuredClone(n);
-        c.id = idMap.get(n.id)!;
-        c.children = n.children.map((cid) => idMap.get(cid)!);
-        return c;
-      });
-      const newRootIds = clip.rootIds.map((id) => idMap.get(id)!);
-
-      const { selection, doc, activePageId, editingComponentId } = get();
-      // 貼り付け先のページで ID 属性が重ならないように付け替える（中のスクリプトの参照も合わせる）
-      refreshEditorClones(doc, clones);
-      const editingComp = editingComponentId
-        ? doc.components?.[editingComponentId]
-        : null;
-      const { parent, index } = insertPointFor(
-        doc,
-        selection,
-        editingComp ? { kind: "node", id: editingComp.rootId } : { kind: "page", id: activePageId },
-        get().insertMode
-      );
-      // コピーしたもの単体では保存できても、置き先の深さを足すと、保存の上限を超える場合がある。
-      const parentDepth = parent.kind === "page" ? 0 : ancestorsOf(doc, parent.id).length + 1;
-      if (parentDepth + maxSubtreeDepth(Object.fromEntries(clones.map(n => [n.id, n])), newRootIds) > MAX_NODE_DEPTH) {
-        void showAlert(tr("Can't paste here"));
-        return;
-      }
-      // 追加する予定の依存するものを、切り離した map に解決する。既存のマスターを使い回す場合まで含めて検査し、
-      // 貼り付けを拒否したときは、アセットや履歴を含む文書全体を変更しない。
-      const prepared = {
-        ...doc, nodes: { ...doc.nodes }, assets: { ...doc.assets },
-        ...(doc.components ? { components: { ...doc.components } } : {}),
-      };
-      const deps = mergeClipDeps(prepared, clip, {
-        preserveSourceOnCollision: !!clip.site && clip.site !== currentSiteId(),
-      });
-      for (const node of clones) {
-        if (node.type === "instance" && node.componentId) {
-          node.componentId = deps.componentIds.get(node.componentId) ?? node.componentId;
-        }
-      }
-      // コンポーネントの中には、そのコンポーネント自身（を含むインスタンス）を入れない（無限に入れ子になる）
-      const host = parent.kind === "node" ? componentOf(doc, parent.id) : null;
-      if (host) {
-        const pasted = clones.flatMap((n) =>
-          n.type === "instance" && n.componentId ? [n.componentId] : []
-        );
-        if (componentsReachable(prepared, pasted).has(host)) {
-          void showAlert(
-            tr("You can't put component \"{p1}\" inside itself (it would nest forever).", { p1: doc.components?.[host]?.name ?? "" }),
-            { title: tr("Can't paste here") }
-          );
-          return;
-        }
-      }
-      get().updateDoc((d) => {
-        // 同じタブでも、コピーした後の取り消しや削除で失われた依存するものを戻す。残っているマスターを優先する。
-        d.assets = prepared.assets;
-        if (prepared.components) d.components = prepared.components;
-        if (prepared.customFonts) d.customFonts = prepared.customFonts;
-        if (prepared.adobeFonts) d.adobeFonts = prepared.adobeFonts;
-        if (prepared.uploadedFonts) d.uploadedFonts = prepared.uploadedFonts;
-        for (const n of deps.componentNodes) d.nodes[n.id] = n;
-        for (const n of clones) d.nodes[n.id] = remapAssetIds(n, deps.assetIds);
-        const list = childrenOf(d, parent);
-        list.splice(index === undefined ? list.length : index, 0, ...newRootIds);
-      });
-      const toSite = currentSiteId();
-      if (clip.site && toSite && clip.site !== toSite) {
-        const paths = [
-          ...Object.values(clip.assets).flatMap((a) => (a.path ? [a.path] : [])),
-          ...extractAssetReferences(JSON.stringify([clones, deps.componentNodes])),
-        ];
-        void transferSiteAssets(clip.site, toSite, paths);
-      }
-      set({
-        selection: newRootIds[newRootIds.length - 1] ?? null,
-        selectedIds: newRootIds,
-      });
+      if (!payload) return Promise.resolve(false);
+      const site = currentSiteId();
+      if (pendingPastes.length && pendingPastes[0].site !== site) clearPendingPastes();
+      const { promise, resolve } = Promise.withResolvers<boolean>();
+      pendingPastes.push({ payload, site, resolve });
+      if (pendingPastes.length === 1) void drainPastes();
+      return promise;
     },
 
     gestureActive: false,
@@ -1340,6 +1410,14 @@ export const useEditor = create<EditorStore>((set, get) => {
     },
 
     undo: () => {
+      if (pendingPastes.length && !applyingPaste) {
+        if (currentSiteId() === pendingPastes[0].site) {
+          pendingPastes.pop()!.resolve(false);
+          if (!pendingPastes.length) set({ pastePending: false });
+          return;
+        }
+        clearPendingPastes();
+      }
       commitActiveTextEdit();
       pendingBase = null;
       // 履歴を移動した後の pointermove を、古い操作の履歴なしの更新として扱わない。

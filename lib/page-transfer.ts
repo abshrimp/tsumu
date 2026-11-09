@@ -264,7 +264,7 @@ export async function copyPagesToSite(
         ...Object.values(payload.deps.assets).flatMap((a) => (a.path ? [a.path] : [])),
         ...extractAssetReferences(JSON.stringify([payload.pages, payload.nodes, payload.deps.componentNodes])),
       ];
-      await transferSiteAssets(payload.deps.site, target.id, paths, { strict: true });
+      await transferSiteAssets(payload.deps.site, target.id, paths);
       transferred = true;
     }
     let res: Response | undefined;
