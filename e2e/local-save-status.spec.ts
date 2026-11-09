@@ -127,6 +127,7 @@ test("a stale tab cannot overwrite the newer document", async ({ page, context }
 
 test("a deleted site cannot be silently recreated by its open editor", async ({ page: home, context }) => {
   await localOnly(home);
+  await home.route("**/api/sites", route => route.fulfill({ status: 503, json: {} }));
   await home.goto("/");
   const id = "deleted-browser-site";
   const site = { id, name: "Local site", createdAt: 1, updatedAt: 1,
@@ -136,6 +137,8 @@ test("a deleted site cannot be silently recreated by its open editor", async ({ 
   await setBrowserDoc(home, id, JSON.stringify(doc));
   await home.reload();
   const editor = await context.newPage();
+  await editor.route("**/api/sites/*", route => route.fulfill({ status: 503, json: {} }));
+  await editor.route("**/api/doc?*", route => route.fulfill({ status: 503, json: {} }));
   await editor.goto(`/sites/${id}`);
   try {
     await expect(status(editor)).toContainText("このブラウザにのみ保存");
