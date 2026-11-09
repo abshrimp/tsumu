@@ -25,7 +25,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   }
   try {
-    return NextResponse.json(await listCommentPage(await getDb(), siteId, before, focus));
+    return NextResponse.json(await listCommentPage(await getDb(), siteId, before, focus), {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch (e) {
     return NextResponse.json({ error: tr(userMessage(e, "読み込めませんでした")) }, { status: 502 });
   }
