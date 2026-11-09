@@ -72,3 +72,12 @@ test("long acyclic component chains are traversed iteratively", () => {
   }
   assert.equal(componentsReachable(doc, ["comp-0"]).size, 10000);
 });
+
+test("inserting an instance with no definition cannot corrupt an ordinary page", () => {
+  const original = fixture();
+  useEditor.getState().replaceDoc(original);
+  const invalid = instance("missing-definition", "missing-component");
+  useEditor.getState().insertNodes([invalid], invalid.id, { kind: "page", id: "p" });
+  assert.equal(useEditor.getState().doc, original);
+  assert.ok(!useEditor.getState().doc.nodes[invalid.id]);
+});

@@ -191,7 +191,6 @@ function canPlaceComponentNodes(
   inputNodes: Record<string, DocNode> = doc.nodes,
 ): boolean {
   const owner = parent.kind === "node" ? componentOf(doc, parent.id) : null;
-  if (!owner) return true;
   const referenced = new Set<string>();
   const pending = [...rootIds];
   const seen = new Set<string>();
@@ -207,7 +206,7 @@ function canPlaceComponentNodes(
     }
     pending.push(...node.children);
   }
-  return !componentsReachable(doc, referenced).has(owner);
+  return !owner || !componentsReachable(doc, referenced).has(owner);
 }
 
 /**
