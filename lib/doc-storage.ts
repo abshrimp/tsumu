@@ -102,8 +102,14 @@ export async function saveCurrentDoc(
 ): Promise<SaveDocResult> {
   // Do not rely on the HTTP caller to validate a persisted document.
   // Direct storage consumers, imports and copies must obey the same invariant.
-  const invalid = validateDocBody(raw);
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); } catch { throw new Error("JSONが壊れています"); }
+  const invalid = validateDocValue(parsed);
   if (invalid) throw new Error(invalid);
+  // Persist exactly the object we validated. SQLite JSON paths select the
+  // first duplicate key, while JSON.parse selects the last; retaining the raw
+  // text would let a later SQL PATCH advance the revision without saving edits.
+  raw = JSON.stringify(parsed);
   if (base !== null && (!/^[1-9]\d*$/.test(base) || !Number.isSafeInteger(Number(base)))) {
     throw new Error("不正なリクエスト");
   }

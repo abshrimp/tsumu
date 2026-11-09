@@ -100,6 +100,49 @@ test("SQL patches preserve nulls, arrays, additions and removals without fetchin
   });
 });
 
+for (const duplicates of ["site fields", "collections", "collection entries"]) {
+  for (const replacing of [false, true]) {
+    test(`SQL patches update the validated values after a ${replacing ? "replacement" : "first"} snapshot with duplicate ${duplicates}`, async () => {
+      await database(async db => {
+        const original = doc();
+        let base: string | null = null;
+        if (replacing) {
+          await saveCurrentDoc(db, "s1", JSON.stringify(original), null);
+          base = "1";
+        }
+        // JSON.parse takes the last value, whereas SQLite JSON paths select the
+        // first. Exercise each level independently so no duplicate masks another.
+        const node = original.nodes["node-1"];
+        const acceptedNode = { ...node, name: "Accepted node" };
+        const raw = duplicates === "site fields"
+          ? JSON.stringify(original).slice(0, -1) + ',"siteName":"Accepted snapshot"}'
+          : duplicates === "collections"
+            ? JSON.stringify(original).slice(0, -1) + `,"nodes":${JSON.stringify({ "node-1": acceptedNode })}}`
+            : JSON.stringify(original).replace(
+              `"nodes":${JSON.stringify(original.nodes)}`,
+              `"nodes":{"node-1":${JSON.stringify(node)},"node-1":${JSON.stringify(acceptedNode)}}`);
+        const accepted = JSON.parse(raw) as SiteDoc;
+        assert.equal(validateDocBody(raw), null);
+        const saved = await saveCurrentDoc(db, "s1", raw, base);
+        assert.equal(saved.kind, "saved");
+        if (saved.kind !== "saved") return;
+        assert.deepEqual(JSON.parse((await readCurrentDoc(db, "s1"))!.body), accepted);
+
+        const next = structuredClone(accepted);
+        next.siteName = "Patched snapshot";
+        next.nodes["node-1"].name = "Patched node";
+        const patch = createDocPatch(accepted, next)!;
+        const result = await saveDocPatch(db, "s1", patch, saved.rev);
+        assert.equal(result.kind, "saved");
+        const current = (await readCurrentDoc(db, "s1"))!;
+        assert.equal(current.rev, String(Number(saved.rev) + 1));
+        assert.deepEqual(JSON.parse(current.body), next);
+        assert.deepEqual(JSON.parse(current.body), applyDocPatch(accepted, patch));
+      });
+    });
+  }
+}
+
 test("the maximum patch size fits parameter limits and applies all chunks correctly", async () => {
   await database(async (db, statements) => {
     const base = doc();
