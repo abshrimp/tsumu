@@ -963,6 +963,7 @@ export function VarInput({
   className,
   style,
   onActivate,
+  onDeactivate,
 }: {
   value: string;
   /** blur時に確定（Enterでもblurする） */
@@ -983,8 +984,9 @@ export function VarInput({
   valueContext?: ValueContext;
   className?: string;
   style?: CSSProperties;
-  /** Optional lazy initialization of costly suggestion data on first focus. */
+  /** Compute expensive suggestions only while this input is focused. */
   onActivate?: () => void;
+  onDeactivate?: () => void;
 }) {
   const ref = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -1122,7 +1124,10 @@ export function VarInput({
         onCompositionEnd={() => update(!eager && sug?.query.mode === "manual")}
         onBlur={(e) => {
           setSug(null);
-          if (!explore) onCommit(e.target.value);
+          if (!explore) {
+            onCommit(e.target.value);
+            onDeactivate?.();
+          }
         }}
         onKeyDown={(e) => {
           if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;

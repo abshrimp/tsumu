@@ -160,6 +160,7 @@ function VarTextIn({
     <VarInput
       key={value}
       onActivate={() => setActive(true)}
+      onDeactivate={() => setActive(false)}
       value={value}
       className={`se-in${value ? "" : " is-empty"}`}
       style={{ width }}
@@ -184,17 +185,22 @@ export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 
   value: string; onCommit: (v: string) => void; itemFields?: string[];
   itemSamples?: Record<string, string>; width?: number;
 }) {
-  const { doc: savedDoc, pageId, readOnly } = useContext(Ctx);
+  const { readOnly, samples, variableIndex } = useContext(Ctx);
   const stepId = useContext(ScriptStepCtx);
-  const source = singleValueReference(value);
-  // A literal value or read-only preview needs no variable-type document.
-  // The editable variable picker builds its suggestions on focus separately.
-  const doc = useMemo(() => source && !readOnly ? scriptInputDoc(savedDoc, stepId) : null,
-    [savedDoc, stepId, source, readOnly]);
-  const nodeId = useContext(ScriptNodeCtx);
   const loops = useContext(LoopCtx);
-  const local = localVariableNames([...(itemFields ?? []), ...loops.flatMap((l) => [...l.fields, ...(l.roots ?? [])])]);
-  const sample = source && doc ? lookupVar(variableChoiceSamples(varGroupsAt(doc, pageId, nodeId), local), source) : undefined;
+  const source = singleValueReference(value);
+  // Use the shared preview without materializing a modified document for every
+  // input. A local loop or list-item root shadows the page sample completely.
+  const produced = variableIndex?.byStep.get(stepId);
+  const exclusiveOwnOutput = source && [source, source.split(".")[0]].some((name) =>
+    produced?.has(name) && !variableIndex?.hasOther(name, stepId));
+  const sourceRoot = source?.split(".")[0];
+  const sameRoot = (name: string) => name.split(".")[0] === sourceRoot;
+  const locallyShadowed = !!sourceRoot &&
+    ((itemFields?.some(sameRoot) ?? false) || loops.some((loop) =>
+      loop.fields.some(sameRoot) || (loop.roots?.some(sameRoot) ?? false)));
+  const sample = source && !exclusiveOwnOutput && !locallyShadowed
+    ? lookupVar(samples, source) : undefined;
   const kind = sample === undefined ? null : sample !== null && typeof sample === "object" ? tr("リスト") : tr("値");
   if (readOnly) return <span className="se-in se-in-fake">{source ? fieldLabel(source) : value}</span>;
   return <span className="se-value-choice">
