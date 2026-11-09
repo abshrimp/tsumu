@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { createInitialDoc } from "../lib/presets";
 import { applyCommentAction } from "../lib/comments";
 import { emptyDest } from "../lib/site";
+import { setBrowserDoc } from "./helpers/browser-doc";
 
 for (const draft of ["create", "reply", "edit"] as const) test(`deleting a local site in Home preserves the stale editor's ${draft} text`, async ({ page: home, context }) => {
   const site = { ...emptyDest(), id: "local-deletion", name: "Local deletion", createdAt: 1, updatedAt: 1 };
@@ -23,9 +24,9 @@ for (const draft of ["create", "reply", "edit"] as const) test(`deleting a local
     nodeId: null, x: .5, y: .5, bp: "base", body: "Saved browser discussion" }, null, 1);
   await home.evaluate(({ site, doc, key, threads }) => {
     localStorage.setItem("tsumu-sites-v1", JSON.stringify([site]));
-    localStorage.setItem(`tsumu-doc-v1:${site.id}`, JSON.stringify(doc));
     localStorage.setItem(key, JSON.stringify(threads));
   }, { site, doc, key, threads });
+  await setBrowserDoc(home, site.id, JSON.stringify(doc));
   await home.reload(); await expect(home.locator(".home-card-name")).toHaveText(site.name);
   const editor = await context.newPage();
   await editor.goto(`/sites/${site.id}`);

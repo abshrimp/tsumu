@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import JSZip from "jszip";
+import { browserDoc } from "./helpers/browser-doc";
 
 const HEADING = "見出しをここに";
 
@@ -47,7 +48,7 @@ test("Tsumu page title and save preferences survive a reload", async ({ page, co
   const id = await openNewSite(page, "Tsumu smoke");
   await saved(page);
   await expect(page).toHaveTitle("Tsumu smoke | Tsumu");
-  await expect.poll(() => page.evaluate(() => Object.keys(localStorage))).toContain(`tsumu-doc-v1:${id}`);
+  await expect.poll(() => browserDoc(page, id)).not.toBeNull();
   expect((await context.cookies()).find((c) => c.name === "tsumu-lang")?.value).toBe("ja");
   await page.reload();
   await expect(canvas(page).getByText(HEADING).first()).toBeVisible();
