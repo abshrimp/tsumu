@@ -8,6 +8,7 @@ export function assertGeneratedPaths(project: GeneratedProject, reservedPaths: r
   const paths = new Set<string>();
   const portablePaths = new Map<string, string>();
   const normalize = (path: string) => path.normalize("NFC").toLowerCase();
+  const encoder = new TextEncoder();
   for (const [kind, records] of [
     ["text", project.files],
     ["binary", project.binaries],
@@ -20,6 +21,7 @@ export function assertGeneratedPaths(project: GeneratedProject, reservedPaths: r
       if (!path || path.startsWith("/") || /^[a-z]:/i.test(path) ||
           /[\\\u0000-\u001f\u007f<>:"|?*]/.test(path) ||
           segments.some((segment) => !segment || segment === "." || segment === ".." ||
+            encoder.encode(segment).byteLength > 255 ||
             /[. ]$/.test(segment) ||
             /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i.test(segment))) {
         throw new Error("Unsafe generated " + kind + " path: " + path);

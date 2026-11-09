@@ -428,3 +428,24 @@ test("AUD-F-013: Next.js credential fetch stays in server files, not client-dist
   assert.ok(!publicSources.includes(sentinel),
     "server-side fetch settings must not be duplicated into browser-distributed files");
 });
+
+test("AUD-F-014: generated filename components are bounded for portable ZIP extraction", async () => {
+  const { assertGeneratedPaths } = await import("../lib/generator/output-paths");
+  const { buildAssetNames } = await import("../lib/generator/names");
+  const { exportDirectoryName } = await import("../lib/exportZip");
+  const empty = { binaries: {}, remoteAssets: {} };
+  for (const tooLong of ["a".repeat(256) + ".txt", "あ".repeat(86) + ".png"]) {
+    assert.throws(() => assertGeneratedPaths({ ...empty, files: { [tooLong]: "data" } }),
+      /Unsafe generated/, "filesystem segment longer than 255 bytes: " + tooLong.length);
+  }
+  const site = doc();
+  site.assets["long"] = {
+    id: "long", name: "A".repeat(500) + ".png", width: 1, height: 1,
+    mimeType: "image/png", dataUrl: "data:image/png;base64,AQID",
+  };
+  const path = buildAssetNames(site).get("long")!;
+  assert.ok(path.length <= 140, "asset path should leave room for unique suffixes");
+  assert.match(path, /\.png$/);
+  assert.doesNotThrow(() => generateExportProject(site, "html"));
+  assert.ok(exportDirectoryName("A".repeat(1000)).length <= 96);
+});

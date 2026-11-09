@@ -125,7 +125,11 @@ export function buildAssetNames(doc: SiteDoc): Map<string, string> {
       (extMatch ? raw.slice(0, extMatch.index) : raw)
         .replace(/-{2,}/g, "-")
         .replace(/^[.-]+/, "")
-        .replace(/\.+$/g, "") || "image";
+        .replace(/\.+$/g, "")
+        // Keep exported asset paths usable on filesystems with 255-byte
+        // filename components, retaining room for extensions and suffixes.
+        .slice(0, 120)
+        .replace(/[.-]+$/g, "") || "image";
     // Windows reserves these device names with or without an extension.
     // Rename valid uploaded assets rather than failing the entire export.
     const base = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(originalBase)

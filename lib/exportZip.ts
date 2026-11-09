@@ -11,7 +11,9 @@ import { EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, type ArchiveAssetMap } from ".
 export function exportDirectoryName(siteName: string): string {
   const name = siteName.toLowerCase()
     .replace(/[^a-z0-9-]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "my-site";
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 96)
+    .replace(/-+$/g, "") || "my-site";
   return /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/.test(name) ? "_" + name : name;
 }
 
