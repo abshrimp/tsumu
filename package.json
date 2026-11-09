@@ -74,7 +74,7 @@
   "packageManager": "npm@12.2.1",
   "allowScripts": {
     "esbuild@0.28.2": true,
-    "workerd@1.20261019.1": true,
+    "workerd@1.20261104.1": true,
     "fsevents@2.3.3": true
   }
 }
