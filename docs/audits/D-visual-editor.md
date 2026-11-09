@@ -15,6 +15,8 @@
 | AUD-D-001 | Medium | Selecting `custom` keyframes in `MotionSec` immediately saved `keyframes: "custom"` *before* the modal was applied. | Open a preset motion, choose Custom and cancel; the original CSS/preset and undo history must remain unchanged. On Apply, preset and CSS must be one undoable change. | Fixed in `MotionSec.tsx`; regression: `tests/motion-modal-atomicity.test.mts` (CI pending). |
 | AUD-D-002 | Medium | `PanelResizer` accepted every pointer's move/up events. Capture loss, window blur and component unmount could leave resize cursor and stale listeners active. | Start pointer 1, send pointer 2 updates/cancel, lose capture, hide tab, or unmount; pointer 1 owns the operation, and cleanup must leave controls usable. | Fixed with `lib/panel-resize.ts`, `Editor.tsx`; regression: `tests/panel-resize.test.mts` (CI pending). |
 | AUD-D-003 | Medium | Canvas element resize called the previous gesture's cleanup when another pointer started; it did not detect remote document replacement and had no Escape/visibility cancellation. | Resize node A with pointer 1 while pointer 2 starts; then apply a collaborator's edit to node B. The old drag must not overwrite any new document or accept late move events. | Fixed in `components/canvas/useCanvasDrag.ts`; regression: `tests/canvas-node-resize-lifecycle.test.mts` (CI pending). |
+| AUD-D-004 | Low | With a rendered element at 0px width, Shift corner-resize divided by the initial width and could write invalid `Infinitypx` CSS. | Select an element with zero rendered width and drag a corner with Shift; both dimensions must remain finite and undoable. | Fixed in Canvas resize hook; regression: `tests/canvas-node-resize-lifecycle.test.mts` (CI pending). |
+| AUD-D-005 | Medium (security) | The Canvas CSS builder appended arbitrary style-map names and values as raw CSS declarations; a malformed SiteDoc could escape the scoped rule. | Feed malformed CSS keys / stray declaration terminators and style-close tags through a SiteDoc; generated Canvas CSS must not contain new global selectors or HTML style termination. Valid data URLs and quoted semicolons must survive. | Fixed in `components/canvas/css.ts`; regression: `tests/canvas-css-declarations.test.mts` (CI pending). |
 
 ## Audit matrix
 
@@ -31,13 +33,16 @@
 
 - Atomic keyframe editor: Custom selection does not mutate the SiteDoc until Apply; Cancel/Escape discard edits.
 - Panel resize pointer ownership, blur/visibility/capture-loss/unmount cleanup and concurrent left/right resize cursor reference-counting.
-- Canvas node resize pointer ownership; stale document / remote edit detection; Escape/visibility abort handlers.
-- Callback-level and store-level regressions for all three findings, including single-step Undo/Redo and invalidated gestures.
+- Canvas node resize pointer ownership; stale document / remote edit detection; Escape/visibility abort handlers; finite sizing at zero initial width.
+- CSS declaration containment for SiteDoc-derived style-map keys and values. Normal quoted strings, nested functions, URL data and custom properties are preserved.
+- Callback-level, store-level and CSS generation regressions for all five findings, including single-step Undo/Redo and invalidated gestures.
+- `e2e/panel-resize.spec.ts` covers real-browser pointer cancellation and 1360/1024/900px panel layouts.
 
 ### Pending evidence
 
 - GitHub CI on the final branch HEAD: unit/integration, typecheck, translations, build, generated format builds, CodeQL, Playwright shards.
-- Dedicated real-browser tests for new panel/Canvas behavior and representative viewport widths.
+- Real-browser verification of the new panel test and additional Canvas interaction breadth; Chromium/Firefox/WebKit representative viewport coverage as available.
+- Cross-stream handoffs: PR #31 (component-reference cycles in shared store), PR #30 (generated-site CSS/keyframes), PR #28 (independent D validation), PR #32 (integration).
 - Independent reviewer and integration check after other audit streams merge.
 
 No claim is made that all D behaviors are verified or that there are no remaining defects. CI success alone does not constitute the full D audit.
