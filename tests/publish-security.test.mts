@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createInitialDoc } from "../lib/presets";
-import { hasPublishCredentials } from "../lib/publish-security";
+import { hasPublishCredentials, readRestoreJson } from "../lib/publish-security";
+import { validateImportedDoc } from "../lib/site-import";
 
 const siteWithFetch = (url: string, headers?: { name: string; value: string }[], body?: string) => {
   const doc = createInitialDoc();
@@ -49,4 +50,37 @@ test("credential detection visits deep scripts and decoded query, form and JSON 
   for (let i = 0; i < 60; i++) nested = [{ id: String(i), kind: "repeat", times: 1, then: nested }];
   steps.push(...nested);
   assert.equal(hasPublishCredentials(doc), true);
+});
+
+test("GitHub history JSON is bounded even without Content-Length", async () => {
+  const tooLarge = new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new Uint8Array([123, 34, 97, 34, 58, 34]));
+      controller.enqueue(new Uint8Array(24));
+      controller.close();
+    },
+  }));
+  await assert.rejects(readRestoreJson(tooLarge, 16), /大きすぎ/);
+  const advertised = new Response('{"siteName":"ignored"}', { headers: { "Content-Length": "1000" } });
+  await assert.rejects(readRestoreJson(advertised, 16), /大きすぎ/);
+});
+
+test("GitHub history JSON rejects truncated content and malformed UTF-8", async () => {
+  await assert.rejects(readRestoreJson(new Response('{"siteName":'), 100), /読み込めません/);
+  await assert.rejects(readRestoreJson(new Response(new Uint8Array([0xff, 0xfe])), 100), /読み込めません/);
+});
+
+test("validated history JSON round-trips a SiteDoc but rejects poisoned restores", async () => {
+  const doc = createInitialDoc();
+  const restored = validateImportedDoc(await readRestoreJson(Response.json(doc), 1024 * 1024));
+  assert.deepEqual(restored, doc);
+
+  const poison = JSON.parse(JSON.stringify(doc));
+  poison.nodes.__proto__ = { poisoned: true }; // not an own JSON key
+  Object.defineProperty(poison.nodes, "__proto__", { value: { poisoned: true }, enumerable: true });
+  assert.throws(() => validateImportedDoc(poison), /プロパティ/);
+
+  const invalid = JSON.parse(JSON.stringify(doc));
+  invalid.pageOrder = ["nonexistent-page"];
+  assert.throws(() => validateImportedDoc(invalid), /ページ|親子/);
 });
