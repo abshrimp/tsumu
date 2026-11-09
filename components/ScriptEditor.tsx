@@ -592,6 +592,8 @@ function ScriptEditorInner({
     targetLookup,
     fieldLookup,
     scripts,
+    // Count existing step owners rather than walking the entire tree a second time.
+    virtualizeStacks: scripts.length > 40 || stepOwners.size > 320,
     variableIndex,
     transformSources,
     pageLoadScriptIds,
@@ -663,7 +665,7 @@ function ScriptEditorInner({
       setMenu({ x: e.clientX, y: e.clientY, target, key });
     },
   }), [doc, activePageId, extraRootsKey, targets, tree, targetLookup, fieldLookup, scripts,
-    variableIndex, transformSources, pageLoadScriptIds, serverStepIds, elements, focusNodeId,
+    stepOwners, variableIndex, transformSources, pageLoadScriptIds, serverStepIds, elements, focusNodeId,
     commit, updateDoc, nodeIds, arrays, samples, begin]);
   const ctx = useMemo<EdCtx>(() => ({ ...sharedCtx, selected, zOrder }),
     [sharedCtx, selected, zOrder]);
