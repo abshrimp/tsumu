@@ -85,7 +85,7 @@ function signingFixture(authorized = true) {
 
 test("asset signing accepts a valid request and enforces authorization", async () => {
   const { POST, signed } = signingFixture();
-  const good = await POST(jsonRequest('{"paths":["assets/a.png"]}'));
+  const good = await POST(jsonRequest('{"paths":["assets/a.png","assets/a.png"]}'));
   assert.equal(good.status, 200);
   assert.deepEqual((await good.json()).urls, {
     "assets/a.png": "/api/assets/file?path=assets%2Fa.png&exp=123&sig=example",
