@@ -179,7 +179,8 @@ test.describe("deleted comment threads", () => {
       release.resolve(); expect((await response).status()).toBe(404);
       await expect(deletedWarning(page)).toContainText("このスレッドは削除されています");
       await expect(reply).toHaveValue("Never report this as saved");
-      await expect(page.locator(".cm-item")).toHaveCount(0, { timeout: 20_000 });
+      await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+      await expect(page.locator(".cm-item")).toHaveCount(0);
       await expect(reply).toHaveValue("Never report this as saved");
       expect((await (await page.request.get(`/api/comments?site=${site}`)).json()).threads).toEqual([]);
     } finally { release.resolve(); }

@@ -1,9 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 import { editorBootstrapBundle } from "../tests/helpers/editor-bootstrap";
-import { makeBox } from "../lib/presets";
+import { makeBox, makeText } from "../lib/presets";
+import type { SiteDoc } from "../lib/types";
 
 let bundle: string;
 test.beforeAll(async () => { bundle = await editorBootstrapBundle(true); });
+
+test.describe("Clipboard artwork paste", () => {
 test.beforeEach(async ({ page }) => {
   await page.route("http://clipboard-artwork.test/**", (route) => route.request().url().endsWith("/")
     ? route.fulfill({ contentType: "text/html", body: '<html><body><div id="app"></div></body></html>' })
@@ -233,3 +236,235 @@ test("paste waits for a manual gesture and remains a separate history step", asy
   expect((await snapshot(page)).past).toBe(2);
   await page.evaluate(() => (window as any).pasteEditor.getState().undo()); expect((await snapshot(page)).doc).toEqual(edited.doc);
 });
+});
+
+const pasteScopeFixture = (): SiteDoc => ({ schemaVersion: 1, siteName: "Paste scope", assets: {}, pageOrder: ["p"], pages: {
+  p: { id: "p", name: "P", slug: "", title: "", description: "", children: ["a"] },
+}, nodes: { a: { ...makeText("Copied text"), id: "a" } } });
+
+test.describe("Native paste event scope in the editor", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route("http://paste-scope.test/**", route => route.request().url().endsWith("/")
+      ? route.fulfill({ contentType: "text/html", body: '<html><body><div id="app"></div></body></html>' })
+      : route.fulfill({ status: 503, body: "{}" }));
+    await page.goto("http://paste-scope.test/");
+    await page.evaluate(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
+    await page.addScriptTag({ content: bundle });
+    await expect(page.locator(".app")).toBeVisible();
+    await page.evaluate(doc => {
+      const s = (window as any).pasteEditor.getState(); s.replaceDoc(doc); s.setActivePage("p"); s.select("a");
+      (window as any).pasteUploads = 0;
+      const fetch = window.fetch;
+      window.fetch = async (url, options) => {
+        if (String(url) === "/api/assets") { (window as any).pasteUploads++; return new Promise(() => {}); }
+        return fetch(url, options);
+      };
+    }, pasteScopeFixture());
+  });
+  const snapshot = (page: Page) => page.evaluate(() => {
+    const { doc, past, future } = (window as any).pasteEditor.getState();
+    return { doc, past, future, uploads: (window as any).pasteUploads };
+  });
+  async function paste(page: Page, kind: "elements" | "artwork", selector = "body") {
+    return page.evaluate(({ kind, selector }) => {
+      const data = new DataTransfer();
+      if (kind === "elements") data.setData("application/x-tsumu+json", JSON.stringify({
+        v: 1, site: "default", breakpoints: [{ id: "lg", label: "タブレット", maxWidth: 1024 }, { id: "md", label: "スマホ横向き", maxWidth: 767 }, { id: "sm", label: "スマホ", maxWidth: 478 }], nodes: [(window as any).pasteEditor.getState().doc.nodes.a], rootIds: ["a"], assets: {}, components: {}, componentNodes: [], customFonts: [], adobeFonts: [],
+      }));
+      else data.items.add(new File(["synthetic image"], "test.png", { type: "image/png" }));
+      const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data });
+      document.querySelector(selector)!.dispatchEvent(event);
+      return event.defaultPrevented;
+    }, { kind, selector });
+  }
+  test("immediate paste uses the latest in-editor copy, never stale OS clipboard data", async ({ page }) => {
+    const handled = await page.evaluate(() => {
+      const state = (window as any).pasteEditor.getState();
+      state.copyNode("a");
+      const previousCopy = structuredClone(state.clipboard);
+      state.updateNode("a", { text: { content: "Newest copy", heading: 0 } });
+      state.copyNode("a");
+      const data = new DataTransfer();
+      data.setData("application/x-tsumu+json", JSON.stringify(previousCopy));
+      const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data });
+      document.body.dispatchEvent(event);
+      return { prevented: event.defaultPrevented, types: Array.from(data.types),
+        rawLength: data.getData("application/x-tsumu+json").length };
+    });
+    expect(handled).toMatchObject({ prevented: true });
+    const after = await snapshot(page);
+    expect(after.doc.pages.p.children).toHaveLength(2);
+    expect(after.doc.nodes[after.doc.pages.p.children[1]].text?.content).toBe("Newest copy");
+    await page.evaluate(() => (window as any).pasteEditor.getState().undo());
+    expect((await snapshot(page)).doc.pages.p.children).toHaveLength(1);
+    await page.evaluate(() => (window as any).pasteEditor.getState().redo());
+    expect((await snapshot(page)).doc).toEqual(after.doc);
+  });
+
+  test("ordinary external text paste cannot replay an older internal element copy", async ({ page }) => {
+    const before = await snapshot(page);
+    const intercepted = await page.evaluate(() => {
+      const s = (window as any).pasteEditor.getState();
+      s.copyNode("a");
+      const data = new DataTransfer();
+      data.setData("text/plain", "unrelated external text");
+      const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: data });
+      document.body.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+    expect(intercepted).toBe(false);
+    expect(await snapshot(page)).toEqual(before);
+  });
+
+  test("Do not paste elements or artwork behind preview, modal, or script overlays, or inside editable targets", async ({ page }) => {
+    const before = await snapshot(page);
+    for (const context of ["preview", "modal", "script"] as const) {
+      await page.evaluate(context => {
+        if (context === "preview") (window as any).pasteEditor.getState().setMode("preview");
+        else { const el = document.createElement("div"); el.id = "test-overlay"; el.className = context === "modal" ? "modal-backdrop" : "se-backdrop"; document.body.append(el); }
+      }, context);
+      for (const kind of ["elements", "artwork"] as const) {
+        expect(await paste(page, kind)).toBe(false);
+        expect(await snapshot(page)).toEqual(before);
+        await expect(page.locator(".paste-notice")).toHaveCount(0);
+      }
+      await page.evaluate(context => {
+        if (context === "preview") (window as any).pasteEditor.getState().setMode("design");
+        else document.getElementById("test-overlay")?.remove();
+      }, context);
+    }
+    for (const target of ["input", "textarea", "select", "contenteditable"] as const) {
+      await page.evaluate(target => {
+        const el = document.createElement(target === "contenteditable" ? "div" : target); el.id = "native-target";
+        if (target === "contenteditable") el.contentEditable = "true";
+        document.body.append(el);
+      }, target);
+      expect(await paste(page, "elements", "#native-target")).toBe(false);
+      expect(await snapshot(page)).toEqual(before);
+      await page.evaluate(() => document.getElementById("native-target")?.remove());
+    }
+  });
+
+  test("Closing modal animations do not block design paste or Undo/Redo", async ({ page }) => {
+    await page.evaluate(() => { const el = document.createElement("div"); el.className = "modal-backdrop is-leaving"; document.body.append(el); });
+    const before = await snapshot(page);
+    expect(await paste(page, "elements")).toBe(true);
+    const after = await snapshot(page);
+    expect(Object.keys(after.doc.nodes)).toHaveLength(2);
+    expect(after.past).toHaveLength(before.past.length + 1);
+    await page.evaluate(() => (window as any).pasteEditor.getState().undo());
+    expect((await snapshot(page)).doc).toEqual(before.doc);
+    await page.evaluate(() => (window as any).pasteEditor.getState().redo());
+    expect((await snapshot(page)).doc).toEqual(after.doc);
+  });
+});
+
+test("real editor context-menu paste uses current OS data and rejects unrelated text", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
+  const created = await page.request.post("/api/sites", { data: { name: "Context clipboard check" } });
+  expect(created.ok()).toBe(true);
+  const { site } = await created.json();
+  const endpoint = `/api/doc?site=${site.id}`;
+  const document = pasteScopeFixture();
+  expect((await page.request.put(endpoint, { data: document })).ok()).toBe(true);
+  await page.goto(`/sites/${site.id}`);
+  await expect(page.locator('[data-node="a"]')).toBeVisible();
+
+  const node = structuredClone(document.nodes.a);
+  node.name = "From current clipboard";
+  const payload = {
+    v: 1, site: "default", breakpoints: [
+      { id: "lg", label: "タブレット", maxWidth: 1024 },
+      { id: "md", label: "スマホ横向き", maxWidth: 767 },
+      { id: "sm", label: "スマホ", maxWidth: 478 },
+    ], nodes: [node], rootIds: [node.id], assets: {}, components: {}, componentNodes: [], customFonts: [], adobeFonts: [],
+  };
+  await page.evaluate(payload => {
+    (window as any).__clipboardHtml = `<span data-tsumu-clipboard="${encodeURIComponent(JSON.stringify(payload))}">Copy</span>`;
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { read: async () => [{
+        types: ["text/html"],
+        getType: async () => new Blob([(window as any).__clipboardHtml], { type: "text/html" }),
+      }] },
+    });
+  }, payload);
+  await page.locator('[data-node="a"]').click({ button: "right" });
+  await page.getByRole("menuitem", { name: "貼り付け" }).click();
+  await expect(page.locator('.cv-root [data-node]')).toHaveCount(2);
+  await expect.poll(async () => Object.values((await (await page.request.get(endpoint)).json()).doc.nodes)
+    .some((item: any) => item.name === "From current clipboard")).toBe(true);
+
+  await page.evaluate(() => { (window as any).__clipboardHtml = "<div>Unrelated text</div>"; });
+  await page.locator('[data-node="a"]').click({ button: "right" });
+  await page.getByRole("menuitem", { name: "貼り付け" }).click();
+  await expect(page.locator('.cv-root [data-node]')).toHaveCount(2);
+  await expect(page.getByText("貼り付けできませんでした")).toBeVisible();
+});
+
+// 実際の Next.js のエディタのコピーの操作と、ブラウザが生成した貼り付けのイベントで、保存されたデータを確かめる。
+test("Ctrl+V in the real editor preview and settings does not change the saved document", async ({ page }) => {
+  // Clipboard API の書き込みは非同期。実際の Chromium にクリップボードの権限を与え、
+  // HTML のデータが書かれるのを待ってから、ネイティブの貼り付けを行う。
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
+  const created = await page.request.post("/api/sites", { data: { name: "Native paste scope" } });
+  expect(created.ok()).toBeTruthy(); const { site } = await created.json();
+  const endpoint = `/api/doc?site=${site.id}`, doc = pasteScopeFixture();
+  expect((await page.request.put(endpoint, { data: doc })).ok()).toBeTruthy();
+  await page.goto(`/sites/${site.id}`);
+  await expect(page.locator('[data-tutorial="save-status"]')).toContainText("サーバー保存済み");
+  await page.locator('[data-node="a"]').click();
+  await page.keyboard.press("ControlOrMeta+c");
+  await expect.poll(() => page.evaluate(() => !!localStorage.getItem("tsumu-clipboard-v1"))).toBe(true);
+  await expect.poll(async () => page.evaluate(async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        for (const type of item.types) {
+          if (type !== "text/html") continue;
+          const html = await (await item.getType(type)).text();
+          if (/data-tsumu-clipboard="[^"]+"/.test(html)) return true;
+        }
+      }
+    } catch {
+      // Clipboard API の書き込みが拒否されたり不完全だったりしたときは、下の検証で報告される。
+    }
+    return false;
+  })).toBe(true);
+  await page.evaluate(() => {
+    (window as any).nativePastes = [];
+    window.addEventListener("paste", event => (window as any).nativePastes.push({
+      trusted: event.isTrusted,
+      data: event.clipboardData?.getData("application/x-tsumu+json") ||
+        event.clipboardData?.getData("web application/x-tsumu+json") ||
+        event.clipboardData?.getData("text/html"),
+      prevented: event.defaultPrevented,
+    }));
+  });
+  for (const [index, context] of (["preview", "settings"] as const).entries()) {
+    if (context === "preview") await page.getByRole("button", { name: "プレビュー", exact: true }).click();
+    else {
+      await page.locator('[data-tutorial="menu"] > button').click();
+      await page.locator(".dd-menu").getByRole("button", { name: "設定", exact: true }).click();
+      await expect(page.locator(".modal h2")).toHaveText("設定");
+    }
+    await page.keyboard.press("ControlOrMeta+v");
+    await expect.poll(() => page.evaluate(() => (window as any).nativePastes.length)).toBe(index + 1);
+    const event = await page.evaluate((i) => (window as any).nativePastes[i], index);
+    expect(event.trusted).toBe(true);
+    const encoded = /data-tsumu-clipboard="([^"]+)"/i.exec(event.data)?.[1];
+    const payload = encoded ? JSON.parse(decodeURIComponent(encoded)) : JSON.parse(event.data);
+    expect(payload.rootIds).toEqual(["a"]);
+    expect(event.prevented).toBe(false);
+    if (context === "settings") await page.locator(".modal").getByRole("button", { name: "閉じる", exact: true }).click();
+    else await page.getByRole("button", { name: "デザイン", exact: true }).click();
+    await expect(page.locator('[data-node]')).toHaveCount(1);
+  }
+  await page.waitForTimeout(1000);
+  expect((await (await page.request.get(endpoint)).json()).doc).toEqual(doc);
+  await page.reload();
+  await expect(page.locator('[data-node="a"]')).toBeVisible();
+  expect((await (await page.request.get(endpoint)).json()).doc).toEqual(doc);
+});
+

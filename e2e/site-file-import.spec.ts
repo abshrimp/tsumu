@@ -346,3 +346,67 @@ test("JSON import strips active SVG from editable icons before the resulting sit
   expect(svg).not.toMatch(/onload|<script|injectedSvg/i);
   expect(await page.evaluate(() => (globalThis as any).injectedSvg)).toBeUndefined();
 });
+
+test.describe("mcp-draft-import", () => {
+  const draftId = "12345678-1234-4234-8234-123456789abc";
+  const secret = "s".repeat(43);
+  const receipt = "abcdef01-1234-4234-8234-abcdef012345";
+  const endpoint = "https://mcp.tsumu.ebii.net/drafts/" + draftId;
+
+  test("one-time MCP URL imports a new editable site, then acknowledges deletion", async ({ page }) => {
+    await localMode(page);
+    const doc = createInitialDoc();
+    doc.siteName = "AI-generated imported site";
+    const styledNode = Object.values(doc.nodes).find(node => node.text?.heading === 1);
+    expect(styledNode).toBeDefined();
+    const baseStyles = styledNode!.styles.base?.default;
+    expect(baseStyles).toBeDefined();
+    baseStyles!.backgroundColor = "#183c32";
+    baseStyles!.color = "#d9fa4a";
+    let claims = 0, completions = 0;
+    let releaseClaim!: () => void;
+    const holdClaim = new Promise<void>(resolve => { releaseClaim = resolve; });
+    await page.route(endpoint + "/claim", async route => {
+      claims++;
+      expect(route.request().headers()["authorization"]).toBe("Bearer " + secret);
+      await holdClaim;
+      await route.fulfill({ json: { doc: JSON.stringify(doc), receipt } });
+    });
+    await page.route(endpoint + "/complete", async route => {
+      completions++;
+      expect(route.request().postDataJSON()).toEqual({ receipt });
+      await route.fulfill({ json: { ok: true } });
+    });
+    await page.goto("/#tsumu-import=" + draftId + "." + secret);
+    await expect(page.locator(".home-import-overlay")).toBeVisible();
+    await expect(page.locator(".home-import-overlay")).toHaveAttribute("aria-busy", "true");
+    await expect(page.locator(".home-import-overlay .boot-card")).toBeVisible();
+    await expect(page.locator(".home-import-overlay .boot-bar")).toBeVisible();
+    releaseClaim();
+    await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
+    await expect(page.locator(".app")).toBeVisible({ timeout: 30000 });
+    expect(claims).toBe(1);
+    expect(completions).toBe(1);
+    const result = await getLocalSite(page);
+    expect(result.list).toHaveLength(1);
+    expect(result.doc.siteName).toBe(doc.siteName);
+    expect(result.doc.nodes[styledNode!.id].styles.base.default.backgroundColor).toBe("#183c32");
+    expect(result.doc.nodes[styledNode!.id].styles.base.default.color).toBe("#d9fa4a");
+  });
+
+  test("invalid MCP draft does not create a site or acknowledge deletion", async ({ page }) => {
+    await localMode(page);
+    let completions = 0;
+    await page.route(endpoint + "/claim", route => route.fulfill({ json: { doc: "{bad-json", receipt } }));
+    await page.route(endpoint + "/complete", route => {
+      completions++;
+      return route.fulfill({ json: { ok: true } });
+    });
+    await page.goto("/#tsumu-import=" + draftId + "." + secret);
+    await expect(page.locator(".home-notice.is-error")).toBeVisible({ timeout: 30000 });
+    expect(completions).toBe(0);
+    expect((await getLocalSite(page)).list).toHaveLength(0);
+    expect(new URL(page.url()).hash).toBe("");
+  });
+});
+

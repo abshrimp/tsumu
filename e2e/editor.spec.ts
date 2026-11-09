@@ -222,3 +222,23 @@ test("Custom code and icon scripts stored in documents never execute inside the 
   expect(await page.evaluate(() => (window as { __pwned?: string }).__pwned)).toBeUndefined();
   expect(errors).toEqual([]);
 });
+
+test("MCP connection opens its own modal dialog from the editor menu", async ({ page }) => {
+  const errors = watchErrors(page);
+  await openNewSite(page, "MCP menu");
+  await page.locator('[data-tutorial="menu"] > button').click();
+  const menuItems = page.locator(".dd-menu .dd-item");
+  await expect(menuItems.filter({ hasText: "AIと接続（MCP）" })).toBeVisible();
+  await menuItems.filter({ hasText: "AIと接続（MCP）" }).click();
+
+  await expect(page.locator(".modal-backdrop .modal > h2")).toHaveText("AIと接続（MCP）");
+  await expect(page.locator(".mcp-modal .mcp-panel h3")).toHaveText("AIと接続");
+  await expect(page.locator(".mcp-modal .mcp-plugins h3")).toHaveText("AIアプリにTsumuを追加");
+  await expect(page.locator(".mcp-modal .mcp-guide-link")).toBeVisible();
+  await expect(page.locator(".mcp-modal")).toHaveAttribute("aria-modal", "true");
+  await expect(page.getByRole("button", { name: "接続を開始" })).toBeVisible();
+  await page.locator(".modal-backdrop .modal-actions button").click();
+  await expect(page.locator(".modal-backdrop")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+

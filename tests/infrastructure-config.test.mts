@@ -30,9 +30,9 @@ test("CI checks pull requests without path skips, dependencies, workers and all 
   for (const name of ["check", "e2e-shard", "generated-formats"]) {
     assert.match(workflow, new RegExp(`^  ${name}:$`, "m"));
   }
-  const requiredCheck = workflow.split("  check:\n")[1]?.split("  e2e-shard:\n")[0];
+  const requiredCheck = workflow.split("  check:\n")[1]?.split("  e2e-build:\n")[0];
   assert.ok(requiredCheck, "Expected a check job containing the required infrastructure audits");
-  assert.match(requiredCheck, /npm audit --omit=dev --audit-level=high/);
+  assert.match(requiredCheck, /TSUMU_DOCKER_TESTS: "1"/);
   assert.match(requiredCheck, /npm audit --audit-level=high/);
   assert.match(requiredCheck, /npm run build:worker/);
   assert.ok(requiredCheck.includes("docker build --tag tsumu:ci ."));
@@ -49,6 +49,41 @@ test("CI checks pull requests without path skips, dependencies, workers and all 
   assert.doesNotMatch(shardRunner, /\bnpx\b/);
   assert.match(shardRunner, /resolve\("@playwright\/test\/cli"\)/);
   assert.match(read("playwright.config.ts"), /npx --no-install next start/);
+});
+
+function ciJob(workflow: string, name: string): string {
+  const header = `  ${name}:\n`;
+  const start = workflow.indexOf(header);
+  assert.notEqual(start, -1, `Expected CI job: ${name}`);
+  return workflow.slice(start + header.length).split(/^  [\w-]+:\s*$/m)[0];
+}
+
+test("CI runs the browser discovery regression and shares one production build across locked Playwright shards", () => {
+  const workflow = read(".github/workflows/ci.yml");
+  assert.match(ciJob(workflow, "check"),
+    /^      - run: node --import tsx --test e2e\/browser-projects\.check\.mts$/m);
+  const producer = ciJob(workflow, "e2e-build");
+  const shards = ciJob(workflow, "e2e-shard");
+  assert.match(producer, /^      - run: npm run build$/m);
+  assert.match(producer, /tar --exclude=\.next\/cache -cf e2e-build\.tar \.next/);
+  assert.match(producer, /actions\/upload-artifact@[^\n]+\n +with:\n +name: e2e-build\n +path: e2e-build\.tar/);
+  assert.match(shards, /^    needs: e2e-build$/m);
+  assert.match(shards, /actions\/download-artifact@[^\n]+\n +with:\n +name: e2e-build/);
+  assert.match(shards, /tar -xf e2e-build\.tar/);
+  assert.doesNotMatch(shards, /^      - run: npm run build$/m);
+
+  const lock = JSON.parse(read("package-lock.json"));
+  const version = lock.packages["node_modules/@playwright/test"].version as string;
+  const image = "mcr.microsoft.com/playwright:v" + version + "-noble";
+  for (const name of ["e2e-shard", "generated-formats"]) {
+    const source = ciJob(workflow, name);
+    assert.ok(source.includes("image: " + image), name + " must use matching browser executables");
+    assert.match(source, /^      options: --user 1001$/m);
+    assert.doesNotMatch(source, /playwright install(?: --with-deps)?/, "Image already includes all three engines and system dependencies");
+    assert.match(source, /^      - run: npm ci$/m);
+  }
+  assert.match(shards, /node scripts\/run-e2e-shard\.mjs/);
+  assert.match(ciJob(workflow, "generated-formats"), /scripts\/check-generated-browser\.mts/);
 });
 
 test("Docker runtime is non-root and local credentials are excluded from the build context", () => {

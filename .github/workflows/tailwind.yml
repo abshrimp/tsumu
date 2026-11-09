@@ -44,7 +44,6 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm install --global npm@12.2.1
       - run: npm ci
       - name: Generate, build, audit, and verify TypeScript and JavaScript exports
         shell: bash
@@ -57,7 +56,6 @@ jobs:
               cd .generated-export-smoke
               npm install --prefer-offline --no-audit --no-fund
               npm run build
-              npm audit --omit=dev --audit-level=high
               npm audit --audit-level=high
             )
             node --import tsx scripts/check-generated-ssr.mts "${{ matrix.framework }}"

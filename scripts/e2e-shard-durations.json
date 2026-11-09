@@ -17,8 +17,8 @@
       36511
     ],
     "e2e/clipboard-artwork.spec.ts": [
-      17,
-      38100
+      23,
+      46000
     ],
     "e2e/comment-local-storage.spec.ts": [
       9,
@@ -38,7 +38,7 @@
     ],
     "e2e/deleted-comments.spec.ts": [
       10,
-      76600
+      66600
     ],
     "e2e/dialog-focus.spec.ts": [
       20,
@@ -48,13 +48,9 @@
       15,
       43698
     ],
-    "e2e/editor-paste-scope.spec.ts": [
-      6,
-      16500
-    ],
     "e2e/editor.spec.ts": [
-      21,
-      93100
+      22,
+      95000
     ],
     "e2e/export-dialog.spec.ts": [
       5,
@@ -69,8 +65,8 @@
       32338
     ],
     "e2e/home-site-storage.spec.ts": [
-      15,
-      14063
+      16,
+      14900
     ],
     "e2e/html-import-lifecycle.spec.ts": [
       17,
@@ -91,10 +87,6 @@
     "e2e/local-save-status.spec.ts": [
       7,
       37700
-    ],
-    "e2e/mcp.spec.ts": [
-      3,
-      7200
     ],
     "e2e/number-field.spec.ts": [
       21,
@@ -140,21 +132,17 @@
       17,
       21092
     ],
-    "e2e/search-form-navigation.spec.ts": [
-      1,
-      808
-    ],
     "e2e/search-form-values.spec.ts": [
-      6,
-      5589
+      7,
+      6397
     ],
     "e2e/site-bootstrap.spec.ts": [
       25,
       48500
     ],
     "e2e/site-file-import.spec.ts": [
-      14,
-      52983
+      16,
+      58000
     ],
     "e2e/style-controls.spec.ts": [
       17,

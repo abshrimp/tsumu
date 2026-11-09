@@ -34,10 +34,10 @@ export default defineConfig({
     url: `http://localhost:${PORT}/robots.txt`,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
-    // 手元の .env.local やシェルの GITHUB_TOKEN、AI の設定に左右されないよう、公開と AI は未設定にする
+    // 手元の .env.local やシェルの GITHUB_TOKEN / GITLAB_TOKEN、AI の設定に左右されないよう、公開と AI は未設定にする
     env: {
       TSUMU_DATA_DIR: ".e2e-data", ALLOW_ANONYMOUS: "true", NODE_OPTIONS: "--disable-warning=ExperimentalWarning",
-      GITHUB_TOKEN: "", AI_ENABLED: "",
+      GITHUB_TOKEN: "", GITLAB_TOKEN: "", AI_ENABLED: "",
     },
   },
 });
