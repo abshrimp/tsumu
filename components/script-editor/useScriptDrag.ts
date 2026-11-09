@@ -129,8 +129,7 @@ export function useScriptDrag({
     const positionGhost = (d: Drag) => {
       const el = ghostRef?.current;
       if (!el) return;
-      el.style.left = `${d.x - d.ox * zoomRef.current}px`;
-      el.style.top = `${d.y - d.oy * zoomRef.current}px`;
+      el.style.transform = `translate3d(${d.x - d.ox * zoomRef.current}px, ${d.y - d.oy * zoomRef.current}px, 0)`;
     };
     const positionMarquee = (m: Marquee) => {
       const el = marqueeElRef?.current;
