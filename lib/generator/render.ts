@@ -258,6 +258,12 @@ ${indent}  })}`;
       const ops = ctx.listOps?.get(lv.from) ?? [];
       // 項目の値を優先し、配信時の代替値は文字列として保持する（波括弧を再解決しない）。
       const filterParts = (value: string) => {
+        const whole = /^(?:\{([^{}\s"'<>`]+)\}|\[slug\])$/.exec(value.trim());
+        if (whole) {
+          ctx.usesLookup = true;
+          const token = whole[1] ?? "slug", name = JSON.stringify(token), head = JSON.stringify(token.split(".")[0]);
+          return `[{ name: ${name}, ...(Object.prototype.hasOwnProperty.call(${base}, ${name}) || Object.prototype.hasOwnProperty.call(${base}, ${head}) ? { fallback: lookupVar({ ...${base} }, ${name}) } : {}) }]`;
+        }
         const parts: string[] = [];
         let end = 0;
         for (const m of value.matchAll(/\\\{|\{([^{}\s"'<>`]+)\}|\[slug\]/g)) {
@@ -275,7 +281,7 @@ ${indent}  })}`;
       };
       const opExpr = ops.map((op) => op.kind === "sort" ? JSON.stringify(op) :
         `{ ...${JSON.stringify(op)}, conds: [${op.conds.map((c) =>
-          `{ ...${JSON.stringify(c)}, parts: ${filterParts(c.value)} }`
+          `{ ...${JSON.stringify(c)}, raw: ${/^(?:\{([^{}\s"'<>`]+)\}|\[slug\])$/.test(c.value.trim())}, parts: ${filterParts(c.value)} }`
         ).join(", ")}] }`
       ).join(", ");
       if (ops.length) ctx.usesInterpolate = true;
