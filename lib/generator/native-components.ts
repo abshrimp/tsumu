@@ -3,7 +3,7 @@ import { obfuscateVarNames, pagePlan } from "../data";
 import { buildClassNames, buildAssetNames } from "./names";
 import { unnestLinks } from "./page";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
-import { raiseOverCrispSvg, showsSelf } from "./render-helpers";
+import { hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
 import { fieldVarName } from "../fields";
 import { resolveTag } from "../tags";
 import { hasVars } from "../vars";
@@ -225,7 +225,8 @@ function node(ctx: Context, id: string, top = false): string {
     }
 
     let tag = resolveTag(n, top);
-    if (tag === "p" && n.children.length) tag = "div";
+    const paragraphWrapper = tag === "p" && hasBlockDescendant(ctx.doc, n);
+    if (paragraphWrapper) tag = "div";
     if (tag === "form" && ctx.inForm) tag = "div";
     const wasForm = ctx.inForm;
     if (tag === "form") ctx.inForm = true;
@@ -238,7 +239,8 @@ function node(ctx: Context, id: string, top = false): string {
         "{" + expr(ctx, "resolveText", value) + "}"
       : staticText(value);
     let extra = tag === "form" ? ' method="get"' : "";
-    if (tag === "button") extra += literal("type", wasForm ? "submit" : "button");
+    if (paragraphWrapper) extra += ' data-p=""';
+    if (tag === "button") extra += literal("type", wasForm && !n.scripts?.some(script => script.trigger === "click") ? "submit" : "button");
     if (n.link) {
       tag = "a";
       const dest = n.link.kind === "page" && n.link.pageId ?
