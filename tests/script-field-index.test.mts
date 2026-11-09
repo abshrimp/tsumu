@@ -16,8 +16,8 @@ function node(id: string, attrId: string, field?: FieldContent): DocNode {
 test("field index preserves first matching IDs and select choices", () => {
   const nodes = {
     box: node("box", "duplicate"),
-    duplicate: node("duplicate", "duplicate", { kind: "select", options: ["ignored"] }),
-    select: node("select", "choice", { kind: "select", options: ["First", "", "Second"] }),
+    duplicate: node("duplicate", "duplicate", { kind: "select", options: ["ignored"].map(value => ({label:value,value})) }),
+    select: node("select", "choice", { kind: "select", options: ["First", "", "Second"].map(value => ({label:value,value})) }),
   };
   const tree = [{ id: "box" }, { id: "duplicate" }, { id: "select" }];
   const indexed = indexFieldTargets({ nodes }, tree);

@@ -9,7 +9,7 @@ test("renaming the default option uses the first remaining choice without rewrit
   useEditor.getState().replaceDoc(selectDefaultDoc());
   const original = useEditor.getState().doc.nodes.choice;
   // 設定欄と同じ変更。初期値は消さず、Undoで元の選択肢に戻せる。
-  useEditor.getState().updateNode("choice", { field: { ...original.field!, options: ["A", "C"] } });
+  useEditor.getState().updateNode("choice", { field: { ...original.field!, options: ["A", "C"].map(value => ({ label:value,value })) } });
   const edited = structuredClone(useEditor.getState().doc);
   const read = () => fieldDefaults([useEditor.getState().doc.nodes.choice]).choice;
   assert.equal(read(), "A");
@@ -33,7 +33,7 @@ for (const [name, options, defaultValue, vars, expected, index] of [
   ["resolved empty default", ["A", "{empty}"], "{empty}", { empty: "" }, "", "2"],
 ] as const) {
   test(`select initial state matches native selection: ${name}`, () => {
-    const doc = selectDefaultDoc({ options: [...options], defaultValue });
+    const doc = selectDefaultDoc({ options: [...options].map(value => ({label:value,value})), defaultValue });
     const node = doc.nodes.choice;
     const field = node.field!;
     assert.equal(fieldInitialValue(field, vars), expected);
@@ -49,8 +49,8 @@ for (const [name, options, defaultValue, vars, expected, index] of [
 
 test("the regression bundles the actual settings panel and exports the same select", async () => {
   assert.match(await selectDefaultBundle(), /function SettingsPanel/);
-  const { html } = await publishedSelectDefault(selectDefaultDoc({ options: ["A", "C"] }));
+  const { html } = await publishedSelectDefault(selectDefaultDoc({ options: ["A", "C"].map(value => ({ label:value,value })) }));
   assert.match(html, /<select[^>]*id="choice"/);
-  assert.match(html, /<option>A<\/option><option>C<\/option>/);
+  assert.match(html, /<option[^>]*value="A"[^>]*>A<\/option><option[^>]*value="C"[^>]*>C<\/option>/);
   assert.doesNotMatch(html, /<option[^>]*>B<\/option>/);
 });
