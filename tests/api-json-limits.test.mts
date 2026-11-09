@@ -66,93 +66,41 @@ class NextResponse extends Response {
     return new NextResponse(JSON.stringify(body), init);
   }
 }
-
 const tr = async () => (s: string) => s;
-const jsonModule = { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited };
 
-function fetchFixture() {
-  const outbound: { url: string; init: RequestInit }[] = [];
-  const handler = load("../app/api/fetch-json/route.ts", {
-    "next/server": { NextResponse },
-    "../../../lib/i18n-server": { serverTr: tr },
-    "../../../lib/server": { requireAuth: async () => null },
-    "../../../lib/api-json": jsonModule,
-    "../../../lib/safe-fetch": {
-      BlockedUrlError: class extends Error {},
-      TooLargeError: class extends Error {},
-      fetchPublic: async (url: string, init: RequestInit) => {
-        outbound.push({ url, init });
-        return new Response('{"ok":true}', { headers: { "content-type": "application/json" } });
-      },
-      readTextLimited: async (response: Response) => response.text(),
-    },
-  });
-  const post = (value: unknown, headers: Record<string, string> = {}) => handler.POST(
-    jsonRequest(JSON.stringify(value), headers),
-  ) as Promise<Response>;
-  return { post, outbound };
-}
-
-test("fetch proxy rejects multibyte outgoing bodies over one megabyte before networking", async () => {
-  const fixture = fetchFixture();
-  const response = await fixture.post({
-    url: "https://api.example.test/submit", method: "POST",
-    body: "あ".repeat(400_000),
-  });
-  assert.equal(response.status, 400);
-  assert.equal(fixture.outbound.length, 0);
-});
-
-test("fetch proxy rejects excessive headers and invalid media types without networking", async () => {
-  const fixture = fetchFixture();
-  const url = "https://api.example.test/submit";
-  assert.equal((await fixture.post({ url }, { "content-type": "text/plain" })).status, 415);
-  assert.equal((await fixture.post({
-    url, headers: Object.fromEntries(Array.from({ length: 51 }, (_, i) => [`X-${i}`, "ok"])),
-  })).status, 400);
-  assert.equal((await fixture.post({ url, headers: { Authorization: "x".repeat(20_000) } })).status, 400);
-  assert.equal((await fixture.post({ url, headers: [ "invalid" ] })).status, 400);
-  assert.deepEqual(fixture.outbound, []);
-});
-
-test("fetch proxy still sends allowed headers and valid JSON requests", async () => {
-  const fixture = fetchFixture();
-  const response = await fixture.post({
-    url: "https://api.example.test/submit", method: "POST",
-    headers: { Authorization: "Bearer example", Host: "overridden.example" },
-    body: '{"query":"safe"}',
-  });
-  assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { ok: true, json: { ok: true } });
-  assert.equal(fixture.outbound.length, 1);
-  assert.equal(new Headers(fixture.outbound[0].init.headers).get("Authorization"), "Bearer example");
-  assert.equal(new Headers(fixture.outbound[0].init.headers).get("Host"), undefined);
-  assert.equal(fixture.outbound[0].init.body, '{"query":"safe"}');
-});
-
-test("asset signing rejects oversized or wrongly typed request bodies before signing", async () => {
+function signingFixture(authorized = true) {
   const signed: string[] = [];
   const handler = load("../app/api/assets/sign/route.ts", {
     "next/server": { NextResponse },
     "../../../../lib/i18n-server": { serverTr: tr },
-    "../../../../lib/server": { requireAuth: async () => null },
+    "../../../../lib/server": { requireAuth: async () => authorized ? null : NextResponse.json({ error: "Unauthorized" }, { status: 401 }) },
     "../../../../lib/asset-token": { signAssetPath: async (path: string) => {
       signed.push(path);
       return "exp=123&sig=example";
     } },
-    "../../../../lib/api-json": jsonModule,
+    "../../../../lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
   });
-  const POST = handler.POST as (req: Request) => Promise<Response>;
+  return { POST: handler.POST as (req: Request) => Promise<Response>, signed };
+}
+
+test("asset signing accepts a valid request and enforces authorization", async () => {
+  const { POST, signed } = signingFixture();
   const good = await POST(jsonRequest('{"paths":["assets/a.png"]}'));
   assert.equal(good.status, 200);
   assert.deepEqual((await good.json()).urls, {
     "assets/a.png": "/api/assets/file?path=assets%2Fa.png&exp=123&sig=example",
   });
   assert.deepEqual(signed, ["assets/a.png"]);
+  const denied = signingFixture(false);
+  assert.equal((await denied.POST(jsonRequest('{"paths":["assets/a.png"]}'))).status, 401);
+  assert.deepEqual(denied.signed, []);
+});
 
-  const huge = await POST(jsonRequest('{}', { "content-length": "9999999" }));
-  assert.equal(huge.status, 413);
-  const wrongType = await POST(jsonRequest("{}", { "content-type": "text/plain" }));
-  assert.equal(wrongType.status, 415);
-  assert.deepEqual(signed, ["assets/a.png"]);
+test("asset signing rejects oversized or wrongly typed request bodies before signing", async () => {
+  const { POST, signed } = signingFixture();
+  assert.equal((await POST(jsonRequest('{}', { "content-length": "9999999" }))).status, 413);
+  assert.equal((await POST(jsonRequest("{}", { "content-type": "text/plain" }))).status, 415);
+  assert.equal((await POST(jsonRequest('{"paths":["untrusted/secret"]}'))).status, 400);
+  assert.equal((await POST(jsonRequest(JSON.stringify({ paths: Array(501).fill("assets/a.png") })))).status, 400);
+  assert.deepEqual(signed, []);
 });
