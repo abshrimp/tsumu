@@ -80,3 +80,7 @@ test("client list filters short-circuit subsequent filter blocks with AND/OR", (
   ], item), false);
   assert.equal(reads, 0, "a failed AND branch must skip later filters");
 });
+
+test("browser runtime does not retain an unused competing scalar comparator", () => {
+  assert.doesNotMatch(SCRIPT_RUNTIME, /\bfunction cmp\(/);
+});
