@@ -15,7 +15,7 @@ export function scriptDragDoc(): SiteDoc {
 }
 
 /** 実際のスクリプト画面・ストア・CSSで、操作の中断と履歴を確かめる。 */
-export async function scriptDragBundle() {
+export async function scriptDragBundle(doc: SiteDoc = scriptDragDoc()) {
   return (await build({
     stdin: {
       contents: `
@@ -25,7 +25,7 @@ import ScriptEditor from "./components/ScriptEditor";
 import { useEditor } from "./lib/store";
 import css from "./app/globals.css";
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
-useEditor.getState().replaceDoc(${JSON.stringify(scriptDragDoc())});
+useEditor.getState().replaceDoc(${JSON.stringify(doc)});
 useEditor.getState().setActivePage("p");
 window.scriptDragEditor = useEditor;
 function Fixture() {
