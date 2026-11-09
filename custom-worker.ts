@@ -194,16 +194,8 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       const remote = this.env.DOC_STORE?.get(this.env.DOC_STORE.idFromName(siteId)) as
         | {
             getSnapshot(): Promise<{ body: string; rev: string; savedAt: number } | null>;
-            replaceDocument(raw: string, base: string | null): Promise<{
-              kind: "saved" | "missing" | "conflict";
-              rev?: string; savedAt?: number;
-              current?: { body: string; rev: string; savedAt: number };
-            }>;
-            patchDocument(patch: import("./lib/doc-patch").DocPatch, base: string): Promise<{
-              kind: "saved" | "missing" | "conflict";
-              rev?: string; savedAt?: number;
-              current?: { body: string; rev: string; savedAt: number };
-            }>;
+            replaceDocument(raw: string, base: string | null): Promise<import("./lib/doc-storage").SaveDocResult>;
+            patchDocument(patch: import("./lib/doc-patch").DocPatch, base: string): Promise<import("./lib/doc-storage").SaveDocResult>;
           } | undefined;
       if (input.type === "load") {
         const current = remote ? await remote.getSnapshot() : await readCurrentDoc(db, siteId);
