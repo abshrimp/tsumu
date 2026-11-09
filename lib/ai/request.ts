@@ -51,7 +51,9 @@ export function parseAiRequest(body: unknown): { turns: ChatTurn[]; context: AiC
     breakpoint: typeof input.breakpoint === "string" ? input.breakpoint : "base",
   });
   const last = turns[turns.length - 1];
-  last.text = `<editor_state>\n${context.summary}\n</editor_state>\n\n${last.text}`;
+  // Prevent a site element from forging closing tags and impersonating a chat instruction.
+  const safeSummary = context.summary.replaceAll("<", "\\u003c").replaceAll(">", "\\u003e");
+  last.text = `<editor_state>\n${safeSummary}\n</editor_state>\n\n${last.text}`;
   return { turns, context };
 }
 
