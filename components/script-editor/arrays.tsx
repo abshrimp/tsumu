@@ -43,8 +43,13 @@ export function ArraySelect({ value, onChange }: { value: string; onChange: (v: 
   );
 }
 
+/** Reuse paths across all selectors in the same document preview. */
+const arrayPathCache = new WeakMap<Record<string, unknown>, string[]>();
+
 /** 変数の見本から、リストの入った位置を探す（「記事.tags」のような入れ子も） */
 function arrayPathsIn(samples: Record<string, unknown>): string[] {
+  const cached = arrayPathCache.get(samples);
+  if (cached) return cached;
   const out: string[] = [];
   const walk = (v: unknown, path: string, depth: number) => {
     if (depth > 3 || !v || typeof v !== "object" || out.length >= 100) return;
@@ -62,6 +67,7 @@ function arrayPathsIn(samples: Record<string, unknown>): string[] {
     if (out.length >= 100) break;
     if (Object.hasOwn(samples, k) && !k.startsWith("#")) walk(samples[k], k, 0);
   }
+  arrayPathCache.set(samples, out);
   return out;
 }
 
