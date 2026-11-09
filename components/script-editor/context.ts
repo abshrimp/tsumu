@@ -37,6 +37,8 @@ export interface EdCtx {
   tree: TreeRow[];
   /** ページのスクリプト（絞り込みの番号を選ぶのに使う） */
   scripts: PageScript[];
+  /** Defer mounting entire script stacks when a workspace is unusually large. */
+  virtualizeStacks: boolean;
   /** Indexed once per document rather than rescanning scripts in every input. */
   variableIndex?: PageVariableIndex;
   /** Shared source-variable choices for transform blocks. */
