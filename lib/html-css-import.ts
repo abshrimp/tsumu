@@ -76,7 +76,7 @@ function findImports(css: string): ImportStatement[] {
 
 const supportedImportMedia = (condition: string): boolean =>
   !condition || condition === "all" ||
-  (!/\b(?:layer|supports)\s*\(/i.test(condition) &&
+  (!/\blayer\b|\bsupports\s*\(/i.test(condition) &&
    !/^(?:print|speech)\b/i.test(condition) &&
    /^[a-z0-9\s(),:./-]+$/i.test(condition));
 
