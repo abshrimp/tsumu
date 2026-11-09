@@ -36,7 +36,7 @@ Every branch that uses the same IDs shares that data. Once Previews have server 
 `scripts/cloudflare-preview.mjs` writes `wrangler.preview.generated.jsonc` next to the source config (ignored by Git in this repository) and runs `wrangler preview` with it. It stops with an error, without deploying, if:
 
 - a Preview D1 or KV ID is missing, still a placeholder, or the same as a production ID;
-- `COLLAB_ROOM` isn't bound to the Preview's own `CollaborationRoom`, points at another Worker, or a migration transfers classes;
+- `COLLAB_ROOM` isn't bound to the Preview's own `CollaborationRoom`, points at another Worker, or the `exports` configuration changes a Durable Object class lifecycle;
 - `previews` contains a setting it doesn't know how to isolate;
 - `previews.vars` contains a credential-like name (such as `AUTH_SECRET` or `GITHUB_TOKEN`); put sensitive values into Preview secrets, never plain-text vars;
 - the OpenNext config uses a cache, queue or skew protection other than the default dummy ones;
