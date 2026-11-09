@@ -138,7 +138,7 @@ export default function Canvas() {
    * HTMLページのプレビュー。中のスクリプトがエディタの権限を使えないよう別オリジンの iframe で表示するため、
    * アセットは期限付きの署名URLに置き換えて読ませる（Cookie が送られないので）
    */
-  const rawHtmlSrc = !editingComp ? (page?.rawHtml ?? "") : "";
+  const rawHtmlSrc = !editingComp && mode === "preview" ? (page?.rawHtml ?? "") : "";
   const { html: rawHtmlForPreview, error: rawHtmlError, needsRefresh, refreshing: refreshingHtml, refresh } = useHtmlPreview(rawHtmlSrc, doc.assets);
 
   const {
@@ -804,7 +804,7 @@ export default function Canvas() {
     );
   }
 
-  // HTMLページ: iframeでそのままプレビュー（script実行込み）
+  // HTMLページはデザイン中にコードを実行せず、プレビュー時だけ iframe で表示する。
   if (!editingComp && page.rawHtml != null) {
     return (
       <div className="canvas-area" ref={areaRef}>
@@ -814,30 +814,40 @@ export default function Canvas() {
             className="canvas-frame is-preview"
             style={{ width: frameWidth, zoom: scale } as React.CSSProperties}
           >
-            {needsRefresh && <div role="status" className="cv-placeholder">
-              {tr("プレビューのアセットURLの有効期限が近づいています。更新すると入力内容やページ内の状態がリセットされます。")}
-              <button type="button" disabled={refreshingHtml} onClick={refresh}>{tr("プレビューを更新")}</button>
-            </div>}
-            {rawHtmlError ? <div role="alert" className="cv-placeholder">
-              {rawHtmlError}
-              <button type="button" disabled={refreshingHtml} onClick={refresh}>{tr("プレビューを更新")}</button>
-            </div> : page.rawHtml.trim() ? (
-              <iframe
-                className="rawhtml-frame"
-                srcDoc={previewHtmlWithBodyStyles(
-                  rawHtmlForPreview,
-                  page.bodyStyles,
-                  breakpoint
-                )}
-                // allow-same-origin は付けない（付けると中のスクリプトがエディタと同じオリジンで動き、
-                // ログイン中の権限で公開・アカウントの追加などができてしまう）
-                sandbox="allow-scripts allow-forms allow-popups"
-                title={page.name}
-              />
-            ) : (
+            {mode === "design" ? (
               <div className="cv-placeholder" style={{ minHeight: 320 }}>
-                {tr("右パネルにHTMLコードを入力するか、ファイルを読み込んでください")}
+                {page.rawHtml.trim()
+                  ? tr("このページはHTMLモードです。右パネルでHTMLコードを編集し、プレビューで動作を確認してください")
+                  : tr("右パネルにHTMLコードを入力するか、ファイルを読み込んでください")}
               </div>
+            ) : (
+              <>
+                {needsRefresh && <div role="status" className="cv-placeholder">
+                  {tr("プレビューのアセットURLの有効期限が近づいています。更新すると入力内容やページ内の状態がリセットされます。")}
+                  <button type="button" disabled={refreshingHtml} onClick={refresh}>{tr("プレビューを更新")}</button>
+                </div>}
+                {rawHtmlError ? <div role="alert" className="cv-placeholder">
+                  {rawHtmlError}
+                  <button type="button" disabled={refreshingHtml} onClick={refresh}>{tr("プレビューを更新")}</button>
+                </div> : page.rawHtml.trim() ? (
+                  <iframe
+                    className="rawhtml-frame"
+                    srcDoc={previewHtmlWithBodyStyles(
+                      rawHtmlForPreview,
+                      page.bodyStyles,
+                      breakpoint
+                    )}
+                    // allow-same-origin は付けない（付けると中のスクリプトがエディタと同じオリジンで動き、
+                    // ログイン中の権限で公開・アカウントの追加などができてしまう）
+                    sandbox="allow-scripts allow-forms allow-popups"
+                    title={page.name}
+                  />
+                ) : (
+                  <div className="cv-placeholder" style={{ minHeight: 320 }}>
+                    {tr("右パネルにHTMLコードを入力するか、ファイルを読み込んでください")}
+                  </div>
+                )}
+              </>
             )}
           </div>
           </FrameStage>
