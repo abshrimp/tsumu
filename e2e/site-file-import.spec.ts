@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import JSZip from "jszip";
 import { createInitialDoc, makeIcon, makeImage } from "../lib/presets";
-import { DOC_STORAGE_KEY } from "../lib/site";
+import { browserDoc, setBrowserDoc } from "./helpers/browser-doc";
 import { serializePortableDoc } from "../lib/portable-doc";
 import { generateExportProject } from "../lib/export-formats";
 import { IMPORT_LIMITS } from "../lib/site-import";
@@ -36,10 +36,8 @@ async function localMode(page: import("@playwright/test").Page) {
   await page.route("**/api/assets", route => route.fulfill({ status: 503, json: {} }));
 }
 async function getLocalSite(page: import("@playwright/test").Page) {
-  return page.evaluate(({ listKey, docKey }) => {
-    const list = JSON.parse(localStorage.getItem(listKey) || "[]");
-    return { list, doc: list[0] ? JSON.parse(localStorage.getItem(docKey + ":" + list[0].id) || "null") : null };
-  }, { listKey, docKey: DOC_STORAGE_KEY });
+  const list = await page.evaluate(key => JSON.parse(localStorage.getItem(key) || "[]") as { id: string; name: string }[], listKey);
+  return { list, doc: list[0] ? JSON.parse((await browserDoc(page, list[0].id)) || "null") : null };
 }
 
 test("ZIP file picker imports an editable site with original asset IDs", async ({ page }) => {
@@ -236,15 +234,15 @@ test("an external HTML base retains external stylesheet integrity even with a lo
 
 test("an import ID collision preserves the already stored site and document", async ({ page }) => {
   await localMode(page);
-  await page.addInitScript(({ listKey, docKey }) => {
+  await page.addInitScript(({ listKey }) => {
     const id = "aaaaaaaaaa";
     localStorage.setItem(listKey, JSON.stringify([{ id, name: "Existing site" }]));
-    localStorage.setItem(docKey + ":" + id, JSON.stringify({ siteName: "Existing document" }));
     const random = crypto.getRandomValues.bind(crypto);
     Object.defineProperty(crypto, "getRandomValues", { value: (bytes: Uint8Array) =>
       bytes.length === 10 ? bytes.fill(0) : random(bytes) });
-  }, { listKey, docKey: DOC_STORAGE_KEY });
+  }, { listKey });
   await page.goto("/");
+  await setBrowserDoc(page, "aaaaaaaaaa", JSON.stringify({ siteName: "Existing document" }));
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
     name: "site.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(fixture())),
@@ -274,10 +272,8 @@ for (const lock of ["web-locks", "indexeddb"]) {
         });
         await expect(tab).toHaveURL(/\/sites\/[a-z0-9]{10}$/);
       }));
-      const saved = await page.evaluate(({ listKey, docKey }) =>
-        JSON.parse(localStorage.getItem(listKey) || "[]").map((site: { id: string; name: string }) =>
-          [site.name, JSON.parse(localStorage.getItem(docKey + ":" + site.id) || "null")?.siteName]),
-        { listKey, docKey: DOC_STORAGE_KEY });
+      const sites = await page.evaluate(key => JSON.parse(localStorage.getItem(key) || "[]") as { id: string; name: string }[], listKey);
+      const saved = await Promise.all(sites.map(async site => [site.name, JSON.parse((await browserDoc(page, site.id)) || "null")?.siteName]));
       expect(saved.sort()).toEqual([["Parallel site 0", "Parallel site 0"], ["Parallel site 1", "Parallel site 1"]]);
     } finally { await other.close(); }
   });
