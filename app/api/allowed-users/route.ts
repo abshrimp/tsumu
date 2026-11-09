@@ -47,7 +47,7 @@ async function listResponse(me: string): Promise<NextResponse> {
     me,
     fixed: allowedEmails(),
     extra: await listAllowedEmails(),
-  });
+  }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
 /** 許可アカウントの一覧（固定 = 環境変数、追加 = D1の動的リスト） */
