@@ -16,7 +16,7 @@ const old = "a".repeat(40), newer = "b".repeat(40), created = "c".repeat(40);
 const expected = (target = "production", branch = target === "test" ? "preview" : "main") => ({
   site: "example", target, repo: "owner/site", branch, productionBranch: "main",
 });
-function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolean; concurrentInit?: boolean; unrelatedHistory?: boolean; recordFails?: boolean; ambiguousUpdate?: boolean; truncatedRollback?: boolean; rollbackSourceMissingManual?: boolean; rollbackGeneratedFile?: boolean; rollbackSourceContainsCredentials?: boolean; rollbackSourceHasOlderManual?: boolean } = {}) {
+function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolean; concurrentInit?: boolean; unrelatedHistory?: boolean; recordFails?: boolean; ambiguousUpdate?: boolean; truncatedRollback?: boolean; rollbackSourceMissingManual?: boolean; rollbackGeneratedFile?: boolean; rollbackSourceContainsCredentials?: boolean; rollbackSourceHasOlderManual?: boolean; rollbackSourceHasDeletedManual?: boolean; rollbackSourceHasOldGenerated?: boolean } = {}) {
   const dest = { repo: "owner/site", branch: "main", previewBranch: "preview" };
   const heads: Record<string, string> = options.empty ? {} : { main: old, ...(options.absent ? {} : { preview: old }) };
   let empty = !!options.empty;
@@ -51,7 +51,17 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
         return NextResponse.json({ merge_base_commit: { sha: options.unrelatedHistory ? "f".repeat(40) : source } });
       }
       if (path.startsWith("/git/trees/")) return NextResponse.json({
-        tree: options.rollbackSourceContainsCredentials && path.includes("old-tree")
+        tree: options.rollbackSourceHasDeletedManual && path.includes("old-tree")
+          ? [
+              { path: "manual-deleted.txt", mode: "100644", type: "blob", sha: "manual-deleted" },
+              { path: files.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "historical-manifest" },
+            ]
+          : options.rollbackSourceHasOldGenerated && path.includes("old-tree")
+          ? [
+              { path: "app/old.ts", mode: "100644", type: "blob", sha: "historical-generated" },
+              { path: files.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "historical-manifest" },
+            ]
+          : options.rollbackSourceContainsCredentials && path.includes("old-tree")
           ? [{ path: files.DOC_PATH, mode: "100644", type: "blob", sha: "historic-secret" }]
           : options.rollbackSourceHasOlderManual && path.includes("old-tree")
             ? [{ path: "manual.txt", mode: "100644", type: "blob", sha: "older" }]
@@ -60,6 +70,12 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
       });
       if (path === "/git/blobs/historic-secret") return NextResponse.json({
         content: Buffer.from(JSON.stringify({ scripts: [{ kind: "fetch", url: "https://api.example.test/?api_key=exposed" }] })).toString("base64"),
+        encoding: "base64",
+      });
+      if (path === "/git/blobs/historical-manifest") return NextResponse.json({
+        content: Buffer.from(files.serializeGeneratedManifest(
+          options.rollbackSourceHasOldGenerated ? { "app/old.ts": "historical-generated" } : {},
+        )).toString("base64"),
         encoding: "base64",
       });
       if (path === "/git/blobs/generated-manifest") return NextResponse.json({
@@ -305,4 +321,26 @@ test("rollback keeps a manually maintained file when the older tree has another 
   assert.ok(update);
   assert.deepEqual(update.body.tree.find((entry: any) => entry.path === "manual.txt"),
     { path: "manual.txt", mode: "100755", type: "blob", sha: "manual" });
+});
+
+test("rollback keeps a manually deleted historical file absent from current tree deleted", async () => {
+  const f = fixture({ rollbackSourceHasDeletedManual: true });
+  const response = await f.post({ sha: old }, true);
+  assert.equal(response.status, 200);
+  const tree = f.writes.find(write => write.path === "/git/trees");
+  assert.ok(tree);
+  assert.deepEqual(tree.body.tree.find((item: any) => item.path === "manual-deleted.txt"), {
+    path: "manual-deleted.txt", mode: "100644", type: "blob", sha: null,
+  });
+  assert.ok(tree.body.tree.some((item: any) => item.path === "manual.txt" && item.sha === "manual"));
+});
+
+test("rollback restores older generated files even when current publication removed them", async () => {
+  const f = fixture({ rollbackSourceHasOldGenerated: true });
+  const response = await f.post({ sha: old }, true);
+  assert.equal(response.status, 200);
+  const tree = f.writes.find(write => write.path === "/git/trees");
+  assert.ok(tree);
+  assert.ok(!tree.body.tree.some((item: any) => item.path === "app/old.ts" && item.sha === null));
+  assert.ok(tree.body.tree.some((item: any) => item.path === "manual.txt" && item.sha === "manual"));
 });
