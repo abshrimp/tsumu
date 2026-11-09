@@ -245,6 +245,7 @@ export function generatePageFile(
     imageRefSrc(ctx.assetNames, doc.ogImage);
   if (ogSrc) {
     const ogParts = [
+      `    siteName: ${codeLiteral(doc.siteName)},`,
       `    title: ${codeLiteral(page.title || page.name)},`,
       page.description
         ? `    description: ${codeLiteral(page.description)},`
@@ -490,6 +491,7 @@ ${varsPrep}  await loadData(vars);
       if (page.noindex) dynParts.push(`    robots: { index: false, follow: false },`);
       if (ogSrc) {
         const ogParts = [
+          `      siteName: ${codeLiteral(doc.siteName)},`,
           `      title,`,
           descVal ? `      description: ${descVal},` : null,
           `      images: [${codeLiteral(ogSrc)}],`,
