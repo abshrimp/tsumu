@@ -341,13 +341,13 @@ test("inline SVG import removes executable content before saving an editable ico
     name: "inline.svg.html", mimeType: "text/html",
     buffer: Buffer.from("<!doctype html><title>Safe SVG</title><body>" + svg),
   });
-  await expect(page).toHaveURL(/\\/sites\\/[a-z0-9-]+$/, { timeout: 30000 });
+  await expect(page).toHaveURL(new RegExp("/sites/[a-z0-9-]+$"), { timeout: 30000 });
   const doc = await importedDoc(page);
   const icon = Object.values(doc.nodes).find((item: any) => item.type === "icon") as any;
   expect(icon).toBeTruthy();
   expect(icon.icon.svg).toContain("<rect");
   expect(icon.icon.svg).not.toMatch(/onload|onerror|<script|foreignObject/i);
   expect(doc.pages[doc.pageOrder[0]].customEndHtml ?? "").not.toContain("svgExecuted");
-  expect(Object.values(generateExportProject(doc, "html").files).join("\\n")).not.toContain("svgExecuted");
+  expect(Object.values(generateExportProject(doc, "html").files).join("\n")).not.toContain("svgExecuted");
   expect(await page.evaluate(() => (globalThis as any).svgExecuted)).toBeUndefined();
 });
