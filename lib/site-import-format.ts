@@ -121,7 +121,7 @@ export function validateImportedDoc(value: unknown): SiteDoc {
   // reopened. Check every reference before the import creates a site or assets.
   const assetRefValid = (ref: unknown): boolean =>
     !isImportObject(ref) || ref.assetId === undefined ||
-    (typeof ref.assetId === "string" && Object.hasOwn(doc.assets, ref.assetId));
+    (typeof ref.assetId === "string" && Object.hasOwn(doc.assets as Record<string, unknown>, ref.assetId));
   for (const node of Object.values(doc.nodes)) {
     if (!isImportObject(node) || !assetRefValid(node.image) || !assetRefValid(node.media)) {
       throw new Error("アセットの参照情報が正しくありません。");
