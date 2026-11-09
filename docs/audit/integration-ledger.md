@@ -71,3 +71,35 @@ Main remained `4cd04c23137e11afce7d7c43f0e06a52815de38e` when re-read. This is a
 - Re-run typecheck, i18n, all Node tests, Workers build, all E2E shards, five generated-format builds, CodeQL, and cross-boundary J cases on the **integrated** SHA. Keep M #32 draft while final evidence and risks remain open.
 
 Record the next update in a new timestamped checkpoint. Do not replace this historical evidence with a mutable “current green” assertion.
+
+## M checkpoint: 2026-11-09T03:21:19.773Z (new cross-PR collision and evidence gates)
+
+Repository main: `4cd04c23137e11afce7d7c43f0e06a52815de38e` at the last confirmed read; **no audit PR has been merged by M**.
+Open PRs now include non-audit performance #34, so the active set is **12** (not 11). `components/script-editor/useScriptDrag.ts` is modified by both #23 and #34. M sent ordering notices to both branches: complete C correctness review first, then update/retest performance #34 against the resulting main. These are not duplicate audit PRs, but they overlap in code and should not be independently merged on the old base.
+
+### Open heads at this snapshot
+
+| PR | HEAD | State |
+| --- | --- | --- |
+| #23 | `c61acc91972192ca17beeee0076ac3c730c4b406` | Draft |
+| #24 | `4a5ceec678ffa78b6dd35c90366aa77d828d831e` | Draft |
+| #25 | `f1b36626411783cd8b93e085dedc50d315affa72` | Draft |
+| #26 | `fb6fae2d861ebb85ab28132ce87dc5b125df8ad4` | Draft |
+| #27 | `fd6958103283cfb045bed1aebfe2d6f99d98be8c` | Draft |
+| #28 | `4995975497ff48a66fd4cd902397108172e44bee` | Draft |
+| #29 | `11973f8846c7e36922ee25992c85b867abf2a9fe` | Open |
+| #30 | `5f1298aa4ae8a1119c20696dfbcc35b1b7450551` | Open |
+| #31 | `7aae88e6e3dd2c15d02ddad5a221d46f89ddf96a` | Draft |
+| #32 | `4e1a333c6c0527f55d263d54fbd44bb4a1b5010c` | Draft |
+| #33 | `4f676abcfbc82d37a83bccb43ca497d539c0f9ed` | Open |
+| #34 | `7c9f74cbd8b5d692ca8b0283dd07047e2cc7a3c6` | Open |
+
+### Additional review evidence
+
+- J's `AUD-J-014`/`015` report identifies incompatible SiteDoc validation between #26 import and #31 persistence. E and B own their individual fixes; neither has been merged. Final integrated import→save→reopen and malicious PUT/PATCH rejection are still unverified.
+- J `AUD-J-016` initially failed because its positive control assumed an unallowlisted public IP would be allowed in a generated SvelteKit SSR request. The generated runtime intentionally enforces an explicit origin allowlist. J updated its test to expect rejection and verify an allowed same-origin relative request; the newest J HEAD must still pass required CI before acceptance.
+- M's original live reporter checked observed job counts but not exact branch Rulesets. `scripts/audit/merge-gates.mjs` and new tests now validate required contexts by GitHub Actions integration ID and exact-head independent review, and `scripts/audit/coordination.mjs` includes the results in its read-only report. All API failures, incomplete check pages and missing reviewers are fail-closed. The current Ruleset requires 10 checks; **the audit plan's independent review remains a separate gate even though GitHub's required approval count is zero**.
+- The generated Next.js server-side auth-header/API-key exposure called out in #30 remains an unresolved design/security question. No change to secret-bearing server fetch semantics was authorized by M. The CodeQL/Dependabot open-alert backlog remains unverified and cannot be inferred from successful workflow runs.
+- All PR authors use the same GitHub account; no formal independent review submissions were observed in the latest PR reviews. A review by a distinct agent using the same GitHub login cannot be represented as another GitHub user's approval. Require separately recorded substantive validation or an external reviewer rather than making up evidence.
+
+**Merge verdict at this checkpoint: blocked for full integration.** Moving heads, the #23/#34 overlap, pending/failed historical checks, missing independent reviews, B/E validator mismatch and unresolved generated secrets require resolution. Retest all required checks and integrated-main behaviors on the exact resulting SHA.
