@@ -130,3 +130,44 @@ test("page folders cannot disappear while assigned pages still reference them", 
     assert.equal(validateDocValue(JSON.parse((await readCurrentDoc(db, "audit"))!.body)), null);
   });
 });
+
+test("asset removal and references are checked together before advancing the revision", async () => {
+  await withDatabase(async db => {
+    const original = fixture();
+    original.assets.picture = { id: "picture", name: "photo.png", width: 10, height: 10 };
+    original.nodes.picture = {
+      ...makeBox(), id: "picture", type: "image",
+      image: { src: "", assetId: "picture", alt: "", width: 10, height: 10 },
+    };
+    original.pages.p.children.push("picture");
+    original.favicon = { assetId: "picture" };
+    assert.equal(validateDocValue(original), null);
+    await saveCurrentDoc(db, "audit", JSON.stringify(original), null);
+
+    const dangling = structuredClone(original);
+    delete dangling.assets.picture;
+    assert.notEqual(validateDocValue(dangling), null);
+    await assert.rejects(
+      saveDocPatch(db, "audit", createDocPatch(original, dangling)!, "1"), InvalidDocPatchError);
+    assert.equal((await readCurrentDoc(db, "audit"))!.rev, "1");
+
+    const fixed = structuredClone(dangling);
+    fixed.nodes.picture.image!.assetId = undefined;
+    fixed.favicon = null;
+    assert.equal(validateDocValue(fixed), null);
+    assert.equal((await saveDocPatch(db, "audit", createDocPatch(original, fixed)!, "1")).kind, "saved");
+    assert.equal(validateDocValue(JSON.parse((await readCurrentDoc(db, "audit"))!.body)), null);
+  });
+});
+
+test("new image and metadata references to nonexistent assets are rejected", async () => {
+  await withDatabase(async db => {
+    const original = fixture();
+    await saveCurrentDoc(db, "audit", JSON.stringify(original), null);
+    const bad = structuredClone(original);
+    bad.nodes.use.image = { src: "", assetId: "missing", alt: "", width: 1, height: 1 };
+    assert.notEqual(validateDocValue(bad), null);
+    await assert.rejects(saveDocPatch(db, "audit", createDocPatch(original, bad)!, "1"), InvalidDocPatchError);
+    assert.equal((await readCurrentDoc(db, "audit"))!.rev, "1");
+  });
+});

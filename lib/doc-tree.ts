@@ -183,11 +183,24 @@ export function validSiteDoc(parsed: unknown): boolean {
       folderIds.add(folder.id);
     }
   }
+  const assetRefValid = (value: unknown): boolean => {
+    if (!record(value) || value.assetId === undefined) return true;
+    return typeof value.assetId === "string" && Object.hasOwn(parsed.assets as object, value.assetId);
+  };
   for (const page of Object.values(parsed.pages)) {
-    const folderId = (page as Record<string, unknown>).folderId;
+    const entry = page as Record<string, unknown>;
+    const folderId = entry.folderId;
     if (folderId !== undefined && (typeof folderId !== "string" || !folderIds.has(folderId))) {
       return false;
     }
+    if (!assetRefValid(entry.ogImage)) return false;
   }
+  for (const node of Object.values(parsed.nodes)) {
+    const entry = node as Record<string, unknown>;
+    if (!assetRefValid(entry.image) || !assetRefValid(entry.media)) return false;
+  }
+  if (!assetRefValid(parsed.favicon) || !assetRefValid(parsed.appleTouchIcon) ||
+      !assetRefValid(parsed.ogImage) ||
+      (record(parsed.pwa) && !assetRefValid(parsed.pwa.icon))) return false;
   return true;
 }

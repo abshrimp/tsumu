@@ -152,17 +152,22 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
   // The UPDATE below still has WHERE rev = base: a concurrent write between
   // this read and the UPDATE cannot bypass the check.
   const referenceSensitive = patch.some(op => {
-    if (op.path[0] === "components" || op.path[0] === "pageFolders") return true;
+    if (op.path[0] === "components" || op.path[0] === "pageFolders" ||
+        op.path[0] === "favicon" || op.path[0] === "appleTouchIcon" ||
+        op.path[0] === "ogImage" || op.path[0] === "pwa") return true;
+    if (op.path[0] === "assets") return op.path.length === 1 || "remove" in op;
     if (op.path[0] === "pages") {
       if (op.path.length === 1) return true;
       return "value" in op && !!op.value && typeof op.value === "object" &&
-        !Array.isArray(op.value) && Object.hasOwn(op.value, "folderId");
+        !Array.isArray(op.value) &&
+        (Object.hasOwn(op.value, "folderId") || Object.hasOwn(op.value, "ogImage"));
     }
     if (op.path[0] !== "nodes") return false;
     if (op.path.length === 1) return true;
     if (!("value" in op) || !op.value || typeof op.value !== "object" || Array.isArray(op.value)) return false;
     const node = op.value as Record<string, unknown>;
-    return node.type === "instance" || (Array.isArray(node.children) && node.children.length > 0);
+    return node.type === "instance" || Object.hasOwn(node, "image") || Object.hasOwn(node, "media") ||
+      (Array.isArray(node.children) && node.children.length > 0);
   });
   if (referenceSensitive) {
     const current = await readCurrentDoc(db, siteId);
