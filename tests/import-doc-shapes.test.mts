@@ -37,6 +37,40 @@ test("imported page style maps cannot contain malformed declarations", () => {
   assert.throws(() => validateImportedDoc(doc), /ページの構造/);
 });
 
+test("imported SiteDoc rejects dangling asset references before saving or reopening", async () => {
+  const referenceCases: Array<(doc: ReturnType<typeof createInitialDoc>) => void> = [
+    doc => { Object.values(doc.nodes)[0].image = { src: "", alt: "", width: 1, height: 1, assetId: "missing" }; },
+    doc => { Object.values(doc.nodes)[0].media = { kind: "video", src: "", assetId: "missing" }; },
+    doc => { doc.pages[doc.pageOrder[0]].ogImage = { assetId: "missing" }; },
+    doc => { doc.favicon = { assetId: "missing" }; },
+    doc => { doc.appleTouchIcon = { assetId: "missing" }; },
+    doc => { doc.ogImage = { assetId: "missing" }; },
+    doc => { doc.pwa = { ...(doc.pwa ?? {}), icon: { assetId: "missing" } } as typeof doc.pwa; },
+  ];
+  for (const [index, setRef] of referenceCases.entries()) {
+    const doc = createInitialDoc();
+    setRef(doc);
+    assert.throws(() => validateImportedDoc(doc), /アセットの参照/, String(index));
+    await assert.rejects(parseSiteImport(encoder.encode(JSON.stringify(doc)), "doc"), /アセットの参照/, String(index));
+  }
+  const valid = createInitialDoc();
+  valid.assets.existing = { id: "existing", name: "existing.png" };
+  Object.values(valid.nodes)[0].image = { src: "", alt: "", width: 1, height: 1, assetId: "existing" };
+  assert.equal(validateImportedDoc(valid), valid);
+});
+
+test("imported SiteDoc rejects missing or duplicate page folders", () => {
+  const doc = createInitialDoc();
+  const page = doc.pages[doc.pageOrder[0]];
+  page.folderId = "missing";
+  assert.throws(() => validateImportedDoc(doc), /ページフォルダー/);
+  doc.pageFolders = [{ id: "folder", name: "Folder" }];
+  page.folderId = "folder";
+  assert.equal(validateImportedDoc(doc), doc);
+  doc.pageFolders.push({ id: "folder", name: "Duplicate" });
+  assert.throws(() => validateImportedDoc(doc), /ページフォルダー/);
+});
+
 test("valid documents retain editable node styles after validation", () => {
   const doc = createInitialDoc();
   assert.equal(validateImportedDoc(doc), doc);
