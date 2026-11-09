@@ -716,7 +716,8 @@ function loadScript(url: string, sample: unknown, then: ScriptStep[]): Script {
     trigger: "load",
     pos: { x: 32, y: 32 },
     steps: [
-      { id: genId("st"), kind: "fetch", url, as: trc("変数名", "データ"), sample, fetchedAt: Date.now() },
+      { id: genId("st"), kind: "fetch", url, as: trc("変数名", "データ"),
+        preview: { sample, fetchedAt: Date.now() } },
       ...then,
     ],
   };

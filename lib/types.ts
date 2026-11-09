@@ -336,11 +336,12 @@ export type ScriptStep = { id: string } & (
       body?: string;
       /** 取得したデータの名前（要素では {名前.項目} としても使える） */
       as?: string;
-      /** エディタで見せる取得結果の見本（配列は先頭だけ残す） */
-      sample?: unknown;
-      /** 見本で切り詰めた配列の、元の件数（位置 → 件数。エディタで件数を正しく出すため） */
-      sampleTotals?: Record<string, number>;
-      fetchedAt?: number;
+      /** Preview data is separate from the executable fetch request. */
+      preview?: {
+        sample?: unknown;
+        totals?: Record<string, number>;
+        fetchedAt?: number;
+      };
     }
   | {
       kind: "if";

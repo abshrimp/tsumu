@@ -1067,9 +1067,9 @@ export function previewDataVars(
     switch (st.kind) {
       case "fetch":
         if (st.as) {
-          save(st.as, opts.live && own(opts.live, st.id) ? opts.live[st.id] : st.sample ?? null);
+          save(st.as, opts.live && own(opts.live, st.id) ? opts.live[st.id] : st.preview?.sample ?? null);
           setOrigin(st.as, {
-            totals: opts.live?.[st.id] !== undefined ? opts.liveTotals?.[st.id] : st.sampleTotals,
+            totals: opts.live?.[st.id] !== undefined ? opts.liveTotals?.[st.id] : st.preview?.totals,
             path: "",
           });
         }
@@ -1546,7 +1546,7 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
     walkAll(steps, (st) => {
       if (st.kind === "fetch") {
         if (st.as) defined.add(st.as);
-        addItemKeys(st.sample, false, 0);
+        addItemKeys(st.preview?.sample, false, 0);
       }
       if (st.kind === "list-display") {
         if (st.field) keep.add(rootName(st.field));

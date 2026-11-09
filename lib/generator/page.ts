@@ -602,7 +602,7 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
     for (const st of steps) {
       if (st.kind === "fetch") {
         if (st.as) known.add(st.as);
-        addItemKeys(st.sample, false, 0);
+        addItemKeys(st.preview?.sample, false, 0);
       }
       if (st.kind === "list-display") {
         if (st.field) itemKeys.add(st.field.split(".")[0]);

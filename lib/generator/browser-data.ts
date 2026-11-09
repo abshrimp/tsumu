@@ -11,7 +11,7 @@ export function pageDataPlan(doc: SiteDoc, page: Page) {
     steps: plan.steps.map((step) => {
       if (step.kind !== "fetch") return step;
       // Samples are editor-only and must not be shipped in generated source.
-      const { sample: _sample, sampleTotals: _totals, fetchedAt: _at, ...publicStep } = step;
+      const { preview: _preview, ...publicStep } = step;
       return publicStep;
     }),
     listOps: Object.fromEntries(plan.listOps),

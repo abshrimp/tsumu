@@ -89,8 +89,11 @@ function validSteps(value: unknown, depth: number, count: { value: number }): bo
         valid = str(step.url) && optional(step.method, x => oneOf(x, ["GET", "POST", "PUT", "PATCH", "DELETE"])) &&
           optional(step.headers, x => Array.isArray(x) && x.every(validHeader)) &&
           optional(step.body, str) && optional(step.as, str) &&
-          optional(step.fetchedAt, finite) &&
-          optional(step.sampleTotals, x => record(x) && Object.values(x).every(finite)); break;
+          optional(step.preview, x => record(x) &&
+            optional(x.fetchedAt, finite) &&
+            optional(x.totals, y => record(y) && Object.values(y).every(finite))) &&
+          Object.keys(step).every(key =>
+            ["id", "kind", "url", "method", "headers", "body", "as", "preview"].includes(key)); break;
       case "if":
         valid = validCond(step.cond) && optional(step.conditions,
           x => Array.isArray(x) && x.every(c => validCond(c, true))) &&
