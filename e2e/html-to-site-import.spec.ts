@@ -65,6 +65,30 @@ test("HTML file import generates editable nodes and responsive CSS, not rawHtml"
   expect(card.styles[desktopOnlyBoundary.id].default.color).toBe("revert");
 });
 
+test("HTML import applies browser-compatible URL validation before storing links and sources", async ({ page }) => {
+  await localMode(page);
+  const html = '<html><body>' +
+    '<a id="obfuscated-link" href="java&#x09;script:alert(1)">unsafe</a>' +
+    '<a id="document-link" href="data:text/html;base64,PHNjcmlwdD4=">unsafe data</a>' +
+    '<a id="ordinary-link" href="https://example.test/docs">safe</a>' +
+    '<img id="obfuscated-image" src="java&#x0a;script:alert(2)" alt="unsafe">' +
+    '<img id="inline-image" src="data:image/png;base64,aGVsbG8=" alt="inline">' +
+    '</body></html>';
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+  await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
+    name: "index.html", mimeType: "text/html", buffer: Buffer.from(html),
+  });
+  await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
+  const doc = await importedDoc(page);
+  const node = (id: string) => Object.values(doc.nodes).find((value: any) => value.attrId === id) as any;
+  expect(node("obfuscated-link").link.url).toBe("#");
+  expect(node("document-link").link.url).toBe("#");
+  expect(node("ordinary-link").link.url).toBe("https://example.test/docs");
+  expect(node("obfuscated-image").image.src).toBe("");
+  expect(node("inline-image").image.src).toBe("data:image/png;base64,aGVsbG8=");
+});
+
 test("HTML import preserves selector classes and safe attributes in editor and export", async ({ page }) => {
   await localMode(page);
   const html = [
