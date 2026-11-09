@@ -210,7 +210,8 @@ export const SCRIPT_RUNTIME = `function (env) {
     }
     if (value === null || value === undefined || typeof value === "boolean" ||
         (typeof value === "string" && !value.trim())) return NaN;
-    var number = Number(value);
+    var number;
+    try { number = Number(value); } catch (e) { return NaN; }
     return Number.isFinite(number) ? number : NaN;
   }
   /*/wait|repeat*/
@@ -486,6 +487,8 @@ export const SCRIPT_RUNTIME = `function (env) {
       /*#clist*/
       // スクリプトの参照は実行時に解決する。値の中の波かっこは再解釈しない。
       function scriptReference(ref, self, item) {
+        if (!ref || typeof ref !== "object" ||
+            typeof ref.name !== "string" || !ref.name) return undefined;
         var name = ref.name, head = name.split(".")[0];
         if (item && (has(item, name) || has(item, head))) {
           return has(item, name) ? item[name] : dig(item, name);
@@ -514,7 +517,9 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*#clist*/
         if (s && Array.isArray(s.scriptParts)) return scriptExpression(s, self, item, "text");
         /*/clist*/
-        return String(s == null ? "" : s).replace(/\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}/g, function (m, k) {
+        var source;
+        try { source = String(s == null ? "" : s); } catch (e) { return ""; }
+        return source.replace(/\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}/g, function (m, k) {
           if (k == null) return "{";
           return text(lookup(k.trim(), self, item));
         });
@@ -525,7 +530,9 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*#clist*/
         if (s && Array.isArray(s.scriptParts)) return scriptExpression(s, self, item, "url");
         /*/clist*/
-        return String(s == null ? "" : s).replace(
+        var source;
+        try { source = String(s == null ? "" : s); } catch (e) { return ""; }
+        return source.replace(
           /\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}|%7B(.*?)%7D/gi,
           function (m, a, b, at) {
             if (m === "\\\\{") return "{";
@@ -622,14 +629,14 @@ export const SCRIPT_RUNTIME = `function (env) {
         if (!c || typeof c !== "object") return false;
         /*#var*/
         if (c.subject === "var") {
-          if (!c.left || !String(c.left).trim()) return false;
+          if (typeof c.left !== "string" || !c.left.trim()) return false;
           var matched = matchValueCondition(readInput(c.left, self, sc), c.op || "eq", readInput(c.value, self, sc));
           return c.not ? !matched : matched;
         }
         /*/var*/
         // An unconfigured or deleted element target is not a valid predicate,
         // including when the condition is negated.
-        if (!c.target || !String(c.target).trim()) return false;
+        if (typeof c.target !== "string" || !c.target.trim()) return false;
         var els = find(self, c.target);
         if (!els.length) return false;
         var r = false;
@@ -1380,7 +1387,8 @@ export const SCRIPT_RUNTIME = `function (env) {
               break;
             }
             // {名前} だけなら値をそのまま入れる（配列はリストで並べられる配列のまま）
-            var sv = /^\\{([^{}\\s"'<>]+)\\}$/.exec(String(st.value || "").trim());
+            var sv = typeof st.value === "string"
+              ? /^\\{([^{}\\s"'<>]+)\\}$/.exec(st.value.trim()) : null;
             setVar(st.into, sv ? lookup(sv[1].trim(), self, sc) : readInput(st.value, self, sc));
             break;
           }

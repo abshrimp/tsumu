@@ -53,3 +53,23 @@ test("corrupt steps and conditions are skipped without losing later valid action
   assert.doesNotThrow(() => h.click());
   assert.equal(h.target.style.display, "none");
 });
+
+test("malformed variable references and non-coercible values cannot abort later steps", () => {
+  const brokenText = { toString: null };
+  const steps = [
+    { kind: "set-var", into: "fromRef", rawRef: { name: 42 } },
+    { kind: "set-var", into: "missingRef", rawRef: { fallback: "x" } },
+    { kind: "set-var", into: "fromParts", value: { scriptParts: [null, { name: false }] } },
+    { kind: "set-var", into: "broken", value: brokenText },
+    { kind: "set-value", target: "absent", value: brokenText },
+    { kind: "open-url", url: brokenText },
+    { kind: "wait", seconds: brokenText },
+    { kind: "repeat", times: brokenText, then: [{ kind: "hide", target: "banner" }] },
+    { kind: "if", cond: { subject: "var", left: brokenText, op: "eq", value: "x" }, then: [{ kind: "hide", target: "banner" }] },
+    { kind: "if", cond: { subject: "visible", target: brokenText }, then: [{ kind: "hide", target: "banner" }] },
+    { kind: "hide", target: "banner" },
+  ];
+  const h = mount(JSON.stringify([{ trigger: "click", steps }]));
+  assert.doesNotThrow(() => h.click());
+  assert.equal(h.target.style.display, "none");
+});
