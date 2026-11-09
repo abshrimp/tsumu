@@ -247,8 +247,39 @@ export function generateExportProject(
         : next;
   const styled = options.style === "css" ? generated
     : applyExportStyle(generated, options.framework, options.style);
-  assertGeneratedPaths(styled);
-  return styled;
+  const withHeaders = addSvgAssetHeaders(styled, options);
+  assertGeneratedPaths(withHeaders);
+  return withHeaders;
+}
+
+const SVG_ASSET_HEADERS_RULE =
+  "/assets/*.svg\n  Content-Security-Policy: default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox\n  X-Content-Type-Options: nosniff\n";
+
+function hasProjectSvgAssets(project: GeneratedProject): boolean {
+  return Object.keys(project.binaries).some((p) => /\.svg$/i.test(p)) ||
+    Object.keys(project.remoteAssets).some((p) => /\.svg$/i.test(p));
+}
+
+function staticAssetRoot(framework: ExportOptions["framework"]): string {
+  return framework === "html" || framework === "single-html" ? ""
+    : framework === "sveltekit" ? "static/" : "public/";
+}
+
+function addSvgAssetHeaders(project: GeneratedProject, options: ExportOptions): GeneratedProject {
+  if (options.scope !== "project" || options.framework === "nextjs" || options.framework === "single-html" ||
+      !hasProjectSvgAssets(project)) {
+    return project;
+  }
+  const headersPath = staticAssetRoot(options.framework) + "_headers";
+  if (project.files[headersPath]?.includes("/assets/*.svg")) return project;
+  const existing = project.files[headersPath];
+  return {
+    ...project,
+    files: {
+      ...project.files,
+      [headersPath]: existing ? `${existing.trimEnd()}\n\n${SVG_ASSET_HEADERS_RULE}` : SVG_ASSET_HEADERS_RULE,
+    },
+  };
 }
 
 /** 選んだページやコンポーネントからたどれる ZIP の依存ファイルだけを残す。 */
@@ -288,11 +319,12 @@ export async function prepareExportProject(
       if (!files[path]) continue;
       files[path] = insertIntoHtmlHead(files[path], robotsMeta);
     }
-    const assetRoot = options.framework === "html" || options.framework === "single-html" ? ""
-      : options.framework === "sveltekit" ? "static/" : "public/";
+    const assetRoot = staticAssetRoot(options.framework);
     if (options.framework !== "single-html") {
       files[assetRoot + "robots.txt"] = "User-agent: *\nDisallow: /\n";
-      files[assetRoot + "_headers"] = "/*\n  X-Robots-Tag: " + robots + "\n";
+      const robotsRule = "/*\n  X-Robots-Tag: " + robots + "\n";
+      const svgExtra = hasProjectSvgAssets(project) ? "\n" + SVG_ASSET_HEADERS_RULE : "";
+      files[assetRoot + "_headers"] = robotsRule + svgExtra;
     }
     project = { ...project, files };
   }

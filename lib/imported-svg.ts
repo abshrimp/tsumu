@@ -133,3 +133,131 @@ export function sanitizeImportedInlineIcons<T>(doc: T): T {
   }
   return doc;
 }
+
+export function hasSafeNodeIcon(node: unknown): boolean {
+  if (!node || typeof node !== "object" || Array.isArray(node)) return false;
+  const icon = (node as { icon?: unknown }).icon;
+  if (icon == null) return true;
+  if (typeof icon !== "object" || Array.isArray(icon)) return false;
+  return isSafeImportedSvg((icon as { svg?: unknown }).svg as string);
+}
+
+export function hasSafeInlineIcons(doc: unknown): boolean {
+  if (!doc || typeof doc !== "object" || Array.isArray(doc)) return false;
+  const nodes = (doc as { nodes?: unknown }).nodes;
+  if (!nodes || typeof nodes !== "object" || Array.isArray(nodes)) return false;
+  return Object.values(nodes).every(hasSafeNodeIcon);
+}
+
+const UPLOADED_SVG_TAGS = new Set([
+  ...staticTags,
+  "style", "image", "switch", "marker", "textpath", "view", "metadata",
+]);
+const TEXT_ONLY_SVG_TAGS = new Set(["style", "title", "desc", "metadata"]);
+const SAFE_RASTER_DATA_URL = /^data:image\/(?:png|jpe?g|gif|webp|avif|bmp)[;,]/i;
+
+function isSafeUploadedSvgCss(css: string): boolean {
+  const decoded = decodeCssEscapes(css).replace(/\/\*[\s\S]*?\*\//g, "");
+  if (/@import\b|\bexpression\s*\(|-moz-binding\s*:|\bbehavior\s*:/i.test(decoded)) return false;
+  for (const match of decoded.matchAll(/\burl\s*\(([^)]*)\)/gi)) {
+    const target = match[1].trim().replace(/^['"]|['"]$/g, "").trim();
+    if (!/^#[A-Za-z0-9_.:-]+$/.test(target) && !SAFE_RASTER_DATA_URL.test(target)) return false;
+  }
+  const stripped = decoded.replace(/\burl\s*\([^)]*\)/gi, "");
+  return !/(?:javascript|vbscript|data|https?|file)\s*:/i.test(stripped);
+}
+
+/** Validate uploaded image/svg+xml assets so active scripts, DTDs, and external resources cannot be stored. */
+export function isSafeUploadedSvg(bytes: ArrayBuffer | Uint8Array): boolean {
+  let raw: string;
+  try {
+    raw = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return false;
+  }
+  const body = raw
+    .replace(/^\uFEFF/, "")
+    .trim()
+    .replace(/^(?:<\?xml(?:\s+(?:version|encoding|standalone)\s*=\s*(?:"[^"<>&]*"|'[^'<>&]*'))+\s*\?>\s*)?/i, "");
+  if (!body || /<\?|<!\s*(?:doctype|entity|element|attlist|notation)\b/i.test(body)) return false;
+
+  let hasParseError = false;
+  const fragment = parseFragment(body, {
+    sourceCodeLocationInfo: true,
+    onParseError: () => { hasParseError = true; },
+  });
+  if (hasParseError) return false;
+
+  const isGenuineComment = (node: Html.Node): boolean => {
+    const loc = "sourceCodeLocation" in node ? node.sourceCodeLocation : undefined;
+    if (!loc) return false;
+    const slice = body.slice(loc.startOffset, loc.endOffset);
+    return slice.startsWith("<!--") && slice.endsWith("-->");
+  };
+
+  let svgRoot: Html.Element | null = null;
+  for (const child of fragment.childNodes) {
+    if (child.nodeName === "#text") {
+      if ("value" in child && child.value.trim()) return false;
+      continue;
+    }
+    if (child.nodeName === "#comment") {
+      if (!isGenuineComment(child)) return false;
+      continue;
+    }
+    if (!("tagName" in child) || svgRoot) return false;
+    svgRoot = child;
+  }
+  const hasSvgXmlns = svgRoot?.attrs.some((a) => !a.prefix && a.name.toLowerCase() === "xmlns" && a.value.trim() === SVG_NS);
+  if (!svgRoot || !hasSvgXmlns || svgRoot.namespaceURI !== SVG_NS || svgRoot.tagName.toLowerCase() !== "svg" ||
+      !hasClosedTags(svgRoot, body)) {
+    return false;
+  }
+
+  const checkElement = (el: Html.Element): boolean => {
+    const tag = el.tagName.toLowerCase();
+    if (el.namespaceURI !== SVG_NS || !UPLOADED_SVG_TAGS.has(tag)) return false;
+    for (const attr of el.attrs) {
+      const name = attr.name.toLowerCase();
+      const key = (attr.prefix ? attr.prefix.toLowerCase() + ":" : "") + name;
+      const value = attr.value.trim();
+      if (name.startsWith("on") || key.startsWith("on") || key === "xml:base") return false;
+      if (key === "xmlns") {
+        if (value !== SVG_NS) return false;
+        continue;
+      }
+      if (key.startsWith("xmlns:")) {
+        if (key !== "xmlns:xlink" || value !== "http://www.w3.org/1999/xlink") return false;
+        continue;
+      }
+      if (attr.prefix && attr.prefix !== "xlink" && attr.prefix !== "xml") return false;
+      if (key === "href" || key === "xlink:href" || key === "src") {
+        const allowRaster = (tag === "image" || tag === "feimage") && key !== "src";
+        if (!/^#[A-Za-z0-9_.:-]+$/.test(value) && !(allowRaster && SAFE_RASTER_DATA_URL.test(value))) {
+          return false;
+        }
+        continue;
+      }
+      if (key === "style") {
+        if (!isSafeUploadedSvgCss(value)) return false;
+        continue;
+      }
+      if (!isSafeUploadedSvgCss(value)) return false;
+    }
+    const textOnly = TEXT_ONLY_SVG_TAGS.has(tag);
+    for (const child of el.childNodes) {
+      if (child.nodeName === "#text") {
+        if (tag === "style" && "value" in child && !isSafeUploadedSvgCss(child.value)) return false;
+        continue;
+      }
+      if (child.nodeName === "#comment") {
+        if (!isGenuineComment(child)) return false;
+        continue;
+      }
+      if (textOnly || !("tagName" in child) || !checkElement(child)) return false;
+    }
+    return true;
+  };
+
+  return checkElement(svgRoot);
+}

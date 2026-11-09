@@ -24,7 +24,7 @@ async function drag(page: Page, from: { x: number; y: number }, to: { x: number;
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
-  const created = await page.request.post("/api/sites", { data: { name: "Script editor", repo: "example/script-editor" } });
+  const created = await page.request.post("/api/sites", { data: { name: "Script editor" } });
   expect(created.ok()).toBe(true);
   const { site } = await created.json();
   await page.goto(`/sites/${site.id}`);

@@ -318,7 +318,7 @@ export async function POST(req: Request) {
 
   /** KV に保存したアセットを読み込む */
   const loadStoredAsset = async (path: string, source: string): Promise<ArrayBuffer> => {
-    if (!source.startsWith("assets/")) {
+    if (!source.startsWith("assets/") || !isSafeCommitPath(source)) {
       throw new Error(tr("Asset source not allowed: {source}", { source }));
     }
     if (dbConfigured() && !await siteHasAsset(await getDb(), siteId, source)) {
@@ -384,11 +384,16 @@ export async function POST(req: Request) {
         const { content } = (await blobRes.json()) as { content: string };
         return Buffer.from(content, "base64").toString("utf8");
       };
-      let manifest: Record<string, string> = {};
+      const manifest: Record<string, string> = Object.create(null);
       const manifestText = await readText(ASSET_MANIFEST_PATH, false);
       if (manifestText) {
         try {
-          manifest = JSON.parse(manifestText);
+          const parsed = JSON.parse(manifestText) as unknown;
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            for (const [k, v] of Object.entries(parsed)) {
+              if (isSafeCommitPath(k) && typeof v === "string") manifest[k] = v;
+            }
+          }
         } catch {
           // 壊れた対応表は無視し、全件を送る方式に戻す
         }
@@ -406,6 +411,7 @@ export async function POST(req: Request) {
     if (body.action === "upload") {
       if (
         typeof body.path !== "string" || !body.path ||
+        !isSafeCommitPath(body.path) || isProtectedPath(body.path) ||
         (body.base64 !== undefined && typeof body.base64 !== "string") ||
         (body.source !== undefined && typeof body.source !== "string") ||
         (body.base64 === undefined) === (body.source === undefined)
@@ -680,10 +686,13 @@ export async function POST(req: Request) {
     }
 
     // 3. コミットを作る
+    const commitMessage = typeof body.message === "string" && body.message.trim()
+      ? body.message.slice(0, 500)
+      : "Publish from Tsumu";
     const commitRes = await gh(`/git/commits`, {
       method: "POST",
       body: JSON.stringify({
-        message: body.message ?? "Publish from Tsumu",
+        message: commitMessage,
         tree: treeSha,
         parents: parentSha ? [parentSha] : [],
       }),

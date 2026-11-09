@@ -9,7 +9,6 @@ import {
   listAllowedAccounts,
   removeAllowedEmail,
   updateAllowedAccountRole,
-  getAccountRole,
   isAccountRole,
   type AccountRole,
 } from "../../../lib/allowlist";
@@ -34,7 +33,7 @@ async function requireMe(): Promise<string | NextResponse> {
     return NextResponse.json({ error: tr("You need to sign in") }, { status: 401 });
   }
   const email = identity.toLowerCase();
-  if (await getAccountRole(email) !== "editor") {
+  if (!allowedEmails().includes(email)) {
     return NextResponse.json({ error: tr("You have view-only access") }, { status: 403 });
   }
   return email;
@@ -147,6 +146,12 @@ export async function DELETE(req: Request) {
 
   try {
     const removed = await removeAllowedEmail(email);
+    if (removed === "sole-owner") {
+      return NextResponse.json(
+        { error: tr("A site must always have at least one owner") },
+        { status: 409 }
+      );
+    }
     if (!removed) {
       return NextResponse.json(
         { error: tr("Account not found") },

@@ -9,6 +9,8 @@ import { gitlabClient } from "../../../../../lib/gitlab";
 import { matchesPublishTarget, publishConflictMessage } from "../../../../../lib/publish-preconditions";
 import { validatePublishDocument } from "../../../../../lib/publish-security";
 import { readJsonObjectLimited, jsonErrorStatus } from "../../../../../lib/api-json";
+import { readTextLimited, TooLargeError } from "../../../../../lib/safe-fetch";
+import { IMPORT_LIMITS } from "../../../../../lib/site-import-format";
 import { userMessage } from "../../../../../lib/errors";
 import {
   DOC_PATH, GENERATED_MANIFEST_PATH, isSafeCommitPath, isProtectedPath,
@@ -62,8 +64,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: tr("This version doesn't include editor data") }, { status: 404 });
     }
     if (!res.ok) await client.fail(tr("Fetching editor data"), res);
-    return new NextResponse(res.body, { headers: { ...PRIVATE_NO_STORE, "Content-Type": "application/json; charset=utf-8" } });
+    const bodyText = await readTextLimited(res, IMPORT_LIMITS.docBytes);
+    return new NextResponse(bodyText, { headers: { ...PRIVATE_NO_STORE, "Content-Type": "application/json; charset=utf-8" } });
   } catch (error) {
+    if (error instanceof TooLargeError) {
+      return NextResponse.json({ error: tr("The edit data exceeds the size limit.") }, { status: 413 });
+    }
     return NextResponse.json({ error: tr(userMessage(error, "Couldn't load the history")) }, { status: 502 });
   }
 }

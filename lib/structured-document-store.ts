@@ -5,6 +5,7 @@
  */
 import { applyDocPatch, isDocPatch, type DocPatch } from "./doc-patch";
 import { hasValidChildren, validDocNodeShape, validSiteDoc } from "./doc-tree";
+import { hasSafeInlineIcons, hasSafeNodeIcon } from "./imported-svg";
 import type { SiteDoc } from "./types";
 
 type Param = string | number | null;
@@ -48,7 +49,7 @@ function parseProps(raw: unknown): Record<string, unknown> {
 function parseDoc(raw: string): SiteDoc {
   let doc: unknown;
   try { doc = JSON.parse(raw); } catch { throw new Error("JSONが壊れています"); }
-  if (!validSiteDoc(doc)) throw new Error("不正なリクエスト");
+  if (!validSiteDoc(doc) || !hasSafeInlineIcons(doc)) throw new Error("不正なリクエスト");
   return doc as SiteDoc;
 }
 function revision(base: string | null): number | null {
@@ -292,7 +293,7 @@ export class StructuredDocumentStore {
           const old = this.query("SELECT body FROM document_entries WHERE bucket='nodes' AND entry_id=?", id)[0];
           const next = "value" in op ? op.value : undefined;
           if (!old || !object(next) || next.id !== id ||
-              !hasValidChildren(next) || !validDocNodeShape(next)) { fast = false; break; }
+              !hasValidChildren(next) || !validDocNodeShape(next) || !hasSafeNodeIcon(next)) { fast = false; break; }
           const node = next as Record<string, unknown>;
           const previous = JSON.parse(String(old.body)) as Record<string, unknown>;
           if (!object(previous) || previous.type !== node.type ||
@@ -322,7 +323,7 @@ export class StructuredDocumentStore {
         return "saved" as const;
       }
       const updated = applyDocPatch(this.readDocument(props), patch);
-      if (!validSiteDoc(updated)) throw new Error("不正なリクエスト");
+      if (!validSiteDoc(updated) || !hasSafeInlineIcons(updated)) throw new Error("不正なリクエスト");
       for (const op of patch) {
         const [name, id] = op.path;
         if (!bucketsSet.has(name)) continue;

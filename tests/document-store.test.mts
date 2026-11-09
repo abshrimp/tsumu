@@ -5444,4 +5444,53 @@ test("adding and removing an empty components bucket persists its presence", () 
     assert.deepEqual(JSON.parse(store.snapshot()!.body), doc);
   } finally { sqlite.close(); }
 });
+
+test("document validation and structured/SQLite patches reject executable inline icon SVGs", async () => {
+  const safeIcon = makeIcon();
+  const evilSvg = '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><circle cx="12" cy="12" r="8"/></svg>';
+  const doc = createInitialDoc();
+  const pageId = doc.pageOrder[0];
+  doc.nodes[safeIcon.id] = safeIcon;
+  doc.pages[pageId].children.push(safeIcon.id);
+  assert.equal(validateDocValue(doc), null);
+
+  const badDoc = structuredClone(doc);
+  badDoc.nodes[safeIcon.id].icon = { name: "star", svg: evilSvg };
+  assert.notEqual(validateDocValue(badDoc), null);
+
+  const { store, sqlite } = database();
+  try {
+    assert.equal(store.replace(JSON.stringify(doc), null).kind, "saved");
+    assert.throws(() => store.replace(JSON.stringify(badDoc), "1"));
+    assert.throws(
+      () => store.patch([{ path: ["nodes", safeIcon.id], value: badDoc.nodes[safeIcon.id] }], "1"),
+      /不正なリクエスト/,
+    );
+    assert.throws(
+      () => store.patch([{ path: ["nodes"], value: badDoc.nodes }], "1"),
+      /不正なリクエスト/,
+    );
+    assert.equal(JSON.parse(store.snapshot()!.body).nodes[safeIcon.id].icon.svg, safeIcon.icon!.svg);
+  } finally {
+    sqlite.close();
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-icon-patch-"));
+  const prev = process.env.TSUMU_DATA_DIR;
+  process.env.TSUMU_DATA_DIR = dir;
+  try {
+    const db = await getDbFromBinding(nodeDatabase()!);
+    await insertSite(db, "s1", { name: "s1", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null });
+    assert.equal((await saveCurrentDoc(db, "s1", JSON.stringify(doc), null)).kind, "saved");
+    await assert.rejects(
+      saveDocPatch(db, "s1", [{ path: ["nodes", safeIcon.id], value: badDoc.nodes[safeIcon.id] }], "1"),
+      InvalidDocPatchError,
+    );
+  } finally {
+    if (prev === undefined) delete process.env.TSUMU_DATA_DIR;
+    else process.env.TSUMU_DATA_DIR = prev;
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
+});
+

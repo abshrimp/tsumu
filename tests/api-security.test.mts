@@ -28,6 +28,9 @@ import { activeContentNames, isOwnClip, parseClipPayload } from "../lib/clip-tra
 import { normalizeSiteInput } from "../lib/site-model";
 import { githubClient } from "../lib/github";
 import { makeBox } from "../lib/presets";
+import { getDbFromBinding } from "../lib/db";
+import { nodeDatabase } from "../lib/node-storage";
+import { insertSite } from "../lib/sites";
 
 describe("account-roles", () => {
 test("account roles are stored directly and updates take effect on the next check", async () => {
@@ -49,6 +52,35 @@ test("account roles are stored directly and updates take effect on the next chec
     assert.equal(await removeAllowedEmail("colleague@example.com"), true);
     assert.equal(await getAccountRole("colleague@example.com"), null);
     assert.equal(await isEmailAllowed("colleague@example.com"), false);
+  } finally {
+    for (const [name, value] of Object.entries(original)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("sole site owners cannot be deleted from allowed accounts until ownership is shared", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "tsumu-sole-owner-"));
+  const original = { TSUMU_DATA_DIR: process.env.TSUMU_DATA_DIR, ALLOWED_EMAILS: process.env.ALLOWED_EMAILS };
+  process.env.TSUMU_DATA_DIR = dir;
+  process.env.ALLOWED_EMAILS = "admin@example.com";
+  try {
+    await addAllowedEmail("creator@example.com", "editor");
+    const db = await getDbFromBinding(nodeDatabase()!);
+    await insertSite(db, "owned-site", {
+      name: "Owned", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,
+    }, "creator@example.com");
+    assert.equal(await removeAllowedEmail("creator@example.com"), "sole-owner");
+    assert.equal(await isEmailAllowed("creator@example.com"), true);
+
+    await db.execute({
+      sql: "INSERT INTO site_members(site_id,email,role) VALUES('owned-site','admin@example.com','owner')",
+      args: [],
+    });
+    assert.equal(await removeAllowedEmail("creator@example.com"), true);
+    assert.equal(await isEmailAllowed("creator@example.com"), false);
   } finally {
     for (const [name, value] of Object.entries(original)) {
       if (value === undefined) delete process.env[name];
@@ -393,12 +425,26 @@ describe("allowed-users-shapes", () => {
       (id: string) => injected[id], module, module.exports,
     );
     const POST = module.exports.POST as (req: Request) => Promise<Response>;
+    const PATCH = module.exports.PATCH as (req: Request) => Promise<Response>;
+    const DELETE = module.exports.DELETE as (req: Request) => Promise<Response>;
     const GET = module.exports.GET as () => Promise<Response>;
     const send = (value: unknown, contentType = "application/json") => POST(new Request("https://editor.example.test/api/allowed-users", {
       method: "POST", body: JSON.stringify(value),
       headers: { "Content-Type": contentType },
     }));
-    return { send, get: () => GET(), inserted };
+    const patch = (value: unknown) => PATCH(new Request("https://editor.example.test/api/allowed-users", {
+      method: "PATCH", body: JSON.stringify(value),
+      headers: { "Content-Type": "application/json" },
+    }));
+    const del = (email: string) => DELETE(new Request(`https://editor.example.test/api/allowed-users?email=${encodeURIComponent(email)}`, {
+      method: "DELETE",
+    }));
+    return {
+      send, patch, del, get: () => GET(), inserted,
+      setRemoveResult(result: boolean | "sole-owner") {
+        (injected["../../../lib/allowlist"] as Record<string, unknown>).removeAllowedEmail = async () => result;
+      },
+    };
   }
 
   test("account allowlist API rejects unexpected JSON field types without writes", async () => {
@@ -446,6 +492,23 @@ describe("allowed-users-shapes", () => {
     assert.equal(response.status, 415);
     assert.deepEqual(f.inserted, []);
   });
+
+  test("dynamic editor accounts not in ALLOWED_EMAILS cannot manage allowed accounts", async () => {
+    const f = fixture("dynamic-editor@example.com");
+    assert.equal((await f.get()).status, 403);
+    assert.equal((await f.send({ email: "another@example.com", role: "editor" })).status, 403);
+    assert.equal((await f.patch({ email: "another@example.com", role: "viewer" })).status, 403);
+    assert.equal((await f.del("another@example.com")).status, 403);
+    assert.deepEqual(f.inserted, []);
+  });
+
+  test("DELETE returns 409 when removing the sole owner of a site", async () => {
+    const f = fixture("owner@example.com");
+    f.setRemoveResult("sole-owner");
+    const res = await f.del("creator@example.com");
+    assert.equal(res.status, 409);
+    assert.equal((await res.json()).error, "A site must always have at least one owner");
+  });
 });
 });
 
@@ -478,6 +541,7 @@ function fixture(mode: "signed-in" | "anonymous" | "denied") {
     envVar: () => undefined,
     serverTr: async () => (value: string) => value,
     authConfigured: () => mode !== "anonymous",
+    allowedEmails: () => [],
     getAccountRole: async () => "editor",
     requireSiteAccess: async () => null,
     anonymousAllowed: () => mode === "anonymous",

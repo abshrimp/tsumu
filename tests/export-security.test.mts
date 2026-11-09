@@ -3436,4 +3436,36 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     assert.equal(native.resolveText(sample.options[selected], scope), fieldInitialValue(field, scope));
   }));
 }
+
+test("exported projects emit sandboxed Content-Security-Policy headers for SVG assets", async () => {
+  const site = createInitialDoc();
+  site.assets.logo = {
+    id: "logo", name: "logo.svg", width: 24, height: 24, mimeType: "image/svg+xml",
+    dataUrl: "data:image/svg+xml;base64," + Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>').toString("base64"),
+  };
+  const pageId = site.pageOrder[0];
+  site.nodes.img = { ...makeBox(), id: "img", type: "image", image: { assetId: "logo", alt: "Logo", width: 24, height: 24 } };
+  site.pages[pageId].children.push("img");
+
+  const next = generateExportProject(site, "nextjs");
+  assert.match(next.files["next.config.mjs"], /source:\s*"\/assets\/:path\*\.svg"/);
+  assert.match(next.files["next.config.mjs"], /default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox/);
+  assert.match(next.files["next.config.mjs"], /X-Content-Type-Options[\s\S]*?nosniff/);
+
+  for (const [framework, headersPath] of [
+    ["react", "public/_headers"],
+    ["vue", "public/_headers"],
+    ["nuxt", "public/_headers"],
+    ["sveltekit", "static/_headers"],
+    ["html", "_headers"],
+  ] as const) {
+    const prod = generateExportProject(site, framework, "production");
+    assert.match(prod.files[headersPath] ?? "", /\/assets\/\*\.svg[\s\S]*?default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox/);
+    assert.match(prod.files[headersPath] ?? "", /X-Content-Type-Options: nosniff/);
+    const preview = await prepareExportProject(site, framework, "test");
+    assert.match(preview.files[headersPath] ?? "", /X-Robots-Tag:/);
+    assert.match(preview.files[headersPath] ?? "", /\/assets\/\*\.svg[\s\S]*?sandbox/);
+  }
 });
+});
+

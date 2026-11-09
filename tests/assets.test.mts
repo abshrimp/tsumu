@@ -45,6 +45,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { AssetGrid } from "../components/ImagePicker";
 import { assetWindow, assetRowHeight, resizedAssetScrollTop } from "../lib/asset-window";
+import { isSafeUploadedSvg } from "../lib/imported-svg";
 
 describe("asset-byte-roundtrip", () => {
 const cases = [
@@ -1272,6 +1273,7 @@ function assetDeleteRoute({ backend = "d1", configured = true, siteExists = true
         return 1;
       },
     },
+    "../../../lib/imported-svg": { isSafeUploadedSvg },
   };
   const mod = {
     exports: {} as {
@@ -3111,3 +3113,108 @@ test("retention is idempotent, never overwrites existing assets, and retains eac
   assert.equal(state().past.length, 0);
 });
 });
+
+describe("svg-upload-security", () => {
+const enc = new TextEncoder();
+
+test("isSafeUploadedSvg accepts valid static SVGs and rejects executable or external constructs", () => {
+  for (const valid of [
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>',
+    '<?xml version="1.0" encoding="UTF-8"?><!-- comment --><svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0h10v10H0z"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"/>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><defs><circle id="c" r="4"/></defs><style><![CDATA[.icon{fill:currentColor}]]></style><use href="#c" class="icon"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><image href="data:image/png;base64,iVBORw0KGgo=" width="10" height="10"/></svg>',
+  ]) {
+    assert.equal(isSafeUploadedSvg(enc.encode(valid)), true, valid);
+  }
+
+  for (const invalid of [
+    '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><div>x</div></foreignObject></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><circle r="4"/></svg>',
+    '<?xml-stylesheet type="text/xsl" href="https://evil.test/x.xsl"?><svg xmlns="http://www.w3.org/2000/svg"/>',
+    '<!DOCTYPE svg [<!ENTITY xxe "boom">]><svg xmlns="http://www.w3.org/2000/svg"><text>&xxe;</text></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><style>@import "https://evil.test/a.css";</style></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><rect style="fill:url(https://evil.test/p#x)"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><rect style="width:expression(alert(1))"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><use href="data:image/svg+xml;base64,PHN2Zy8+"/></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><a href="javascript:alert(1)"><circle r="4"/></a></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><circle r="4">',
+    '<svg viewBox="0 0 10 10"><circle r="4"/></svg>',
+  ]) {
+    assert.equal(isSafeUploadedSvg(enc.encode(invalid)), false, invalid);
+  }
+  assert.equal(isSafeUploadedSvg(new Uint8Array([0xff, 0xfe, 0x3c, 0x73, 0x76, 0x67])), false);
+});
+
+test("POST /api/assets enforces SVG extension/MIME parity and static SVG safety", async () => {
+  class NextResponse extends Response {
+    static json(body: unknown, init?: ResponseInit) {
+      return new NextResponse(JSON.stringify(body), init);
+    }
+  }
+  const source = readFileSync(new URL("../app/api/assets/route.ts", import.meta.url), "utf8");
+  const { code } = transformSync(source, { loader: "ts", format: "cjs", target: "es2022" });
+  const stored: string[] = [];
+  let currentFile: File | null = null;
+  const stubs: Record<string, unknown> = {
+    "next/server": { NextResponse },
+    "../../../lib/unavailable": {
+      dbUnavailable: async () => NextResponse.json({ error: "No DB" }, { status: 503 }),
+      storeUnavailable: async () => NextResponse.json({ error: "No KV" }, { status: 503 }),
+    },
+    "../../../lib/i18n-server": { serverTr: async () => (m: string) => m },
+    "../../../lib/server": { requireAuth: async () => null, sessionUser: async () => null },
+    "../../../lib/site-access": { requireSiteAccess: async () => null },
+    "../../../lib/site-asset-access": { siteHasAsset: async () => true, siteOwnsAssets: async () => true },
+    "../../../lib/site-model": { isSiteId: () => true },
+    "../../../auth": { authConfigured: () => false },
+    "../../../lib/allowlist": { allowedEmails: () => [] },
+    "../../../lib/kv": {
+      assetStore: () => ({ async put(path: string) { stored.push(path); } }),
+      MAX_ASSET_BYTES: 25 * 1024 * 1024,
+    },
+    "../../../lib/errors": { userMessage: (_e: unknown, fb: string) => fb },
+    "../../../lib/db": { dbConfigured: () => false, getDb: async () => ({ execute: async () => ({ rows: [], rowsAffected: 0 }) }) },
+    "../../../lib/asset-upload": {
+      readAssetForm: async () => {
+        const fd = new FormData();
+        fd.set("site", "site012345");
+        if (currentFile) fd.set("file", currentFile);
+        return fd;
+      },
+    },
+    "../../../lib/site-server": { siteIdOf: async (id: string) => id },
+    "../../../lib/site-document-service": { documentAssetReferences: async () => [] },
+    "../../../lib/api-json": apiJson,
+    "../../../lib/asset-ledger": { readAssetLedger: async () => null, recordUploadedAsset: async () => {} },
+    "../../../lib/asset-gc": { recordAssetGcCandidates: async () => 0 },
+    "../../../lib/imported-svg": { isSafeUploadedSvg },
+  };
+  const mod = { exports: {} as { POST: (req: Request) => Promise<Response> } };
+  new Function("require", "module", "exports", code)(
+    (id: string) => {
+      if (!Object.hasOwn(stubs, id)) throw new Error("Unmocked import: " + id);
+      return stubs[id];
+    },
+    mod, mod.exports,
+  );
+  const upload = (file: File) => {
+    currentFile = file;
+    return mod.exports.POST(new Request("https://example.com/api/assets", { method: "POST" }));
+  };
+
+  assert.equal((await upload(new File(["png"], "icon.svg", { type: "image/png" }))).status, 400);
+  assert.equal((await upload(new File(['<svg xmlns="http://www.w3.org/2000/svg"/>'], "icon.png", { type: "image/svg+xml" }))).status, 400);
+  const badSvg = await upload(new File(['<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"/>'], "icon.svg", { type: "image/svg+xml" }));
+  assert.equal(badSvg.status, 400);
+  assert.equal((await badSvg.json()).error, "The SVG data is corrupted");
+  assert.equal(stored.length, 0);
+
+  const okSvg = await upload(new File(['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/></svg>'], "icon.svg", { type: "image/svg+xml" }));
+  assert.equal(okSvg.status, 200);
+  assert.equal(stored.length, 1);
+  assert.match(stored[0]!, /-icon\.svg$/);
+});
+});
+

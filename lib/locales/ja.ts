@@ -3756,6 +3756,7 @@ const ja: Dict = {
   "Publish the live branch before creating the test branch.": "テストブランチを作成する前に、本番ブランチへ公開してください。",
   "This version has too many files to restore in one request.": "この版はファイル数が多すぎるため、1回のリクエストで復元できません。",
   "Couldn't connect to GitLab. Check the server token and project permissions.": "GitLabに接続できませんでした。サーバーのトークンとプロジェクトの権限を確認してください。",
+  "This repository is already used by another site": "このリポジトリはすでに別のサイトで使われています",
 };
 
 export default ja;

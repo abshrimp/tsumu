@@ -5,7 +5,7 @@ import { dbConfigured, getDb } from "../../../lib/db";
 import { assetStore } from "../../../lib/kv";
 import { envVar } from "../../../lib/env";
 import type { AssetDeletion } from "../../../lib/status";
-import { getAccountRole } from "../../../lib/allowlist";
+import { allowedEmails, getAccountRole } from "../../../lib/allowlist";
 import { collabRoomAvailable } from "../../../lib/collab";
 
 /**
@@ -26,10 +26,12 @@ async function assetDeletion(): Promise<AssetDeletion | null> {
 export async function GET() {
   const user = await requireAuth("user");
   if (user instanceof NextResponse) return user;
+  const signedIn = authConfigured();
   const hasDatabase = dbConfigured();
   return NextResponse.json({
-    auth: authConfigured(),
+    auth: signedIn,
     role: user ? (await getAccountRole(user.email) ?? "viewer") : "editor",
+    isAdmin: !signedIn || (!!user?.email && allowedEmails().includes(user.email.toLowerCase())),
     db: hasDatabase,
     collabTransport: !hasDatabase ? "none" : collabRoomAvailable() ? "websocket" : "sse",
     assets: assetStore() !== null,

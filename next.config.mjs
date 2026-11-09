@@ -22,7 +22,7 @@ const nextConfig = {
       },
       {
         // 他のサイトの iframe や埋め込みからの遷移でエディタを重ねて押させること（クリックジャッキング）を防ぐ
-        source: "/((?!api/).*)",
+        source: "/((?!api/assets/file).*)",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },

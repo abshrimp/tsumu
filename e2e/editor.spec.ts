@@ -206,6 +206,11 @@ test("Custom code and icon scripts stored in documents never execute inside the 
     icon: { name: "x", svg: `<svg xmlns="http://www.w3.org/2000/svg" onload="window.__pwned = 'icon'"><circle r="4"/></svg>` },
   };
   doc.pages[pageId].children.unshift("evil_code", "evil_icon");
+  const rejected = await page.request.put(`/api/doc?site=${siteId}&base=${cur.rev}`, { data: doc });
+  expect(rejected.status()).toBe(400);
+
+  delete doc.nodes.evil_icon;
+  doc.pages[pageId].children = doc.pages[pageId].children.filter((id: string) => id !== "evil_icon");
   const put = await page.request.put(`/api/doc?site=${siteId}&base=${cur.rev}`, { data: doc });
   expect(put.ok()).toBeTruthy();
 

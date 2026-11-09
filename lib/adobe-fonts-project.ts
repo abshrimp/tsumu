@@ -1,4 +1,5 @@
 /** Published Adobe Fonts Web Project discovery. No user credentials or pasted scripts. */
+import { readTextLimited } from "./safe-fetch";
 
 interface AdobeProjectFamily {
   name: string;
@@ -75,27 +76,25 @@ export async function inspectAdobeProject(kitId: string, fetcher: Fetcher = fetc
       "https://typekit.com/api/v1/json/kits/" + kitId + "/published", fetcher,
     );
     metadataMissing = response.status === 404 || response.status === 410;
-    if (response.ok && Number(response.headers.get("content-length") ?? 0) <= MAX_METADATA) {
-      const text = await response.text();
-      if (text.length <= MAX_METADATA) {
-        const fonts = adobePublishedFamilies(JSON.parse(text));
-        if (fonts) {
-          // Adobe's published metadata may not expose dynamic subsetting directly.
-          // A CSS endpoint returning 412 is the supported indication that the kit
-          // requires the JavaScript loader (common with Japanese font projects).
-          if (fonts.length && fonts.every(font => font.loading === "css")) {
-            try {
-              const css = await request("https://use.typekit.net/" + kitId + ".css", fetcher, "HEAD");
-              if (css.status === 412) {
-                for (const font of fonts) font.loading = "dynamic";
-                return { status: "available", fonts, loading: "dynamic" };
-              }
-            } catch {
-              // Metadata remains useful even when the CDN probe is unavailable.
+    if (response.ok) {
+      const text = await readTextLimited(response, MAX_METADATA);
+      const fonts = adobePublishedFamilies(JSON.parse(text));
+      if (fonts) {
+        // Adobe's published metadata may not expose dynamic subsetting directly.
+        // A CSS endpoint returning 412 is the supported indication that the kit
+        // requires the JavaScript loader (common with Japanese font projects).
+        if (fonts.length && fonts.every(font => font.loading === "css")) {
+          try {
+            const css = await request("https://use.typekit.net/" + kitId + ".css", fetcher, "HEAD");
+            if (css.status === 412) {
+              for (const font of fonts) font.loading = "dynamic";
+              return { status: "available", fonts, loading: "dynamic" };
             }
+          } catch {
+            // Metadata remains useful even when the CDN probe is unavailable.
           }
-          return { status: "available", fonts };
         }
+        return { status: "available", fonts };
       }
     }
   } catch {
@@ -109,15 +108,10 @@ export async function inspectAdobeProject(kitId: string, fetcher: Fetcher = fetc
     const response = await request("https://use.typekit.net/" + kitId + ".css", fetcher);
     cssMissing = response.status === 404 || response.status === 410;
     if (response.ok) {
+      const css = await readTextLimited(response, MAX_CSS);
       cssReachable = true;
-      const size = Number(response.headers.get("content-length") ?? 0);
-      if (size <= MAX_CSS) {
-        const css = await response.text();
-        if (css.length <= MAX_CSS) {
-          const fonts = adobeCssFamilies(css);
-          if (fonts.length) return { status: "available", fonts, loading: "css" };
-        }
-      }
+      const fonts = adobeCssFamilies(css);
+      if (fonts.length) return { status: "available", fonts, loading: "css" };
     }
   } catch {
     // Try the JavaScript CDN route as well, which is essential for Japanese fonts.

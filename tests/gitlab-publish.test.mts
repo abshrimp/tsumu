@@ -101,8 +101,39 @@ test("GitLab snapshot traverses its tree and validates the generated manifest", 
     assert.equal(snapshot.head, sha);
     assert.equal(snapshot.blobs["index.html"], sha);
     assert.equal(snapshot.generated?.["index.html"], sha);
+    assert.equal(Object.getPrototypeOf(snapshot.manifest), null);
     assert.ok(paths.every(path => path.startsWith("https://gitlab.com/api/v4/projects/group%2Fnested%2Fproject/")));
   } finally {
     globalThis.fetch = previous;
   }
 });
+
+test("GitLab client rejects encoded traversal paths and non-gitlab.com commit web_url values", async () => {
+  const previous = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async (url) => {
+    calls++;
+    const location = String(url);
+    if (location.endsWith("/repository/branches/main")) return Response.json({ commit: { id: sha } });
+    if (location.includes("/repository/commits?")) {
+      return Response.json([
+        { id: sha, message: "Safe\ndetails", committed_date: "2026-01-01T00:00:00Z", web_url: "https://gitlab.com/group/nested/project/-/commit/" + sha },
+        { id: manifestSha, message: "Untrusted", committed_date: "2026-01-01T00:00:00Z", web_url: "javascript:alert(1)" },
+      ]);
+    }
+    throw new Error("Unexpected API path: " + location);
+  };
+  try {
+    const client = gitlabClient(config, tr);
+    for (const bad of ["/repository/files/%2e%2e/raw", "/repository/files/foo%5cbar/raw", "repository/branches/main"]) {
+      await assert.rejects(client.request(bad));
+    }
+    assert.equal(calls, 0);
+    const history = await client.history();
+    assert.equal(history.commits[0]?.url, "https://gitlab.com/group/nested/project/-/commit/" + sha);
+    assert.equal(history.commits[1]?.url, "https://gitlab.com/group/nested/project/-/commit/" + manifestSha);
+  } finally {
+    globalThis.fetch = previous;
+  }
+});
+

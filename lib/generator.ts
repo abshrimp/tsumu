@@ -794,21 +794,33 @@ a {
 export default defineCloudflareConfig();
 `;
 
+  const hasSvgAssets = Object.keys(binaries).some((p) => /\.svg$/i.test(p)) ||
+    Object.keys(remoteAssets).some((p) => /\.svg$/i.test(p));
+  const headerRules = [
+    ...(isTest ? [`      {
+        source: "/:path*",
+        headers: [{ key: "X-Robots-Tag", value: ${JSON.stringify(TEST_ROBOTS_HEADER)} }],
+      },`] : []),
+    ...(hasSvgAssets ? [`      {
+        source: "/assets/:path*.svg",
+        headers: [
+          { key: "Content-Security-Policy", value: "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+        ],
+      },`] : []),
+  ];
+
   files["next.config.mjs"] = `/** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
     // Cloudflare Workers には Next.js の画像最適化サーバーが無いため無効化
     unoptimized: true,
   },${
-    isTest
+    headerRules.length
       ? `
   async headers() {
-    // テストサイト: 全ページを検索エンジンの対象外にする
     return [
-      {
-        source: "/:path*",
-        headers: [{ key: "X-Robots-Tag", value: ${JSON.stringify(TEST_ROBOTS_HEADER)} }],
-      },
+${headerRules.join("\n")}
     ];
   },`
       : ""
@@ -877,7 +889,11 @@ out/
 
   files["README.md"] = generatedReadme(doc.siteName, doc.hosting === "cloudflare");
 
-  if (isTest) addTestSiteGuards(files);
+  const svgHeadersRule = hasSvgAssets
+    ? "/assets/*.svg\n  Content-Security-Policy: default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox\n  X-Content-Type-Options: nosniff\n"
+    : "";
+  if (isTest) addTestSiteGuards(files, svgHeadersRule);
+  else if (svgHeadersRule) files["public/_headers"] = svgHeadersRule;
 
   return { files, binaries, remoteAssets };
 }
@@ -889,13 +905,13 @@ out/
  * - 静的ファイル（Workers Static Assets から直接配信される分）にも、_headers で X-Robots-Tag を付ける
  * - レイアウトの robots メタ（generateProject の中）と、next.config の headers
  */
-function addTestSiteGuards(files: Record<string, string>) {
+function addTestSiteGuards(files: Record<string, string>, extraHeaders = "") {
   // 利用者が作った robots.txt / sitemap のページは公開しない
   for (const path of Object.keys(files)) {
     if (/^app\/(robots\.txt|sitemap[^/]*\.xml)\//.test(path)) delete files[path];
   }
   files["public/robots.txt"] = "User-agent: *\nDisallow: /\n";
-  files["public/_headers"] = `/*\n  X-Robots-Tag: ${TEST_ROBOTS_HEADER}\n`;
+  files["public/_headers"] = `/*\n  X-Robots-Tag: ${TEST_ROBOTS_HEADER}\n${extraHeaders ? "\n" + extraHeaders : ""}`;
   files["proxy.ts"] = `import { NextResponse, type NextRequest } from "next/server";
 
 // テストサイト: 検索エンジン等のクローラーを拒否する（エディタが自動生成）

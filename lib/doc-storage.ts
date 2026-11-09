@@ -1,6 +1,7 @@
 import { hasValidChildren, MAX_NODE_DEPTH, validAssetEntry, validComponentEntry, validDocNodeShape, validDocPageShape, validSiteDoc } from "./doc-tree";
 import type { Db, ResultSet } from "./db";
 import { applyDocPatch, docPatchSqlPath, isDocPatch, type DocPatch } from "./doc-patch";
+import { hasSafeInlineIcons, hasSafeNodeIcon } from "./imported-svg";
 import type { SiteDoc } from "./types";
 
 /**
@@ -39,7 +40,7 @@ export function validateDocBody(raw: string): string | null {
 }
 
 export function validateDocValue(parsed: unknown): string | null {
-  return validSiteDoc(parsed) ? null : "不正なリクエスト";
+  return validSiteDoc(parsed) && hasSafeInlineIcons(parsed) ? null : "不正なリクエスト";
 }
 
 /** SQLite の大きさの上限のエラーを API に伝えるための、保存の処理。 */
@@ -154,7 +155,7 @@ export async function saveDocPatch(db: Db, siteId: string, patch: DocPatch, base
         hasValidChildren(item) && "id" in item && item.id === id &&
         (collection === "pages"
           ? "slug" in item && typeof item.slug === "string" && validDocPageShape(item)
-          : validDocNodeShape(item));
+          : validDocNodeShape(item) && hasSafeNodeIcon(item));
       if (!valid) throw new InvalidDocPatchError();
     }
   }

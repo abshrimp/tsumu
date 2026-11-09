@@ -94,14 +94,22 @@ async function readAccountRole(email: string): Promise<AccountRole | null> {
   return rows.rows[0]?.role as AccountRole | null ?? null;
 }
 
-/** 削除する。存在しなければ false を返す */
-export async function removeAllowedEmail(email: string): Promise<boolean> {
+/** 削除する。存在しなければ false、単独オーナーのサイトがあれば "sole-owner" を返す */
+export async function removeAllowedEmail(email: string): Promise<boolean | "sole-owner"> {
   const db = await getDb();
+  const soleOwnerGuard = `NOT EXISTS (
+    SELECT 1 FROM site_members m
+    JOIN sites s ON s.id = m.site_id
+    WHERE m.email = ? AND m.role = 'owner'
+      AND (SELECT COUNT(*) FROM site_members o WHERE o.site_id = m.site_id AND o.role = 'owner') <= 1
+  )`;
   const results = await db.batch([
-    { sql: "DELETE FROM allowed_emails WHERE email = ?", args: [email] },
-    { sql: "DELETE FROM site_members WHERE email = ?", args: [email] },
+    { sql: `DELETE FROM allowed_emails WHERE email = ? AND ${soleOwnerGuard}`, args: [email, email] },
+    { sql: `DELETE FROM site_members WHERE email = ? AND ${soleOwnerGuard}`, args: [email, email] },
   ]);
-  return results[0].rowsAffected > 0;
+  if (results[0].rowsAffected > 0) return true;
+  const exists = await db.execute({ sql: "SELECT 1 FROM allowed_emails WHERE email = ? LIMIT 1", args: [email] });
+  return exists.rows.length > 0 ? "sole-owner" : false;
 }
 
 /** ログインの判定に使う（未設定や失敗のときは空で、環境変数の固定のリストだけが有効） */

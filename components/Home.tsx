@@ -1060,7 +1060,7 @@ export default function Home() {
           <SiteMembers siteId={membersSite.id} siteName={membersSite.name} onClose={() => setMembersSite(null)} />
         </Suspense>
       )}
-      {settingsOpen && <AppSettings auth={!!status?.auth && !readOnly}
+      {settingsOpen && <AppSettings auth={!!status?.auth && !!status.isAdmin}
         onClose={() => setSettingsOpen(false)} />}
       <DialogHost />
       {draggingFile && (

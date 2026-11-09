@@ -73,10 +73,21 @@ export async function PATCH(req: Request, ctx: Ctx) {
       });
     }
     let current = r.site;
+    let checkedManage = false;
     for (let attempt = 0; attempt < 4; attempt++) {
       const parsed = normalizeSiteInput(input, current);
       if (!parsed.ok) return NextResponse.json({ error: r.tr(parsed.error) }, { status: 400 });
-      const saved = await updateSite(r.db, current.id, parsed.value, current);
+      const v = parsed.value;
+      const changesDest = (v.gitProvider ?? "github") !== (current.gitProvider ?? "github") ||
+        v.repo !== current.repo || v.branch !== current.branch ||
+        v.previewBranch !== current.previewBranch ||
+        v.siteUrl !== current.siteUrl || v.previewUrl !== current.previewUrl;
+      if (changesDest && !checkedManage) {
+        const deniedManage = await requireSiteAccess(r.site.id, "manage");
+        if (deniedManage) return deniedManage;
+        checkedManage = true;
+      }
+      const saved = await updateSite(r.db, current.id, v, current);
       const latest = await getSite(r.db, current.id);
       if (!latest) return NextResponse.json({ error: r.tr("Site not found") }, { status: 404 });
       if (saved) return NextResponse.json({ site: { ...latest, accessRole: await siteRole(r.db, latest.id, (await sessionUser())?.email ?? null) } });
@@ -87,6 +98,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: r.tr("Couldn't save") }, { status: 409 });
   } catch (e) {
     const tr = await serverTr();
+    if (e instanceof Error && e.message === "This repository is already used by another site") {
+      return NextResponse.json({ error: tr("This repository is already used by another site") }, { status: 409 });
+    }
     return NextResponse.json({ error: tr(userMessage(e, "Couldn't save")) }, { status: 502 });
   }
 }

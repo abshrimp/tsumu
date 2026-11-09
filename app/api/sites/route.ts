@@ -146,6 +146,9 @@ export async function POST(req: Request) {
     if (e instanceof Error && /SQLITE_TOOBIG|too big/i.test(e.message)) {
       return NextResponse.json({ error: tr("The document is too large for the storage") }, { status: 413 });
     }
+    if (e instanceof Error && e.message === "This repository is already used by another site") {
+      return NextResponse.json({ error: tr("This repository is already used by another site") }, { status: 409 });
+    }
     if (importing && e instanceof Error && /UNIQUE constraint failed: sites\.id/i.test(e.message)) {
       return NextResponse.json({ error: tr("Could not create the site.") }, { status: 409 });
     }

@@ -1712,6 +1712,7 @@ async function statusWith(db: boolean, room: boolean) {
     dbConfigured: () => db,
     collabRoomAvailable: () => { roomChecks++; return room; },
     assetStore: () => null,
+    allowedEmails: () => [],
     getAccountRole: async () => "editor",
   };
   const module = { exports: {} as Record<string, any> };

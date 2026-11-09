@@ -301,6 +301,15 @@ test("kit IDs cannot inject external URLs or trigger arbitrary requests", async 
   assert.equal(calls.length, 0);
 });
 
+test("oversized streamed Adobe metadata and CSS responses abort without unbounded buffering", async () => {
+  const chunk = new Uint8Array(64 * 1024).fill(0x61);
+  const hugeStream = () => new Response(new ReadableStream({
+    pull(controller) { controller.enqueue(chunk); },
+  }), { status: 200 });
+  const { fake } = stubAdobeFetch(hugeStream(), hugeStream(), new Response(null, { status: 404 }));
+  assert.deepEqual(await inspectAdobeProject("tud1nus", fake), { status: "unknown", fonts: [] });
+});
+
 function registrationFixture(): SiteDoc {
   return {
     schemaVersion: 1, siteName: "Adobe Project Removal", assets: {},

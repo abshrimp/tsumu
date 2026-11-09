@@ -1357,6 +1357,87 @@ test("site settings reject non-JSON Content-Type without touching the database",
   assert.equal(response.status, 415);
   assert.deepEqual(await getSite(db, "site"), before);
 }));
+
+test("repositories cannot be shared across sites on the same Git provider", async () => database(async db => {
+  await assert.rejects(
+    insertSite(db, "other", {
+      name: "Other", repo: "Owner/Original", branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,
+    }),
+    /This repository is already used by another site/,
+  );
+
+  const gitlabAllowed = await insertSite(db, "gitlab-site", {
+    name: "GitLab", gitProvider: "gitlab", repo: "Owner/Original", branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,
+  });
+  assert.equal(gitlabAllowed, null);
+  assert.equal((await getSite(db, "gitlab-site"))?.gitProvider, "gitlab");
+
+  await insertSite(db, "second", {
+    name: "Second", repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,
+  });
+  const secondBefore = (await getSite(db, "second"))!;
+  await assert.rejects(
+    updateSite(db, "second", {
+      name: "Second", repo: "OWNER/ORIGINAL", branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,
+    }, secondBefore),
+    /This repository is already used by another site/,
+  );
+
+  await insertSite(db, "taken", {
+    name: "Taken", repo: "owner/taken", branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,
+  });
+  const patchConflict = await api(db)({ repo: "Owner/Taken" });
+  assert.equal(patchConflict.status, 409);
+  assert.equal((await patchConflict.json()).error, "This repository is already used by another site");
+}));
+
+test("editors can rename a site but only owners can modify publication destinations", async () => database(async db => {
+  class NextResponse extends Response {
+    static json(data: unknown, init?: ResponseInit) { return new NextResponse(JSON.stringify(data), init); }
+  }
+  const source = stripTypeScriptTypes(readFileSync(new URL("../app/api/sites/[id]/route.ts", import.meta.url), "utf8"))
+    .replace(/^import[\s\S]*?;\n/gm, "").replace(/^export /gm, "");
+  const checks: string[] = [];
+  const injected = {
+    NextResponse, JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited,
+    dbUnavailable: () => { throw new Error("Unexpected fallback"); },
+    serverTr: async () => (text: string) => text,
+    requireAuth: async () => null,
+    requireSiteAccess: async (_id: string, action: string) => {
+      checks.push(action);
+      return action === "manage" ? NextResponse.json({ error: "Owner required" }, { status: 403 }) : null;
+    },
+    siteRole: async () => "editor",
+    sessionUser: async () => ({ email: "editor@example.test" }),
+    dbConfigured: () => true,
+    getDb: async () => db,
+    userMessage,
+    deleteSite, getSite, isSiteId, normalizeSiteInput, updateSite,
+  };
+  const patch = new Function(...Object.keys(injected), `${source}\nreturn PATCH;`)(...Object.values(injected));
+  const call = (input: unknown) => patch(new Request("https://example.test/api/sites/site", {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
+  }), { params: Promise.resolve({ id: "site" }) }) as Promise<Response>;
+
+  const rename = await call({ name: "Editor Renamed" });
+  assert.equal(rename.status, 200);
+  assert.deepEqual(checks, ["view", "edit"]);
+
+  for (const destChange of [
+    { repo: "owner/new-repo" },
+    { branch: "release" },
+    { previewBranch: "staging" },
+    { siteUrl: "https://example.com" },
+    { previewUrl: "https://preview.example.com" },
+    { gitProvider: "gitlab", repo: "owner/original" },
+  ]) {
+    checks.length = 0;
+    const denied = await call(destChange);
+    assert.equal(denied.status, 403, JSON.stringify(destChange));
+    assert.deepEqual(checks, ["view", "edit", "manage"]);
+  }
+  assert.equal((await getSite(db, "site"))?.repo, "owner/original");
+}));
 });
 
 describe("site-thumbnail", () => {

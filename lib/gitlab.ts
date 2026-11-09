@@ -18,7 +18,7 @@ export function gitlabClient(conf: Required<TargetConfig>, tr: Tr) {
   }
   const root = "https://gitlab.com/api/v4/projects/" + encodeURIComponent(repo);
   const request = async (path: string, init?: RequestInit): Promise<Response> => {
-    if (path !== "" && (!path.startsWith("/") || path.startsWith("//") || /[\\#]/.test(path) ||
+    if (path !== "" && (!path.startsWith("/") || path.startsWith("//") || /[\\#]|%(?:2e|5c)/i.test(path) ||
         path.split(/[/?]/).some(segment => segment === "." || segment === ".."))) {
       throw new Error("Invalid GitLab API path");
     }
@@ -88,7 +88,7 @@ export function gitlabClient(conf: Required<TargetConfig>, tr: Tr) {
     if (!commit) {
       await ensureProject();
       return { head: null, blobs: Object.create(null) as Record<string, string>,
-        manifest: {} as Record<string, string>, generated: null as Record<string, string> | null };
+        manifest: Object.create(null) as Record<string, string>, generated: null as Record<string, string> | null };
     }
     const entries = await tree(commit);
     const blobs: Record<string, string> = Object.create(null);
@@ -105,13 +105,15 @@ export function gitlabClient(conf: Required<TargetConfig>, tr: Tr) {
         return null;
       }
     };
-    let manifest: Record<string, string> = {};
+    const manifest: Record<string, string> = Object.create(null);
     const assetText = await textAt(ASSET_MANIFEST_PATH, false);
     if (assetText) {
       try {
         const parsed = JSON.parse(assetText) as unknown;
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          manifest = parsed as Record<string, string>;
+          for (const [k, v] of Object.entries(parsed)) {
+            if (isSafeCommitPath(k) && typeof v === "string") manifest[k] = v;
+          }
         }
       } catch { /* Missing asset cache only increases upload work. */ }
     }
@@ -136,7 +138,9 @@ export function gitlabClient(conf: Required<TargetConfig>, tr: Tr) {
       commits: list.map(commit => ({
         sha: commit.id, message: commit.message.split("\n")[0],
         date: commit.committed_date,
-        url: commit.web_url || "https://gitlab.com/" + conf.repo + "/-/commit/" + commit.id,
+        url: typeof commit.web_url === "string" && commit.web_url.startsWith("https://gitlab.com/")
+          ? commit.web_url
+          : "https://gitlab.com/" + conf.repo + "/-/commit/" + commit.id,
       })),
     };
   };

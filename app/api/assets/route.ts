@@ -17,6 +17,7 @@ import { documentAssetReferences } from "../../../lib/site-document-service";
 import { recordAssetGcCandidates } from "../../../lib/asset-gc";
 import { readAssetLedger, recordUploadedAsset } from "../../../lib/asset-ledger";
 import { jsonErrorStatus, readJsonObjectLimited } from "../../../lib/api-json";
+import { isSafeUploadedSvg } from "../../../lib/imported-svg";
 
 /**
  * 他のサイトのアセット一覧を、各サイトの SQLite 版 Durable Object から直接読む。
@@ -68,6 +69,9 @@ export async function POST(req: Request) {
     );
   }
   const contentType = file.type.split(";", 1)[0].trim().toLowerCase();
+  const trimmedName = file.name.trim();
+  const svgExtension = /\.svg$/i.test(trimmedName);
+  const svgMime = contentType === "image/svg+xml";
   if (
     !contentType ||
     !/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(contentType) ||
@@ -75,8 +79,9 @@ export async function POST(req: Request) {
     contentType === "application/xhtml+xml" ||
     contentType === "text/xml" ||
     contentType === "application/xml" ||
-    (contentType.endsWith("+xml") && contentType !== "image/svg+xml") ||
-    /\.(?:x?html?|mhtml|shtml|xml|svgz)$/i.test(file.name.trim())
+    (contentType.endsWith("+xml") && !svgMime) ||
+    svgExtension !== svgMime ||
+    /\.(?:x?html?|mhtml|shtml|xml|svgz)$/i.test(trimmedName)
   ) {
     return NextResponse.json(
       { error: tr("This file type can't be uploaded") },
@@ -86,6 +91,13 @@ export async function POST(req: Request) {
   if (file.size > MAX_ASSET_BYTES) {
     return NextResponse.json(
       { error: tr("The file is too large (max 25MB)") },
+      { status: 400 }
+    );
+  }
+  const bytes = await file.arrayBuffer();
+  if (svgMime && !isSafeUploadedSvg(bytes)) {
+    return NextResponse.json(
+      { error: tr("The SVG data is corrupted") },
       { status: 400 }
     );
   }
@@ -103,7 +115,7 @@ export async function POST(req: Request) {
   const path = `assets/${Date.now().toString(36)}${crypto.randomUUID().slice(0, 6)}-${safeName}`;
 
   try {
-    await store.put(path, await file.arrayBuffer(), {
+    await store.put(path, bytes, {
       metadata: { contentType, bytes: file.size },
     });
     if (dbConfigured()) {

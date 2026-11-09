@@ -135,7 +135,9 @@ export async function GET(req: Request) {
       sha: c.sha,
       message: c.commit.message.split("\n")[0],
       date: c.commit.committer?.date ?? c.commit.author?.date ?? "",
-      url: c.html_url,
+      url: typeof c.html_url === "string" && c.html_url.startsWith("https://github.com/")
+        ? c.html_url
+        : `https://github.com/${conf.repo}/commit/${c.sha}`,
     }));
     return NextResponse.json({ head: current, commits }, { headers: PRIVATE_NO_STORE });
   } catch (e) {
