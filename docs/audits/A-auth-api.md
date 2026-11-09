@@ -53,3 +53,48 @@
 ## 更新記録
 
 - 2026-11-09: 基準コミット・既存PR・18ルートを確認し、アクセス制御表を作成。**この時点では動的試験と網羅性の完了を主張しない。**
+
+## 発見事項と処置
+
+| ID | 重要度 | 再現条件（修正前） | 原因 | 対処 | 回帰試験 |
+| --- | --- | --- | --- | --- | --- |
+| AUD-A-001 | Medium | 古いブラウザ相当で `Sec-Fetch-Site` がなく、Originと宛先が同じHost・異なるschemeの場合に書き込みを許可。また `same-origin`/ `none` があると矛盾するOriginを未検証 | Originのhostしか比較せず、Fetch Metadataを優先して早期return | scheme・host・portの一致を検査し、Originが付くときはメタデータと合わせて検証 | `tests/csrf-origin.test.mts` |
+| AUD-A-002 | Low | `POST /api/allowed-users` に `{"email":["editor@example.com"]}` を送ると、単一要素の配列を文字列化して許可対象にできる | `String(input.email)` で型の違いを無視 | メールアドレスはJSONの文字列型のみ受理 | `tests/allowed-users-shapes.test.mts` |
+| AUD-A-003 | Medium | `POST /api/assets/sign` が巨大なJSON本文を無制限にパースし、複数パスの署名を繰り返せる | `req.json()` の前に容量制限がない。重複パスも署名 | 1MiBのストリーム全体制限、長さの申告値と実測値の照合、Content-Type検証、同一パス署名の重複排除 | `tests/api-json-limits.test.mts` |
+| AUD-A-004 | Low | `GET /api/doc/backups?day=` は0、`?day=0x1` は1と扱い、重複したdayの先頭だけを利用 | `Number(dayParam)` の寛容な変換 | `0`〜`6` の1桁・1個だけを受理 | `tests/backup-day-input.test.mts` |
+
+いずれも静的コード比較による修正前条件と根本原因の特定。CIで新規テストを実行した最終結果はPR #33のchecksを正とする。
+
+## 認証状態別の確認項目
+
+| 状態 | 想定する動作 | 対象の既存回帰テスト |
+| --- | --- | --- |
+| Google認証がすべて設定済み・許可リストに存在 | API利用可。編集・公開・アカウント管理は全アカウント同権限 | `tests/auth-policy.test.mts`, `tests/login-routing.test.mts` |
+| Google認証設定済み・未ログイン | 通常APIは401。ログイン画面は閲覧可 | `tests/login-routing.test.mts` |
+| Google認証設定済み・許可削除後の旧Cookie | APIの現行許可照合で401。SSE・WebSocketも利用時の許可を再判定 | `tests/auth-policy.test.mts`, `tests/collab-security.test.mts` |
+| Google認証が未設定・開発モードまたは`ALLOW_ANONYMOUS=true` | 全サイト利用可（意図した匿名モード）。管理アカウントAPIは503 | `tests/login-routing.test.mts`, `tests/asset-font-cors.test.mts` |
+| Google認証が未設定・匿名不可 | APIは503で利用不可 | `tests/login-routing.test.mts`, `tests/asset-font-cors.test.mts` |
+| 署名付きアセットGET | 期限内の正しいパス署名でCookie不要、誤署名は通常の認証へ戻す | `tests/security.test.mts`, `tests/asset-font-cors.test.mts` |
+| 別オリジンからAPI書き込み | 403（middleware） | `tests/csrf-origin.test.mts`, `tests/security.test.mts` |
+
+## 異常入力の検証計画・期待結果
+
+| 入力 | 期待結果 | テスト |
+| --- | --- | --- |
+| 複数のOrigin / 異なるscheme・port、null Origin、未知のFetch Metadata | 403相当（判定関数true） | `csrf-origin` |
+| OAuthプロファイルの`email_verified`がtrue以外、許可外・失効済みメール | サインイン拒否・JWT無効 | `auth-policy` |
+| 許可メールが文字列以外、空欄、構造不正 | 400、許可リスト不変 | `allowed-users-shapes` |
+| アセット署名JSONの巨大Content-Length・実際のストリーム容量超過 | 413、署名なし | `api-json-limits` |
+| 署名JSONの不一致Content-Type、無効UTF-8 | 415または400 | `api-json-limits` |
+| 重複アセットパス | 200、パスごとに1回のみ署名 | `api-json-limits` |
+| バックアップ曜日が空、16進数、指数表記、重複 | 400、DB照会なし | `backup-day-input` |
+| 全ルートを走査して認証境界を検査 | 意図した公開ルートを除き明示ガードあり | `api-auth-coverage` |
+
+## 横断上の未検証事項と担当境界
+
+- H担当のPR #27が`/api/fetch-json`の入力・SSRFを担当。同ルートの修正をA側では取り消し、送信本文のUTF-8実バイト数とヘッダー数・長さの不備を #27 に報告。上限付きJSON読取ヘルパーはHの新設関数と重複しているため、統合時に一本化が必要。
+- G担当のPR #29が`/api/publish`および履歴ロールバックを修正。認証が各ハンドラーの先頭で行われることを静的確認し、コミット・ツリー破壊の試験はG担当に委譲。
+- B担当のPR #31がSiteDoc不変条件、保存・同期を監査。A側は`/api/doc`と`/api/sites`の認証境界を確認し、内部の競合・データ整合性はB担当に委譲。
+- E担当のPR #26はインポート・アセットの内部検証を担当。A側は配信・署名のアクセス制御を確認。
+- 本番プロキシ設定（信頼される`X-Forwarded-Host`/`X-Forwarded-Proto`）、NextAuthの実Cookie属性、Google OAuth実接続、Cloudflare上の動的アクセス失効、レート制限は実配備での検証が必要。リクエスト頻度制御は持続的な共有ストア・エッジの設定が必要であり、メモリー内だけの暫定レートリミットは追加しない。
+- 本監査は「脆弱性0件の保証」ではない。CI結果と別担当のレビュー結果、および新しいmainへの統合テストを確認して完了判定する。
