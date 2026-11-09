@@ -1,4 +1,4 @@
-import { validAssetEntry, validNodeForest } from "./doc-tree";
+import { validAssetEntry, validDocNodeShape, validNodeForest, validSiteDoc, validStyleDefinitions } from "./doc-tree";
 import { isSafeImportedSvg } from "./imported-svg";
 import type { SiteDoc } from "./types";
 
@@ -22,51 +22,12 @@ export function isImportObject(input: unknown): input is Record<string, unknown>
   return !!input && typeof input === "object" && !Array.isArray(input);
 }
 
-const nodeKinds = new Set(["box", "image", "divider", "code", "instance", "icon", "field", "media", "embed", "list"]);
-const nodeSemantics = new Set(["auto", "form", "button", "div", "section", "header", "footer",
-  "nav", "main", "article", "span", "custom"]);
-
-function validStyles(value: unknown): boolean {
-  if (!isImportObject(value)) return false;
-  for (const states of Object.values(value)) {
-    if (!isImportObject(states)) return false;
-    for (const declarations of Object.values(states)) {
-      if (!isImportObject(declarations) ||
-          !Object.values(declarations).every((item) => typeof item === "string")) return false;
-    }
-  }
-  return true;
-}
-
+/** Import-specific SVG checks complement the same node shape accepted by save. */
 function validImportedNode(value: unknown): boolean {
-  if (!isImportObject(value) || !nodeKinds.has(value.type as string) ||
-      typeof value.name !== "string" || !nodeSemantics.has(value.semantic as string) ||
-      !validStyles(value.styles)) return false;
-  if (value.text != null && (!isImportObject(value.text) ||
-      typeof value.text.content !== "string" || typeof value.text.heading !== "number" || !Number.isInteger(value.text.heading) ||
-      (value.text.heading as number) < 0 || (value.text.heading as number) > 6)) return false;
-  if (value.link != null && (!isImportObject(value.link) ||
-      !["url", "page"].includes(value.link.kind as string) ||
-      (value.link.url != null && typeof value.link.url !== "string") ||
-      (value.link.pageId != null && typeof value.link.pageId !== "string"))) return false;
-  if (value.image != null && (!isImportObject(value.image) ||
-      typeof value.image.src !== "string" || typeof value.image.alt !== "string" ||
-      typeof value.image.width !== "number" || !Number.isFinite(value.image.width) ||
-      typeof value.image.height !== "number" || !Number.isFinite(value.image.height))) return false;
-  if (value.media != null && (!isImportObject(value.media) ||
-      !["audio", "video"].includes(value.media.kind as string) ||
-      typeof value.media.src !== "string")) return false;
-  if (value.icon != null && (!isImportObject(value.icon) ||
-      typeof value.icon.name !== "string" || typeof value.icon.svg !== "string" ||
-      // Browser imports sanitize icons before persistence. Direct server API
-      // imports must not accept unsanitized executable SVG via initialDoc.
-      (typeof window === "undefined" && !isSafeImportedSvg(value.icon.svg)))) return false;
-  if (value.code != null && (!isImportObject(value.code) || typeof value.code.html !== "string")) return false;
-  if (value.field != null && (!isImportObject(value.field) ||
-      !["input", "textarea", "select", "checkbox", "radio", "file", "submit"].includes(value.field.kind as string) ||
-      (value.field.options != null && (!Array.isArray(value.field.options) ||
-        !value.field.options.every((option: unknown) => typeof option === "string"))))) return false;
-  return value.scripts == null || Array.isArray(value.scripts);
+  if (!validDocNodeShape(value)) return false;
+  const icon = isImportObject(value) ? value.icon : undefined;
+  return icon == null || typeof window !== "undefined" ||
+    (isImportObject(icon) && isSafeImportedSvg(icon.svg as string));
 }
 
 /** Reject malformed archives before writing any site or uploading any asset. */
@@ -107,7 +68,7 @@ export function validateImportedDoc(value: unknown): SiteDoc {
     const page = doc.pages[id];
     if (typeof page.slug !== "string" || typeof page.name !== "string" ||
         typeof page.title !== "string" || typeof page.description !== "string" ||
-        (page.bodyStyles != null && !validStyles(page.bodyStyles)) ||
+        (page.bodyStyles != null && !validStyleDefinitions(page.bodyStyles)) ||
         !Array.isArray(page.children)) {
       throw new Error("ページの構造が正しくありません。");
     }
@@ -153,5 +114,7 @@ export function validateImportedDoc(value: unknown): SiteDoc {
       throw new Error("ページフォルダーの参照が正しくありません。");
     }
   }
+  // Full saves, cache recovery and imports must agree on structural validity.
+  if (!validSiteDoc(doc)) throw new Error("編集データの参照・構造が不正です。");
   return value as unknown as SiteDoc;
 }
