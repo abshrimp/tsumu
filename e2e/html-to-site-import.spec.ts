@@ -271,7 +271,8 @@ test("multi-page HTML ZIP imports every page and converts internal page links", 
   await localMode(page);
   const zip = new JSZip();
   zip.file("website/index.html", '<html><head><title>Multi HTML</title></head><body><a id="next" href="about.html">About</a></body></html>');
-  zip.file("website/about.html", '<html><head><title>About</title></head><body><h1>About us</h1></body></html>');
+  zip.file("website/about.html", '<html><head><title>About</title></head><body><h1>About us</h1>' +
+    '<a id="query-only" href="?lang=en#details">English details</a></body></html>');
   zip.file("website/docs/index.html", '<html><head><title>Docs</title></head><body><p>Documentation</p></body></html>');
   await page.goto("/");
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
@@ -287,6 +288,8 @@ test("multi-page HTML ZIP imports every page and converts internal page links", 
   const link = Object.values(doc.nodes).find((node: any) => node.attrId === "next") as any;
   const aboutId = doc.pageOrder.find((id: string) => doc.pages[id].slug === "about");
   expect(link.link).toMatchObject({ kind: "page", pageId: aboutId });
+  const queryLink = Object.values(doc.nodes).find((node: any) => node.attrId === "query-only") as any;
+  expect(queryLink.link).toMatchObject({ kind: "url", url: "/about?lang=en#details" });
 });
 
 

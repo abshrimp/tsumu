@@ -126,8 +126,10 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     const src = assetSrc(asset);
     if (src) bySrc.set(src, asset);
   }
-  const getAsset = (src: string) => bySrc.get(src) ||
-    [...bySrc].find(([url]) => src.startsWith(url + "#") || src.startsWith(url + "&"))?.[1];
+  const getAsset = (src: string) => bySrc.get(src);
+  const hasAssetSuffix = (src: string) => !bySrc.has(src) &&
+    [...bySrc.keys()].some(url => src.startsWith(url + "#") ||
+      (!url.startsWith("data:") && src.startsWith(url + "&")));
 
   // Read inline and packaged stylesheets in document order. Never fetch remote CSS.
   const sheets: string[] = [];
@@ -460,6 +462,18 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       ...(sourceClass ? { htmlClass: sourceClass } : {}),
       ...(sourceAttrs ? { htmlAttrs: sourceAttrs } : {}),
     };
+    if (["img", "video", "audio"].includes(tag)) {
+      const sources = [element, ...Array.from(element.querySelectorAll("source"))];
+      // An assetId represents the whole file, not an SVG view or media time
+      // range. Keep these uses as HTML so preview, export and later imports
+      // retain their suffixes. Check before safeUrl rejects data URL fragments.
+      if (sources.some(source => hasAssetSuffix((source.getAttribute("src") || "").trim()))) {
+        common.type = "code";
+        common.code = { html: element.outerHTML };
+        warn(tr("一部のHTML要素をカスタムコードとして保持しました。"));
+        return add(common);
+      }
+    }
     if (tag === "img") {
       common.type = "image";
       const src = safeUrl(element.getAttribute("src") || "");
