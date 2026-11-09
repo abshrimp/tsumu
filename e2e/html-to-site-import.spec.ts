@@ -3,6 +3,7 @@ import JSZip from "jszip";
 import { readFile } from "node:fs/promises";
 import { createInitialDoc } from "../lib/presets";
 import { generateProject } from "../lib/generator";
+import { generateExportProject } from "../lib/export-formats";
 import { importedAssetPath, importedAssetUrl } from "../lib/generator/imported-assets";
 import { DOC_STORAGE_KEY, siteKey } from "../lib/site";
 import { storageKey } from "../lib/storage-keys";
@@ -326,4 +327,27 @@ test("normal-page HTML import replaces only that page while leaving other pages 
   for (const id of original.pageOrder.slice(1)) expect(after.pages[id]).toEqual(original.pages[id]);
   expect(after.pages[original.pageOrder[0]].rawHtml).toBeNull();
   expect(after.nodes).toBeDefined();
+});
+
+test("inline SVG import removes executable content before saving an editable icon", async ({ page }) => {
+  await localMode(page);
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" id="imported-icon" viewBox="0 0 12 12" ' +
+    'onload="globalThis.svgExecuted=1"><script>globalThis.svgExecuted=2</script>' +
+    '<foreignObject><div xmlns="http://www.w3.org/1999/xhtml"><img src="x" onerror="globalThis.svgExecuted=3"></div></foreignObject>' +
+    '<rect width="12" height="12" fill="red"/></svg>';
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+  await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
+    name: "inline.svg.html", mimeType: "text/html",
+    buffer: Buffer.from("<!doctype html><title>Safe SVG</title><body>" + svg),
+  });
+  await expect(page).toHaveURL(/\\/sites\\/[a-z0-9-]+$/, { timeout: 30000 });
+  const doc = await importedDoc(page);
+  const icon = Object.values(doc.nodes).find((item: any) => item.type === "icon") as any;
+  expect(icon).toBeTruthy();
+  expect(icon.icon.svg).toContain("<rect");
+  expect(icon.icon.svg).not.toMatch(/onload|onerror|<script|foreignObject/i);
+  expect(doc.pages[doc.pageOrder[0]].customEndHtml ?? "").not.toContain("svgExecuted");
+  expect(Object.values(generateExportProject(doc, "html").files).join("\\n")).not.toContain("svgExecuted");
+  expect(await page.evaluate(() => (globalThis as any).svgExecuted)).toBeUndefined();
 });
