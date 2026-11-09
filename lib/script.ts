@@ -232,13 +232,8 @@ export function pageScriptsOf(doc: SiteDoc, nodeIds: string[], pageId: string): 
   });
 }
 
-/** スクリプト画面の内容を、各要素（link / scripts）とページ（未接続分）へ書き戻す */
-export function applyPageScripts(
-  doc: SiteDoc,
-  pageId: string,
-  nodeIds: string[],
-  views: PageScript[]
-) {
+/** Partition the workspace once; both mutable import writes and editor commits use it. */
+function groupPageScripts(doc: SiteDoc, nodeIds: string[], views: PageScript[]) {
   const byNode = new Map<string, Script[]>();
   const validNodeIds = new Set(nodeIds);
   const loose: Script[] = [];
@@ -254,6 +249,17 @@ export function applyPageScripts(
       loose.push(s);
     }
   }
+  return { byNode, loose, own };
+}
+
+/** スクリプト画面の内容を、各要素（link / scripts）とページ（未接続分）へ書き戻す */
+export function applyPageScripts(
+  doc: SiteDoc,
+  pageId: string,
+  nodeIds: string[],
+  views: PageScript[]
+) {
+  const { byNode, loose, own } = groupPageScripts(doc, nodeIds, views);
   for (const id of nodeIds) {
     const n = doc.nodes[id];
     if (!n) continue;
@@ -320,43 +326,40 @@ export function withPageScripts(
   const page = doc.pages[pageId];
   if (!page) return doc;
 
-  // applyPageScripts only assigns link/scripts and page scripts. Clone the
-  // containers it can touch, never an original node or page from an undo state.
-  const nodes = { ...doc.nodes };
+  const { byNode, loose, own } = groupPageScripts(doc, nodeIds, views);
+  let nodes: SiteDoc["nodes"] | null = null;
   for (const id of nodeIds) {
-    if (nodes[id]) nodes[id] = { ...nodes[id] };
-  }
-  const pages = { ...doc.pages, [pageId]: { ...page } };
-  const next: SiteDoc = { ...doc, nodes, pages };
-  applyPageScripts(next, pageId, nodeIds, views);
+    const previous = doc.nodes[id];
+    if (!previous) continue;
+    // Only allocate a node when its own script or link data actually changes.
+    const updated = splitScripts(byNode.get(id) ?? [], previous.type === "box");
+    const sameLinkValue = sameLink(previous.link, updated.link);
+    if (sameLinkValue && sameScriptList(previous.scripts, updated.scripts)) continue;
 
-  let changedNodes = false;
-  for (const id of nodeIds) {
-    const before = doc.nodes[id];
-    const after = nodes[id];
-    if (!before || !after) continue;
-    if (sameLink(before.link, after.link) && sameScriptList(before.scripts, after.scripts)) {
-      nodes[id] = before;
+    const copy = { ...previous, link: sameLinkValue ? previous.link : updated.link };
+    if (updated.scripts) {
+      copy.scripts = reuseUnchangedScripts(previous.scripts, updated.scripts);
     } else {
-      if (sameLink(before.link, after.link)) after.link = before.link;
-      after.scripts = reuseUnchangedScripts(before.scripts, after.scripts);
-      changedNodes = true;
+      delete copy.scripts;
     }
+    nodes ??= { ...doc.nodes };
+    nodes[id] = copy;
   }
 
-  const saved = pages[pageId];
-  const changedPage = !sameScriptList(page.scripts, saved.scripts) ||
-    !sameScriptList(page.pageScripts, saved.pageScripts);
+  const changedPage = !sameScriptList(page.scripts, loose) ||
+    !sameScriptList(page.pageScripts, own);
+  if (!nodes && !changedPage) return doc;
+
+  let pages = doc.pages;
   if (changedPage) {
-    if (saved.scripts) saved.scripts = reuseUnchangedScripts(page.scripts, saved.scripts);
-    if (saved.pageScripts) saved.pageScripts = reuseUnchangedScripts(page.pageScripts, saved.pageScripts);
+    const updated = { ...page };
+    if (loose.length) updated.scripts = reuseUnchangedScripts(page.scripts, loose);
+    else delete updated.scripts;
+    if (own.length) updated.pageScripts = reuseUnchangedScripts(page.pageScripts, own);
+    else delete updated.pageScripts;
+    pages = { ...doc.pages, [pageId]: updated };
   }
-  if (!changedNodes && !changedPage) return doc;
-  return {
-    ...doc,
-    nodes: changedNodes ? nodes : doc.nodes,
-    pages: changedPage ? pages : doc.pages,
-  };
+  return { ...doc, nodes: nodes ?? doc.nodes, pages };
 }
 
 /* ---------- 走査 ---------- */
