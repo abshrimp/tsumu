@@ -108,17 +108,9 @@ function prepareResponsivePayload(d: SiteDoc, payload: PagePayload): PagePayload
     value && Object.fromEntries(Object.entries(value).map(([key, style]) => [id(key), style]));
   const p = structuredClone(payload);
   for (const page of p.pages) page.bodyStyles = styles(page.bodyStyles);
-  // Existing component masters are reused, not imported or modified.
-  const componentNodes = new Map(p.deps.componentNodes.map(n => [n.id, n]));
-  const needed = new Set<string>();
-  const pending = Object.values(p.deps.components).filter(c => !d.components?.[c.id]).map(c => c.rootId);
-  for (let key = pending.pop(); key !== undefined; key = pending.pop()) {
-    const node = componentNodes.get(key);
-    if (!node || needed.has(key)) continue;
-    needed.add(key);
-    pending.push(...node.children);
-  }
-  for (const node of [...p.nodes, ...p.deps.componentNodes.filter(n => needed.has(n.id))]) {
+  // A foreign master may have the same ID as a destination component. All
+  // source masters can be imported with fresh IDs, so normalize their styles.
+  for (const node of [...p.nodes, ...p.deps.componentNodes]) {
     node.styles = styles(node.styles)!;
     if (node.hiddenOn) node.hiddenOn = node.hiddenOn.map(id);
   }
@@ -127,7 +119,8 @@ function prepareResponsivePayload(d: SiteDoc, payload: PagePayload): PagePayload
 
 export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
   p = prepareResponsivePayload(d, p);
-  const { assetIds: assetMap, componentNodes } = mergeClipDeps(d, p.deps);
+  const { assetIds: assetMap, componentIds: componentMap, componentNodes } =
+    mergeClipDeps(d, p.deps, { preserveSourceOnCollision: true });
   const pageMap = new Map<string, string>();
   for (const page of p.pages) pageMap.set(page.id, genId("page"));
   const urlKey = (slug: string, query?: string) => JSON.stringify([slug, normalizeQuery(query)]);
@@ -151,6 +144,9 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
     const n = remapAssetIds(structuredClone(raw), assetMap);
     n.id = nodeMap.get(raw.id)!;
     n.children = n.children.map((c) => nodeMap.get(c)).filter((c): c is string => !!c);
+    if (n.type === "instance" && n.componentId) {
+      n.componentId = componentMap.get(n.componentId) ?? n.componentId;
+    }
     if (n.link?.kind === "page" && n.link.pageId) n.link.pageId = toPage(n.link.pageId);
     for (const s of n.scripts ?? []) mapSteps(s.steps, toPage);
     d.nodes[n.id] = n;
