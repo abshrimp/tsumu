@@ -176,7 +176,25 @@ export function exportLimitations(
   } catch (e) {
     return [(e as Error).message];
   }
-  if (options.framework === "nextjs") return [];
+  if (options.framework === "nextjs") {
+    // Route handlers for imported HTML cannot share a Next.js path with
+    // page.tsx. Multiple imported HTML pages also overwrite one another's
+    // route.ts silently; query parameters do not distinguish build routes.
+    const routeKinds = new Map<string, { imported: number; regular: number }>();
+    for (const page of publishedPages(doc)) {
+      if (page.redirectTo !== undefined || page.rewriteTo !== undefined) continue;
+      const slug = page.slug.replace(/^\/+|\/+$/g, "");
+      const existing = routeKinds.get(slug) ?? { imported: 0, regular: 0 };
+      if (page.rawHtml?.trim()) existing.imported++;
+      else if (slug !== "404") existing.regular++;
+      routeKinds.set(slug, existing);
+    }
+    if ([...routeKinds.values()].some(({ imported, regular }) =>
+      imported > 1 || (imported > 0 && regular > 0))) {
+      return [tr("同じパスに取り込んだHTMLページと通常ページ、または複数の取り込んだHTMLページがあります。Next.jsでは同じルートに両方を書き出せません。ページのURLを分けてください。")];
+    }
+    return [];
+  }
   const pages = publishedPages(doc);
   const reasons: string[] = [];
   const add = (bad: boolean, message: string) => {

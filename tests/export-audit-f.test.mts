@@ -350,3 +350,22 @@ test("AUD-F-010: the ZIP root directory is portable for Windows device-name site
   assert.equal(exportDirectoryName("Example website"), "example-website");
   assert.equal(exportDirectoryName(""), "my-site");
 });
+
+test("AUD-F-011: Next.js refuses imported HTML route collisions before generating files", () => {
+  const site = doc();
+  site.pages.public.rawHtml = "<!doctype html><html><body>Imported</body></html>";
+  site.pages.private.unpublished = false;
+  site.pages.private.slug = "";
+  site.pages.private.query = "tab=2";
+  assert.ok(exportLimitations(site, "nextjs").some((reason) =>
+    reason.includes("同じパス")));
+  assert.throws(() => generateExportProject(site, "nextjs"), /同じパス/);
+
+  // Two imported pages with different queries still compile to one route.ts.
+  site.pages.private.rawHtml = "<!doctype html><html><body>Other</body></html>";
+  assert.throws(() => generateExportProject(site, "nextjs"), /同じパス/);
+
+  // Different URLs are independent routes and remain supported.
+  site.pages.private.slug = "other";
+  assert.deepEqual(exportLimitations(site, "nextjs"), []);
+});
