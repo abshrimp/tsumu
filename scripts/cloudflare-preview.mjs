@@ -45,6 +45,14 @@ export function isolatedPreviewConfig(config, env = {}) {
       if (productionIds.has(id.toLowerCase())) throw new Error(`Preview ${key} must not reuse a production resource ID.`);
     }
   }
+  // Wrangler "vars" are plain-text configuration, not encrypted secrets.
+  // Do not let a public, anonymous Preview accidentally publish credential-like
+  // values through its Preview configuration.
+  for (const name of Object.keys(previews.vars ?? {})) {
+    if (/(?:TOKEN|SECRET|PASSWORD|PRIVATE_KEY|API_KEY|^ANTHROPIC_|^OPENAI_|^GITHUB_)/i.test(name)) {
+      throw new Error(`Preview ${name} must be configured as a secret, not a plain-text variable.`);
+    }
+  }
   // Explicit empty bindings remove old Preview storage too. Base settings are not inherited.
   previews.vars ??= {};
   result.previews = previews;
