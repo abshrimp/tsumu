@@ -118,7 +118,11 @@ export function exportScopeDoc(doc: SiteDoc, options: ExportOptions): SiteDoc {
     ? doc.pages[options.pageId] : undefined;
   if (!page) throw new Error(tr("書き出すページを選択してください。"));
   if (options.scope === "page") {
-    return prunePartialDoc({ ...doc, pages: { [page.id]: page }, pageOrder: [page.id] });
+    // An explicitly selected page can be exported even when it is excluded
+    // from whole-project publication. Otherwise the ZIP contains no page
+    // markup despite having a valid selected page.
+    return prunePartialDoc({ ...doc, pages: { [page.id]: { ...page, unpublished: false } },
+      pageOrder: [page.id] });
   }
   const node = options.nodeId && Object.prototype.hasOwnProperty.call(doc.nodes, options.nodeId)
     ? doc.nodes[options.nodeId] : undefined;
