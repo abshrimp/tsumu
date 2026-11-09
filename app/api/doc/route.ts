@@ -9,20 +9,23 @@ import { siteIdOf } from "../../../lib/site-server";
 import {
   DocTooLargeError,
   InvalidDocPatchError,
-  readCurrentDoc,
-  saveCurrentDoc,
-  saveDocPatch,
   validateDocValue,
 } from "../../../lib/doc-storage";
+import {
+  readSiteDocument,
+  readSiteDocumentMeta,
+  saveSiteDocument,
+  patchSiteDocument,
+} from "../../../lib/site-document-service";
+import { getSite } from "../../../lib/sites";
 import { userMessage } from "../../../lib/errors";
 import { isDocPatch } from "../../../lib/doc-patch";
 
 export const maxDuration = 30;
 
 /**
- * ドキュメントの保存先はD1（docsテーブルの1行。?site= のサイトIDの行）。
- * rev は単調増加の整数で、楽観ロックは UPDATE ... WHERE rev = ? により
- * 原子的に判定する
+ * Cloudflare上の編集データはサイトごとのDocumentRoom内SQLiteに保存する。
+ * revは単調増加し、メタデータと変更行を同期トランザクションで確定する。
  */
 
 /**
@@ -42,21 +45,16 @@ export async function GET(req: Request) {
 
   try {
     const db = await getDb();
+    if (!(await getSite(db, siteId))) {
+      return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
+    }
     if (metaOnly) {
-      const rs = await db.execute({
-        sql: "SELECT rev, saved_at FROM docs WHERE id = ?",
-        args: [siteId],
-      });
-      const row = rs.rows[0];
-      if (!row) return NextResponse.json({ exists: false });
-      return NextResponse.json({
-        exists: true,
-        rev: String(row.rev),
-        savedAt: Number(row.saved_at),
-      });
+      const meta = await readSiteDocumentMeta(db, siteId);
+      if (!meta) return NextResponse.json({ exists: false });
+      return NextResponse.json({ exists: true, rev: meta.rev, savedAt: meta.savedAt });
     }
 
-    const cur = await readCurrentDoc(db, siteId);
+    const cur = await readSiteDocument(db, siteId);
     if (!cur) return NextResponse.json({ exists: false });
     // body は保存済みJSONなので、パースし直さず文字列結合で返す
     //（Workers無料プランのCPU時間制限対策）
@@ -124,9 +122,12 @@ async function save(req: Request, partial: boolean) {
 
   try {
     const db = await getDb();
+    if (!(await getSite(db, siteId))) {
+      return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
+    }
     const result = partial && isDocPatch(patch)
-      ? await saveDocPatch(db, siteId, patch, base!)
-      : await saveCurrentDoc(db, siteId, raw, base);
+      ? await patchSiteDocument(db, siteId, patch, base!)
+      : await saveSiteDocument(db, siteId, raw, base);
     if (result.kind === "missing") {
       return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
     }
@@ -153,11 +154,13 @@ async function save(req: Request, partial: boolean) {
       savedAt: result.savedAt,
     });
   } catch (e) {
-    if (e instanceof InvalidDocPatchError) {
+    if (e instanceof InvalidDocPatchError ||
+      (e instanceof Error && /^(不正なリクエスト|JSONが壊れています)$/.test(e.message))) {
       return NextResponse.json({ error: tr("不正なリクエスト") }, { status: 400 });
     }
     // 大きさの上限は決め打ちせず、保存先が拒んだときに返す
-    if (e instanceof DocTooLargeError) {
+    if (e instanceof DocTooLargeError ||
+      (e instanceof Error && /too big|大きすぎ|SQLITE_TOOBIG/i.test(e.message))) {
       return NextResponse.json({ error: tr("ドキュメントが大きすぎて、保存先に入りきりません") }, { status: 413 });
     }
     return NextResponse.json(
