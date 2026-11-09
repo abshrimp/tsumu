@@ -453,7 +453,7 @@ All variables are optional (see [What you need](#what-you-need)).
 | `AI_ENABLED` | `true` to turn on Ask AI |
 | `AI_PROVIDER` | `anthropic` (default), `gemini`, `openai` or `openai-compatible` |
 | `AI_API_KEY` | API key (or `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` / `OPENAI_API_KEY`) |
-| `AI_MODEL` | Model ID. Defaults to `claude-opus-5-5` (anthropic) or `gemini-3.8-flash` (gemini). |
+| `AI_MODEL` | Model ID. Defaults to `claude-opus-5-5` (`anthropic`) or `gemini-3.8-flash` (`gemini`); required for `openai` and `openai-compatible`. |
 | `AI_BASE_URL` | API URL for `openai-compatible`, e.g. `https://openrouter.ai/api/v1` |
 | `AI_EFFORT` | `low`, `medium` (default), `high`, `xhigh` or `max` |
 | `NEXT_PUBLIC_TSUMU_MCP_URL` | Build-time base URL of the `tsumu-mcp` server used for external MCP connections (defaults to `https://mcp.tsumu.ebii.net`; rebuild after changing). |

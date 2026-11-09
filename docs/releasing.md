@@ -22,12 +22,11 @@ run. Application and Worker builds both write `.next`; run them sequentially.
 npm ci
 npm run typecheck
 npm test
-npm run i18n:check
+npm run i18n:check -- --all
 npm run build
 npx --no-install playwright install chromium firefox webkit
 npm run test:e2e
 npm run build:worker
-npm audit --omit=dev --audit-level=high
 npm audit --audit-level=high
 ```
 

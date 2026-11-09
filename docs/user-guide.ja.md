@@ -444,7 +444,7 @@ Tsumu のサーバーに AI の API キーを設定しなくても、MCP に対�
 | `AI_ENABLED` | `true` で「AIに頼む」を有効にします。 |
 | `AI_PROVIDER` | `anthropic`（既定）・`gemini`・`openai`・`openai-compatible` |
 | `AI_API_KEY` | API キー（`ANTHROPIC_API_KEY`・`GEMINI_API_KEY`・`OPENAI_API_KEY` でも可） |
-| `AI_MODEL` | モデル ID。既定は `claude-opus-5-5`（anthropic）・`gemini-3.8-flash`（gemini） |
+| `AI_MODEL` | モデル ID。既定は `claude-opus-5-5`（`anthropic`）・`gemini-3.8-flash`（`gemini`）。`openai` と `openai-compatible` では指定が必要です。 |
 | `AI_BASE_URL` | `openai-compatible` で使用する API の URL（例: `https://openrouter.ai/api/v1`） |
 | `AI_EFFORT` | `low`・`medium`（既定）・`high`・`xhigh`・`max` |
 | `NEXT_PUBLIC_TSUMU_MCP_URL` | 外部 MCP 接続に使う `tsumu-mcp` サーバーのビルド時ベース URL（既定は `https://mcp.tsumu.ebii.net`。変更後は再ビルドが必要） |
