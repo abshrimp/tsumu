@@ -1634,6 +1634,9 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*/keep*/
       function onOver(e) {
+        // Initialize the page before keeping a hover. The first run's
+        // syncPage() must not clear a newly registered hover owner.
+        syncPage();
         /*#keep*/
         // The shown menu may not have its own script listener.
         // Crossing into it must cancel the pending hover-end timeout.
@@ -1773,11 +1776,6 @@ export const SCRIPT_RUNTIME = `function (env) {
       });
       scan();
       /*/scan*/
-      // Initialize the page before registering event listeners, even when
-      // unused scan functionality is removed from generated scripts.
-      // Otherwise the first hover event can record a keep-on-shown owner,
-      // then syncPage() clears that owner as though the page had changed.
-      syncPage();
       /*#click*/
       root.addEventListener("click", onClickCapture, true);
       root.addEventListener("click", onClick);

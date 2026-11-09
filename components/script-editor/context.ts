@@ -29,6 +29,9 @@ export interface EdCtx {
   tree: TreeRow[];
   /** ページのスクリプト（絞り込みの番号を選ぶのに使う） */
   scripts: PageScript[];
+  /** Page-load scripts and steps executable during pre-rendering (computed once). */
+  pageLoadScriptIds: Set<string>;
+  serverStepIds: Set<string>;
   /** きっかけにできる要素（ページ内の全要素） */
   elements: { id: string; label: string }[];
   /** 要素設定から開いたときの要素 */
