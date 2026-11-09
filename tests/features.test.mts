@@ -50,7 +50,7 @@ test("JSON body variables are escaped inside strings and raw outside", () => {
 });
 
 test("JSON body escaped braces remain valid with JSON-encoded backslashes", () => {
-  const template = String.raw`{"one":"\\{name}","encoded":"\\\\{name}","double":"\\\\\\\\{name}","ordinary":"{name}"}`;
+  const template = String.raw`{"one":"\{name}","encoded":"\\{name}","double":"\\\\{name}","ordinary":"{name}"}`;
   const vars = { name: "Ada" };
   const body = interpolateJson(template, vars);
   assert.deepEqual(JSON.parse(body), {
