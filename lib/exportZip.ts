@@ -4,6 +4,7 @@ import { prepareExportScopeDoc, prepareExportProject, type ExportFormat, type Ex
 import { ASSET_FETCH_CONCURRENCY, fetchWithRetry, mapLimit } from "./assets";
 import { tr } from "./i18n";
 import { buildAssetNames } from "./generator/names";
+import { cssValue } from "./generator/css";
 import { assertGeneratedPaths } from "./generator/output-paths";
 import { EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, type ArchiveAssetMap } from "./site-import";
 
@@ -23,7 +24,15 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
     ? { framework: request, language: "typescript", style: "css", scope: "project" }
     : request;
   const editableDoc = await prepareExportScopeDoc(doc, options);
-  const project = await prepareExportProject(editableDoc, { ...options, scope: "project" });
+  // Imported elements that cannot be represented by visual nodes retain their
+  // URLs in custom HTML. Resolve those URLs for the downloadable website while
+  // keeping the editable snapshot bound to its original asset IDs/locations.
+  const websiteDoc = structuredClone(editableDoc);
+  const assetNames = buildAssetNames(editableDoc);
+  for (const node of Object.values(websiteDoc.nodes)) {
+    if (node.code?.html) node.code.html = cssValue(editableDoc, "rawHtml", node.code.html, assetNames);
+  }
+  const project = await prepareExportProject(websiteDoc, { ...options, scope: "project" });
   const { files, binaries, remoteAssets } = project;
   // This archive adds editable metadata after framework generation. Treat
   // those entries as reserved paths before JSZip creates any directories.
@@ -50,7 +59,6 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
   // from the generated framework code, for ZIP URL round-tripping.
   root.file(EDITABLE_DOC_PATH, JSON.stringify(editableDoc));
   const archiveAssets: ArchiveAssetMap = { version: 1, assets: {} };
-  const assetNames = buildAssetNames(editableDoc);
   const assetRoot = options.framework === "html" ? "assets/" :
     options.framework === "sveltekit" ? "static/assets/" : "public/assets/";
   for (const [id, name] of assetNames) {
