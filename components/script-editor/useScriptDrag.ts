@@ -235,7 +235,11 @@ export function useScriptDrag({
           // Only newly inserted blocks inherit the previous output automatically.
           // Moving an existing chain preserves all explicit variable references.
           const nextSteps = p.from ? p.steps : connectNewTransform(base, loc, p.steps);
-          return commit(insertAt(base, loc, nextSteps));
+          const inserted = insertAt(base, loc, nextSteps);
+          // A slot in the removed subtree is no longer a valid destination.
+          // Preserve the original document and undo history in that case.
+          if (inserted === base) return;
+          return commit(inserted);
         }
         if (p.type === "trigger") {
           return commit(
