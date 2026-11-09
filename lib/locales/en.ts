@@ -852,8 +852,8 @@ const en: Dict = {
     "No accounts have access yet.",
   "追加":
     "Add",
-  "追加・削除は次回のログインから反映されます（削除しても、ログイン中のセッションは有効期限まで残ります）。":
-    "Changes apply from the next sign-in (removed accounts stay signed in until their session expires).",
+  "追加したアカウントはログインできるようになります。削除したアカウントは、ログイン中でも次回のアクセスから利用が制限されます。":
+    "Added accounts can sign in. Removed accounts are restricted from their next access, even if already signed in.",
   "ログアウトしますか？":
     "Sign out?",
   "もう一度使うには、Googleアカウントでログインし直す必要があります。":
