@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SlotIndex, type SlotPoint } from "../components/script-editor/slot-index";
-import { filterNumbersOf, mapStep, numberFilters } from "../components/script-editor/step-tree";
+import { filterNumbersOf, mapStep, numberFilters, removeKeys } from "../components/script-editor/step-tree";
 import { dataVarNames, pageVariableIndex, scriptInputDoc } from "../lib/data";
-import type { ScriptStep, SiteDoc } from "../lib/types";
+import { PAGE_TARGET, type ScriptStep, type SiteDoc } from "../lib/types";
+import { applyPageScripts, pageScriptsOf, type PageScript } from "../lib/script";
 
 function brute(slots: SlotPoint[], kind: SlotPoint["kind"], x: number, y: number) {
   let best: string | null = null;
@@ -196,4 +197,77 @@ test("shared variable index matches per-step exclusion including duplicate produ
   assert.equal(index.hasOther("three", "repeated"), false);
   assert.equal(index.hasOther("__proto__", "inner"), false);
   assert.equal(index.hasOther("slug", "unique"), true);
+});
+
+
+test("deleting thousands of selected blocks prunes nested branches without cloning unrelated trees", () => {
+  const wait = (id: string): ScriptStep => ({ id, kind: "wait", seconds: 1 });
+  const ordinary = Array.from({ length: 4000 }, (_, i) => wait("step-" + i));
+  const branch: ScriptStep = { id: "condition", kind: "if",
+    cond: { subject: "var", target: "", left: "enabled", op: "eq", value: "true" },
+    then: [wait("keep-then"), wait("remove-then")],
+    else: [wait("remove-else"), wait("keep-else")] };
+  const scripts: PageScript[] = [
+    { id: "main", nodeId: null, pos: { x: 32, y: 32 }, steps: [...ordinary, branch, wait("last")] },
+    { id: "detached", nodeId: null, pos: { x: 400, y: 40 }, steps: [wait("only")] },
+    { id: "untouched", nodeId: null, pos: { x: 600, y: 40 }, steps: [wait("unrelated")] },
+    { id: "whole", nodeId: null, pos: { x: 800, y: 40 }, trigger: "click", steps: [wait("whole-step")] },
+  ];
+  const before = structuredClone(scripts);
+  const keys = [
+    ...ordinary.slice(0, 3500).map((step) => `step:${step.id}`),
+    "step:remove-then", "step:remove-else", "step:only", "script:whole",
+  ];
+  const next = removeKeys(scripts, keys);
+  assert.deepEqual(scripts, before);
+  assert.deepEqual(next.map((script) => script.id), ["main", "untouched"]);
+  assert.equal(next[1], scripts[2], "unrelated scripts are reused");
+  assert.equal(next[0].steps[0], ordinary[3500], "unselected blocks are reused");
+  assert.equal(next[0].steps[499], ordinary[3999]);
+  assert.equal(next[0].steps.at(-1), scripts[0].steps.at(-1));
+  const nested = next[0].steps[500];
+  assert.equal(nested.kind, "if");
+  if (nested.kind === "if") {
+    assert.deepEqual(nested.then.map((step) => step.id), ["keep-then"]);
+    assert.deepEqual(nested.else?.map((step) => step.id), ["keep-else"]);
+  }
+  assert.equal(removeKeys(next, ["step:missing"]), next, "no-op keeps original identity");
+  assert.equal(removeKeys(scripts, []), scripts);
+});
+
+test("thousands of scripts with an identical start position are placed in source order", () => {
+  const original = Array.from({ length: 900 }, (_, i) => ({
+    id: `script-${i}`, trigger: "load" as const, pos: { x: 24, y: 24 },
+    steps: [{ id: `wait-${i}`, kind: "wait" as const, seconds: 1 }],
+  }));
+  const doc = { nodes: {}, pages: { page: { pageScripts: original } } } as unknown as SiteDoc;
+  const views = pageScriptsOf(doc, [], "page");
+  assert.equal(views.length, original.length);
+  for (let i = 0; i < views.length; i++) {
+    assert.deepEqual(views[i].pos, { x: 24, y: 24 + 150 * i });
+  }
+  assert.deepEqual(original[899].pos, { x: 24, y: 24 },
+    "rendering the workspace must not change stored positions");
+});
+
+test("saving many scripts for one element retains their order and page-owned scripts", () => {
+  const doc = { nodes: { box: { id: "box", type: "box", name: "Box",
+    children: [], styles: {}, link: null } }, pages: { page: { id: "page", children: [] } } }
+    as unknown as SiteDoc;
+  const wait = (id: string): ScriptStep => ({ id, kind: "wait", seconds: 1 });
+  const views: PageScript[] = Array.from({ length: 1200 }, (_, i) => ({
+    id: `script-${i}`, nodeId: "box", trigger: "click", pos: { x: i, y: 0 },
+    steps: [wait(`wait-${i}`)],
+  }));
+  views.push({ id: "page-script", nodeId: PAGE_TARGET, trigger: "load",
+    pos: { x: 0, y: 0 }, steps: [wait("page-wait")] });
+  views.push({ id: "loose", nodeId: "removed", trigger: "click",
+    pos: { x: 1, y: 1 }, steps: [wait("loose-wait")] });
+  applyPageScripts(doc, "page", ["box"], views);
+  assert.equal(doc.nodes.box.scripts?.length, 1200);
+  assert.equal(doc.nodes.box.scripts?.[0].id, "script-0");
+  assert.equal(doc.nodes.box.scripts?.[1199].id, "script-1199");
+  assert.equal(doc.pages.page.pageScripts?.[0].id, "page-script");
+  assert.equal(doc.pages.page.scripts?.[0].id, "loose");
+  assert.equal(views[0].nodeId, "box", "the display model remains intact");
 });
