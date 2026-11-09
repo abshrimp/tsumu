@@ -14,6 +14,10 @@ export function matchesValueCondition(left: unknown, operator: string, right: un
     return Number.isFinite(n) ? n : undefined;
   };
   const same = (a: unknown, b: unknown, depth = 0): boolean => {
+    // Non-finite numbers are not valid JSON values; never treat infinity as
+    // an equal or contained script value just because JS says it is equal.
+    if (typeof a === "number" && !Number.isFinite(a) ||
+        typeof b === "number" && !Number.isFinite(b)) return false;
     if (a === b) return true;
     // Compare numbers and booleans with their exact text forms, without JS ==.
     // Preserve null, missing values, scalar-kind differences, and numeric spelling.
@@ -80,11 +84,20 @@ export function withinScriptValueLimit(value: unknown): boolean {
   // The fetch transports also cap JSON responses at 5 MiB. This counts string
   // code units and container overhead, bounding expansion before serialization.
   const limit = 5 * 1024 * 1024;
-  if (value == null || typeof value !== "object") return typeof value !== "string" || value.length <= limit;
+  if (value === undefined || value === null) return true;
+  if (typeof value !== "object") {
+    if (typeof value === "number") return Number.isFinite(value);
+    if (typeof value === "string") return value.length <= limit;
+    return typeof value === "boolean";
+  }
   const sizes = new WeakMap<object, { cost: number; height: number }>();
   const measure = (item: unknown, depth: number): { cost: number; height: number } => {
     if (depth > 64) return { cost: Infinity, height: 0 };
-    if (item === null || typeof item !== "object") {
+    if (item === null || item === undefined) return { cost: 8, height: 0 };
+    if (typeof item !== "object") {
+      if (typeof item === "number" && !Number.isFinite(item) ||
+          typeof item !== "number" && typeof item !== "string" &&
+          typeof item !== "boolean") return { cost: Infinity, height: 0 };
       return { cost: typeof item === "string" ? item.length + 2 : 8, height: 0 };
     }
     const cached = sizes.get(item);
