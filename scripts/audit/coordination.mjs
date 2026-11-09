@@ -188,7 +188,7 @@ export async function snapshot({ repo = DEFAULT_REPO, baseline = PLAN_BASELINE,
     return {
       number: pr.number, title: pr.title, url: pr.html_url, draft: pr.draft,
       head: pr.head.sha, base: pr.base.sha,
-      mergeable: pr.mergeable === null ? 'unknown' : pr.mergeable,
+      mergeable: typeof pr.mergeable === 'boolean' ? pr.mergeable : 'unknown',
       files, checks, checksNote, ...summarizePr({ files }, changed),
     };
   }));
