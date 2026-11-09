@@ -206,8 +206,9 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
     }
   }
   for (const node of Object.values(doc.nodes)) {
-    const assetId = node.image?.assetId ?? node.media?.assetId;
-    if (assetId) assetRefs.push({ id: assetId, label: tr("「{name}」", { name: node.name }) });
+    for (const ref of [node.image, node.media, ...(node.media?.sources ?? [])]) {
+      if (ref?.assetId) assetRefs.push({ id: ref.assetId, label: tr("「{name}」", { name: node.name }) });
+    }
   }
   for (const ref of assetRefs) {
     if (!doc.assets[ref.id]) {

@@ -264,7 +264,8 @@ export function validSiteDoc(parsed: unknown): boolean {
   }
   for (const node of Object.values(parsed.nodes)) {
     const entry = node as Record<string, unknown>;
-    if (!assetRefValid(entry.image) || !assetRefValid(entry.media)) return false;
+    if (!assetRefValid(entry.image) || !assetRefValid(entry.media) ||
+        (record(entry.media) && Array.isArray(entry.media.sources) && !entry.media.sources.every(assetRefValid))) return false;
   }
   if (!assetRefValid(parsed.favicon) || !assetRefValid(parsed.appleTouchIcon) ||
       !assetRefValid(parsed.ogImage) ||

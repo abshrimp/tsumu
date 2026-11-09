@@ -49,27 +49,27 @@ test("offscreen focused windows are released after focus leaves, without another
 
   chunk.dispatchEvent(new Event("focusout"));
   doc.activeElement = chunk.fields[1];
-  await Promise.resolve();
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
   assert.equal(chunkStates.at(-1), true, "moving between fields must retain the window");
 
   chunk.dispatchEvent(new Event("focusout"));
   doc.activeElement = stack.fields[0];
-  await Promise.resolve();
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
   assert.equal(chunkStates.at(-1), false, "focus departure must release an offscreen window");
   intersect(stack, true);
   intersect(stack, false);
   assert.equal(stackStates.at(-1), true);
   stack.dispatchEvent(new Event("focusout"));
   doc.activeElement = null;
-  await Promise.resolve();
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
   assert.equal(stackStates.at(-1), false, "whole stacks use the same focus protection");
 
   chunk.dispatchEvent(new Event("focusout"));
   intersect(chunk, true);
-  await Promise.resolve();
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
   assert.equal(chunkStates.at(-1), true, "reentry supersedes a queued offscreen focus check");
   chunk.dispatchEvent(new Event("focusout"));
-  await Promise.resolve();
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
   assert.equal(chunkStates.at(-1), true, "visible windows stay mounted after blur");
 
   doc.activeElement = chunk.fields[0];
@@ -78,10 +78,10 @@ test("offscreen focused windows are released after focus leaves, without another
   const count = chunkStates.length;
   stopChunk();
   doc.activeElement = null;
-  await Promise.resolve();
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
   chunk.dispatchEvent(new Event("focusout"));
   intersect(chunk, true);
-  await Promise.resolve();
+  await new Promise<void>(resolve => setTimeout(resolve, 0));
   assert.equal(chunkStates.length, count, "cleanup cancels queued focus work and intersection delivery");
   assert.equal(observer.targets.size, 1);
   assert.equal(observer.disconnected, false);

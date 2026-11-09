@@ -1,6 +1,7 @@
 /**
  * Share one viewport observer between the script stacks and step chunks.
  * Thousands of independently created IntersectionObservers are costly.
+ * Keep focused views mounted until their blur handlers have committed drafts.
  */
 type Listener = (visible: boolean) => void;
 interface ObservationSet {
@@ -26,27 +27,30 @@ export function observeScriptViewport(element: HTMLElement, listener: Listener):
     group = { observer, listeners };
     byWorkspace.set(workspace, group);
   }
-  // Focus can pin an offscreen window, but IntersectionObserver will not emit
-  // again when that focus leaves. Recheck after focusout has finished so moves
-  // between fields and blur commits complete before the window is unmounted.
+  // IntersectionObserver does not report focus changes. Remember visibility so
+  // a view retained for editing can be released after focus leaves, even if it
+  // never crosses the viewport boundary again.
   let visible = true;
-  let active = true;
-  const notify = () => listener(visible || element.contains(element.ownerDocument.activeElement));
+  let blurTimer: ReturnType<typeof setTimeout> | undefined;
+  const update = () => listener(visible || element.contains(element.ownerDocument.activeElement));
   const onFocusOut = () => {
-    queueMicrotask(() => {
-      if (active && !visible) notify();
-    });
+    if (blurTimer !== undefined) clearTimeout(blurTimer);
+    // Wait for both the blur commit and the next focus target to settle. Moving
+    // between fields inside this view must not discard either field's state.
+    blurTimer = setTimeout(() => {
+      blurTimer = undefined;
+      update();
+    }, 0);
   };
   element.addEventListener("focusout", onFocusOut);
-  group.listeners.set(element, (next) => {
-    visible = next;
-    notify();
+  group.listeners.set(element, (intersecting) => {
+    visible = intersecting;
+    update();
   });
   group.observer.observe(element);
   return () => {
-    if (!active) return;
-    active = false;
     element.removeEventListener("focusout", onFocusOut);
+    if (blurTimer !== undefined) clearTimeout(blurTimer);
     const current = byWorkspace.get(workspace);
     current?.observer.unobserve(element);
     current?.listeners.delete(element);

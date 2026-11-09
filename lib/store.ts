@@ -144,13 +144,32 @@ export function findParentOf(doc: SiteDoc, nodeId: string): ParentRef | null {
 
 /** nodeId がいずれかのコンポーネントのマスターに属しているか */
 export function componentOf(doc: SiteDoc, nodeId: string): string | null {
-  for (const comp of Object.values(doc.components ?? {})) {
-    if (comp.rootId === nodeId) return comp.id;
-    let cur = findParentOf(doc, nodeId);
-    while (cur?.kind === "node") {
-      if (cur.id === comp.rootId) return comp.id;
-      cur = findParentOf(doc, cur.id);
+  const components = Object.values(doc.components ?? {});
+  if (!components.length) return null;
+
+  // Resolve parent ownership once, rather than scanning the entire document
+  // separately for every candidate component and every ancestor.
+  const parents = new Map<string, ParentRef>();
+  for (const page of Object.values(doc.pages)) {
+    for (const child of page.children) {
+      if (!parents.has(child)) parents.set(child, { kind: "page", id: page.id });
     }
+  }
+  for (const node of Object.values(doc.nodes)) {
+    for (const child of node.children) {
+      if (!parents.has(child)) parents.set(child, { kind: "node", id: node.id });
+    }
+  }
+
+  const ancestors = new Set([nodeId]);
+  let parent = parents.get(nodeId);
+  while (parent?.kind === "node" && !ancestors.has(parent.id)) {
+    ancestors.add(parent.id);
+    parent = parents.get(parent.id);
+  }
+  // Keep the established component-order precedence for nested master roots.
+  for (const comp of components) {
+    if (ancestors.has(comp.rootId)) return comp.id;
   }
   return null;
 }
@@ -622,12 +641,24 @@ export const useEditor = create<EditorStore>((set, get) => {
   };
 
   const gestureOwners = new Set<symbol>();
-  const pushHistory = (snapshot: SiteDoc) => {
+  const historyFor = (snapshot: SiteDoc) => {
     pendingBase = null;
-    set((s) => ({
-      past: [...s.past.slice(-HISTORY_LIMIT + 1), snapshot],
+    return {
+      past: [...get().past.slice(-HISTORY_LIMIT + 1), snapshot],
       future: [],
-    }));
+    };
+  };
+
+  /** Publish an edit and its undo checkpoint together, including to subscribers. */
+  const commitDoc = (next: SiteDoc, opts?: { history?: boolean }) => {
+    const current = get();
+    if (next === current.doc) return;
+    const snapshot = opts?.history === false || current.gestureActive
+      ? pendingBase
+      : current.doc;
+    // Consume the pending checkpoint before notifying synchronous subscribers,
+    // which may themselves edit the document or start another gesture.
+    set({ doc: next, ...(snapshot ? historyFor(snapshot) : {}) });
   };
 
   /**
@@ -656,12 +687,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       ...current,
       nodes: { ...current.nodes, ...Object.fromEntries(changed) },
     };
-    if (opts?.history === false || get().gestureActive) {
-      if (pendingBase) pushHistory(pendingBase);
-    } else {
-      pushHistory(current);
-    }
-    set({ doc: next });
+    commitDoc(next, opts);
   };
 
   /** リモートの変更（current → next）を履歴にも反映し、同じ項目の競合は最新の変更を優先する */
@@ -898,9 +924,9 @@ export const useEditor = create<EditorStore>((set, get) => {
       const current = get().doc;
       if (sameDoc(current, doc)) return;
       get().endGesture();
-      pushHistory(current);
       const selectedIds = validSelectedIds(doc, get().selectedIds);
       set({
+        ...historyFor(current),
         doc,
         // 履歴は残しつつ、復元前の非同期処理や一時入力は引き継がない。
         documentSession: get().documentSession + 1,
@@ -1386,30 +1412,16 @@ export const useEditor = create<EditorStore>((set, get) => {
     updatePageScripts: (pageId, nodeIds, views) => {
       const current = get().doc;
       const next = withPageScripts(current, pageId, nodeIds, views);
-      // A no-op must not erase redo or consume a pending drag checkpoint.
-      if (next === current) return;
-      if (get().gestureActive) {
-        if (pendingBase) pushHistory(pendingBase);
-      } else {
-        pushHistory(current);
-      }
-      set({ doc: next });
+      commitDoc(next);
     },
 
     updateDoc: (fn, opts) => {
       const current = get().doc;
       const next = structuredClone(current);
       fn(next);
-      if (opts?.history === false || get().gestureActive) {
-        // checkpoint() 後の最初の実際の変更で、変更前の状態を履歴へ積む
-        if (pendingBase && !sameDoc(next, current)) pushHistory(pendingBase);
-        set({ doc: next });
-        return;
-      }
-      // blurなどで値が変わらなかった場合は、見た目の変わらない履歴を作らない
+      // No-ops must also retain references and pending checkpoints during drags.
       if (sameDoc(next, current)) return;
-      pushHistory(current);
-      set({ doc: next });
+      commitDoc(next, opts);
     },
 
     retainUploadedAssets: (assets) => {
@@ -1891,9 +1903,9 @@ export const useEditor = create<EditorStore>((set, get) => {
 
     resetDoc: () => {
       get().endGesture();
-      pushHistory(get().doc);
       const doc = createInitialDoc();
       set({
+        ...historyFor(get().doc),
         doc,
         documentSession: get().documentSession + 1,
         historyRevision: get().historyRevision + 1,

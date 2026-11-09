@@ -195,14 +195,16 @@ function ScriptEditorInner({
   const page = doc.pages[activePageId];
 
   // コンポーネント編集中・コンポーネント内の要素から開いたときは、そのマスターも含める
-  const extraRootsKey = [
+  // Component ownership indexes the node tree. Recompute it only when the
+  // document or editor focus changes, never on every drag/selection render.
+  const extraRootsKey = useMemo(() => [
     editingComponentId ? doc.components?.[editingComponentId]?.rootId : null,
     focusNodeId
       ? doc.components?.[componentOf(doc, focusNodeId) ?? ""]?.rootId
       : null,
   ]
     .filter(Boolean)
-    .join(",");
+    .join(","), [doc, editingComponentId, focusNodeId]);
   const nodeIds = useMemo(
     () =>
       pageNodeIds(doc, activePageId, extraRootsKey ? extraRootsKey.split(",") : []),
@@ -867,6 +869,7 @@ function ScriptEditorInner({
                   value={paletteQuery}
                   onChange={(e) => setPaletteQuery(e.target.value)}
                   onKeyDown={(e) => {
+                    if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
                     if (e.key === "Escape") {
                       e.stopPropagation();
                       setPaletteQuery("");

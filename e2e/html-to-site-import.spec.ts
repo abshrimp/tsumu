@@ -293,6 +293,37 @@ test("multi-page HTML ZIP imports every page and converts internal page links", 
 });
 
 
+test("multi-page HTML ZIP resolves encoded page filenames exactly once without decoding suffixes", async ({ page }) => {
+  await localMode(page);
+  const zip = new JSZip()
+    .file("website/index.html", '<html><head><title>Encoded links</title></head><body>' +
+      '<a id="space-link" href="company%20info.html?tab=a%2Fb#team%20one">Company</a>' +
+      '<a id="unicode-link" href="%E6%97%A5%E6%9C%AC.html">Japanese</a>' +
+      '<a id="percent-link" href="literal%2520name.html">Literal percent</a>' +
+      '<a id="invalid-link" href="invalid%E0%A4%A.html">Missing</a></body></html>')
+    .file("website/company info.html", '<html><head><title>Company</title></head><body>Company</body></html>')
+    .file("website/日本.html", '<html><head><title>Japanese</title></head><body>Japanese</body></html>')
+    .file("website/literal%20name.html", '<html><head><title>Literal percent</title></head><body>Percent</body></html>')
+    .file("website/literal name.html", '<html><head><title>Literal space</title></head><body>Space</body></html>');
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+  await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
+    name: "encoded.zip", mimeType: "application/zip",
+    buffer: await zip.generateAsync({ type: "nodebuffer" }),
+  });
+  await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
+  const doc = await importedDoc(page);
+  expect(doc.pageOrder).toHaveLength(5);
+  const link = (id: string) => (Object.values(doc.nodes).find((node: any) => node.attrId === id) as any).link;
+  const target = (title: string) => Object.values(doc.pages).find((value: any) => value.title === title) as any;
+  expect(link("space-link")).toMatchObject({ kind: "url", url: "/company-info?tab=a%2Fb#team%20one" });
+  expect(link("unicode-link")).toMatchObject({ kind: "page", pageId: target("Japanese").id });
+  expect(link("percent-link")).toMatchObject({ kind: "page", pageId: target("Literal percent").id });
+  expect(link("percent-link").pageId).not.toBe(target("Literal space").id);
+  expect(link("invalid-link")).toMatchObject({ kind: "url", url: "invalid%E0%A4%A.html" });
+});
+
+
 
 test("HTML ZIP survives save, reload, HTML export ZIP and reimport with editable content", async ({ page }) => {
   await localMode(page);

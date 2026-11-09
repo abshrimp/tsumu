@@ -18,6 +18,7 @@ export function assetUsage(doc: SiteDoc): Map<string, number> {
   for (const node of Object.values(doc.nodes)) {
     add(node.image?.assetId);
     add(node.media?.assetId);
+    node.media?.sources?.forEach(source => add(source.assetId));
     findCssAssets(node.styles, node.customCss).forEach(add);
   }
   add(doc.favicon?.assetId);
