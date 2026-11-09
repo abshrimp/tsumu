@@ -6,6 +6,7 @@ import { requireAuth, sessionUser } from "../../../lib/server";
 import { siteIdOf } from "../../../lib/site-server";
 import { listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction } from "../../../lib/comments";
 import { userMessage } from "../../../lib/errors";
+import { JsonBodyTooLargeError, readJsonLimited } from "../../../lib/api-json";
 
 export const maxDuration = 30;
 
@@ -44,7 +45,16 @@ export async function POST(req: Request) {
   if ((params.has("before") && !before) || (focus !== null && !/^[a-zA-Z0-9_-]{1,64}$/.test(focus))) {
     return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   }
-  const action = parseCommentAction(await req.json().catch(() => null));
+  // 本文は5000文字以内のコメント1件のみ。処理するJSONもストリーム全体で制限する。
+  let value: unknown;
+  try {
+    value = await readJsonLimited(req, 64 * 1024, false);
+  } catch (error) {
+    return NextResponse.json({ error: tr("リクエストが正しくありません") }, {
+      status: error instanceof JsonBodyTooLargeError ? 413 : 400,
+    });
+  }
+  const action = parseCommentAction(value);
   if (!action) return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   try {
     const db = await getDb();
