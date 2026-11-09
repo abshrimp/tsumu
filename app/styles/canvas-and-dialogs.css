@@ -494,18 +494,176 @@
   margin: 8px 0 0;
 }
 
-/* AI client plugins in the MCP connection dialog */
-.mcp-plugins {
-  margin-top: 16px;
+/* MCP connection dialog */
+.mcp-modal {
+  width: 540px;
+  max-height: min(740px, calc(100dvh - 32px));
+}
+
+.mcp-modal h2 {
+  margin-bottom: 14px;
+}
+
+.mcp-modal .modal-actions {
+  margin-top: 20px;
   padding-top: 14px;
   border-top: 1px solid var(--border);
 }
 
-.mcp-plugins h4 {
-  margin: 0 0 8px;
+.mcp-connection {
+  min-width: 0;
+}
+
+.mcp-intro {
+  margin: 0 0 16px;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.mcp-panel {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--state-hover);
+}
+
+.mcp-panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mcp-panel-heading h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.mcp-panel-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  color: var(--accent);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.mcp-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--success, var(--accent));
   font-size: 12px;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.mcp-edit-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 16px;
+  font-size: 13px;
+  line-height: 1.55;
+  cursor: pointer;
+}
+
+.mcp-edit-option input {
+  margin-top: 3px;
+  flex: none;
+  accent-color: var(--accent);
+}
+
+.mcp-main-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 38px;
+  margin-top: 16px;
+}
+
+.mcp-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 0;
+  font-size: 13px;
+}
+
+.mcp-code-label {
+  display: block;
+  margin: 16px 0 7px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mcp-code-row {
+  display: flex;
+  gap: 8px;
+}
+
+.mcp-code-input {
+  flex: 1;
+  min-width: 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 15px;
+  letter-spacing: 0.05em;
+}
+
+.mcp-copy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: none;
+  white-space: nowrap;
+}
+
+.mcp-instructions {
+  margin: 10px 0 0;
   color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.mcp-session-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.mcp-access {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.mcp-error {
+  margin: 10px 0 0;
+  color: var(--danger, #b91c1c);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mcp-plugins {
+  margin-top: 20px;
+}
+
+.mcp-plugins h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .mcp-plugin-list {
@@ -513,16 +671,16 @@
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .mcp-plugin {
   display: flex;
   align-items: center;
-  gap: 8px;
-  min-height: 36px;
-  padding: 6px 10px 6px 6px;
+  gap: 9px;
+  min-height: 40px;
+  padding: 7px 10px 7px 7px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   color: var(--text);
@@ -536,13 +694,12 @@
 }
 
 .mcp-plugin-icon {
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   flex: none;
   display: grid;
   place-items: center;
   border-radius: var(--radius-s);
-  /* Keep monochrome brand marks visible in the dark editor theme. */
   background: #fff;
 }
 
@@ -568,10 +725,27 @@
 }
 
 .mcp-guide-link {
-  display: inline-block;
-  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 12px;
   color: var(--accent);
   font-size: 12px;
+}
+
+@media (max-width: 540px) {
+  .mcp-panel {
+    padding: 12px;
+  }
+
+  .mcp-plugin-list {
+    grid-template-columns: 1fr;
+  }
+
+  .mcp-session-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .modal .modal-desc {

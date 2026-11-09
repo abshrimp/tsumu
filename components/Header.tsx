@@ -129,12 +129,12 @@ function McpConnectionModal({ onClose }: { onClose: () => void }) {
   useEscapeToClose(onClose);
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{tr("MCP connection")}</h2>
+      <div className="modal mcp-modal" role="dialog" aria-modal="true" aria-labelledby="mcp-modal-title" onClick={(e) => e.stopPropagation()}>
+        <h2 id="mcp-modal-title">{tr("MCP connection")}</h2>
         <Suspense fallback={<p className="hint" role="status">{tr("Loading…")}</p>}>
           <ExternalEditConnection />
         </Suspense>
-        <div className="modal-actions" style={{ marginTop: 16 }}>
+        <div className="modal-actions">
           <button type="button" className="btn" onClick={onClose}>{tr("Close")}</button>
         </div>
       </div>

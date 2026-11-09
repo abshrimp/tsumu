@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { Cable, Check, Copy, ExternalLink, LoaderCircle } from "lucide-react";
 import { tr } from "../lib/i18n";
 import { connectExternalEdit, disconnectExternalEdit, useExternalEdit } from "../lib/external-edit/bridge";
 import { MCP_GUIDE_URL, useMcpPlugins } from "../lib/external-edit/plugins";
@@ -11,8 +11,8 @@ function PluginLinks() {
   const catalog = useMcpPlugins();
   const guideUrl = catalog?.guideUrl ?? MCP_GUIDE_URL;
   return (
-    <div className="mcp-plugins">
-      <h4>{tr("Add Tsumu to your AI app")}</h4>
+    <section className="mcp-plugins" aria-labelledby="mcp-plugins-title">
+      <h3 id="mcp-plugins-title">{tr("Add Tsumu to your AI app")}</h3>
       {catalog && catalog.plugins.length > 0 && (
         <ul className="mcp-plugin-list">
           {catalog.plugins.map((plugin) => (
@@ -34,56 +34,103 @@ function PluginLinks() {
       )}
       <a className="mcp-guide-link" href={guideUrl} target="_blank" rel="noopener noreferrer">
         {tr("See the connection guide")}
+        <ExternalLink size={13} aria-hidden />
       </a>
-    </div>
+    </section>
   );
 }
 
 export default function ExternalEditConnection() {
   const [allowEdit, setAllowEdit] = useState(true);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [copyErrorCode, setCopyErrorCode] = useState<string | null>(null);
   const state = useExternalEdit();
 
+  const copyCode = async () => {
+    if (!state.code) return;
+    try {
+      await navigator.clipboard.writeText(state.code);
+      setCopiedCode(state.code);
+      setCopyErrorCode(null);
+    } catch {
+      setCopyErrorCode(state.code);
+    }
+  };
+
   return (
-    <section className="settings-sec">
-      <h3>{tr("Connect an AI app")}</h3>
-      <p className="hint">
+    <section className="mcp-connection">
+      <p className="mcp-intro">
         {tr("Connect ChatGPT, Claude or Cursor to this site without a Tsumu account. Keep this editor tab open while using AI.")}
       </p>
-      {state.phase === "disconnected" && (
-        <>
-          <label style={{ display: "flex", gap: 8, alignItems: "center", margin: "10px 0" }}>
-            <input type="checkbox" checked={allowEdit} onChange={(e) => setAllowEdit(e.target.checked)} />
-            {tr("Allow editing (not publishing or deleting assets)")}
-          </label>
-          <button type="button" className="btn btn-primary" onClick={() => { void connectExternalEdit(allowEdit); }}>
-            {tr("Start connection")}
-          </button>
-        </>
-      )}
-      {state.phase === "connecting" && (
-        <p role="status" className="hint">{tr("Connecting…")}</p>
-      )}
-      {state.phase === "connected" && (
-        <div style={{ display: "grid", gap: 10, margin: "12px 0" }}>
-          <p role="status"><strong>{tr("Connected")}</strong></p>
-          <label>
-            {tr("Connection code")}
-            <input className="input" readOnly value={state.code ?? ""} onFocus={(e) => e.currentTarget.select()} />
-          </label>
-          <p className="hint">
-            {tr("Connect to Tsumu from your AI app, then enter this code on its authorization page. It expires in 10 minutes.")}
-          </p>
-          <p className="hint">
-            {tr("Access: {permission}", {
-              permission: state.canEdit ? tr("Read and edit") : tr("Read only"),
-            })}
-          </p>
-          <button type="button" className="btn" onClick={() => { void disconnectExternalEdit(); }}>
-            {tr("Disconnect and revoke")}
-          </button>
+
+      <div className="mcp-panel">
+        <div className="mcp-panel-heading">
+          <span className="mcp-panel-icon" aria-hidden><Cable size={17} /></span>
+          <h3>{tr("Connect an AI app")}</h3>
+          {state.phase === "connected" && (
+            <span className="mcp-status" role="status"><Check size={13} aria-hidden />{tr("Connected")}</span>
+          )}
         </div>
-      )}
-      {state.error && <p role="alert" style={{ color: "var(--danger, #b91c1c)" }}>{state.error}</p>}
+
+        {state.phase === "disconnected" && (
+          <>
+            <label className="mcp-edit-option">
+              <input type="checkbox" checked={allowEdit} onChange={(e) => setAllowEdit(e.target.checked)} />
+              <span>{tr("Allow editing (not publishing or deleting assets)")}</span>
+            </label>
+            <button type="button" className="btn btn-primary mcp-main-action" onClick={() => { void connectExternalEdit(allowEdit); }}>
+              <Cable size={15} aria-hidden />
+              {tr("Start connection")}
+            </button>
+          </>
+        )}
+
+        {state.phase === "connecting" && (
+          <p role="status" className="mcp-progress"><LoaderCircle size={16} className="spin" aria-hidden />{tr("Connecting…")}</p>
+        )}
+
+        {state.phase === "connected" && (
+          <>
+            <label className="mcp-code-label" htmlFor="mcp-connection-code">{tr("Connection code")}</label>
+            <div className="mcp-code-row">
+              <input
+                id="mcp-connection-code"
+                className="input mcp-code-input"
+                readOnly
+                value={state.code ?? ""}
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <button
+                type="button"
+                className="btn mcp-copy-button"
+                onClick={() => { void copyCode(); }}
+                disabled={!state.code}
+                aria-label={tr("Copy connection code")}
+              >
+                {copiedCode === state.code ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
+                {copiedCode === state.code ? tr("Copied") : tr("Copy")}
+              </button>
+            </div>
+            <p className="mcp-instructions">
+              {tr("Connect to Tsumu from your AI app, then enter this code on its authorization page. It expires in 10 minutes.")}
+            </p>
+            {copyErrorCode === state.code && (
+              <p role="alert" className="mcp-error">{tr("Could not copy the code. Select it to copy manually.")}</p>
+            )}
+            <div className="mcp-session-footer">
+              <span className="mcp-access">{tr("Access: {permission}", {
+                permission: state.canEdit ? tr("Read and edit") : tr("Read only"),
+              })}</span>
+              <button type="button" className="btn" onClick={() => { void disconnectExternalEdit(); }}>
+                {tr("Disconnect and revoke")}
+              </button>
+            </div>
+          </>
+        )}
+
+        {state.error && <p role="alert" className="mcp-error">{state.error}</p>}
+      </div>
+
       <PluginLinks />
     </section>
   );

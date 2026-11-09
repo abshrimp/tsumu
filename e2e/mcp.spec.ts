@@ -18,7 +18,10 @@ test("MCP connection has its own editor menu dialog, not a Settings section", as
   await menuItems.filter({ hasText: "AIと接続（MCP）" }).click();
 
   await expect(page.locator(".modal-backdrop .modal > h2")).toHaveText("AIと接続（MCP）");
-  await expect(page.locator(".modal-backdrop .settings-sec h3")).toHaveText("AIと接続");
+  await expect(page.locator(".mcp-modal .mcp-panel h3")).toHaveText("AIと接続");
+  await expect(page.locator(".mcp-modal .mcp-plugins h3")).toHaveText("AIアプリにTsumuを追加");
+  await expect(page.locator(".mcp-modal .mcp-guide-link")).toBeVisible();
+  await expect(page.locator(".mcp-modal")).toHaveAttribute("aria-modal", "true");
   await expect(page.getByRole("button", { name: "接続を開始" })).toBeVisible();
   await page.locator(".modal-backdrop .modal-actions button").click();
   await expect(page.locator(".modal-backdrop")).toHaveCount(0);
