@@ -70,6 +70,21 @@ export function useScriptDrag({
     let marqueeSelection = "";
     let marqueeRects: Array<{ key: string; left: number; right: number; top: number; bottom: number }> | null = null;
 
+    // Virtualized chunks may mount or unmount while scrolling during a drag.
+    // Never reuse hit-test coordinates from DOM nodes that no longer exist.
+    const slotObserver = typeof MutationObserver === "undefined" ? null :
+      new MutationObserver(() => {
+        slotIndex = null;
+        slotElements.clear();
+        marqueeRects = null;
+      });
+    if (wsRef.current) slotObserver?.observe(wsRef.current, { subtree: true, childList: true });
+    let animationFrame = 0;
+    const cancelFrame = () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      animationFrame = 0;
+    };
+
     const contentRect = (ws: HTMLDivElement) => ws.getBoundingClientRect();
     const findSlot = (d: Drag): string | null => {
       const ws = wsRef.current;
@@ -187,12 +202,23 @@ export function useScriptDrag({
         setDrag({ ...d });
         return;
       }
-      positionGhost(d);
-      paletteRef.current?.classList?.toggle("is-trash", inside(paletteRef.current, d.x, d.y));
-      const target = findSlot(d);
-      setActiveSlot(target, target ? slotElements.get(target) : null);
+      // Pointermove can be emitted far more often than the browser can paint.
+      // Batch layout reads and hit testing to one frame.
+      if (!animationFrame) {
+        animationFrame = requestAnimationFrame(() => {
+          animationFrame = 0;
+          const active = dragRef.current;
+          if (!active?.started || !active.payload) return;
+          positionGhost(active);
+          paletteRef.current?.classList?.toggle("is-trash",
+            inside(paletteRef.current, active.x, active.y));
+          const target = findSlot(active);
+          setActiveSlot(target, target ? slotElements.get(target) : null);
+        });
+      }
     };
     const onUp = (e: PointerEvent) => {
+      cancelFrame();
       const gesture = marqueeRef.current ?? dragRef.current;
       if (!gesture || e.pointerId !== gesture.pointerId) return;
       if (marqueeRef.current) {
@@ -338,6 +364,8 @@ export function useScriptDrag({
       window.removeEventListener("pointercancel", onCancel);
       window.removeEventListener("blur", cancelGesture);
       document.removeEventListener("visibilitychange", onHidden);
+      slotObserver?.disconnect();
+      cancelFrame();
       unsubscribe();
       cancelGesture();
     };
