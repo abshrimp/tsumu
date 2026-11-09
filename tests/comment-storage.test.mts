@@ -9,7 +9,7 @@ import { nodeDatabase } from "../lib/node-storage";
 import { deleteSite, insertSite, isSiteId } from "../lib/sites";
 import { listComments, listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction, type CommentAction } from "../lib/comments";
 import { userMessage } from "../lib/errors";
-import { JsonBodyTooLargeError, readJsonLimited } from "../lib/api-json";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
 const author = { email: "author@example.com", name: "Author", image: null };
 const create: CommentAction = {
@@ -61,13 +61,13 @@ function api(db: Db) {
   };
   const siteIdOf = load("../lib/site-server.ts", "siteIdOf", { NextResponse, serverTr, isSiteId });
   const post = load("../app/api/comments/route.ts", "POST", {
-    NextResponse, serverTr, siteIdOf, userMessage, JsonBodyTooLargeError, readJsonLimited,
+    NextResponse, serverTr, siteIdOf, userMessage, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited,
     listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction,
     requireAuth: async () => null, sessionUser: async () => author,
     dbConfigured: () => true, getDb: async () => db,
     dbUnavailable: () => { throw new Error("Unexpected fallback"); },
   }) as (req: Request) => Promise<Response>;
-  return (site = "site", action: CommentAction = create) => post(new Request(`https://example.com/api/comments?site=${encodeURIComponent(site)}`, { method: "POST", body: JSON.stringify(action) }));
+  return (site = "site", action: CommentAction = create) => post(new Request(`https://example.com/api/comments?site=${encodeURIComponent(site)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(action) }));
 }
 
 for (const timing of ["before request", "before write"] as const) {
