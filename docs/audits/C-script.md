@@ -4,7 +4,7 @@
 - 初期基準SHA：`1ba32974d4b5ecf441e36428e765d0542207c421`
 - 作業ブランチ：`audit/C-script`
 - 統合PR：[#23](https://github.com/abshrimp/tsumu/pull/23)
-- 監査状態：**9件の修正・回帰テストを提出済み。最終CI・独立レビュー未判定。**
+- 監査状態：**10件の修正・回帰テストを提出済み。最終CI・独立レビュー未判定。**
 
 ## 1. コード経路と担当境界
 
@@ -16,7 +16,7 @@
 - 変数補間：`lib/vars.ts`
 - 参照確認のみ：`lib/data.ts`、`lib/page-load-steps.ts`、`lib/generator/`、`lib/fetch-request.ts`
 
-公開サイトの `scripts.js` は `SCRIPT_RUNTIME` を機能ごとに絞り込んで生成する。そのため、実行エンジンの変更はプレビュー版と生成版の両方を対象にテストする。APIのSSRF防御、認証、保存方式、インポート、CI設定の変更は他担当の所有領域とし、このPRでは編集しない。
+公開サイトの `scripts.js` は `SCRIPT_RUNTIME` を機能ごとに絞り込んで生成する。またページデータ取得と更新は `PAGE_DATA_RUNTIME` を共有し、これにも共通 `setVarPath` を埋め込む。そのため、実行エンジンの変更はプレビュー版と生成版の両方を対象にテストする。APIのSSRF防御、認証、保存方式、インポート、CI設定の変更は他担当の所有領域とし、このPRでは編集しない。
 
 ## 2. ブロック・テスト対応表（C-1〜C-5）
 
@@ -59,6 +59,7 @@
 | AUD-C-007 | Medium（データ整合性・可用性） | `setVarPath` が飛び番添字や配列の文字列キーを受け入れ、疎な巨大配列や別のデータ型に変化させる | 既存添字の更新または末尾への追加だけ許可し、不正な書込は原子的に拒否。`script-var-path-bounds.test.mts` |
 | AUD-C-008 | Medium（画面遷移・状態破壊） | hover-end遅延コールバックが元の要素をページ遷移で失っても発火し、新ページの要素を操作できる | 遷移時にhoverタイマーを破棄し、実行前に要素の接続とページ世代を再確認。`script-hover-cancellation.test.mts` |
 | AUD-C-009 | Medium（堅牢性） | 不正な `data-scripts` JSON、欠損した条件・加工、非文字列の代入先がイベント処理を例外で終了させる | 非配列・不正エントリ・無効なブロックを除外し、正常な後続処理を維持。`script-malformed-runtime.test.mts` |
+| AUD-C-010 | Medium（生成コードとの不一致） | 公開サイト用のページデータfetchが独立実装の変数書込を持ち、リストの `length` 等の非数値キーを受け付けて項目付きデータへ変換していた | `lib/generator/browser-data.ts` の重複実装を撤去して共通 `setVarPath` を埋め込み、プレビュー・SSR・ブラウザで不正パスの挙動を統一。`generated-page-data-array-write.test.mts` |
 
 実行量上限は悪意あるデータによるブラウザ停止の回避策であり、**意図的な長時間処理が上限で停止し得る仕様上の制約**が残る。明示的な待機または無限ループのインターバルで実行予算は更新される。
 
@@ -66,6 +67,7 @@
 
 追加・拡張した回帰テスト：
 - `tests/script-runtime-budget.test.mts`
+- `tests/generated-page-data-array-write.test.mts`（Cの配列パス変更に合わせ、browser/native生成コードの契約を統一）
 - `tests/script-malformed-runtime.test.mts`
 - `tests/script-cancellation.test.mts`
 - `tests/script-drag-lifecycle.test.mts`
