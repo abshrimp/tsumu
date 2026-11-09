@@ -19,6 +19,7 @@ import {
   ASSET_MANIFEST_PATH,
   isProtectedPath,
   isSafeCommitPath,
+  conflictingCommitPaths,
   parseGeneratedManifest,
   planPublish,
   keptTreeEntries,
@@ -406,6 +407,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
     }
     for (const entry of kept) tree.push({ ...entry, sha: entry.sha! });
+    // A file at a parent path and a generated descendant cannot coexist in
+    // a Git tree. GitHub may silently replace one when building nested paths.
+    // Fail closed rather than losing an existing symlink, submodule or file.
+    if (conflictingCommitPaths(tree.map(entry => entry.path))) {
+      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
+    }
 
     // 一度に大きなツリーを送るとGitHub側でタイムアウトするため、分割して積み上げる。
     // 最初のチャンクは base_tree なし = リポジトリ内容を完全置換（削除も反映される）。
