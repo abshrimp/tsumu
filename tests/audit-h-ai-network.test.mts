@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { EventEmitter } from "node:events";
 import { buildAiContext, applyAiOps, type AiOp } from "../lib/aiOps";
 import { applyAiEdits, AiEditConflict } from "../lib/ai/client";
 import { parseAiRequest } from "../lib/ai/request";
@@ -8,7 +9,7 @@ import { runAi, MAX_MODEL_BODY_BYTES, AiApiError } from "../lib/ai/run";
 import type { AiConfig } from "../lib/ai/config";
 import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
-import { assertPublicUrl, BlockedUrlError, readTextLimited } from "../lib/safe-fetch";
+import { assertPublicUrl, BlockedUrlError, fetchPublic, readTextLimited } from "../lib/safe-fetch";
 
 const config: AiConfig = {
   enabled: true, provider: "openai-compatible", apiKey: "test-api-key",
@@ -84,6 +85,28 @@ test("private DNS answers are refused even when the hostname looks public", asyn
   assert.ok(dns);
   t.mock.method(dns, "lookup", async () => [{ address: "169.254.169.254", family: 4 }]);
   await assert.rejects(assertPublicUrl("https://remote.example.test/"), BlockedUrlError);
+});
+
+test("connect-time DNS rebinding to a private address is refused before socket use", async (t) => {
+  const dns = process.getBuiltinModule("node:dns/promises");
+  const http = process.getBuiltinModule("node:http");
+  assert.ok(dns && http);
+  let lookups = 0;
+  t.mock.method(dns, "lookup", async () => [
+    { address: lookups++ === 0 ? "8.8.8.8" : "127.0.0.1", family: 4 },
+  ]);
+  t.mock.method(http, "request", (_url: URL, options: any) => {
+    const req = Object.assign(new EventEmitter(), {
+      end() {
+        options.lookup("rebind.example.test", { family: 4 }, (error: Error | null) => {
+          process.nextTick(() => req.emit("error", error ?? new Error("Unexpected public connection")));
+        });
+      },
+    });
+    return req;
+  });
+  await assert.rejects(fetchPublic("http://rebind.example.test/data", {}), BlockedUrlError);
+  assert.equal(lookups, 2);
 });
 
 test("abort cancels a DNS lookup that has not resolved", async (t) => {
