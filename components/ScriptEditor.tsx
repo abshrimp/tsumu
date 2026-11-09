@@ -211,10 +211,14 @@ function ScriptEditorInner({
     [doc, nodeIds, activePageId]
   );
   const stepOwners = useMemo(() => {
-    const owners = new Map<string, string>();
+    const owners = new Map<string, string[]>();
     for (const script of scripts) {
       walkSteps(script.steps, (step) => {
-        if (!owners.has(step.id)) owners.set(step.id, script.id);
+        const matches = owners.get(step.id) ?? [];
+        if (!matches.includes(script.id)) {
+          matches.push(script.id);
+          owners.set(step.id, matches);
+        }
       });
     }
     return owners;
@@ -391,12 +395,13 @@ function ScriptEditorInner({
   const scopedSelections = useMemo(() => {
     const byScript = new Map<string, string[]>();
     for (const key of selectedList) {
-      const owner = key.startsWith("script:") ? key.slice(7) :
-        key.startsWith("step:") ? stepOwners.get(key.slice(5)) : undefined;
-      if (!owner) continue;
-      const values = byScript.get(owner) ?? [];
-      values.push(key);
-      byScript.set(owner, values);
+      const owners = key.startsWith("script:") ? [key.slice(7)] :
+        key.startsWith("step:") ? (stepOwners.get(key.slice(5)) ?? []) : [];
+      for (const owner of owners) {
+        const values = byScript.get(owner) ?? [];
+        values.push(key);
+        byScript.set(owner, values);
+      }
     }
     return byScript;
   }, [selectedList, stepOwners]);
@@ -404,8 +409,8 @@ function ScriptEditorInner({
   const [front, setFront] = useState<string[]>([]);
   useEffect(() => {
     if (!selectedList.length) return;
-    const ids = new Set(selectedList.map((key) => key.startsWith("script:") ? key.slice(7) :
-      key.startsWith("step:") ? stepOwners.get(key.slice(5)) : undefined));
+    const ids = new Set(selectedList.flatMap((key) => key.startsWith("script:") ? [key.slice(7)] :
+      key.startsWith("step:") ? (stepOwners.get(key.slice(5)) ?? []) : []));
     const owners = scripts.filter((script) => ids.has(script.id)).map((script) => script.id);
     if (!owners.length) return;
     setFront((prev) => {
