@@ -12,7 +12,7 @@ import type { DocPatch } from "./lib/doc-patch";
  */
 export class DocumentRoom extends DurableObject {
   private readonly documents = new StructuredDocumentStore(
-    this.ctx.storage as unknown as DocumentSqlStorage,
+    (this.ctx as unknown as { storage: DocumentSqlStorage }).storage,
   );
 
   getSnapshot(): SiteSnapshot | null {

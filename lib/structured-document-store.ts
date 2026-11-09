@@ -163,13 +163,14 @@ export class StructuredDocumentStore {
           const next = "value" in op ? op.value : undefined;
           if (!old || !object(next) || next.id !== id ||
               !hasValidChildren(next) || !validDocNodeShape(next)) { fast = false; break; }
+          const node = next as Record<string, unknown>;
           const previous = JSON.parse(String(old.body)) as Record<string, unknown>;
-          if (!object(previous) || previous.type !== next.type ||
-              previous.componentId !== next.componentId ||
-              JSON.stringify(previous.children) !== JSON.stringify(next.children)) {
+          if (!object(previous) || previous.type !== node.type ||
+              previous.componentId !== node.componentId ||
+              JSON.stringify(previous.children) !== JSON.stringify(node.children)) {
             fast = false; break;
           }
-          for (const ref of [next.image, next.media]) {
+          for (const ref of [node.image, node.media]) {
             if (!object(ref) || ref.assetId === undefined) continue;
             if (typeof ref.assetId !== "string" ||
                 !this.query("SELECT 1 FROM document_entries WHERE bucket='assets' AND entry_id=? LIMIT 1", ref.assetId).length) {

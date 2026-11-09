@@ -191,7 +191,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       if (!siteId) throw new Error("サイトが指定されていません");
       const site = await db.execute({ sql: "SELECT 1 FROM sites WHERE id=? LIMIT 1", args: [siteId] });
       if (!site.rows.length) throw new Error("サイトが見つかりません");
-      const remote = this.env.DOC_STORE?.get(this.env.DOC_STORE.idFromName(siteId)) as
+      const remote = this.env.DOC_STORE?.get(this.env.DOC_STORE.idFromName(siteId)) as unknown as
         | {
             getSnapshot(): Promise<{ body: string; rev: string; savedAt: number } | null>;
             replaceDocument(raw: string, base: string | null): Promise<import("./lib/doc-storage").SaveDocResult>;
