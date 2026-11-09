@@ -7,7 +7,8 @@ import { appendAssetSuffix } from "./zip-references";
 import type { Asset, SiteDoc } from "./types";
 import { genId } from "./presets";
 import { tr } from "./i18n";
-import { otherLocalDocs, siteApi } from "./site";
+import { currentSiteId, siteApi } from "./site";
+import { otherBrowserDocs } from "./browser-doc-storage";
 
 const MAX_LOCAL_ASSET_BYTES = 2 * 1024 * 1024;
 
@@ -449,7 +450,10 @@ export async function downloadAsset(asset: Asset): Promise<void> {
 export async function deleteAssetRemote(asset: Asset): Promise<void> {
   if (!asset.path) return;
   const quoted = `"${asset.path}"`;
-  if (otherLocalDocs().some((raw) => raw.includes(quoted))) return;
+  // If other sites cannot be inspected, do not risk deleting their asset.
+  try {
+    if ((await otherBrowserDocs(currentSiteId())).some((raw) => raw.includes(quoted))) return;
+  } catch { return; }
   await fetch(siteApi("/api/assets", { path: asset.path }), {
     method: "DELETE",
   }).catch(() => {

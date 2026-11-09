@@ -31,7 +31,8 @@ import {
 } from "lucide-react";
 import { insertPointFor, useEditor, type ParentRef } from "../../lib/store";
 import { type Asset, type SiteDoc } from "../../lib/types";
-import { currentSiteId, otherLocalDocs, siteApi } from "../../lib/site";
+import { currentSiteId, siteApi } from "../../lib/site";
+import { otherBrowserDocs } from "../../lib/browser-doc-storage";
 import {
   ASSET_DRAG_TYPE,
   assetKind,
@@ -122,7 +123,7 @@ function loadOtherSitesUsage(): Promise<Map<string, number | null>> {
     } catch {
       // サーバーで数えられなければ、このブラウザに保存しているほかのサイトから数える
     }
-    for (const raw of otherLocalDocs()) {
+    for (const raw of await otherBrowserDocs(currentSiteId()).catch(() => [])) {
       try {
         const doc = JSON.parse(raw) as Pick<SiteDoc, "assets">;
         for (const a of Object.values(doc.assets ?? {})) {

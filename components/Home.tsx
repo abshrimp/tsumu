@@ -29,8 +29,8 @@ import { useServerStatus } from "../lib/status";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { createInitialDoc } from "../lib/presets";
 import { createSiteFromFile } from "../lib/import-site-file";
+import { createBrowserDoc, deleteBrowserDoc, readBrowserDoc } from "../lib/browser-doc-storage";
 import {
-  DOC_STORAGE_KEY,
   SITE_SCOPED_KEYS,
   emptyDest,
   deleteLocalSite,
@@ -65,15 +65,10 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 /** 新しいサイトの最初の編集データを、エディタが読み込む場所に置いておく（サイト名を反映するため） */
-function seedDoc(id: string, name: string) {
-  try {
-    const doc = createInitialDoc();
-    doc.siteName = name;
-    window.localStorage.setItem(siteKey(DOC_STORAGE_KEY, id), JSON.stringify(doc));
-    return true;
-  } catch {
-    return false;
-  }
+async function seedDoc(id: string, name: string): Promise<boolean> {
+  const doc = createInitialDoc();
+  doc.siteName = name;
+  return createBrowserDoc(id, JSON.stringify(doc));
 }
 
 function localSaveError() {
@@ -85,25 +80,25 @@ function localDuplicateError() {
 }
 
 /** サイトの編集データ（ブラウザ保存）を、新しいサイトへ写す。元に無ければ新しいサイトと同じく作る */
-function copyLocalDoc(from: string, to: string, name: string) {
-  const raw = window.localStorage.getItem(siteKey(DOC_STORAGE_KEY, from));
-  if (raw) {
-    window.localStorage.setItem(siteKey(DOC_STORAGE_KEY, to), raw);
-    return;
+async function copyLocalDoc(from: string, to: string, name: string): Promise<void> {
+  const raw = await readBrowserDoc(from);
+  let data = raw;
+  if (data === null) {
+    const doc = createInitialDoc();
+    doc.siteName = name;
+    data = JSON.stringify(doc);
   }
-  // 一度も開いていないサイトだけ初期データを作る。読み書きの失敗を空の複製として扱わない。
-  const doc = createInitialDoc();
-  doc.siteName = name;
-  window.localStorage.setItem(siteKey(DOC_STORAGE_KEY, to), JSON.stringify(doc));
+  if (!await createBrowserDoc(to, data)) throw localDuplicateError();
 }
 
 /** サイトを消したときに、このブラウザに残っている保存も消す */
-function forgetLocal(id: string) {
+async function forgetLocal(id: string): Promise<void> {
+  await deleteBrowserDoc(id);
   for (const key of SITE_SCOPED_KEYS) {
     try {
       window.localStorage.removeItem(siteKey(key, id));
     } catch {
-      // 掃除はベストエフォート。保存先が使えない間は残ることがある。
+      // Document removal is committed; UI preference cleanup is best effort.
     }
   }
 }
@@ -585,23 +580,23 @@ export default function Home() {
       const data = await api<{ site: SiteRecord }>("/api/sites", { method: "POST", body: JSON.stringify(input) });
       id = data.site.id;
       // サーバーには登録済みなので、ブラウザに置けなくてもエディタで初期データを作れる。
-      seedDoc(id, name);
+      await seedDoc(id, name).catch(() => false);
     } else {
       id = newSiteId();
       const now = Date.now();
       const site = { ...emptyDest(), ...input, name, id, createdAt: now, updatedAt: now } as SiteRecord;
-      await withLocalSiteListLock(() => {
-        let seeded = false;
-        try {
+      let seeded = false;
+      try {
+        seeded = await seedDoc(id, name);
+        if (!seeded) throw localSaveError();
+        await withLocalSiteListLock(() => {
           const list = loadLocalSites({ strict: true });
-          if (localSiteIdInUse(id, list)) throw localSaveError();
-          seeded = seedDoc(id, name);
-          if (!seeded || !saveLocalSites([site, ...list])) throw localSaveError();
-        } catch {
-          if (seeded) forgetLocal(id);
-          throw localSaveError();
-        }
-      });
+          if (localSiteIdInUse(id, list) || !saveLocalSites([site, ...list])) throw localSaveError();
+        });
+      } catch {
+        if (seeded) await forgetLocal(id).catch(() => {});
+        throw localSaveError();
+      }
     }
     window.location.href = sitePath(id);
   };
@@ -619,28 +614,21 @@ export default function Home() {
     } else {
       const now = Date.now();
       site = { ...emptyDest(), ...input, name: input.name ?? "", id: newSiteId(), createdAt: now, updatedAt: now } as SiteRecord;
-      await withLocalSiteListLock(() => {
-        let list: SiteRecord[];
-        try {
-          list = loadLocalSites({ strict: true });
-        } catch {
-          throw localDuplicateError();
-        }
-        // ダイアログを開いてから、別のタブで元のサイトが削除されることがある。
-        if (!list.some((s) => s.id === src.id)) throw new Error(tr("サイトが見つかりません"));
-        let copied = false;
-        try {
+      let copied = false;
+      try {
+        await copyLocalDoc(src.id, site.id, site.name);
+        copied = true;
+        await withLocalSiteListLock(() => {
+          const list = loadLocalSites({ strict: true });
+          if (!list.some((s) => s.id === src.id)) throw new Error(tr("サイトが見つかりません"));
           if (localSiteIdInUse(site.id, list)) throw localDuplicateError();
-          copyLocalDoc(src.id, site.id, site.name);
-          copied = true;
           localSites = [site, ...list];
-          if (!saveLocalSites(localSites)) throw new Error("Site list write failed");
-        } catch {
-          // 一覧への登録に失敗したら、書けた複製データの掃除を試みる。
-          if (copied) forgetLocal(site.id);
-          throw localDuplicateError();
-        }
-      });
+          if (!saveLocalSites(localSites)) throw localDuplicateError();
+        });
+      } catch {
+        if (copied) await forgetLocal(site.id).catch(() => {});
+        throw localDuplicateError();
+      }
     }
     setSites((list) => localSites ?? [site, ...(list ?? [])]);
     setDialog(null);
@@ -689,7 +677,7 @@ export default function Home() {
           throw localSaveError();
         }
       }
-      forgetLocal(site.id);
+      await forgetLocal(site.id);
       setSites((list) => list?.filter((s) => s.id !== site.id) ?? null);
     } catch (e) {
       await showAlert((e as Error).message, { title: tr("削除できませんでした") });
