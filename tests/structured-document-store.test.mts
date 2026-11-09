@@ -56,7 +56,7 @@ test("one-character edits touch one element row and rev, not 7,000 rows", () => 
   const initial = createInitialDoc();
   store.replace(JSON.stringify(initial), null);
   const next = structuredClone(initial);
-  const node = Object.values(next.nodes).find(n => n.text !== undefined)!;
+  const node = Object.values(next.nodes).find(n => n.text && typeof n.text.content === "string")!;
   assert.ok(node);
   node.text!.content += "x";
   const patch = createDocPatch(initial, next)!;
