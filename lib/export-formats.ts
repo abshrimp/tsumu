@@ -177,6 +177,18 @@ export function exportLimitations(
   } catch (e) {
     return [(e as Error).message];
   }
+  // An SSR-only fetch does not make a hardcoded token private: generated
+  // source and the editable doc.json in ZIP archives both contain the value.
+  // Apply the same fail-closed policy to every export format, including direct
+  // generator calls and GitHub Push, without changing editor fetch behavior.
+  const pages = publishedPages(doc);
+  const metadataHeaders = pages.some((page) => pagePlan(doc, page.id).steps.some(
+    (step) => step.kind === "fetch" && (step.headers ?? []).some((header) =>
+      /^(?:metadata-flavor|x-metadata-token)$/i.test(header.name.trim()))
+  ));
+  if (hasPublishCredentials(doc) || metadataHeaders) {
+    return [tr("データ取得に認証情報や秘密のAPIキー、または利用できない内部向けヘッダーが含まれています。Next.jsのサーバー側処理でも生成ソースや編集用ZIPに設定値が残ります。機密値を削除し、サーバー環境変数や安全なAPI中継を使用してください。")];
+  }
   if (options.framework === "nextjs") {
     // Route handlers for imported HTML cannot share a Next.js path with
     // page.tsx. Multiple imported HTML pages also overwrite one another's
@@ -196,7 +208,6 @@ export function exportLimitations(
     }
     return [];
   }
-  const pages = publishedPages(doc);
   const reasons: string[] = [];
   const add = (bad: boolean, message: string) => {
     if (bad) reasons.push(tr(message));
@@ -225,20 +236,6 @@ export function exportLimitations(
     add(pages.length !== 1,
       "単一HTMLは1ページだけを書き出せます。複数ページがある場合は出力範囲を「現在のページ」に変更するか、HTML ZIP形式を選択してください。");
   }
-  // Browser-facing source and ZIP exports must share the same credential
-  // scanner as GitHub Push. The earlier regex missed percent-encoded query
-  // names, nested JSON credentials, and URL-encoded form bodies.
-  // Next.js is handled separately because existing server-side authenticated
-  // fetching needs an explicit environment-variable migration design.
-  // Metadata service headers were blocked by the previous export-specific
-  // rule and must remain denied even though they are not typical user secrets.
-  const metadataHeaders = pages.some((page) => pagePlan(doc, page.id).steps.some(
-    (step) => step.kind === "fetch" && (step.headers ?? []).some((header) =>
-      /^(?:metadata-flavor|x-metadata-token)$/i.test(header.name.trim()))
-  ));
-  add(hasPublishCredentials(doc) || metadataHeaders,
-    "データ取得に認証用ヘッダーや秘密のAPIキーが含まれています。ブラウザ向けコードに書き出すと第三者にも見えるため、公開APIに変更するかサーバー側で安全に中継してください。");
-
   if (["react", "vue", "nuxt", "sveltekit"].includes(options.framework)) {
     add(!!doc.customBodyEndHtml?.match(/<script\b/i),
       "body末尾のカスタムスクリプトは、画面更新時に実行タイミングが異なります。HTML形式で書き出すか、利用するフレームワーク用の処理へ移行してください。");
@@ -279,11 +276,12 @@ export function generateExportProject(
 ): GeneratedProject {
   const options = optionsOf(request);
   const scoped = exportScopeDoc(doc, options);
-  const next = generateProject(scoped, target);
-  const limitations = exportLimitations(scoped, { ...options, scope: "project" }, next);
+  // Reject unsafe output *before* rendering secret-bearing values into source.
+  const limitations = exportLimitations(scoped, { ...options, scope: "project" });
   if (limitations.length) {
     throw new Error(tr("選択した形式では次の機能を利用できません。") + "\n" + limitations.join("\n"));
   }
+  const next = generateProject(scoped, target);
   const generated = options.framework === "react"
     ? buildReactProject(scoped, next)
     : (options.framework === "html" || options.framework === "single-html")
