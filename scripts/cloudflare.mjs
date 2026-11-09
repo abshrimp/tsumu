@@ -133,12 +133,16 @@ export function wranglerConfigPath({ deploy = false } = {}) {
   if (!explicit) {
     const d1 = process.env.D1_DATABASE_ID;
     const kv = process.env.KV_NAMESPACE_ID;
-    config.d1_databases = (config.d1_databases ?? [])
-      .map(db => db.database_id === D1_PLACEHOLDER && d1 ? { ...db, database_id: d1 } : db)
-      .filter(db => db.database_id !== D1_PLACEHOLDER);
-    config.kv_namespaces = (config.kv_namespaces ?? [])
-      .map(ns => ns.id === KV_PLACEHOLDER && kv ? { ...ns, id: kv } : ns)
-      .filter(ns => ns.id !== KV_PLACEHOLDER);
+    if (config.d1_databases) {
+      config.d1_databases = config.d1_databases
+        .map(db => db.database_id === D1_PLACEHOLDER && d1 ? { ...db, database_id: d1 } : db)
+        .filter(db => db.database_id !== D1_PLACEHOLDER);
+    }
+    if (config.kv_namespaces) {
+      config.kv_namespaces = config.kv_namespaces
+        .map(ns => ns.id === KV_PLACEHOLDER && kv ? { ...ns, id: kv } : ns)
+        .filter(ns => ns.id !== KV_PLACEHOLDER);
+    }
   }
   const { config: finalConfig, mode } = normalizeStorageConfig(config);
   if (mode === "browser") console.warn("Server storage is incomplete; using browser-only storage.");
