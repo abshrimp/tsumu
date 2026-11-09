@@ -120,6 +120,15 @@ export async function toSingleHtmlProject(
         // integrity enforcement without introducing a network dependency.
         set("src", await resources.embed(get("src"), base, get("integrity"), true));
       }
+    } else if (htmlTag && name === "script" && get("type").trim().toLowerCase() === "module" && !attrs.has("src")) {
+      const stop = loc.endTag?.startOffset ?? Math.max(loc.endOffset, ...node.childNodes.map(child => child.sourceCodeLocation?.endOffset ?? 0));
+      const content = html.slice(start.endOffset, stop);
+      const rewritten = await resources.inlineModule(content, base);
+      if (rewritten !== content) {
+        // Replacements are base64 module URLs, never raw remote URLs or HTML.
+        replacement = (modified ? startTag(name, attrs) : original) + rewritten;
+        end = stop;
+      }
     } else if (htmlTag && ["img", "source", "video", "audio", "input", "track"].includes(name)) {
       for (const key of ["src", "poster"]) {
         if (key === "poster" && name !== "video") continue;

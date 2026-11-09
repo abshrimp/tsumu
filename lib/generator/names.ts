@@ -154,7 +154,7 @@ export function buildComponentNames(doc: SiteDoc): Map<string, string> {
     // データ取得・リスト・ローディング画面で参照する組み込みオブジェクトと型。
     "Object", "Array", "Promise", "Record", "JSON", "Error", "Number", "String", "Boolean",
     "Proxy", "RegExp", "Math", "Date", "Set", "Map", "URL", "URLSearchParams", "RequestInit", "React",
-  ]);
+  ].map((name) => name.toLowerCase()));
   const map = new Map<string, string>();
   for (const comp of Object.values(doc.components ?? {})) {
     let base = comp.name;
@@ -174,8 +174,12 @@ export function buildComponentNames(doc: SiteDoc): Map<string, string> {
     if (!ident || /^\d/.test(ident)) ident = "Section";
     let name = ident;
     let i = 2;
-    while (used.has(name)) name = `${ident}${i++}`;
-    used.add(name);
+    // Component filenames must remain distinct on macOS/Windows as well as
+    // Linux. Valid user labels must not make portable-path validation fail.
+    while (used.has(name.toLowerCase()) || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(name)) {
+      name = `${ident}${i++}`;
+    }
+    used.add(name.toLowerCase());
     map.set(comp.id, name);
   }
   return map;
