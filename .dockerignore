@@ -12,17 +12,18 @@ wrangler.preview.generated.jsonc
 .generated-export-smoke/
 *.tsbuildinfo
 .DS_Store
-data
-.e2e-data
+# Persistent stores and backups must stay outside the context at every depth.
+**/data
+**/.e2e-data
 test-results
 playwright-report
-*.db
-*.db-wal
-*.db-shm
-*.sqlite
-*.sqlite3
-*.sql
-tsumu-data*.tgz
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/*.sqlite
+**/*.sqlite3
+**/*.sql
+**/tsumu-data*.tgz
 
 # Also exclude private configuration under nested build-context paths.
 **/.env*
