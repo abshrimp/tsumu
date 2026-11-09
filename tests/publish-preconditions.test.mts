@@ -15,7 +15,7 @@ const old = "a".repeat(40), newer = "b".repeat(40), created = "c".repeat(40);
 const expected = (target = "production", branch = target === "test" ? "preview" : "main") => ({
   site: "example", target, repo: "owner/site", branch, productionBranch: "main",
 });
-function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolean; concurrentInit?: boolean; unrelatedHistory?: boolean; recordFails?: boolean; ambiguousUpdate?: boolean } = {}) {
+function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolean; concurrentInit?: boolean; unrelatedHistory?: boolean; recordFails?: boolean; ambiguousUpdate?: boolean; truncatedRollback?: boolean } = {}) {
   const dest = { repo: "owner/site", branch: "main", previewBranch: "preview" };
   const heads: Record<string, string> = options.empty ? {} : { main: old, ...(options.absent ? {} : { preview: old }) };
   let empty = !!options.empty;
@@ -43,7 +43,7 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
         const source = path.slice("/compare/".length).split("...")[0];
         return NextResponse.json({ merge_base_commit: { sha: options.unrelatedHistory ? "f".repeat(40) : source } });
       }
-      if (path.startsWith("/git/trees/")) return NextResponse.json({ tree: entries });
+      if (path.startsWith("/git/trees/")) return NextResponse.json({ tree: entries, ...(options.truncatedRollback ? { truncated: true } : {}) });
       if (path === "/git/trees") return NextResponse.json({ sha: "tree" });
       if (path === "/git/commits") return NextResponse.json({ sha: created });
       if (path.startsWith("/git/commits/")) return NextResponse.json({ tree: { sha: "old-tree" }, message: "old" });
@@ -232,4 +232,12 @@ test("connection loss after a successful ref update is reconciled instead of inv
     assert.equal(f.heads.main, created);
     assert.equal(f.recorded, 1);
   }
+});
+
+test("rollback refuses a truncated GitHub tree before writing a replacement commit", async () => {
+  const f = fixture({ truncatedRollback: true });
+  const response = await f.post({ sha: old }, true);
+  assert.equal(response.status, 502);
+  assert.deepEqual(f.writes, []);
+  assert.equal(f.recorded, 0);
 });
