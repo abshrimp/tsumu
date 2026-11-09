@@ -22,7 +22,7 @@ export interface UseScriptDragDeps {
   setSelectedList: Dispatch<SetStateAction<string[]>>;
   dragRef: RefObject<Drag | null>;
   setMenu: Dispatch<SetStateAction<Menu | null>>;
-  setActiveSlot: Dispatch<SetStateAction<string | null>>;
+  setActiveSlot: (key: string | null) => void;
   setDrag: Dispatch<SetStateAction<Drag | null>>;
   latest: RefObject<ScriptEditorLatest>;
   paletteRef: RefObject<HTMLDivElement | null>;
