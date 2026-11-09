@@ -194,7 +194,6 @@ export function mapStep(
 export function numberFilters(scripts: PageScript[]): PageScript[] {
   const used = new Map<string, Set<number>>();
   const need: Extract<ScriptStep, { kind: "list-display" }>[] = [];
-  const next = structuredClone(scripts);
   const walk = (steps: ScriptStep[]) => {
     for (const st of steps) {
       if (st.kind === "list-display" && st.mode === "filter") {
@@ -210,32 +209,79 @@ export function numberFilters(scripts: PageScript[]): PageScript[] {
       }
     }
   };
-  next.forEach((sc) => walk(sc.steps));
+  scripts.forEach((script) => walk(script.steps));
   if (!need.length) return scripts;
+
+  // Renumber only the affected filter blocks and their enclosing branches.
+  // Deep cloning here discarded mapStep's sharing on every normal input edit.
+  const assigned = new Map<ScriptStep, number>();
   for (const st of need) {
     const set = used.get(st.array)!;
     let n = 1;
     while (set.has(n)) n++;
     set.add(n);
-    st.no = n;
+    assigned.set(st, n);
   }
-  return next;
+  const updateList = (steps: ScriptStep[]): ScriptStep[] => {
+    let changed: ScriptStep[] | undefined;
+    steps.forEach((step, index) => {
+      let result: ScriptStep = step;
+      if (step.kind === "list-display" && assigned.has(step)) {
+        result = { ...step, no: assigned.get(step)! };
+      } else if (step.kind === "if") {
+        const then = updateList(step.then);
+        const otherwise = step.else ? updateList(step.else) : undefined;
+        if (then !== step.then || otherwise !== step.else) {
+          result = { ...step, then, ...(step.else ? { else: otherwise } : {}) };
+        }
+      } else if (step.kind === "repeat" || step.kind === "for-each") {
+        const then = updateList(step.then);
+        if (then !== step.then) result = { ...step, then };
+      }
+      if (result !== step) {
+        changed ??= steps.slice();
+        changed[index] = result;
+      }
+    });
+    return changed ?? steps;
+  };
+  return scripts.map((script) => {
+    const steps = updateList(script.steps);
+    return steps === script.steps ? script : { ...script, steps };
+  });
 }
+
+// A single workspace can show many filter dropdowns. Reuse one index of
+// filter numbers for all of them instead of scanning every script repeatedly.
+const filterNumberIndex = new WeakMap<PageScript[], Map<string, number[]>>();
 
 /** ページの絞り込みの番号（配列ごと） */
 export function filterNumbersOf(scripts: PageScript[], array: string): number[] {
-  const out: number[] = [];
-  const walk = (steps: ScriptStep[]) => {
-    for (const st of steps) {
-      if (st.kind === "list-display" && st.mode === "filter" && st.array === array && st.no !== undefined) out.push(st.no);
-      else if (st.kind === "if") {
-        walk(st.then);
-        if (st.else) walk(st.else);
-      } else if (st.kind === "repeat" || st.kind === "for-each") walk(st.then);
-    }
-  };
-  scripts.forEach((sc) => walk(sc.steps));
-  return [...new Set(out)].sort((a, b) => a - b);
+  let index = filterNumberIndex.get(scripts);
+  if (!index) {
+    const collected = new Map<string, Set<number>>();
+    const walk = (steps: ScriptStep[]) => {
+      for (const st of steps) {
+        if (st.kind === "list-display" && st.mode === "filter" && st.no !== undefined) {
+          const numbers = collected.get(st.array) ?? new Set<number>();
+          numbers.add(st.no);
+          collected.set(st.array, numbers);
+        } else if (st.kind === "if") {
+          walk(st.then);
+          if (st.else) walk(st.else);
+        } else if (st.kind === "repeat" || st.kind === "for-each") {
+          walk(st.then);
+        }
+      }
+    };
+    scripts.forEach((script) => walk(script.steps));
+    index = new Map([...collected].map(([name, numbers]) =>
+      [name, [...numbers].sort((a, b) => a - b)]
+    ));
+    filterNumberIndex.set(scripts, index);
+  }
+  // Preserve the previous return-value contract (a fresh array per call).
+  return [...(index.get(array) ?? [])];
 }
 
 export const slotKey = (loc: Loc) => `${loc.scriptId}|${loc.list}|${loc.index}`;
