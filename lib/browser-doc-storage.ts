@@ -74,7 +74,9 @@ export async function writeBrowserDoc(id: string, raw: string, expected: string 
       const current = (request.result as string | undefined) ?? null;
       if (current !== expected && current !== raw) return;
       result = "saved";
-      if (current !== raw) store.put(raw, id);
+      if (current !== raw) {
+        try { store.put(raw, id); } catch { tx.abort(); }
+      }
     };
     tx.oncomplete = () => resolve(result);
     tx.onerror = () => reject(tx.error ?? new Error("IndexedDB write failed"));
@@ -92,8 +94,10 @@ export async function createBrowserDoc(id: string, raw: string): Promise<boolean
     let created = false;
     read.onsuccess = () => {
       if (read.result !== undefined) return;
-      store.add(raw, id);
-      created = true;
+      try {
+        store.add(raw, id);
+        created = true;
+      } catch { tx.abort(); }
     };
     tx.oncomplete = () => resolve(created);
     tx.onerror = () => reject(tx.error ?? new Error("IndexedDB create failed"));
