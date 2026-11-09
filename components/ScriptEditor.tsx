@@ -304,6 +304,7 @@ function ScriptEditorInner({
   };
   const dragRef = useRef<Drag | null>(null);
   const marqueeRef = useRef<Marquee | null>(null);
+  const marqueeElRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
   const [marquee, setMarquee] = useState<Marquee | null>(null);
   const ghostRef = useRef<HTMLDivElement>(null);
@@ -445,6 +446,7 @@ function ScriptEditorInner({
     latest,
     paletteRef,
     ghostRef,
+    marqueeElRef,
   });
   useScriptEditorKeys({ dragRef, cancelGesture, latest, setPeekId, setSelectedList });
 
@@ -939,6 +941,7 @@ function ScriptEditorInner({
         {ghost}
         {marquee && (
           <div
+            ref={marqueeElRef}
             className="se-marquee"
             style={{
               left: Math.min(marquee.x0, marquee.x),
