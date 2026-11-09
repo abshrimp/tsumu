@@ -135,12 +135,22 @@ export function setVarPath(vars: Record<string, unknown>, name: string, value: u
   if (owns(vars, name) || !name.includes(".")) {
     return write(name, value);
   }
+  let invalidPath = false;
   const put = (cur: unknown, keys: string[]): unknown => {
     if (!keys.length) return value;
     const [k, ...rest] = keys;
-    if (Array.isArray(cur) && /^(0|[1-9][0-9]*)$/.test(k)) {
-      const index = Number(k), copy = cur.slice();
-      if (!Number.isSafeInteger(index) || index > 1000000) return copy;
+    if (Array.isArray(cur)) {
+      // A nested array path must update an existing slot or append one item.
+      // Never turn a list into a dictionary or construct a sparse million-slot
+      // list from an accidental index (set-list-item follows the same rule).
+      if (!/^(0|[1-9][0-9]*)$/.test(k)) { invalidPath = true; return cur; }
+      const index = Number(k);
+      if (!Number.isSafeInteger(index) || index > cur.length ||
+          (index === cur.length && cur.length >= 10000)) {
+        invalidPath = true;
+        return cur;
+      }
+      const copy = cur.slice();
       copy[index] = put(owns(cur, index) ? cur[index] : undefined, rest);
       return copy;
     }
@@ -149,5 +159,6 @@ export function setVarPath(vars: Record<string, unknown>, name: string, value: u
   };
   const [root, ...rest] = name.split(".");
   if (rest.length > 64) return undefined;
-  return write(root, put(owns(vars, root) ? vars[root] : undefined, rest));
+  const candidate = put(owns(vars, root) ? vars[root] : undefined, rest);
+  return invalidPath ? undefined : write(root, candidate);
 }
