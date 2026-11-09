@@ -100,6 +100,7 @@ export async function loadLocale(): Promise<void> {
 
 function lookup(list: Dict[], key: string): string | undefined {
   for (const d of list) {
+    if (!Object.hasOwn(d, key)) continue;
     const v = d[key];
     if (v) return v;
   }
