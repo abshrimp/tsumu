@@ -147,11 +147,7 @@ export function MotionSec({ node }: { node: DocNode }) {
                       update(i, { keyframes: v });
                       return;
                     }
-                    // カスタムにしたら、それまでの動きを元に編集を始める
-                    const seed = m.customKeyframes?.trim()
-                      ? m.customKeyframes
-                      : KEYFRAMES.find((k) => k.key === m.keyframes)?.css ?? "";
-                    update(i, { keyframes: "custom", customKeyframes: seed });
+                    // まだ確定しない。キャンセル時は元のプリセットと履歴を保つ。
                     setKfEdit(m.id);
                   }}
                 />
@@ -309,12 +305,14 @@ export function MotionSec({ node }: { node: DocNode }) {
 
       {kfMotion && (
         <KeyframeEditorModal
-          css={kfMotion.customKeyframes ?? ""}
+          css={kfMotion.customKeyframes?.trim()
+            ? kfMotion.customKeyframes
+            : KEYFRAMES.find((k) => k.key === kfMotion.keyframes)?.css ?? ""}
           duration={kfMotion.duration}
           easing={kfMotion.easing}
           onClose={() => setKfEdit(null)}
           onApply={(css) => {
-            updateById(kfMotion.id, { customKeyframes: css });
+            updateById(kfMotion.id, { keyframes: "custom", customKeyframes: css });
             setKfEdit(null);
           }}
         />
