@@ -209,3 +209,17 @@ test("AUD-F-003: React refuses executable page scripts on data-driven DOM pages"
   assert.ok(!exportLimitations(site, "react").some((reason) =>
     reason.includes("カスタムスクリプト")));
 });
+
+test("AUD-F-004: exporting a selected unpublished page includes it without publishing it in the source", () => {
+  const site = doc();
+  site.pages.public.unpublished = true;
+  const scoped = exportScopeDoc(site, { ...opts, scope: "page" });
+  assert.equal(scoped.pages.public.unpublished, false);
+  assert.equal(site.pages.public.unpublished, true);
+  assert.deepEqual(scoped.pageOrder, ["public"]);
+  const html = generateExportProject(site, { ...opts, scope: "page" }).files["index.html"];
+  assert.match(html, /PUBLIC/);
+  assert.doesNotMatch(html, /PRIVATE-SENTINEL/);
+  assert.equal(site.pages.public.unpublished, true,
+    "exporting a page does not change the saved publication state");
+});
