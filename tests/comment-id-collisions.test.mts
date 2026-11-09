@@ -10,7 +10,7 @@ import { insertSite } from "../lib/sites";
 import * as comments from "../lib/comments";
 import type { ActivityUser } from "../lib/activity";
 import { userMessage } from "../lib/errors";
-import { JsonBodyTooLargeError, readJsonLimited } from "../lib/api-json";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
 const author = { email: "author@example.com", name: "Author", image: null };
 const other = { email: "other@example.com", name: "Other", image: null };
@@ -99,7 +99,7 @@ function api(db: Db, user: ActivityUser | null = author) {
   const injected = {
     listCommentPage: comments.listCommentPage, parseCommentCursor: comments.parseCommentCursor,
     parseCommentAction: comments.parseCommentAction, runCommentAction: comments.runCommentAction,
-    NextResponse, userMessage, JsonBodyTooLargeError, readJsonLimited,
+    NextResponse, userMessage, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited,
     serverTr: async () => (text: string) => text,
     requireAuth: async () => null, sessionUser: async () => user,
     dbConfigured: () => true, getDb: async () => db,
@@ -109,7 +109,7 @@ function api(db: Db, user: ActivityUser | null = author) {
   const source = stripTypeScriptTypes(readFileSync(new URL("../app/api/comments/route.ts", import.meta.url), "utf8"))
     .replace(/^import[\s\S]*?;\n/gm, "").replace(/^export /gm, "");
   const post = new Function(...Object.keys(injected), `${source}\nreturn POST;`)(...Object.values(injected)) as (req: Request) => Promise<Response>;
-  return (body: comments.CommentAction) => post(new Request("https://example.com/api/comments?site=site&focus=thread", { method: "POST", body: JSON.stringify(body) }));
+  return (body: comments.CommentAction) => post(new Request("https://example.com/api/comments?site=site&focus=thread", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }));
 }
 
 test("the API returns generic 409 conflicts, 200 for identical retries and the existing 404 for a missing thread", async () => database(async db => {
