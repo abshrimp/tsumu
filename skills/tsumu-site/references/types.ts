@@ -535,6 +535,7 @@ export interface PwaSetting {
 }
 
 export interface SiteDoc {
+  schemaVersion: 1;
   siteName: string;
   
 

@@ -217,7 +217,7 @@ export function validNodeForest(pages: Record<string, unknown>, nodes: Record<st
 export function validSiteDoc(parsed: unknown): boolean {
   const record = (value: unknown): value is Record<string, unknown> =>
     !!value && typeof value === "object" && !Array.isArray(value);
-  if (!record(parsed) || typeof parsed.siteName !== "string" ||
+  if (!record(parsed) || parsed.schemaVersion !== 1 || typeof parsed.siteName !== "string" ||
       !record(parsed.pages) || !record(parsed.nodes) || !record(parsed.assets) ||
       !Array.isArray(parsed.pageOrder) || !parsed.pageOrder.length) return false;
   if (!Object.entries(parsed.assets).every(([id, asset]) => validAssetEntry(id, asset)) ||

@@ -8,7 +8,7 @@ export type DocPatch = DocPatchOp[];
 // D1 のバインド数上限内に収める。大規模な置き換えは従来の全体保存を使う。
 export const MAX_PATCH_OPS = 32;
 const COLLECTIONS = new Set(["pages", "nodes", "assets", "components"]);
-const REQUIRED = new Set(["pages", "nodes", "assets", "pageOrder", "siteName"]);
+const REQUIRED = new Set(["schemaVersion", "pages", "nodes", "assets", "pageOrder", "siteName"]);
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
 const safeKey = (key: unknown): key is string => typeof key === "string" &&
@@ -20,6 +20,7 @@ export function isDocPatch(value: unknown): value is DocPatch {
   for (const op of value) {
     if (!record(op) || !Array.isArray(op.path) || !op.path.every(safeKey)) return false;
     const path = op.path as string[];
+    if (path[0] === "schemaVersion") return false;
     if (path.length !== 1 && !(path.length === 2 && COLLECTIONS.has(path[0]))) return false;
     // 同じ場所や親子を同時に操作させず、SQLとブラウザで適用順が変わらないようにする。
     if (paths.some((other) => other[0] === path[0] &&

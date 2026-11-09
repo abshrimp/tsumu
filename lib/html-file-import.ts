@@ -61,6 +61,7 @@ function convertHtmlPages(
   const main = pages[0];
   const prefix = main.name.slice(0, main.name.lastIndexOf("/") + 1);
   const result: SiteDoc = {
+    schemaVersion: 1,
     siteName: "", pageOrder: [], pages: {}, nodes: {},
     assets: Object.fromEntries(assets.map((asset) => [asset.id, asset])),
   };

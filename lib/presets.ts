@@ -970,6 +970,7 @@ export function createInitialDoc(): SiteDoc {
   const demo = buildDemoProducts(nodes);
 
   return {
+    schemaVersion: 1,
     siteName: "My Site",
     // 初期の文言はエディタの表示言語で入るので、サイトの言語もそれに合わせる
     lang: getLang(),

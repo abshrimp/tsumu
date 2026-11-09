@@ -563,6 +563,8 @@ export interface PwaSetting {
 }
 
 export interface SiteDoc {
+  /** The exact on-disk document schema; all persistence paths require it. */
+  schemaVersion: 1;
   siteName: string;
   /**
    * 公開サイトの言語（BCP 47 の言語コード。例: ja, en, zh-Hant）。<html lang> などに使う。
