@@ -257,6 +257,9 @@ const en: Dict = {
   "インポート時の注意事項": "Import notices",
   "サイト一覧を保存できませんでした。": "Could not save the site list.",
   "ブラウザにサイトを保存できませんでした。空き容量と保存設定を確認してください。": "Could not save the site in this browser. Check available storage and browser settings.",
+  "HTMLのスタイルが複雑すぎます。": "The HTML styles are too complex.",
+  "アップロード結果を確認できませんでした。": "Could not confirm the uploaded file location.",
+  "保存結果を確認できませんでした。ホームのサイト一覧を確認してください。": "Could not confirm the save. Check the site list on the home screen.",
   "サイトを作成できませんでした。": "Could not create the site.",
   "編集データを保存できませんでした。": "Could not save the edit data.",
   "編集データを確認しています…": "Validating edit data…",
@@ -852,8 +855,8 @@ const en: Dict = {
     "No accounts have access yet.",
   "追加":
     "Add",
-  "追加・削除は次回のログインから反映されます（削除しても、ログイン中のセッションは有効期限まで残ります）。":
-    "Changes apply from the next sign-in (removed accounts stay signed in until their session expires).",
+  "追加したアカウントはログインできるようになります。削除したアカウントは、ログイン中でも次回のアクセスから利用が制限されます。":
+    "Added accounts can sign in. Removed accounts are restricted from their next access, even if already signed in.",
   "ログアウトしますか？":
     "Sign out?",
   "もう一度使うには、Googleアカウントでログインし直す必要があります。":

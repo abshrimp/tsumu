@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LoaderCircle, Trash2, TriangleAlert } from "lucide-react";
 import { isEnterKey } from "../lib/keys";
 import { showConfirm } from "../lib/dialog";
@@ -26,6 +26,9 @@ export default function AllowedAccounts() {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
 
+  const pending = useRef<object | null>(null);
+  useEffect(() => () => { pending.current = null; }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -49,7 +52,9 @@ export default function AllowedAccounts() {
 
   const add = async () => {
     const v = email.trim();
-    if (!v || busy) return;
+    if (!v || pending.current) return;
+    const request = {};
+    pending.current = request;
     setBusy(true);
     setError(null);
     try {
@@ -59,43 +64,45 @@ export default function AllowedAccounts() {
         body: JSON.stringify({ email: v }),
       });
       const data = await res.json();
+      if (pending.current !== request) return;
       if (!res.ok) {
         setError(data.error ?? tr("追加できませんでした"));
         return;
       }
       setUsers(data);
-      setEmail("");
+      setEmail(current => current.trim() === v ? "" : current);
     } catch {
-      setError(tr("追加できませんでした"));
+      if (pending.current === request) setError(tr("追加できませんでした"));
     } finally {
-      setBusy(false);
+      if (pending.current === request) { pending.current = null; setBusy(false); }
     }
   };
 
   const remove = async (target: string) => {
-    if (
-      !(await showConfirm(tr("「{target}」はこのエディタにログインできなくなります。", { target }), {
-        title: tr("ログイン許可を取り消しますか？"),
-        okLabel: tr("取り消す"),
-        danger: true,
-      }))
-    ) {
-      return;
-    }
+    if (pending.current) return;
+    const request = {};
+    pending.current = request;
     setBusy(true);
     setError(null);
     try {
+      const accepted = await showConfirm(tr("「{target}」はこのエディタにログインできなくなります。", { target }), {
+        title: tr("ログイン許可を取り消しますか？"),
+        okLabel: tr("取り消す"),
+        danger: true,
+      });
+      if (!accepted || pending.current !== request) return;
       const res = await fetch(`/api/allowed-users?email=${encodeURIComponent(target)}`, { method: "DELETE" });
       const data = await res.json();
+      if (pending.current !== request) return;
       if (!res.ok) {
         setError(data.error ?? tr("削除できませんでした"));
         return;
       }
       setUsers(data);
     } catch {
-      setError(tr("削除できませんでした"));
+      if (pending.current === request) setError(tr("削除できませんでした"));
     } finally {
-      setBusy(false);
+      if (pending.current === request) { pending.current = null; setBusy(false); }
     }
   };
 
@@ -180,7 +187,7 @@ export default function AllowedAccounts() {
       </div>
       {error && <p className="acct-add-error">{error}</p>}
       <p className="hint acct-note">
-        {tr("追加・削除は次回のログインから反映されます（削除しても、ログイン中のセッションは有効期限まで残ります）。")}
+        {tr("追加したアカウントはログインできるようになります。削除したアカウントは、ログイン中でも次回のアクセスから利用が制限されます。")}
       </p>
     </>
   );

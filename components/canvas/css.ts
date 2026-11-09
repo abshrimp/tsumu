@@ -2,6 +2,7 @@
  * キャンバスに当てるCSS（要素のスタイル・画面幅・状態）と、HTMLページのプレビュー用の本文スタイル
  */
 
+import { escapeStyleContent } from "../../lib/css-assets";
 import { keyframesCss, motionCss } from "../../lib/motion";
 import type { Breakpoint, NodeStyles, SiteDoc, StyleState } from "../../lib/types";
 import { customStateSelector } from "../../lib/custom-states";
@@ -30,7 +31,7 @@ export function previewHtmlWithBodyStyles(
   const map = resolveStyleMap(styles, bp, "default");
   map.width ??= "auto";
   map.height ??= "auto";
-  const safeCss = cssBody(map).replace(/<\/style/gi, "<\\/style");
+  const safeCss = escapeStyleContent(cssBody(map));
   const style = `<style data-editor-body-style>body { ${safeCss} }</style>`;
   return /<\/head>/i.test(html)
     ? html.replace(/<\/head>/i, (end) => `${style}${end}`)
