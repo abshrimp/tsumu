@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { transformSync } from "esbuild";
 import * as files from "../lib/publish-files";
 import * as contract from "../lib/publish-preconditions";
+import { advanceBranchRef } from "../lib/github";
 
 const require = createRequire(import.meta.url);
 class NextResponse extends Response {
@@ -66,7 +67,7 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
     "lib/i18n-server": { serverTr: async () => (s: string) => s },
     "lib/server": { requireAuth: async () => null, recordPublish: async () => { recorded++; if (options.recordFails) throw new Error("Storage unavailable"); } },
     "lib/site-server": { siteIdOf: async (site: string) => site, siteDestOf: async () => dest, destParam: () => undefined },
-    "lib/github": { targetConfig: conf, configError: () => null, githubClient: client, branchPath: (s: string) => s, previewEnabled: () => true },
+    "lib/github": { advanceBranchRef, targetConfig: conf, configError: () => null, githubClient: client, branchPath: (s: string) => s, previewEnabled: () => true },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
     "lib/publish-files": files, "lib/publish-preconditions": contract,
   };
