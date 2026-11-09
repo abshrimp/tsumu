@@ -3,6 +3,7 @@ import { serverTr } from "../../../../lib/i18n-server";
 import { recordPublish, requireAuth } from "../../../../lib/server";
 import {
   branchPath,
+  advanceBranchRef,
   configError,
   githubClient,
   targetConfig,
@@ -190,19 +191,19 @@ export async function POST(req: Request) {
     });
     if (!commitRes.ok) await fail(tr("コミットの作成"), commitRes);
     const commitSha = (await commitRes.json()).sha as string;
-    const upRes = await gh(`/git/refs/heads/${branchPath(conf.branch)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ sha: commitSha, force: false }),
-    });
-    if (upRes.status === 422 || upRes.status === 409) {
+    if (!(await advanceBranchRef(gh, fail, conf.branch, commitSha, true, tr))) {
       return NextResponse.json(
         { error: tr("ほかの公開と重なりました。履歴を読み込み直してから、もう一度お試しください") },
         { status: 409 }
       );
     }
-    if (!upRes.ok) await fail(tr("ブランチの更新"), upRes);
-    // ロールバックも公開として記録する（右下の「公開」に、最後に公開した人として出す）
-    await recordPublish(siteId, target);
+    // GitHub's ref has already moved. A bookkeeping outage must not report
+    // that rollback failed and encourage a duplicate rollback commit.
+    try {
+      await recordPublish(siteId, target);
+    } catch {
+      console.warn("Rollback completed, but the local publication record could not be updated", { siteId, target });
+    }
     return NextResponse.json({
       ok: true,
       commit: commitSha,
