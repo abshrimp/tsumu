@@ -133,3 +133,12 @@ This is a later checkpoint. Earlier rows above remain historical snapshots; they
 - Audit G [#29](https://github.com/abshrimp/tsumu/pull/29): HEAD CI green, but a disposable-repository GitHub publish→manual-edit→rollback→restore smoke and production token-permission verification remain unperformed.
 - This coordinator branch remains a draft. Neither this checkpoint nor previously green individual PRs establishes completed final-main integration or absence of all security alerts.
 
+
+## M checkpoint: E successfully integrated (2026-11-09)
+
+- Import and asset audit [#26](https://github.com/abshrimp/tsumu/pull/26) was squash-merged as `63df277bcade99a699b23d5f555232053c932ea1`, after **all 14 latest-HEAD checks succeeded**, including four Playwright E2E shards and Cloudflare Workers Builds. E's final validation reuses the B SiteDoc integrity rules and rejects dangling asset/folder references; its synthetic concurrency fixtures were updated to match the current schema.
+- The seven audit PRs merged during this integration pass are J #28, I #25, H #27, D #24, B #31, A #33 and E #26; C #23 was previously merged.
+- F [#30](https://github.com/abshrimp/tsumu/pull/30) was verified on 27 green checks, but deliberately converted to draft because generated-code and edit-ZIP credential handling still require a security/design decision.
+- G [#29](https://github.com/abshrimp/tsumu/pull/29) remains unmerged despite 14 green checks because an isolated GitHub publishing/restore smoke and independent safety review are outstanding.
+- M [#32](https://github.com/abshrimp/tsumu/pull/32) remains draft pending integrated-main CI, final audit coverage and a verified CodeQL/Dependabot alert backlog. The absence of security alerts is not inferred from green workflows.
+
