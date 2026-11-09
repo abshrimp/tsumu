@@ -78,7 +78,7 @@ export async function POST(req: Request) {
   try {
     const input = await readJsonLimited(req, 16 * 1024, false);
     // 配列やオブジェクトを String(...) でメールアドレスに変換しない。
-    if (!input || typeof input !== "object" || Array.isArray(input) || typeof input.email !== "string") {
+    if (!input || typeof input !== "object" || Array.isArray(input) || !("email" in input) || typeof input.email !== "string") {
       throw new TypeError("Invalid email type");
     }
     email = input.email.trim().toLowerCase();
