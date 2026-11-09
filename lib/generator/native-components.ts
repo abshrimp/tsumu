@@ -1,3 +1,4 @@
+import { assetMediaUrl } from "../assets";
 import type { SiteDoc, Page, DocNode } from "../types";
 import { obfuscateVarNames, pagePlan } from "../data";
 import { buildClassNames, buildAssetNames } from "./names";
@@ -126,7 +127,7 @@ function node(ctx: Context, id: string, top = false): string {
     if (n.type === "image" && n.image) {
       const im = n.image;
       const source = im.assetId && ctx.assets.get(im.assetId) ?
-        "/assets/" + ctx.assets.get(im.assetId) : im.src;
+        assetMediaUrl("/assets/" + ctx.assets.get(im.assetId), im.assetSuffix) : im.src;
       return "<img" + attrs + srcAttr(ctx, "src", source, true) + valueAttr(ctx, "alt", im.alt) +
         literal("width", im.width || 800) + literal("height", im.height || 500) +
         literal("fetchpriority", im.priority ? "high" : undefined) +
@@ -138,11 +139,17 @@ function node(ctx: Context, id: string, top = false): string {
       const media = n.media;
       const tag = media.kind === "audio" ? "audio" : "video";
       const source = media.assetId && ctx.assets.get(media.assetId) ?
-        "/assets/" + ctx.assets.get(media.assetId) : media.src;
-      return "<" + tag + attrs + srcAttr(ctx, "src", source, true) + " controls" +
+        assetMediaUrl("/assets/" + ctx.assets.get(media.assetId), media.assetSuffix) : media.src;
+      const sources = (media.sources ?? []).map((item) => {
+        const url = item.assetId && ctx.assets.get(item.assetId) ?
+          assetMediaUrl("/assets/" + ctx.assets.get(item.assetId), item.assetSuffix) : item.src;
+        return url.trim() ? "<source" + srcAttr(ctx, "src", url, true) + literal("type", item.type) +
+          literal("media", item.media) + (ctx.vue ? ">" : " />") : "";
+      }).join("");
+      return "<" + tag + attrs + (source.trim() ? srcAttr(ctx, "src", source, true) : "") + " controls" +
         truth("autoplay", media.autoplay) + truth("loop", media.loop) +
         truth("muted", media.muted || media.autoplay) +
-        (tag === "video" ? " playsinline" : "") + "></" + tag + ">";
+        (tag === "video" ? " playsinline" : "") + ">" + sources + "</" + tag + ">";
     }
     if (n.type === "embed" && n.embed) {
       const url = embedSrc(n.embed);

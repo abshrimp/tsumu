@@ -79,10 +79,22 @@ export interface FieldContent {
   multiple?: boolean;
 }
 
+/** 動画・音声の代替ソース。識別子とURL末尾を分けて保存する。 */
+export interface MediaSource {
+  src: string;
+  assetId?: string;
+  assetSuffix?: string;
+  type?: string;
+  media?: string;
+}
+
 export interface MediaContent {
+  sources?: MediaSource[];
   kind: "video" | "audio";
   src: string;
   assetId?: string;
+  /** アセットに付けるクエリ・フラグメント（先頭は ? または #）。 */
+  assetSuffix?: string;
   loop?: boolean;
   autoplay?: boolean;
   muted?: boolean;
@@ -385,6 +397,8 @@ export interface ImageContent {
   width: number;
   height: number;
   assetId?: string;
+  /** アセットに付けるクエリ・フラグメント（先頭は ? または #）。 */
+  assetSuffix?: string;
   priority?: boolean;
   /** false = シャドウ付きSVGのiOS Safari向けぼやけ対策を適用しない */
   crispShadow?: boolean;

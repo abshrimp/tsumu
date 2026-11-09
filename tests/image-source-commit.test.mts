@@ -28,7 +28,7 @@ const findSource = (tree: any): any => {
 for (const asset of [false, true]) test(`image source ${asset ? "preserves an untouched asset placeholder" : "can be cleared with undo and redo"}`, () => {
   const doc = createInitialDoc();
   const image = { src: asset ? "/api/assets/file?path=image" : "https://example.test/image.png", alt: "Keep alt", width: 40, height: 30,
-    ...(asset ? { assetId: "image" } : {}) };
+    ...(asset ? { assetId: "image", assetSuffix: "#view" } : {}) };
   const node = { ...makeBox(), id: "image", type: "image" as const, image };
   doc.nodes.image = node;
   doc.pages[doc.pageOrder[0]].children = [node.id];
@@ -41,7 +41,7 @@ for (const asset of [false, true]) test(`image source ${asset ? "preserves an un
     assert.deepEqual(useEditor.getState().doc.nodes.image.image, image);
     assert.equal(useEditor.getState().past.length, 0);
   } else {
-    assert.deepEqual(useEditor.getState().doc.nodes.image.image, { ...image, src: "", assetId: undefined });
+    assert.deepEqual(useEditor.getState().doc.nodes.image.image, { ...image, src: "", assetId: undefined, assetSuffix: undefined });
     useEditor.getState().undo();
     assert.deepEqual(useEditor.getState().doc.nodes.image.image, image);
     useEditor.getState().redo();

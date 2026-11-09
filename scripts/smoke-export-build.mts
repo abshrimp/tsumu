@@ -21,7 +21,7 @@ const doc: SiteDoc = {
   pageOrder: ["home"],
   pages: {
     home: { id: "home", name: "Home", slug: "", title: "Home", description: "",
-      children: ["heading", "literal-text", "picture", "search", "items", "action-button", "status-text", "component-instance"],
+      children: ["heading", "literal-text", "picture", "media-sources", "search", "items", "action-button", "status-text", "component-instance"],
       pageScripts: [{
         id: "load", trigger: "load", pos: { x: 0, y: 0 },
         steps: [
@@ -39,6 +39,11 @@ const doc: SiteDoc = {
     picture: { ...makeBox(), id: "picture", type: "image",
       image: { src: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==",
         alt: "Pixel", width: 1, height: 1 } },
+    "media-sources": { ...makeBox(), id: "media-sources", type: "media",
+      media: { kind: "video", src: "", sources: [
+        { src: "", assetId: "clip", assetSuffix: "?v=a%26b#t=1,2", type: "video/mp4", media: "(min-width: 1px)" },
+        { src: "", assetId: "clip", assetSuffix: "#t=2", type: "video/mp4" },
+      ] } },
     search: { ...makeBox(), id: "search", type: "field", attrId: "searchTerm",
       field: { kind: "input", inputType: "text", defaultValue: "", placeholder: "Search {1 + 2}" } },
     items: { ...makeBox(), id: "items", type: "list", list: { from: "names" }, children: ["row"] },
@@ -55,7 +60,8 @@ const doc: SiteDoc = {
     card: { ...makeBox(), id: "card", text: { content: "Reusable", heading: 0 } },
   },
   components: { card: { id: "card", name: "Reusable card", rootId: "card" } },
-  assets: {},
+  assets: { clip: { id: "clip", name: "clip.mp4", dataUrl: "data:video/mp4;base64,AQID",
+    mimeType: "video/mp4", width: 1, height: 1 } },
 };
 // Exercise the complete user-facing export pipeline (including JS conversion).
 const project = await prepareExportProject(doc, options);
