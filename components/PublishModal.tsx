@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   CloudOff,
@@ -13,6 +13,7 @@ import {
   RotateCcw,
   TriangleAlert,
 } from "lucide-react";
+import { usePendingImport } from "../lib/use-pending-import";
 import { docFingerprint, useEditor } from "../lib/store";
 import { HelpLink } from "./HelpCenter";
 import { showAlert, showConfirm } from "../lib/dialog";
@@ -717,9 +718,10 @@ function formatSize(bytes: number): string {
 }
 
 /** 取得した編集データを確かめて、確認のうえで今の編集内容をそれに置き換える */
-async function restoreFrom(url: string, label: string): Promise<boolean> {
+async function restoreFrom(url: string, label: string, current: () => boolean): Promise<boolean> {
   const res = await fetch(url);
   const data = (await res.json().catch(() => null)) as (SiteDoc & { error?: string }) | null;
+  if (!current()) return false;
   if (!res.ok || !data) throw new Error(data?.error ?? tr("編集データを読み込めませんでした"));
   if (!data.pages || !data.nodes || !data.pageOrder?.length) {
     throw new Error(tr("編集データの形式ではありません"));
@@ -728,7 +730,7 @@ async function restoreFrom(url: string, label: string): Promise<boolean> {
     tr("いまの編集内容が「{label}」の内容に置き換わります。サーバーにも保存されますが、「元に戻す」（⌘Z）で今の内容に戻せます。", { label }),
     { title: tr("この版の編集内容に戻しますか？"), okLabel: tr("この版に戻す") }
   );
-  if (!ok) return false;
+  if (!ok || !current()) return false;
   useEditor.getState().restoreDoc(data);
   return true;
 }
@@ -737,6 +739,7 @@ function PublishHistory({ conf, onDone }: { conf: PublishConfig; onDone: () => v
   const [target, setTarget] = useState<PublishTarget>("production");
   // 実行中の復元・ロールバックは、公開先を切り替えても重ねて実行させない。
   const [busy, setBusy] = useState<string | null>(null);
+  const busyRequest = useRef(0);
   return (
     <>
       {conf.previewEnabled && (
@@ -747,21 +750,23 @@ function PublishHistory({ conf, onDone }: { conf: PublishConfig; onDone: () => v
         />
       )}
       {/* 公開先が変わったら履歴の状態を作り直し、前の通信結果を別の公開先に表示しない。 */}
-      <TargetHistory key={target} conf={conf} target={target} onDone={onDone} busy={busy} setBusy={setBusy} />
+      <TargetHistory key={target} conf={conf} target={target} onDone={onDone} busy={busy} setBusy={setBusy} busyRequest={busyRequest} />
     </>
   );
 }
 
-function TargetHistory({ conf, target, onDone, busy, setBusy }: {
+function TargetHistory({ conf, target, onDone, busy, setBusy, busyRequest }: {
   conf: PublishConfig;
   target: PublishTarget;
   onDone: () => void;
   busy: string | null;
   setBusy: (value: string | null) => void;
+  busyRequest: { current: number };
 }) {
   const [state, setState] = useState<{ head: string | null; commits: PublishCommit[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const info = conf[target];
+  const pendingRestore = usePendingImport(JSON.stringify(["publish-history", conf.site, target, info]));
 
   const load = useCallback(async () => {
     setState(null);
@@ -789,6 +794,7 @@ function TargetHistory({ conf, target, onDone, busy, setBusy }: {
       { title: tr("公開サイトをこの版に戻しますか？"), okLabel: tr("この版に戻す"), danger: target === "production" }
     );
     if (!ok) return;
+    const request = ++busyRequest.current;
     setBusy(c.sha);
     try {
       await postPublish(conf, target, { target, sha: c.sha, expectedHead: state?.head }, tr("ロールバックできませんでした"), "/api/publish/history");
@@ -798,18 +804,21 @@ function TargetHistory({ conf, target, onDone, busy, setBusy }: {
       if (e instanceof PublishConflictError) { setState(null); setError(e.message); }
       void showAlert(userMessage(e, tr("ロールバックできませんでした")), { title: tr("ロールバックできませんでした") });
     } finally {
-      setBusy(null);
+      if (busyRequest.current === request) setBusy(null);
     }
   };
 
   const restore = async (c: PublishCommit) => {
+    const operation = pendingRestore.begin();
+    const request = ++busyRequest.current;
     setBusy(`doc:${c.sha}`);
     try {
-      if (await restoreFrom(historyUrl(conf, target, c.sha), formatDate(c.date))) onDone();
+      if (await restoreFrom(historyUrl(conf, target, c.sha), formatDate(c.date), operation.current)) onDone();
     } catch (e) {
-      void showAlert(userMessage(e, tr("編集データを読み込めませんでした")), { title: tr("編集データを読み込めませんでした") });
+      if (operation.current()) void showAlert(userMessage(e, tr("編集データを読み込めませんでした")), { title: tr("編集データを読み込めませんでした") });
     } finally {
-      setBusy(null);
+      operation.finish();
+      if (busyRequest.current === request) setBusy(null);
     }
   };
 
@@ -876,6 +885,8 @@ function BackupHistory({ onDone }: { onDone: () => void }) {
   const [list, setList] = useState<Backup[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
+  const busyRequest = useRef(0);
+  const pendingRestore = usePendingImport("server-backup-history");
 
   useEffect(() => {
     let cancelled = false;
@@ -895,13 +906,16 @@ function BackupHistory({ onDone }: { onDone: () => void }) {
   }, []);
 
   const restore = async (b: Backup) => {
+    const operation = pendingRestore.begin();
+    const request = ++busyRequest.current;
     setBusy(b.day);
     try {
-      if (await restoreFrom(siteApi("/api/doc/backups", { day: b.day }), formatDate(b.savedAt))) onDone();
+      if (await restoreFrom(siteApi("/api/doc/backups", { day: b.day }), formatDate(b.savedAt), operation.current)) onDone();
     } catch (e) {
-      void showAlert(userMessage(e, tr("編集データを読み込めませんでした")), { title: tr("編集データを読み込めませんでした") });
+      if (operation.current()) void showAlert(userMessage(e, tr("編集データを読み込めませんでした")), { title: tr("編集データを読み込めませんでした") });
     } finally {
-      setBusy(null);
+      operation.finish();
+      if (busyRequest.current === request) setBusy(null);
     }
   };
 
