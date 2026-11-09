@@ -112,7 +112,10 @@ function convertHtmlPages(
           const relative = m?.[1] || "";
           const suffix = m?.[2] || "";
           const folder = filename.slice(0, filename.lastIndexOf("/") + 1);
-          const candidate = canonical(relative.startsWith("/") ? prefix + relative : folder + relative);
+          // パスのないクエリは親フォルダではなく、現在のHTMLページを指す。
+          const candidate = canonical(relative
+            ? relative.startsWith("/") ? prefix + relative : folder + relative
+            : filename);
           const matches = [candidate, candidate + ".html", candidate + ".htm",
             candidate.replace(/\/$/, "") + "/index.html"];
           const found = matches.map((name) => paths.get(name)).find(Boolean);
