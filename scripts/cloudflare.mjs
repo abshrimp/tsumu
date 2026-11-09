@@ -42,9 +42,29 @@ export function parseJsonc(src) {
   return JSON.parse(out.replace(/"(?:\\.|[^"\\])*"|,(\s*[}\]])/g, (match, closing) => closing ?? match));
 }
 
+/** Validate the actual deployment config, including WRANGLER_CONFIG and local files. */
+export function assertProductionStorage(config, env = process.env) {
+  if (env.TSUMU_ALLOW_BROWSER_ONLY_DEPLOY === "true") return;
+  const missing = [];
+  for (const [key, binding, idKey, label] of [
+    ["d1_databases", "DB", "database_id", "D1 (DB)"],
+    ["kv_namespaces", "ASSETS_KV", "id", "KV (ASSETS_KV)"],
+  ]) {
+    const entry = (config[key] ?? []).find((item) => item.binding === binding);
+    const id = entry?.[idKey];
+    if (typeof id !== "string" || !id.trim() || id !== id.trim() || /[<>]/.test(id)) missing.push(label);
+  }
+  if (missing.length) throw new Error(
+    `Refusing deployment without ${missing.join(", ")}. Configure D1/KV IDs ` +
+      "or explicitly set TSUMU_ALLOW_BROWSER_ONLY_DEPLOY=true for browser-only deployment."
+  );
+}
 export function wranglerConfigPath({ deploy = false } = {}) {
-  if (process.env.WRANGLER_CONFIG) return process.env.WRANGLER_CONFIG;
-  if (existsSync("wrangler.local.jsonc")) return "wrangler.local.jsonc";
+  const explicit = process.env.WRANGLER_CONFIG || (existsSync("wrangler.local.jsonc") ? "wrangler.local.jsonc" : null);
+  if (explicit) {
+    if (deploy) assertProductionStorage(parseJsonc(readFileSync(explicit, "utf8")));
+    return explicit;
+  }
 
   const config = parseJsonc(readFileSync("wrangler.jsonc", "utf8"));
   const d1 = process.env.D1_DATABASE_ID;
@@ -56,15 +76,9 @@ export function wranglerConfigPath({ deploy = false } = {}) {
   config.kv_namespaces = (config.kv_namespaces ?? [])
     .map((ns) => (ns.id === KV_PLACEHOLDER && kv ? { ...ns, id: kv } : ns))
     .filter((ns) => ns.id !== KV_PLACEHOLDER || (missing.push(`KV (${ns.binding})`), false));
-  // Deploying from an unconfigured checkout must not silently replace server
-  // storage with browser-only storage. Builds and local previews remain usable
-  // without bindings; a browser-only production deploy requires explicit opt-in.
-  if (deploy && missing.length && process.env.TSUMU_ALLOW_BROWSER_ONLY_DEPLOY !== "true") {
-    throw new Error(
-      `Refusing deployment without ${missing.join(", ")}. Configure D1_DATABASE_ID / KV_NAMESPACE_ID ` +
-        "or explicitly set TSUMU_ALLOW_BROWSER_ONLY_DEPLOY=true for browser-only deployment."
-    );
-  }
+  // Builds and previews may omit bindings, but production must not silently
+  // discard shared storage unless the operator explicitly opts in.
+  if (deploy) assertProductionStorage(config);
   if (!config.d1_databases.length) delete config.d1_databases;
   if (!config.kv_namespaces.length) delete config.kv_namespaces;
   if (missing.length) {
