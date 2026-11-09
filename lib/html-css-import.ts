@@ -74,11 +74,21 @@ function findImports(css: string): ImportStatement[] {
   return out;
 }
 
-const supportedImportMedia = (condition: string): boolean =>
-  !condition || condition === "all" ||
-  (!/\blayer\b|\bsupports\s*\(/i.test(condition) &&
-   !/^(?:print|speech)\b/i.test(condition) &&
-   /^[a-z0-9\s(),:./-]+$/i.test(condition));
+/** Represent supported @import layer and media modifiers without inventing a media query. */
+function importConditions(condition: string): { media: string; layer?: string } | null {
+  let media = condition.trim();
+  let layer: string | undefined;
+  const modifier = /^layer(?:\(\s*([a-z_][\w-]*(?:\.[a-z_][\w-]*)*)\s*\))?(?=\s|$)/i.exec(media);
+  if (modifier) {
+    layer = modifier[1] ?? "";
+    media = media.slice(modifier[0].length).trim();
+  }
+  if (media && media.toLowerCase() !== "all" &&
+      (/\blayer\b|\bsupports\s*\(/i.test(media) ||
+       /^(?:print|speech)\b/i.test(media) ||
+       !/^[a-z0-9\s(),:./-]+$/i.test(media))) return null;
+  return { media, ...(layer === undefined ? {} : { layer }) };
+}
 
 /**
  * Recursively inline CSS from a local HTML ZIP while preserving media query
@@ -119,7 +129,8 @@ export function expandZipCss(
       from = statement.end;
       const target = resolveImport(statement.url, asset);
       const sheet = zipStylesheet(target);
-      if (!sheet || !supportedImportMedia(statement.media)) {
+      const conditions = importConditions(statement.media);
+      if (!sheet || !conditions) {
         unresolved.push(statement.raw);
         warning("Some CSS @import rules could not be resolved; they were kept as custom code.");
         continue;
@@ -129,9 +140,11 @@ export function expandZipCss(
         continue;
       }
       const inner = expand(sheet.source, target, new Set(stack).add(target!.id));
-      result += statement.media && statement.media.toLowerCase() !== "all"
-        ? `@media ${statement.media} {\n${inner}\n}\n`
-        : inner + "\n";
+      const layered = conditions.layer === undefined ? inner :
+        `@layer${conditions.layer ? " " + conditions.layer : ""} {\n${inner}\n}`;
+      result += conditions.media && conditions.media.toLowerCase() !== "all"
+        ? `@media ${conditions.media} {\n${layered}\n}\n`
+        : layered + "\n";
     }
     result += css.slice(from);
     const references = new Map((zipStylesheet(asset)?.references ?? []).map((r) => [r.url, r] as const));
