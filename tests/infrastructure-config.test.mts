@@ -32,10 +32,10 @@ test("CI checks pull requests without path skips, dependencies, workers and all 
   assert.match(requiredCheck, /npm audit --omit=dev --audit-level=high/);
   assert.match(requiredCheck, /npm audit --audit-level=high/);
   assert.match(requiredCheck, /npm run build:worker/);
-  assert.match(requiredCheck, /docker build --tag tsumu:ci \\./);
-  assert.match(requiredCheck, /docker run --detach --name tsumu-ci/);
-  assert.match(requiredCheck, /docker exec tsumu-ci id -u/);
-  assert.match(requiredCheck, /http:\/\/127\\.0\\.0\\.1:3188\/robots\\.txt/);
+  assert.ok(requiredCheck.includes("docker build --tag tsumu:ci ."));
+  assert.ok(requiredCheck.includes("docker run --detach --name tsumu-ci"));
+  assert.ok(requiredCheck.includes("docker exec tsumu-ci id -u"));
+  assert.ok(requiredCheck.includes("http://127.0.0.1:3188/robots.txt"));
   assert.match(workflow, /shard: \[1, 2, 3, 4\]/);
   assert.match(workflow, /framework: \[nextjs, react, vue, nuxt, sveltekit\]/);
   assert.match(workflow, /node scripts\/run-e2e-shard\.mjs/);
