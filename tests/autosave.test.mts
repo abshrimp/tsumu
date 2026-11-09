@@ -35,9 +35,7 @@ function harness() {
 
 test("reopening an already synchronized document does not create an unsynced flag", () => {
   const h = harness();
-  const saved = h.scope.lastSyncedDoc.current;
-  h.state.doc = saved as typeof h.state.doc;
-  h.scope.observedDoc.current = saved;
+  h.state.doc = h.scope.observedDoc.current;
   h.effect();
   h.tick();
   assert.equal(h.state.cloudState, "synced");
