@@ -93,8 +93,18 @@ export function wranglerConfigPath({ deploy = false } = {}) {
   return GENERATED;
 }
 
+/** Prevent command-line overrides from bypassing the production binding audit. */
+export function assertSafeDeployArgs(args) {
+  for (const arg of args) {
+    if (/^--(?:config|env|environment|name|var|define|secrets-file|ignore-base-config)(?:=|$)/.test(arg) ||
+        /^-[cen](?:=|$|[^-])/.test(arg)) {
+      throw new Error(`Unsupported production deploy override: ${arg}. Use WRANGLER_CONFIG with reviewed top-level bindings instead.`);
+    }
+  }
+}
 const [command, ...rest] = process.argv.slice(2);
 if (command && process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  if (command === "deploy") assertSafeDeployArgs(rest);
   const config = wranglerConfigPath({ deploy: command === "deploy" });
   const args = [command, ...(config ? ["--config", config] : []), ...rest];
   console.log(`Using ${config ?? "wrangler.jsonc"}`);
