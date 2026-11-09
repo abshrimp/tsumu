@@ -79,6 +79,13 @@ test("invalid asset signatures are rejected before base64 decoding and key impor
     },
   });
   try {
+    const canonical = valid.get("sig")!;
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const index = alphabet.indexOf(canonical.at(-1)!);
+    assert.equal(index % 4, 0);
+    const alias = canonical.slice(0, -1) + alphabet[index + 1];
+    assert.equal(await verifyAssetToken("assets/example.png", valid.get("exp"), alias, now), false,
+      "different final padding bits must not alias the same HMAC bytes");
     for (const signature of [
       "A".repeat(100_000),
       "A".repeat(42),
