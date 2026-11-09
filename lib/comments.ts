@@ -272,10 +272,6 @@ export async function runCommentAction(
     const r = rs.rows[0];
     return r ? { thread: String(r.thread_id), author: userOf(r) } : null;
   };
-  const bump = (threadId: string) => ({
-    sql: "UPDATE comment_threads SET updated_at = ? WHERE id = ? AND site_id = ?",
-    args: [now, threadId, siteId],
-  });
   switch (a.action) {
     case "create": {
       const [thread] = await db.batch([
@@ -351,9 +347,15 @@ export async function runCommentAction(
     case "delete-message": {
       const m = await authorOf(a.messageId);
       if (!m || !isAuthor(m.author, user)) return false;
-      await db.batch([
-        { sql: "DELETE FROM comment_messages WHERE id = ? AND site_id = ?", args: [a.messageId, siteId] },
-        bump(m.thread),
+      const [deleted] = await db.batch([
+        {
+          sql: "DELETE FROM comment_messages WHERE id = ? AND site_id = ? AND thread_id = ? AND (? OR email = '' OR email = ?)",
+          args: [a.messageId, siteId, m.thread, user === null ? 1 : 0, me.email],
+        },
+        {
+          sql: "UPDATE comment_threads SET updated_at = ? WHERE id = ? AND site_id = ? AND changes() > 0",
+          args: [now, m.thread, siteId],
+        },
         // 最後のコメントを消したら、スレッドも消す
         {
           sql: `DELETE FROM comment_threads WHERE id = ? AND site_id = ?
@@ -361,7 +363,7 @@ export async function runCommentAction(
           args: [m.thread, siteId, m.thread],
         },
       ]);
-      return true;
+      return deleted.rowsAffected > 0;
     }
     case "delete-thread": {
       const rs = await db.execute({
@@ -369,11 +371,21 @@ export async function runCommentAction(
         args: [a.threadId, siteId],
       });
       if (rs.rows[0] && !isAuthor(userOf(rs.rows[0]), user)) return false;
-      await db.batch([
-        { sql: "DELETE FROM comment_messages WHERE thread_id = ? AND site_id = ?", args: [a.threadId, siteId] },
-        { sql: "DELETE FROM comment_threads WHERE id = ? AND site_id = ?", args: [a.threadId, siteId] },
+      const [deleted, , remaining] = await db.batch([
+        {
+          // Removing the first message can transfer ownership while the
+          // preliminary read is in flight. Authorize against this transaction's
+          // current first message, then remove its replies only if authorized.
+          sql: `DELETE FROM comment_threads WHERE id = ? AND site_id = ?
+            AND (? OR COALESCE((SELECT email FROM comment_messages
+              WHERE thread_id = comment_threads.id AND site_id = comment_threads.site_id
+              ORDER BY at, CASE WHEN id = thread_id || '-0' THEN 0 ELSE 1 END, id LIMIT 1), '') IN ('', ?))`,
+          args: [a.threadId, siteId, user === null ? 1 : 0, me.email],
+        },
+        { sql: "DELETE FROM comment_messages WHERE thread_id = ? AND site_id = ? AND changes() > 0", args: [a.threadId, siteId] },
+        { sql: "SELECT id FROM comment_threads WHERE id = ? AND site_id = ?", args: [a.threadId, siteId] },
       ]);
-      return true;
+      return deleted.rowsAffected > 0 || remaining.rows.length === 0;
     }
   }
 }
