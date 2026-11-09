@@ -19,7 +19,7 @@ The recorded inventory contains **687 files**:
 | --- | ---: | --- | ---: |
 | API handlers | 18 | Other application files | 11 |
 | UI components | 74 | General libraries | 128 |
-| Generated-code libraries | 27 | Unit/integration test files | 259 |
+| Generated-code libraries | 27 | Files in tests/ | 259 |
 | Browser test files | 101 | Tooling scripts | 11 |
 | Workflow and .github files | 7 | Documentation files | 20 |
 | Integration skill files | 5 | Other root files | 26 |
