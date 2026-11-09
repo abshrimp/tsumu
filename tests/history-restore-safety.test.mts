@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
 import { useEditor } from "../lib/store";
+import { readRestoreJson } from "../lib/publish-security";
+import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import";
 
 const source = readFileSync(new URL("../components/PublishModal.tsx", import.meta.url), "utf8");
 const restoreCode = transformSync(source.slice(source.indexOf("async function restoreFrom("), source.indexOf("function PublishHistory(")), { loader: "tsx" }).code;
@@ -16,8 +18,9 @@ function fixture() {
   const response = deferred<Response>();
   const confirm = deferred<boolean>();
   let mounted = true, confirmations = 0;
-  const run = new Function("fetch", "showConfirm", "useEditor", "tr", `${restoreCode}; return restoreFrom;`)(
+  const run = new Function("fetch", "showConfirm", "useEditor", "tr", "readRestoreJson", "IMPORT_LIMITS", "validateImportedDoc", `${restoreCode}; return restoreFrom;`)(
     () => response.promise, () => { confirmations++; return confirm.promise; }, useEditor, (s: string) => s,
+    readRestoreJson, IMPORT_LIMITS, validateImportedDoc,
   ) as (url: string, label: string, current: () => boolean) => Promise<boolean>;
   return { restored, response, confirm, cancel: () => { mounted = false; }, get confirmations() { return confirmations; },
     run: () => run("https://example.test/backup", "yesterday", () => mounted && useEditor.getState().historyRevision === revision) };
