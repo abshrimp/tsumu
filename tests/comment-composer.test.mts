@@ -9,32 +9,40 @@ import { useComments, openPostedComment } from "../lib/comment-store";
 // DOMのreadOnlyとReactの実際のマウントは、別途ブラウザテストで確かめる。
 function harness() {
   const source = readFileSync(new URL("../components/Comments.tsx", import.meta.url), "utf8");
-  const start = source.indexOf("function Composer("); const end = source.indexOf("function ThreadView(");
+  const start = source.indexOf("function Composer("); const end = source.indexOf("export function CommentLayer(");
   assert.ok(start >= 0 && end > start);
-  const code = transformSync(source.slice(start, end) + "\nexport { Composer, Message };", { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
+  const code = transformSync(source.slice(start, end) + "\nexport { Composer, Message, ThreadView };", { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
   let current: any;
   const slot = (initial: any) => { const instance = current; const i = instance.index++; if (!(i in instance.slots)) instance.slots[i] = initial; return { instance, i }; };
   let run: (...args: any[]) => any = () => false;
   const context: any = {
-    module: { exports: {} }, MAX_COMMENT_LENGTH: 5000, unsentBodies: new Map<string, string>(),
+    module: { exports: {} }, MAX_COMMENT_LENGTH: 5000, unsentBodies: new Map<string, { body: string }>(),
     useState: (initial: any) => { const { instance, i } = slot(initial); return [instance.slots[i], (value: any) => { instance.slots[i] = typeof value === "function" ? value(instance.slots[i]) : value; }]; },
     useRef: (initial: any) => { const { instance, i } = slot({ current: initial }); return instance.slots[i]; },
-    useEffect: () => {},
+    useEffect: (effect: () => void | (() => void), deps: unknown[]) => {
+      const { instance, i } = slot(undefined);
+      const prev = instance.slots[i];
+      if (!prev || deps.some((value, index) => value !== prev.deps[index])) {
+        prev?.cleanup?.();
+        instance.slots[i] = { deps, cleanup: effect() };
+      }
+    },
     require: (name: string) => { assert.equal(name, "react/jsx-runtime"); return { jsx: (type: any, props: any) => ({ type, props }), jsxs: (type: any, props: any) => ({ type, props }) }; },
     useComments: (selector: any) => selector({ run: (...args: any[]) => run(...args) }), useServerStatus: () => ({ user: null }),
     isAuthor: () => true, tr: (value: string) => value, getLang: () => "en", relativeTime: () => "now", userLabel: () => "Guest",
-    UserAvatar: "UserAvatar", MoreHorizontal: "MoreHorizontal", Pencil: "Pencil", Trash2: "Trash2", CornerDownLeft: "CornerDownLeft", ContextMenu: "ContextMenu", showConfirm: async () => true,
+    BackButton: "BackButton", Check: "Check", RotateCcw: "RotateCcw", UserAvatar: "UserAvatar", MoreHorizontal: "MoreHorizontal", Pencil: "Pencil", Trash2: "Trash2", CornerDownLeft: "CornerDownLeft", ContextMenu: "ContextMenu", showConfirm: async () => true,
   };
+  context.useLayoutEffect = context.useEffect;
   let commentState = { threadUnavailable: false };
   const closed: string[] = [];
   context.useComments.getState = () => commentState;
   context.closeCommentIfOpen = (id: string) => closed.push(id);
   runInNewContext(code, context);
-  const { Composer, Message } = context.module.exports;
+  const { Composer, Message, ThreadView } = context.module.exports;
   function instance(fn: any, props: any) {
-    return { slots: [] as any[], index: 0, render() { current = this; this.index = 0; const tree = fn(props); current = undefined; return tree; } };
+    return { slots: [] as any[], index: 0, unmount() { this.slots.forEach(cell => cell?.cleanup?.()); }, render() { current = this; this.index = 0; const tree = fn(props); current = undefined; return tree; } };
   }
-  return { Composer, Message, instance, closed, unsentBodies: context.unsentBodies as Map<string, string>, setCommentState: (state: typeof commentState) => { commentState = state; }, setRun: (fn: typeof run) => { run = fn; } };
+  return { Composer, Message, ThreadView, instance, closed, unsentBodies: context.unsentBodies as Map<string, { body: string }>, setCommentState: (state: typeof commentState) => { commentState = state; }, setConfirm: (fn: () => Promise<boolean>) => { context.showConfirm = fn; }, setRun: (fn: typeof run) => { run = fn; } };
 }
 function find(node: any, predicate: (node: any) => boolean): any {
   if (!node || typeof node !== "object") return undefined;
@@ -168,4 +176,73 @@ for (const unavailable of [true, false]) test(`message deletion uses the authori
   find(message.render(), node => node.type === "button").props.onClick({ currentTarget: { getBoundingClientRect: () => ({ right: 200, bottom: 20 }) } });
   await find(message.render(), node => node.type === "ContextMenu").props.items.find((item: any) => item.key === "delete").onClick();
   assert.deepEqual(h.closed, unavailable ? ["thread"] : []);
+});
+
+for (const next of ["New draft", "Sent draft"]) test(`late send completion preserves a remounted draft: ${next}`, async () => {
+  const h = harness(), response = deferred<boolean>();
+  const props = { draftKey: "reply:thread", placeholder: "", submitLabel: "", onSubmit: () => response.promise };
+  const first = h.instance(h.Composer, props);
+  textarea(first.render()).props.onChange({ target: { value: "Sent draft" } });
+  submit(first.render()).props.onClick(); first.unmount();
+  const reopened = h.instance(h.Composer, props);
+  textarea(reopened.render()).props.onChange({ target: { value: next } });
+  response.resolve(true); await tick(); reopened.unmount();
+  assert.equal(textarea(h.instance(h.Composer, props).render()).props.value, next);
+});
+
+for (const kind of ["message", "thread"]) test(`${kind} deletion confirmation is cancelled on unmount and cannot be duplicated`, async () => {
+  const h = harness(), response = deferred<boolean>(); let confirms = 0; const actions: unknown[] = [];
+  h.setConfirm(() => { confirms++; return response.promise; }); h.setRun(async action => { actions.push(action); return true; });
+  const m = { id: "one", author: {}, body: "Original", at: 1 };
+  const props = { m, thread: { id: "thread", messages: [m] }, unavailable: false, place: "", notices: null, onClose() {} };
+  const panel = h.instance(kind === "message" ? h.Message : h.ThreadView, props);
+  let remove: () => Promise<void>;
+  if (kind === "message") {
+    find(panel.render(), node => node.type === "button").props.onClick({ currentTarget: { getBoundingClientRect: () => ({ right: 200, bottom: 20 }) } });
+    remove = find(panel.render(), node => node.type === "ContextMenu").props.items.find((item: any) => item.key === "delete").onClick;
+  } else remove = find(panel.render(), node => node.props?.["aria-label"] === "スレッドを削除").props.onClick;
+  const first = remove(), second = remove();
+  assert.equal(confirms, 1); panel.unmount(); response.resolve(true); await Promise.all([first, second]);
+  assert.deepEqual(actions, []);
+});
+
+test("thread deletion is cancelled when the discussion becomes unavailable during confirmation", async () => {
+  const h = harness(), response = deferred<boolean>(); const actions: unknown[] = [];
+  h.setConfirm(() => response.promise); h.setRun(async action => { actions.push(action); return true; });
+  const props = { thread: { id: "thread", messages: [{ id: "one", author: {}, body: "Original", at: 1 }] }, unavailable: false, place: "", notices: null, onClose() {} };
+  const panel = h.instance(h.ThreadView, props);
+  const work = find(panel.render(), node => node.props?.["aria-label"] === "スレッドを削除").props.onClick();
+  props.unavailable = true; panel.render(); response.resolve(true); await work;
+  assert.deepEqual(actions, []);
+});
+
+test("a cancelled thread deletion releases its lock so a later confirmed deletion succeeds", async () => {
+  const h = harness(); const actions: unknown[] = []; let closed = 0;
+  h.setConfirm(async () => false); h.setRun(async action => { actions.push(action); return true; });
+  const panel = h.instance(h.ThreadView, { thread: { id: "thread", messages: [{ id: "one", author: {}, body: "Original", at: 1 }] }, unavailable: false, place: "", notices: null, onClose() { closed++; } });
+  const remove = () => find(panel.render(), node => node.props?.["aria-label"] === "スレッドを削除").props.onClick();
+  await remove(); assert.equal(actions.length, 0);
+  h.setConfirm(async () => true); await remove();
+  assert.equal(actions.length, 1); assert.equal(closed, 1);
+});
+
+for (const kind of ["message", "thread"]) test(`${kind} deletion closes the removed discussion after its own update unmounts the view`, async () => {
+  const h = harness();
+  const m = { id: "one", author: {}, body: "Original", at: 1 };
+  const panel = h.instance(kind === "message" ? h.Message : h.ThreadView, {
+    m, thread: { id: "thread", messages: [m] }, unavailable: false, place: "", notices: null,
+    onClose() { h.closed.push("thread"); },
+  });
+  h.setRun(async () => {
+    h.setCommentState({ threadUnavailable: true });
+    panel.unmount();
+    return true;
+  });
+  let remove: () => Promise<void>;
+  if (kind === "message") {
+    find(panel.render(), node => node.type === "button").props.onClick({ currentTarget: { getBoundingClientRect: () => ({ right: 200, bottom: 20 }) } });
+    remove = find(panel.render(), node => node.type === "ContextMenu").props.items.find((item: any) => item.key === "delete").onClick;
+  } else remove = find(panel.render(), node => node.props?.["aria-label"] === "スレッドを削除").props.onClick;
+  await remove();
+  assert.deepEqual(h.closed, ["thread"]);
 });
