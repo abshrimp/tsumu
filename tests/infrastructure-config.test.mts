@@ -24,12 +24,40 @@ test("CI checks pull requests without path skips, dependencies, workers and all 
   const workflow = read(".github/workflows/ci.yml");
   assert.match(workflow, /^  pull_request:\s*$/m);
   assert.match(workflow, /^  push:\s*$/m);
-  for (const name of ["check", "dependency-audit", "worker-build", "e2e-shard", "generated-formats"]) {
-    assert.match(workflow, new RegExp(`^  ${name}:$`, "m"));
+  for (const name of ["check", "e2e-shard", "generated-formats"]) {
+    assert.match(workflow, new RegExp(`^  ${name}:import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { test } from "node:test";
+
+const root = new URL("../", import.meta.url);
+const read = (path: string) => readFileSync(new URL(path, root), "utf8");
+
+test("all CI jobs use full commit-pinned actions and checkouts do not persist credentials", () => {
+  const workflow = read(".github/workflows/ci.yml");
+  const uses = [...workflow.matchAll(/^\s*- uses: ([^\s#]+)/gm)].map((match) => match[1]);
+  assert.ok(uses.length > 0, "Expected GitHub actions in the CI workflow");
+  for (const action of uses) {
+    assert.match(action, /^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/, `Action ${action} must be pinned by commit SHA`);
   }
-  assert.match(workflow, /npm audit --omit=dev --audit-level=high/);
-  assert.match(workflow, /npm audit --audit-level=high/);
-  assert.match(workflow, /npm run build:worker/);
+  const checkoutCount = (workflow.match(/- uses: actions\/checkout@/g) ?? []).length;
+  const safeCheckouts = [...workflow.matchAll(
+    /- uses: actions\/checkout@[0-9a-f]{40}[^\n]*\n[ \t]+with:\n[ \t]+persist-credentials: false/g,
+  )];
+  assert.ok(checkoutCount > 0, "Expected at least one checkout step");
+  assert.equal(safeCheckouts.length, checkoutCount, "Every checkout must disable credential persistence");
+});
+
+test("CI checks pull requests without path skips, dependencies, workers and all E2E shards", () => {
+  const workflow = read(".github/workflows/ci.yml");
+  assert.match(workflow, /^  pull_request:\s*$/m);
+  assert.match(workflow, /^  push:\s*$/m);
+, "m"));
+  }
+  const requiredCheck = workflow.split("  check:\n")[1]?.split("  e2e-shard:\n")[0];
+  assert.ok(requiredCheck, "Expected a check job containing the required infrastructure audits");
+  assert.match(requiredCheck, /npm audit --omit=dev --audit-level=high/);
+  assert.match(requiredCheck, /npm audit --audit-level=high/);
+  assert.match(requiredCheck, /npm run build:worker/);
   assert.match(workflow, /shard: \[1, 2, 3, 4\]/);
   assert.match(workflow, /framework: \[nextjs, react, vue, nuxt, sveltekit\]/);
   assert.match(workflow, /node scripts\/run-e2e-shard\.mjs/);
