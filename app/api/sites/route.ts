@@ -7,6 +7,7 @@ import { userMessage } from "../../../lib/errors";
 import { IMPORT_LIMITS, validateImportedDoc } from "../../../lib/site-import-format";
 import { readTextLimited, TooLargeError } from "../../../lib/safe-fetch";
 import { readCurrentDoc } from "../../../lib/doc-storage";
+import { encodeStoredDoc } from "../../../lib/compressed-doc-storage";
 import {
   DEFAULT_BRANCH,
   DEFAULT_PREVIEW_BRANCH,
@@ -100,7 +101,9 @@ export async function POST(req: Request) {
     if (importing && await getSite(db, id)) {
       return NextResponse.json({ error: tr("サイトを作成できませんでした。") }, { status: 409 });
     }
-    await insertSite(db, id, parsed.value, initialBody ?? src?.body);
+    const plainBody = initialBody ?? src?.body;
+    const storedBody = plainBody === undefined ? undefined : await encodeStoredDoc(plainBody);
+    await insertSite(db, id, parsed.value, storedBody);
     return NextResponse.json({ site: await getSite(db, id) });
   } catch (e) {
     if (e instanceof Error && /SQLITE_TOOBIG|too big/i.test(e.message)) {
