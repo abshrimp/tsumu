@@ -35,6 +35,10 @@ test("CI checks pull requests without path skips, dependencies, workers and all 
   assert.match(workflow, /shard: \[1, 2, 3, 4\]/);
   assert.match(workflow, /framework: \[nextjs, react, vue, nuxt, sveltekit\]/);
   assert.match(workflow, /node scripts\/run-e2e-shard\.mjs/);
+  assert.match(workflow, /npx --no-install playwright install/);
+  const shardRunner = read("scripts/run-e2e-shard.mjs");
+  assert.equal((shardRunner.match(/"--no-install"/g) ?? []).length, 2);
+  assert.match(read("playwright.config.ts"), /npx --no-install next start/);
 });
 
 test("Docker runtime is non-root and local credentials are excluded from the build context", () => {
