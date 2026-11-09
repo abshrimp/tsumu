@@ -183,7 +183,7 @@ function node(ctx: Context, id: string, top = false): string {
         const body = hasVars(label) ? (ctx.vue ? "{{ " + expr(ctx, "resolveText", label) + " }}"
           : "{" + expr(ctx, "resolveText", label) + "}") : staticText(label);
         return "<label" + attrs + "><input" + literal("type", f.kind) + fields + fieldEvent("change") +
-          truth("checked", f.checked) + literal("value", f.kind === "checkbox" ? "true" : label) +
+          truth("checked", f.checked) + valueAttr(ctx, "value", f.kind === "checkbox" ? "true" : label) +
           (ctx.vue ? ">" : " />") + "<span>" + body + "</span></label>";
       }
       if (f.kind === "file") {
