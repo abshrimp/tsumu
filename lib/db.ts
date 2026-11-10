@@ -114,6 +114,13 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
               queued_at INTEGER NOT NULL
             )`,
           ]),
+          // サイト単位で最後にGitHubへ公開した出力形式。D1とNode SQLiteで共通。
+          `CREATE TABLE IF NOT EXISTS site_publish_options (
+            site_id TEXT PRIMARY KEY,
+            framework TEXT NOT NULL,
+            language TEXT NOT NULL,
+            style TEXT NOT NULL
+          )`,
           // サイトの編集・公開の記録（人ごと・種類ごとに最後の時刻。lib/activity.ts）
           `CREATE TABLE IF NOT EXISTS site_activity (
             site_id TEXT NOT NULL,
