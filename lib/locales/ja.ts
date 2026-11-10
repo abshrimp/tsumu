@@ -115,6 +115,8 @@ const ja: Dict = {
   "Connection failed": "接続に失敗しました",
 
   "Members and permissions": "メンバーと権限",
+  "People with access": "アクセスできるメンバー",
+  "No members yet": "メンバーが登録されていません",
   "Site owner": "サイトのオーナー",
   "Instance administrator": "全体管理者",
   "Add member": "メンバーを追加",

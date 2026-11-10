@@ -31,6 +31,7 @@ import {
   Sparkles,
   TriangleAlert,
   Undo2,
+  UsersRound,
   ZoomIn,
 } from "lucide-react";
 import { useEditor } from "../lib/store";
@@ -48,12 +49,15 @@ import { BP_INFO, BP_ORDER, breakpointForWidth, DEVICE_WIDTHS, parseNumeric } fr
 import { BpIcon, Dropdown, NumField } from "./controls";
 import { tr } from "../lib/i18n";
 import LanguageSelector from "./LanguageSelector";
+import { currentSiteId } from "../lib/site";
+import type { SiteRole } from "../lib/site-model";
 
 const ExternalEditConnection = lazy(() => import("./ExternalEditConnection"));
 const ExportModal = lazy(() => import("./ExportModal"));
 const PublishModal = lazy(() => import("./PublishModal"));
 const BodySearch = lazy(() => import("./BodySearch"));
 const HistoryModal = lazy(() => import("./PublishModal").then((m) => ({ default: m.HistoryModal })));
+const SiteMembers = lazy(() => import("./SiteMembers"));
 
 function ModalLoading({ onClose }: { onClose: () => void }) {
   useEscapeToClose(onClose);
@@ -72,7 +76,12 @@ function ModalLoading({ onClose }: { onClose: () => void }) {
 /* ---------- 設定（表示言語・サイトのリセット） ---------- */
 
 /** エディタの設定（ログインできるアカウントなど、全サイト共通の設定はホームの設定にある） */
-function SettingsModal({ onClose }: { onClose: () => void }) {
+function SettingsModal({ onClose, onOpenMembers, canManageMembers, permissionsAvailable }: {
+  onClose: () => void;
+  onOpenMembers: () => void;
+  canManageMembers: boolean;
+  permissionsAvailable: boolean;
+}) {
   const confirmReset = useDocumentConfirmation("document-reset");
   const resetDoc = useEditor((s) => s.resetDoc);
   useEscapeToClose(onClose);
@@ -91,6 +100,19 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
           <h3>{tr("Editor appearance")}</h3>
           <EditorAppearanceSelector />
           <p className="hint">{tr("The editor appearance is separate from the website's styles.")}</p>
+        </section>
+
+        <section className="settings-sec">
+          <h3>{tr("Members and permissions")}</h3>
+          {canManageMembers && (
+            <button type="button" className="btn" onClick={onOpenMembers}>
+              <UsersRound size={14} />
+              {tr("Members and permissions")}
+            </button>
+          )}
+          <p className="hint">{permissionsAvailable
+            ? tr("Only site owners can change membership. Accounts must first be allowed to sign in.")
+            : tr("Site permissions need server storage and sign-in")}</p>
         </section>
 
         <section className="settings-sec">
@@ -189,10 +211,12 @@ function LogoutModal({ onClose }: { onClose: () => void }) {
 export default function Header({
   panels,
   onTogglePanel,
+  siteRole,
 }: {
   /** 左右のパネルが開いているか */
   panels: { l: boolean; r: boolean };
   onTogglePanel: (side: "l" | "r") => void;
+  siteRole: SiteRole | null;
 }) {
   const pages = useEditor((s) => s.doc.pages);
   const pageOrder = useEditor((s) => s.doc.pageOrder);
@@ -249,9 +273,13 @@ export default function Header({
     setPublishing(true);
   }, []);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const status = useServerStatus();
+  const siteName = useEditor((s) => s.doc.siteName);
+  const permissionsAvailable = status?.auth === true && status.db === true;
+  const canManageMembers = permissionsAvailable && status?.role === "editor" && siteRole === "owner";
   const [historyOpen, setHistoryOpen] = useState(false);
   const helpOpen = useHelp((s) => s.open);
   const commenting = useComments((s) => s.active);
@@ -605,7 +633,19 @@ export default function Header({
         </SafeBoundary>
       )}
       {settingsOpen && (
-        <SettingsModal onClose={() => setSettingsOpen(false)} />
+        <SettingsModal
+          onClose={() => setSettingsOpen(false)}
+          onOpenMembers={() => { setSettingsOpen(false); setMembersOpen(true); }}
+          canManageMembers={canManageMembers}
+          permissionsAvailable={permissionsAvailable}
+        />
+      )}
+      {membersOpen && (
+        <SafeBoundary label={tr("Members and permissions")} onClose={() => setMembersOpen(false)}>
+          <Suspense fallback={<ModalLoading onClose={() => setMembersOpen(false)} />}>
+            <SiteMembers siteId={currentSiteId()} siteName={siteName} onClose={() => setMembersOpen(false)} />
+          </Suspense>
+        </SafeBoundary>
       )}
       {mcpOpen && (
         <SafeBoundary label={tr("MCP connection")} onClose={() => setMcpOpen(false)}>

@@ -1343,6 +1343,7 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
       <Header
         panels={{ l: !closedL, r: !closedR }}
         onTogglePanel={togglePanel}
+        siteRole={siteRole}
       />
       {browserSaveState === "deleted" && cloudState !== "synced" && (
         <div className="local-save-notice" role="alert">
