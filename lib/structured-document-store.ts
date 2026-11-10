@@ -81,8 +81,14 @@ export class StructuredDocumentStore {
 
   private initialized(): boolean {
     const tables = new Set(this.query("SELECT name FROM sqlite_master WHERE type='table'").map((row) => String(row.name)));
+    const schema = tables.has("document_schema")
+      ? this.query("SELECT version FROM document_schema WHERE id=1")[0] : undefined;
+    // 未対応のスキーマには、欠けたテーブルや初期行の補完も行わない。
+    if (schema && Number(schema.version) !== 1) {
+      throw new Error("Unsupported document storage schema");
+    }
     return SCHEMA_TABLES.every((name) => tables.has(name))
-      && this.query("SELECT 1 FROM document_schema WHERE id=1").length > 0
+      && schema !== undefined
       && this.query("SELECT 1 FROM document_state WHERE id=1").length > 0;
   }
 
