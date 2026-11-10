@@ -3,11 +3,15 @@ import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
 
 test("GitHub Push publishes the selected Vue file tree, not the Next.js tree", async ({ page }) => {
-  const messages: Array<{ action: string; files?: Record<string, string>; path?: string }> = [];
+  const messages: Array<{ action: string; site?: string; exportOptions?: { framework: string; language: string; style: string }; files?: Record<string, string>; path?: string }> = [];
+  // The intercepted API emulates site-scoped persisted settings, not browser storage.
+  const saved = new Map<string, { framework: string; language: string; style: string }>();
   await page.route("**/api/publish**", async (route) => {
     if (route.request().method() === "GET") {
+      const siteId = new URL(route.request().url()).searchParams.get("site") ?? "";
       await route.fulfill({ json: {
         configured: true, unset: null, previewEnabled: false,
+        lastExportOptions: saved.get(siteId) ?? { framework: "nextjs", language: "typescript", style: "css" },
         production: { repo: "example/project", branch: "main", url: null, error: null },
         test: { repo: "example/project", branch: "", url: null, error: "Disabled" },
       } });
@@ -19,9 +23,10 @@ test("GitHub Push publishes the selected Vue file tree, not the Next.js tree", a
       json: { head: null, blobs: {}, manifest: {}, generated: null },
     });
     else if (body.action === "upload") await route.fulfill({ json: { sha: "a".repeat(40) } });
-    else if (body.action === "commit") await route.fulfill({
-      json: { ok: true, commitUrl: "https://example.com/commit" },
-    });
+    else if (body.action === "commit") {
+      saved.set(body.site, body.exportOptions);
+      await route.fulfill({ json: { ok: true, commitUrl: "https://example.com/commit", optionsSaved: true } });
+    }
     else await route.fulfill({ status: 400, json: { error: "Unexpected action" } });
   });
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
@@ -61,6 +66,8 @@ test("GitHub Push publishes the selected Vue file tree, not the Next.js tree", a
   expect(paths).not.toContain("next.config.mjs");
   expect(paths).toContain("_tsumu/doc.json");
   expect(messages.map((m) => m.action)).toContain("commit");
+  expect(messages.find((m) => m.action === "commit")?.exportOptions).toEqual({ framework: "vue", language: "typescript", style: "css" });
+  expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.includes("publish-options")))).toEqual([]);
 
   // Only successful GitHub Push remembers its options, even across reloads.
   await modal.getByRole("button", { name: "閉じる" }).click();
