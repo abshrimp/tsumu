@@ -73,6 +73,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     toBranchPath: (path: string) => path,
     advanceBranchRef,
     recordPublish: async () => { recorded = true; },
+    dbConfigured: () => false,
     assetStore: () => ({ get: async (source: string) => storedAssets[source] ?? null }),
     userMessage: (error: Error) => error.message,
   };
