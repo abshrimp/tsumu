@@ -22,6 +22,10 @@ type Bucket = "pages" | "nodes" | "assets" | "components";
 const buckets: Bucket[] = ["pages", "nodes", "assets", "components"];
 const bucketsSet = new Set<string>(buckets);
 const MAX_ROW_BYTES = 7_000_000; // DO SQLite limit is 8 MB per row/value.
+const SCHEMA_TABLES = [
+  "document_meta", "document_entries", "document_schema", "document_state",
+  "document_backup_meta", "document_backup_chunks",
+];
 
 const object = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -67,13 +71,32 @@ function items(doc: SiteDoc, bucket: Bucket): Record<string, unknown> {
  */
 export class StructuredDocumentStore {
   constructor(private readonly storage: DocumentSqlStorage) {
+    // Statements that may write are rejected outright once the DO write quota is
+    // exhausted, so an initialized room must wake with reads only.
+    if (!this.initialized()) this.initialize();
+    if (Number(this.query("SELECT version FROM document_schema WHERE id=1")[0]?.version) !== 1) {
+      throw new Error("Unsupported document storage schema");
+    }
+  }
+
+  private initialized(): boolean {
+    const tables = new Set(this.query("SELECT name FROM sqlite_master WHERE type='table'").map((row) => String(row.name)));
+    const schema = tables.has("document_schema")
+      ? this.query("SELECT version FROM document_schema WHERE id=1")[0] : undefined;
+    // 未対応のスキーマには、欠けたテーブルや初期行の補完も行わない。
+    if (schema && Number(schema.version) !== 1) {
+      throw new Error("Unsupported document storage schema");
+    }
+    return SCHEMA_TABLES.every((name) => tables.has(name))
+      && schema !== undefined
+      && this.query("SELECT 1 FROM document_state WHERE id=1").length > 0;
+  }
+
+  private initialize(): void {
     this.query("CREATE TABLE IF NOT EXISTS document_meta (id INTEGER PRIMARY KEY CHECK(id=1), rev INTEGER NOT NULL, saved_at INTEGER NOT NULL, props TEXT NOT NULL)");
     this.query("CREATE TABLE IF NOT EXISTS document_entries (bucket TEXT NOT NULL, entry_id TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY(bucket,entry_id))");
     this.query("CREATE TABLE IF NOT EXISTS document_schema (id INTEGER PRIMARY KEY CHECK(id=1), version INTEGER NOT NULL)");
     this.query("INSERT OR IGNORE INTO document_schema(id,version) VALUES(1,1)");
-    if (Number(this.query("SELECT version FROM document_schema WHERE id=1")[0]?.version) !== 1) {
-      throw new Error("Unsupported document storage schema");
-    }
     this.query("CREATE TABLE IF NOT EXISTS document_state (id INTEGER PRIMARY KEY CHECK(id=1), sealed INTEGER NOT NULL CHECK(sealed IN (0,1)))");
     this.query("INSERT OR IGNORE INTO document_state(id,sealed) VALUES(1,0)");
     this.query("CREATE TABLE IF NOT EXISTS document_backup_meta (day INTEGER PRIMARY KEY, saved_at INTEGER NOT NULL, bytes INTEGER NOT NULL)");
@@ -165,6 +188,27 @@ export class StructuredDocumentStore {
     return body;
   }
 
+  /**
+   * Rows written are the metered DO resource, so a full bucket replacement
+   * touches only entries whose serialized body actually changed.
+   */
+  private syncBucket(bucket: Bucket, next: Map<string, string>): void {
+    const existing = new Map(this.query("SELECT entry_id,body FROM document_entries WHERE bucket=?", bucket)
+      .map(row => [String(row.entry_id), String(row.body)]));
+    for (const id of existing.keys()) {
+      if (!next.has(id)) this.query("DELETE FROM document_entries WHERE bucket=? AND entry_id=?", bucket, id);
+    }
+    for (const [id, body] of next) {
+      const previous = existing.get(id);
+      if (previous === body) continue;
+      if (previous === undefined) {
+        this.query("INSERT INTO document_entries(bucket,entry_id,body) VALUES(?,?,?)", bucket, id, body);
+      } else {
+        this.query("UPDATE document_entries SET body=? WHERE bucket=? AND entry_id=?", body, bucket, id);
+      }
+    }
+  }
+
   /** Full initialization/import or a fallback snapshot save. */
   replace(raw: string, base: string | null): SiteSaveResult {
     const doc = parseDoc(raw);
@@ -181,9 +225,12 @@ export class StructuredDocumentStore {
       }
       if (!current && expected !== null) return "missing" as const;
       if (current) this.preservePreviousDay(current.savedAt, now);
-      this.query("DELETE FROM document_entries");
-      for (const [bucket, id, body] of entries) {
-        this.query("INSERT INTO document_entries(bucket,entry_id,body) VALUES(?,?,?)", bucket, id, body);
+      for (const bucket of buckets) {
+        this.syncBucket(bucket, new Map(entries.filter(entry => entry[0] === bucket).map(([, id, body]) => [id, body])));
+      }
+      const stale = this.query("SELECT DISTINCT bucket FROM document_entries").map(row => String(row.bucket));
+      for (const bucket of stale) {
+        if (!bucketsSet.has(bucket)) this.query("DELETE FROM document_entries WHERE bucket=?", bucket);
       }
       if (!current) {
         this.query("INSERT INTO document_meta(id,rev,saved_at,props) VALUES(1,1,?,?)", now, props);
@@ -268,11 +315,8 @@ export class StructuredDocumentStore {
         if (!bucketsSet.has(name)) continue;
         const bucket = name as Bucket;
         if (id === undefined) {
-          this.query("DELETE FROM document_entries WHERE bucket=?", bucket);
-          for (const [entryId, value] of Object.entries(items(updated, bucket))) {
-            this.query("INSERT INTO document_entries(bucket,entry_id,body) VALUES(?,?,?)",
-              bucket, entryId, checkedJson(value));
-          }
+          this.syncBucket(bucket, new Map(Object.entries(items(updated, bucket))
+            .map(([entryId, value]) => [entryId, checkedJson(value)])));
         } else if ("remove" in op) {
           this.query("DELETE FROM document_entries WHERE bucket=? AND entry_id=?", bucket, id);
         } else {
