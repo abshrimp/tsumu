@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import JSZip from "jszip";
-import { mapLimit, ASSET_FETCH_CONCURRENCY } from "../lib/assets";
+import { mapLimit, ASSET_FETCH_CONCURRENCY, fetchWithRetry } from "../lib/assets";
 import { exportProjectZip } from "../lib/exportZip";
 import { createInitialDoc } from "../lib/presets";
 
@@ -13,7 +13,16 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-test("a failed pool stays pending until its already running callbacks settle", async () => {
+async function timely<T>(pending: Promise<T>): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([pending, new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error("failed asset work did not stop promptly")), 500);
+    })]);
+  } finally { clearTimeout(timer); }
+}
+
+test("a failed pool rejects even when a running callback never settles, without starting queued work", async () => {
   const first = deferred<void>(), second = deferred<void>();
   const failure = new Error("first asset failed");
   const started: number[] = [];
@@ -25,10 +34,10 @@ test("a failed pool stays pending until its already running callbacks settle", a
   try {
     assert.deepEqual(started, [0, 1]);
     first.reject(failure);
-    await tick();
-    assert.equal(settled, false, "callers must not retry while the previous batch is still running");
+    assert.equal(await timely(result), failure);
+    assert.equal(settled, true, "an unresponsive sibling must not suppress a confirmed failure");
     second.resolve();
-    assert.equal(await result, failure);
+    await tick();
     assert.deepEqual(started, [0, 1], "queued callbacks must not start after failure");
   } finally {
     second.resolve();
@@ -80,7 +89,7 @@ test("successful pools process every item once within their concurrency limit", 
   await mapLimit([], 6, async () => { assert.fail("empty pool called its callback"); });
 });
 
-test("ZIP failure stops queued downloads, then a fresh export retains all assets", { timeout: 10000 }, async () => {
+for (const stalled of ["fetch", "body"] as const) test(`ZIP failure aborts a stalled ${stalled} and queued downloads, then a fresh export retains all assets`, { timeout: 10000 }, async () => {
   const doc = createInitialDoc();
   doc.siteName = "Pool regression";
   doc.assets = {};
@@ -95,20 +104,45 @@ test("ZIP failure stops queued downloads, then a fresh export retains all assets
   const originalDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
   const originalCreate = URL.createObjectURL, originalRevoke = URL.revokeObjectURL;
   const blobs: Blob[] = [];
-  let clicks = 0, retry = false;
+  let clicks = 0, retry = false, aborted = 0;
   Object.defineProperty(globalThis, "document", { configurable: true, value: {
     createElement() { return { href: "", download: "", click() { clicks++; } }; },
   } });
   URL.createObjectURL = blob => { blobs.push(blob as Blob); return "blob:pool-test"; };
   URL.revokeObjectURL = () => {};
-  globalThis.fetch = async input => {
+  globalThis.fetch = async (input, init) => {
     const url = String(input);
     assert.match(url, /^\/api\/assets\/file\?path=/);
     requests.push(url);
     if (!retry) {
       if (requests.length === ASSET_FETCH_CONCURRENCY) initialBatch.resolve();
       if (requests.length === 1) return fail.promise;
-      await release.promise;
+      const signal = init?.signal;
+      if (stalled === "fetch") {
+        await new Promise<void>((resolve, reject) => {
+          const onAbort = () => { aborted++; reject(signal!.reason); };
+          signal?.addEventListener("abort", onAbort, { once: true });
+          if (signal?.aborted) onAbort();
+          release.promise.then(() => {
+            signal?.removeEventListener("abort", onAbort);
+            resolve();
+          });
+        });
+      } else {
+        return new Response(new ReadableStream<Uint8Array>({
+          start(controller) {
+            const onAbort = () => { aborted++; controller.error(signal!.reason); };
+            signal?.addEventListener("abort", onAbort, { once: true });
+            if (signal?.aborted) onAbort();
+            release.promise.then(() => {
+              signal?.removeEventListener("abort", onAbort);
+              if (signal?.aborted) return;
+              controller.enqueue(new Uint8Array([0, 1, 255]));
+              controller.close();
+            });
+          },
+        }));
+      }
     }
     return new Response(new Uint8Array([0, 1, 255]));
   };
@@ -116,11 +150,10 @@ test("ZIP failure stops queued downloads, then a fresh export retains all assets
   try {
     await initialBatch.promise;
     fail.resolve(new Response("unavailable", { status: 403 }));
-    await tick();
-    release.resolve();
-    const error = await result;
+    const error = await timely(result);
     await tick();
     assert.match(error.message, /403/);
+    assert.equal(aborted, ASSET_FETCH_CONCURRENCY - 1, "active fetches and body reads are cancelled");
     assert.equal(requests.length, ASSET_FETCH_CONCURRENCY,
       "a rejected export must not keep fetching every queued asset");
     assert.equal(clicks, 0);
@@ -147,5 +180,31 @@ test("ZIP failure stops queued downloads, then a fresh export retains all assets
     else Reflect.deleteProperty(globalThis, "document");
     URL.createObjectURL = originalCreate;
     URL.revokeObjectURL = originalRevoke;
+  }
+});
+
+test("asset retries stop immediately when the caller aborts during backoff", async () => {
+  const previousFetch = globalThis.fetch;
+  const controller = new AbortController();
+  const failure = new Error("export cancelled");
+  const fetched = deferred<void>();
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    fetched.resolve();
+    return new Response("busy", { status: 503 });
+  };
+  const result = fetchWithRetry("/asset", 3, { signal: controller.signal });
+  try {
+    await fetched.promise;
+    await tick();
+    controller.abort(failure);
+    await assert.rejects(timely(result), error => error === failure);
+    assert.equal(calls, 1);
+    await assert.rejects(fetchWithRetry("/asset", 3, { signal: controller.signal }), error => error === failure);
+    assert.equal(calls, 1, "already aborted work must not issue a request");
+  } finally {
+    await result.catch(() => {});
+    globalThis.fetch = previousFetch;
   }
 });

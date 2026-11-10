@@ -95,17 +95,25 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
   // サーバー上のアセットを取得して同梱（KVはAPIプロキシ経由）。
   // 一度に取りに行くとサーバーが 503 を返すため、同時に取得する数を絞り、一時的な失敗は取り直す
   const missing: string[] = [];
-  await mapLimit(Object.entries(remoteAssets), ASSET_FETCH_CONCURRENCY, async ([path, source]) => {
-    const url = `/api/assets/file?path=${encodeURIComponent(source)}`;
-    const res = await fetchWithRetry(url);
-    // 保存先に無いアセット（削除済みなど）は、公開と同じく飛ばして続ける
-    if (res.status === 404) {
-      missing.push(path);
-      return;
-    }
-    if (!res.ok) throw new Error(tr("アセットを読み込めませんでした（{status}）: {path}", { status: res.status, path }));
-    root.file(path, await res.arrayBuffer());
-  });
+  const downloads = new AbortController();
+  try {
+    await mapLimit(Object.entries(remoteAssets), ASSET_FETCH_CONCURRENCY, async ([path, source]) => {
+      const url = `/api/assets/file?path=${encodeURIComponent(source)}`;
+      const res = await fetchWithRetry(url, 3, { signal: downloads.signal });
+      // 保存先に無いアセット（削除済みなど）は、公開と同じく飛ばして続ける
+      if (res.status === 404) {
+        missing.push(path);
+        return;
+      }
+      if (!res.ok) throw new Error(tr("アセットを読み込めませんでした（{status}）: {path}", { status: res.status, path }));
+      root.file(path, await res.arrayBuffer());
+    });
+  } catch (error) {
+    // Stop active fetches and body reads as well as the pool's queued work.
+    // A stalled sibling cannot delay reporting the original export failure.
+    downloads.abort(error);
+    throw error;
+  }
 
   const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 9 } });
   const url = URL.createObjectURL(blob);

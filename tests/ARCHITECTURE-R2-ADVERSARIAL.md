@@ -44,9 +44,9 @@ considered before removing dev dependencies. This is not an advisory audit.
 
 | Entry / producer | Shared contract and consumers | Adversarial check |
 | --- | --- | --- |
-| `Header` export dialog | Sets `busy` while awaiting `exportProjectZip`, then clears it in `finally`; retry becomes possible when that promise settles. | Failed batch must not outlive this boundary and continue starting downloads. |
+| `Header` export dialog | Sets `busy` while awaiting `exportProjectZip`, then clears it in `finally`; retry becomes possible when that promise settles. | A failed batch stops queued work and aborts active downloads before reporting the error. |
 | `exportProjectZip` → generator → JSZip | Generates the document snapshot and framework files, queues remote assets, adds fetched bytes, then downloads the archive. Missing (404) assets are tolerated; other HTTP failures abort export. | Real export with 12 remote assets, one 403, five delayed requests, and a successful retry. |
-| `assets.mapLimit` | Runs at most six callbacks for ZIP downloads, SVG metadata detection, and import rollback cleanup. | Async/sync failure, later rejection, falsy thrown values, empty input, limits 1/3/20, independent retry. |
+| `assets.mapLimit` | Runs at most six callbacks and stops queued work after a failure. Export owns cancellation of its active network requests. | Async/sync failure, stalled siblings, later rejection, falsy thrown values, empty input, limits 1/3/20, independent retry. |
 | `detectSvgFilters` → `PublishModal.docWithSvgFilters` → Header/publish | Per-asset failures are caught inside the callback and leave metadata unresolved for later attempts. | Existing signed-asset/download tests; callback continues to absorb its own failures. |
 | `withImportUploads` → site/HTML/ZIP import | Cleanup de-duplicates paths; each DELETE catches transport rejection so cleanup continues. | Existing rollback tests. No upload or live deletion was performed. |
 | API/DO → `getDbFromBinding` | A WeakMap shares initialization per binding and removes rejected promises. | Two concurrent calls share one failed initialization, then two retries share one successful initialization. |
@@ -63,27 +63,33 @@ export to overlap the abandoned pool. Repeated failures can defeat the intended
 six-download concurrency bound, wasting requests and retaining ZIP state/bytes.
 
 **Cause:** `Promise.all` rejects early, but does not stop other workers. Each
-worker's loop only checked the queue length. No shared failure state or drain
+worker's loop only checked the queue length. No shared failure state or cancellation
 boundary existed. This behavior was reproduced through the real export pipeline,
 not inferred solely from a unit test of the helper.
 
 **Fix:** keep the first rejection (including `undefined`, `null`, or `0`), stop
-taking new queue entries after observing it, and wait for callbacks already in
-progress before rethrowing it. Failure state is local to each invocation. The
-only production edit is `mapLimit` in `lib/assets.ts`.
+taking new queue entries after observing it, and report it promptly. Generic
+callbacks cannot be forcibly stopped, so `mapLimit` never waits for unrelated
+callbacks to settle after a failure. `exportProjectZip` owns an AbortController
+and aborts active fetches and response-body reads before reporting the original
+error. `fetchWithRetry` honors cancellation before issuing another request and
+while waiting between attempts. Cleanup does not await a cloned response's other
+reader. Failure state and cancellation are local to each export.
 
-Already-started callbacks have no cancellation API and are allowed to finish.
-Consequently an error is presented after those callbacks settle; a permanently
-stalled callback can still hold the operation open. This change does not add
-timeouts or alter network/authentication policy. Success concurrency, callback
-arguments, asset bytes, the 404 path, SiteDoc structure, schemaVersion, existing
-IDs, and import rollback ownership are unchanged.
+Independent review reproduced a regression in the initial drain-only version:
+one HTTP 403 plus a stalled sibling fetch or body suppressed the export error
+indefinitely. The cancellation change corrects that behavior. It does not add a
+deadline to otherwise healthy exports or change authentication policy. Success
+concurrency, callback arguments, asset bytes, the 404 path, SiteDoc structure,
+schemaVersion, existing IDs, and import rollback ownership are unchanged.
 
-**Acceptance:** eight tests in `asset-pool-failure.test.mts` cover the lifecycle,
-first-error identity, synchronous failure, empty/successful pools, the actual
-failed export, and a fresh successful export whose asset bytes and source doc
-are verified. Before the fix: **3 failed / 5 passed**. After: **8 passed**.
-The failed export starts only the initial six requests and creates no download.
+**Acceptance:** ten tests in `asset-pool-failure.test.mts` cover prompt failure,
+first-error identity, synchronous failure, empty/successful pools, actual stalled
+fetch/body cancellation, abort during retry backoff, and a fresh successful
+export whose asset bytes and source doc are verified. Against the initial PR
+head: **4 failed / 6 passed**. After the review correction: **10 passed**.
+The failed export starts only the initial six requests, aborts its five active
+siblings, and creates no download.
 
 ## Other hypotheses
 
@@ -100,7 +106,14 @@ The failed export starts only the initial six requests and creates no download.
 - PublishModal has a separate uploader implementation and failure flag. It was
   read for comparison but was not changed or claimed fixed by this work.
 
-## Verification
+## Initial investigation verification
+
+The independent cancellation correction was subsequently verified on Node
+26.12.1: the six-file focused command below passed **48 tests**, TypeScript
+passed, and `git diff --check` passed. The four new failure cases were reproduced
+against the initial PR head before applying the correction. Full CI on the
+integrated head remains required. The remaining results in this section record
+the initial investigation, before that correction.
 
 Commands use Node **26.12.1**, npm **12.2.1**:
 
