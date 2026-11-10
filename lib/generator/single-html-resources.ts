@@ -142,7 +142,7 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
         throw new Error("Could not embed the resource (check CORS or import it as a local asset): " + key);
       }
       if (!response.ok || (!local && response.url && isEditorApi(new URL(response.url)))) {
-        await response.body?.cancel().catch(() => {});
+        void response.body?.cancel().catch(() => {});
         throw new Error("Could not embed the resource (" + response.status + "): " + key);
       }
       if (!local && response.url) base = new URL(response.url);
