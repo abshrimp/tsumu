@@ -131,6 +131,8 @@ export async function POST(req: Request) {
     if (importing && e instanceof Error && /UNIQUE constraint failed: sites\.id/i.test(e.message)) {
       return NextResponse.json({ error: tr("サイトを作成できませんでした。") }, { status: 409 });
     }
-    return NextResponse.json({ error: tr(userMessage(e, "作成できませんでした")) }, { status: 502 });
+    // 複製元の本文や保存先の接続情報を含む例外をログや応答に渡さない。
+    console.error("[api/sites POST] site creation failed");
+    return NextResponse.json({ error: tr("作成できませんでした") }, { status: 502 });
   }
 }
