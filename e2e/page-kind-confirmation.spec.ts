@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
 // Keep browser cases for distinct dialog, focus, navigation, and collaboration behavior.
 const browserInterruptions = {
   html: ["rawHtml", "undo-redo", "page-return", "unmount", "cancel", "unrelated"],
-  redirect: ["redirectTo", "restore", "delete", "page", "unrelated"],
+  redirect: ["redirectTo", "rewriteTo", "restore", "delete", "page", "unrelated"],
 } as const;
 
 for (const kind of ["html", "redirect"] as const) {
