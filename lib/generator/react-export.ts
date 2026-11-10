@@ -118,7 +118,7 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
     'import { useEffect, type ComponentType } from "react";',
     ...imports, "",
     "const SITE_NAME = " + JSON.stringify(doc.siteName) + ";",
-    "const scripts = " + JSON.stringify(scripts.map((name) => "/" + name)) + ";",
+    "const scripts: string[] = " + JSON.stringify(scripts.map((name) => "/" + name)) + ";",
     "type Route = { path: string; query: Record<string, string>; title: string; description: string; lang: string; Component: ComponentType };",
     "const routes: Route[] = [", ...entries, "];", "",
     "export default function App() {",
