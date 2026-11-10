@@ -499,7 +499,7 @@ export function StackView({ script }: { script: PageScript }) {
     return () => observer.disconnect();
   }, [mounted, script.steps, ctx.readOnly, ctx.virtualizeStacks]);
 
-  const headKey = `${script.id}|head|0`;
+  const headKey = slotKey({ scriptId: script.id, list: "head", index: 0 });
   const scriptKey = `script:${script.id}`;
   const runnable = !!script.trigger && !!script.nodeId;
   return (
