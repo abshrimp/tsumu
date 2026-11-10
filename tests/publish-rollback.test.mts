@@ -7,6 +7,7 @@ import * as files from "../lib/publish-files";
 import * as preconditions from "../lib/publish-preconditions";
 import { advanceBranchRef } from "../lib/github";
 import { hasPublishCredentials } from "../lib/publish-security";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
 // Persist Git objects between real rollback, snapshot and publish handlers so
 // ownership errors that only delete files on the next publication are visible.
@@ -141,6 +142,7 @@ function fixture(target: "production" | "test", manual: files.TreeEntry, histori
     },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
     "lib/publish-files": files, "lib/publish-preconditions": preconditions, "lib/publish-security": { hasPublishCredentials },
+    "lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
   };
   const load = (path: string) => {
     const code = transformSync(readFileSync(new URL(path, import.meta.url), "utf8"), { loader: "ts", format: "cjs" }).code;

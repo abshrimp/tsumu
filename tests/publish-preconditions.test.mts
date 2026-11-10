@@ -7,6 +7,7 @@ import * as files from "../lib/publish-files";
 import * as contract from "../lib/publish-preconditions";
 import { advanceBranchRef } from "../lib/github";
 import { hasPublishCredentials } from "../lib/publish-security";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
 const require = createRequire(import.meta.url);
 class NextResponse extends Response {
@@ -108,6 +109,7 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
     "lib/github": { advanceBranchRef, targetConfig: conf, configError: () => null, githubClient: client, branchPath: (s: string) => s, previewEnabled: () => true },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
     "lib/publish-files": files, "lib/publish-preconditions": contract, "lib/publish-security": { hasPublishCredentials },
+    "lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
   };
   function load(path: string) {
     const code = transformSync(readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), { loader: "ts", format: "cjs" }).code;
@@ -120,7 +122,8 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
     method: "POST", body: JSON.stringify({ site: "example", target: "production", expected: expected(), expectedHead: old, ...body }),
   })) as Promise<Response>;
   const get = (extra: Record<string, string> = {}) => history.GET(new Request(`https://example.com?${new URLSearchParams({ site: "example", target: "production", expected: JSON.stringify(expected()), ...extra })}`)) as Promise<Response>;
-  return { post, get, heads, dest, writes, calls, get recorded() { return recorded; }, addManual() { entries = [...entries, { path: "manual-new.txt", mode: "100644", type: "blob", sha: "new" }]; heads.main = newer; } };
+  return { post, get, rawPublish: publish.POST, rawHistory: history.POST,
+    heads, dest, writes, calls, get recorded() { return recorded; }, addManual() { entries = [...entries, { path: "manual-new.txt", mode: "100644", type: "blob", sha: "new" }]; heads.main = newer; } };
 }
 
 test("every request rejects changed authoritative identity before reading or writing GitHub", async () => {
@@ -343,4 +346,23 @@ test("rollback restores older generated files even when current publication remo
   assert.ok(tree);
   assert.ok(!tree.body.tree.some((item: any) => item.path === "app/old.ts" && item.sha === null));
   assert.ok(tree.body.tree.some((item: any) => item.path === "manual.txt" && item.sha === "manual"));
+});
+
+
+test("publish and rollback reject oversized, invalid MIME and malformed POST data before GitHub calls", async () => {
+  const f = fixture();
+  for (const [handler, limit] of [[f.rawPublish, 48 * 1024 * 1024], [f.rawHistory, 128 * 1024]] as const) {
+    const request = (body: string, headers: Record<string, string>) => new Request("https://example.test/api/publish", {
+      method: "POST", body, headers,
+    });
+    const oversized = await handler(request("{}", {
+      "Content-Type": "application/json", "Content-Length": String(limit + 1),
+    }));
+    assert.equal(oversized.status, 413);
+    const wrongMime = await handler(request("{}", { "Content-Type": "text/plain" }));
+    assert.equal(wrongMime.status, 415);
+    const bad = await handler(request("{bad", { "Content-Type": "application/json" }));
+    assert.equal(bad.status, 400);
+  }
+  assert.deepEqual(f.writes, []);
 });
