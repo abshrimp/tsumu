@@ -44,5 +44,5 @@ test("shared JSON reader rejects invalid JSON, invalid UTF-8 and missing bodies"
   await assert.rejects(readJsonLimited(request([encoder.encode("{broken")]), 1024), SyntaxError);
   await assert.rejects(readJsonLimited(request([new Uint8Array([0xff])]), 1024), TypeError);
   const empty = new Request("https://example.test/api/ai", { method: "POST" });
-  await assert.rejects(readJsonLimited(empty, 1024), /Missing request body/);
+  await assert.rejects(readJsonLimited(empty, 1024), /Missing JSON request body/);
 });
