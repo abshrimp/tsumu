@@ -66,6 +66,9 @@ const signal = (page: Page, id: string) => page.locator(`.cv-root [data-node="${
 for (const locale of ["ja-JP", "en-US"]) test.describe(`preview lifecycle (${locale})`, () => {
   test.use({ locale });
   test.beforeEach(async ({ page }) => {
+    // The fixture loads localized UI and writes a cookie: use an HTTP origin,
+    // not an opaque about:blank page. robots.txt has no app scripts to race.
+    await page.goto("/robots.txt");
     await page.setContent('<html><body><div id="app"></div></body></html>');
     await page.addScriptTag({ content: bundle });
     await expect(signal(page, "a")).toHaveAttribute("data-site-state", "loaded");
