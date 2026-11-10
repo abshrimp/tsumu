@@ -157,7 +157,16 @@ test("dragging multiple scripts preserves each original stack width", async ({ p
     widths.push((await page.locator(`.se-ws .se-stack[data-script-id="${id}"]`).boundingBox())!.width);
   }
   await expect(page.locator(".se-ws .se-stack.is-selected")).toHaveCount(2);
-  await start(page, "script");
+  // Select a specific hat: the workspace now contains more than one.
+  const mainHat = page.locator('.se-ws .se-stack[data-script-id="script"] .se-hat');
+  const rect = (await mainHat.boundingBox())!;
+  await mainHat.dispatchEvent("pointerdown", {
+    pointerId: 1, pointerType: "touch", button: 0, buttons: 1,
+    clientX: rect.x + 6, clientY: rect.y + 6,
+  });
+  const p = await point(page);
+  await pointer(page, "pointermove", { x: p.x - 50, y: p.y - 50 });
+  await expect(visibleGhost(page)).toBeVisible();
   for (const [i, id] of ["script", "second"].entries()) {
     const width = (await page.locator(`.se-ghost .se-stack[data-script-id="${id}"]`).boundingBox())!.width;
     expect(Math.abs(width - widths[i])).toBeLessThan(1);
