@@ -517,7 +517,7 @@ export function StackView({ script, fixedWidth }: { script: PageScript; fixedWid
           ? undefined
           : { left: script.pos.x, top: script.pos.y, zIndex: ctx.zOrder.get(script.id),
               ...(!mounted ? { width: placeholder.width, height: placeholder.height } : {}),
-              ...(fixedWidth !== undefined ? { width: fixedWidth } : {}) }
+              ...(fixedWidth !== undefined ? { width: fixedWidth, boxSizing: "border-box" as const } : {}) }
       }
     >
       {mounted && (script.trigger ? (
