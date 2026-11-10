@@ -13,6 +13,7 @@ import { cssValue, rawHtmlWithBodyStyles, usedGoogleFonts } from "./css";
 import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
 import { unnestLinks } from "./page";
 import { hasVars } from "../vars";
+import { pageQueryConditions } from "../page-query";
 import { fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
 import { resolveTag } from "../tags";
 import { compileScripts, hasRunnableScripts, scriptTargetIds } from "../script";
@@ -527,7 +528,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
           const variants = group.map((variant) => {
             const context = { ...ctx, page: variant, seen: new Set<string>() };
             return {
-              query: Object.fromEntries(new URLSearchParams(variant.query ?? "")),
+              query: Object.fromEntries(pageQueryConditions(variant.query)),
               title: variant.title || variant.name,
               description: variant.description,
               lang: variant.lang || normalized.lang || "ja",
