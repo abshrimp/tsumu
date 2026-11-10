@@ -4,6 +4,7 @@ import {
   type SiteSnapshot, type SiteSaveResult,
 } from "./lib/structured-document-store";
 import type { DocPatch } from "./lib/doc-patch";
+import { extractAssetReferences } from "./lib/asset-gc-plan";
 
 /**
  * A single site is always mapped to a single SQLite-backed Durable Object ID.
@@ -32,6 +33,16 @@ export class DocumentRoom extends DurableObject {
   }
   listBackups(): Array<{ day: number; savedAt: number; bytes: number }> {
     return this.documents.listBackups();
+  }
+
+  /**
+   * Return asset references from the current persisted editor document only.
+   * Old backup and GitHub publication revisions are intentionally excluded
+   * from the seven-day unused-asset retention policy.
+   */
+  gcAssetReferences(): string[] {
+    const current = this.documents.snapshot();
+    return current ? [...extractAssetReferences(current.body)] : [];
   }
   readBackup(day: number): string | null {
     return this.documents.readBackup(day);

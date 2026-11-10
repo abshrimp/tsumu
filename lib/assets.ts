@@ -481,18 +481,28 @@ export async function downloadAsset(asset: Asset): Promise<void> {
 /**
  * サーバー上のアセットを削除（dataURL資産は何もしない）。
  * ほかのサイトが同じファイルを使っていれば消さない（Node.js・Docker のサーバーは全サイトを見て確かめる。
- * Cloudflare のサーバーは同時保存との競合を避けるため KV のファイルを消さない）
+ * Cloudflare は D1 にGC候補を登録し、7日後に全サイトを確認したうえで削除する）
  */
 export async function deleteAssetRemote(asset: Asset): Promise<void> {
   if (!asset.path) return;
   const quoted = `"${asset.path}"`;
-  // If other sites cannot be inspected, do not risk deleting their asset.
+  // The Cloudflare endpoint must receive the delete event to enqueue GC even
+  // when another browser-only site still references the file. Node/Docker
+  // use the browserReferenced flag to preserve their immediate-delete safety.
+  let browserReferenced = false;
   if (typeof window !== "undefined") {
     try {
-      if ((await otherBrowserDocs(currentSiteId())).some((raw) => raw.includes(quoted))) return;
-    } catch { return; }
+      browserReferenced = (await otherBrowserDocs(currentSiteId()))
+        .some((raw) => raw.includes(quoted));
+    } catch {
+      // An unavailable browser index must not suppress Cloudflare's GC event.
+      // Node/Docker still safely retain the file on this uncertainty.
+      browserReferenced = true;
+    }
   }
-  await fetch(siteApi("/api/assets", { path: asset.path }), {
+  await fetch(siteApi("/api/assets", {
+    path: asset.path, ...(browserReferenced ? { browserReferenced: "1" } : {}),
+  }), {
     method: "DELETE",
   }).catch(() => {
     // 削除失敗はドキュメント側から消えれば実害がないため無視
