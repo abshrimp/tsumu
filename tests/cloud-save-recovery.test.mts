@@ -52,7 +52,7 @@ for (const laterEdit of ["undo", "rename", "none"] as const) {
       assert.equal(init?.method, "PATCH");
       server = applyDocPatch(server, JSON.parse(String(init?.body)));
       rev = String(Number(rev) + 1);
-      return Response.json({ rev, savedAt: Number(rev) });
+      return Response.json({ ok: true, rev, savedAt: Number(rev) });
     });
     const save = () => {
       scheduleCloudSave(scope, useEditor.getState().doc);

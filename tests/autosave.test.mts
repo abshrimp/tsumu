@@ -176,11 +176,11 @@ function transport(connected: boolean, httpStatus = 200) {
   const scope = {
     collabSocket: ref(connected ? { readyState: WebSocket.OPEN } : null),
     clientId: "client1", savedAt: () => 10,
-    requestViaWebSocket: async (message: any) => { messages.push(message); return { type: "saved", rev: "2", savedAt: 20 } as any; },
+    requestViaWebSocket: async (message: any) => { messages.push(message); return { type: "saved", rev: message.base === null ? "1" : "2", savedAt: 20 } as any; },
   };
   mock.method(globalThis, "fetch", async (url: string, init: RequestInit) => {
     requests.push({ url, method: init.method!, body: JSON.parse(String(init.body)) });
-    return Response.json({ rev: "2", savedAt: 20 }, { status: requests.length === 1 ? httpStatus : 200 });
+    return Response.json({ ok: true, rev: "2", savedAt: 20 }, { status: requests.length === 1 ? httpStatus : 200 });
   });
   const save = (...args: Parameters<typeof sendCloudDoc> extends [any, ...infer R] ? R : never) => sendCloudDoc(scope, ...args);
   return { save, scope, messages, requests };
@@ -220,4 +220,50 @@ test("new sites use full saves and an HTTP patch failure cannot silently downgra
   assert.deepEqual(rejected.requests.map((request) => request.method), ["PATCH"]);
   assert.deepEqual(rejected.requests[0].body, createDocPatch(base, next));
   assert.ok(rejected.requests[0].url.includes("base=1"));
+});
+
+test("an incomplete HTTP success keeps the edit pending until the original base is acknowledged", async () => {
+  const h = harness();
+  const original = createInitialDoc();
+  const snapshot = { ...original, siteName: "Pending edit" };
+  h.scope.lastSyncedDoc.current = original;
+  h.state.doc = snapshot as any;
+  const responses = [
+    new Response("<html>Sign in</html>"),
+    Response.json(null),
+    Response.json({ ok: true }),
+    Response.json({ ok: false, rev: "2", savedAt: 20 }),
+    Response.json({ ok: true, rev: "1", savedAt: 20 }),
+    Response.json({ ok: true, rev: "2", savedAt: 20 }),
+  ];
+  const writes = mock.method(globalThis, "fetch", async () => responses.shift()!);
+  const transport = {
+    collabSocket: ref(null), clientId: "client1", savedAt: () => 10,
+    requestViaWebSocket: () => Promise.reject(new Error("No WebSocket")),
+  };
+  h.scope.saveCloudDoc = (doc, base) => sendCloudDoc(transport, doc as typeof original, base, original);
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    h.effect(); h.tick(); await h.scope.activeCloudSave.current;
+    assert.equal(h.state.cloudState, "error");
+    assert.equal(h.scope.lastSyncedRev.current, "1");
+    assert.equal(h.scope.lastSyncedDoc.current, original);
+    assert.equal(h.unsynced(), true);
+    assert.equal(h.later(), attempt);
+  }
+  h.effect(); h.tick(); await h.scope.activeCloudSave.current;
+  assert.equal(h.state.cloudState, "synced");
+  assert.equal(h.scope.lastSyncedRev.current, "2");
+  assert.equal(h.unsynced(), false);
+  assert.ok(writes.mock.calls.every(call => String(call.arguments[0]).includes("base=1")));
+});
+
+test("an unacknowledged WebSocket revision falls back to HTTP with the original base", async () => {
+  const h = transport(true);
+  const original = createInitialDoc();
+  h.scope.requestViaWebSocket = async () => ({ type: "saved", rev: "1", savedAt: 20 } as any);
+  const result = await h.save({ ...original, siteName: "New name" }, "1", original);
+  assert.equal(result.ok, true);
+  assert.equal(result.data.rev, "2");
+  assert.equal(h.requests.length, 1);
+  assert.ok(h.requests[0].url.includes("base=1"));
 });
