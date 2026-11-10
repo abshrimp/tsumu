@@ -43,7 +43,8 @@ export function hasPublishCredentials(doc: SiteDoc): boolean {
       if (headers.some((item) => {
         if (!item || typeof item !== "object") return false;
         const h = item as Record<string, unknown>;
-        return header.test(String(h.name ?? "")) && !!String(h.value ?? "").trim();
+        // 実行時の fetchRequestOf と同じく、ヘッダー名の前後の空白を除いて照合する。
+        return header.test(String(h.name ?? "").trim()) && !!String(h.value ?? "").trim();
       })) return true;
       const body = typeof object.body === "string" ? object.body : "";
       if (containsParam(body, false)) return true;

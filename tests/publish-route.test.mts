@@ -418,3 +418,22 @@ test("invalid format preferences reject a GitHub commit without changing its bra
     assert.equal(f.recorded, false);
   }
 });
+
+test("publication rejects padded credential headers before any remote write", async () => {
+  const document = JSON.stringify({ pages: { p: { pageScripts: [{ steps: [{
+    kind: "fetch", url: "https://public.example/data",
+    headers: [{ name: " \tAuthorization ", value: "Bearer synthetic-credential" }],
+  }] }] } } });
+  for (const payload of [
+    { action: "commit", files: { [helpers.DOC_PATH]: document } },
+    { action: "commit", files: { "app/page.tsx": "page" }, assetShas: { [helpers.DOC_PATH]: "secret-doc" } },
+    { action: "upload", path: helpers.DOC_PATH, base64: Buffer.from(document).toString("base64") },
+  ]) {
+    const f = fixture(false, undefined, document);
+    const response = await f.send(payload);
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /認証情報/);
+    assert.deepEqual(f.writes, []);
+    assert.deepEqual(f.uploaded, []);
+  }
+});
