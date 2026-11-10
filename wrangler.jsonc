@@ -5,6 +5,8 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "tsumu",
 	"main": "custom-worker.ts",
+	// 03:00 Japan Standard Time (18:00 UTC); inventory-only until safe fencing is implemented.
+	"triggers": { "crons": ["0 18 * * *"] },
 	"compatibility_date": "2026-10-19",
 	"compatibility_flags": [
 		"nodejs_compat"
