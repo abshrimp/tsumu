@@ -36,7 +36,7 @@ test(`component nested browser arrays: configure, preview, reload and execute ex
   await page.goto('/robots.txt');
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
   await page.addScriptTag({ content: await clientNestedBundle(true) });
-  const source = page.locator('aside .row').filter({ has: page.locator('label', { hasText: /^表示するリスト$/ }) }).locator('button');
+  const source = page.locator('aside .row').filter({ has: page.locator('span.lbl', { hasText: /^表示するリスト$/ }) }).locator('button');
   await source.click();
   await page.locator('.dd-item').filter({ has: page.locator('.dd-col > span:first-child', { hasText: /^tags$/ }) }).click();
   await expect(source).toHaveText('tags');
@@ -112,7 +112,7 @@ test(`component client text overrides the server scalar through real controls`, 
   await page.goto('/robots.txt');
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
   await page.addScriptTag({ content: await clientNestedBundle(true, doc) });
-  const source = page.locator('aside .row').filter({ has: page.locator('label', { hasText: /^表示するリスト$/ }) }).locator('button');
+  const source = page.locator('aside .row').filter({ has: page.locator('span.lbl', { hasText: /^表示するリスト$/ }) }).locator('button');
   await source.click();
   await page.locator('.dd-item').filter({ has: page.locator('.dd-col > span:first-child', { hasText: /^tags$/ }) }).click();
   const configured = await snapshot(page);
@@ -145,7 +145,7 @@ test(`component generated client links retain row URLs after reload and navigati
   await page.goto('/robots.txt');
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
   await page.addScriptTag({ content: await clientNestedBundle(true, doc) });
-  const source = page.locator('aside .row').filter({ has: page.locator('label', { hasText: /^表示するリスト$/ }) }).locator('button');
+  const source = page.locator('aside .row').filter({ has: page.locator('span.lbl', { hasText: /^表示するリスト$/ }) }).locator('button');
   await source.click();
   await page.locator('.dd-item').filter({ has: page.locator('.dd-col > span:first-child', { hasText: /^tags$/ }) }).click();
   await page.getByRole('button', { name: 'Edit loading', exact: true }).click();

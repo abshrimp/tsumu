@@ -274,6 +274,7 @@ export default function PagePanel() {
           style={{ display: "flex", alignItems: "center", gap: 6 }}
         >
           <input
+            id={`page-${page.id}-published`}
             type="checkbox"
             data-tutorial="tutorial-page-publish-checkbox"
             checked={!page.unpublished}
@@ -285,9 +286,10 @@ export default function PagePanel() {
           <InfoTip text={tr("非公開のページは書き出し・公開に含まれません（下書きとして残ります）。")} />
         </label>
         <div className="row">
-          <label>{tr("名前")}</label>
+          <label htmlFor={`page-${page.id}-name`}>{tr("名前")}</label>
           <CommitInput
             key={`${page.id}-name`}
+            id={`page-${page.id}-name`}
             className="input"
             data-tutorial="tutorial-page-name"
             value={page.name}
@@ -296,7 +298,7 @@ export default function PagePanel() {
           />
         </div>
         <div className="row">
-          <label className="lbl-info">
+          <label className="lbl-info" htmlFor={`page-${page.id}-slug`}>
             URL
             <InfoTip
               text={tr("ページのアドレスです（例: blog なら {p1}/blog）。\n「blog?tab=news」のようにクエリを付けると、このページへのリンクに付き、ページ内では {tab} として使えます。\n「blog/[slug]」のように [slug] を入れると、データの1件ごとの詳細ページになります。", { p1: doc.siteUrl ?? "" })}
@@ -304,6 +306,7 @@ export default function PagePanel() {
           </label>
           <input
             key={`${page.id}-slug-${page.slug}?${page.query ?? ""}`}
+            id={`page-${page.id}-slug`}
             className="input"
             data-tutorial="tutorial-page-slug"
             defaultValue={page.query ? `${page.slug}?${page.query}` : page.slug}
@@ -326,11 +329,12 @@ export default function PagePanel() {
         </div>
         {pageKind === "normal" && !isLoadingPage && (
           <div className="row">
-            <label className="lbl-info">
+            <label className="lbl-info" htmlFor={`page-${page.id}-lang`}>
               {tr("言語")}
               <InfoTip text={tr("このページの文章の言語です。「サイトと同じ」のときは、サイト設定の言語になります。")} />
             </label>
             <SiteLanguageSelect
+              id={`page-${page.id}-lang`}
               key={page.id}
               value={isSiteLang(page.lang) ? page.lang : ""}
               onChange={(lang) => updatePage(page.id, { lang: lang || undefined })}
@@ -355,10 +359,10 @@ export default function PagePanel() {
 
         {pageKind !== "redirect" && (
           <div className="stack" style={{ gap: 4 }}>
-            <label className="lbl lbl-info">
+            <span className="lbl lbl-info">
               {tr("外側の背景色")}
               <InfoTip text={tr("ページの端を越えてスクロールしたときに見える色です。未設定のときはbodyの背景色を使います。")} />
-            </label>
+            </span>
             <FillControl
               value={page.htmlBackground}
               onChange={(v) =>
@@ -411,9 +415,10 @@ export default function PagePanel() {
       {/* ---------- 検索・シェア ---------- */}
       <Sec title={tr("検索・シェア（SEO）")} defaultOpen={false} tutorialTarget="page-seo" help="page-seo">
         <div className="row">
-          <label>{tr("タイトル")}</label>
+          <label htmlFor={`page-${page.id}-title`}>{tr("タイトル")}</label>
           <CommitInput
             key={`${page.id}-title`}
+            id={`page-${page.id}-title`}
             className="input"
             value={page.title}
             placeholder={page.name}
@@ -422,9 +427,10 @@ export default function PagePanel() {
           />
         </div>
         <div className="stack" style={{ gap: 4 }}>
-          <label className="lbl">{tr("説明文")}</label>
+          <label className="lbl" htmlFor={`page-${page.id}-description`}>{tr("説明文")}</label>
           <CommitTextarea
             key={`${page.id}-desc`}
+            id={`page-${page.id}-description`}
             className="textarea"
             value={page.description}
             placeholder={tr("検索結果やSNSでシェアされたときに表示される紹介文です。")}
@@ -432,10 +438,10 @@ export default function PagePanel() {
           />
         </div>
         <div className="stack" style={{ gap: 4 }}>
-          <label className="lbl lbl-info">
+          <span className="lbl lbl-info">
             {tr("シェア用画像（OGP）")}
             <InfoTip text={tr("SNSでリンクがシェアされたときに表示される画像です。未設定のときはサイト設定の画像を使います。1200×630pxがおすすめです。")} />
-          </label>
+          </span>
           <ImagePicker
             editTarget={page.id}
             value={page.ogImage}
@@ -447,6 +453,7 @@ export default function PagePanel() {
           style={{ display: "flex", alignItems: "center", gap: 6 }}
         >
           <input
+            id={`page-${page.id}-noindex`}
             type="checkbox"
             checked={!!page.noindex}
             onChange={(e) => updatePage(page.id, { noindex: e.target.checked })}
@@ -498,14 +505,14 @@ export default function PagePanel() {
               <FileUp size={12} />
               {tr("HTMLとアセットのZIPを読み込む")}
             </button>
-            <input ref={normalHtmlRef} type="file"
+            <input id={`page-${page.id}-import-html`} aria-label={tr("HTMLファイルを読み込む")} ref={normalHtmlRef} type="file"
               accept=".html,.htm,text/html" style={{ display: "none" }}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) void importAsEditablePage(file);
                 e.target.value = "";
               }} />
-            <input ref={normalZipRef} type="file"
+            <input id={`page-${page.id}-import-zip`} aria-label={tr("HTMLとアセットのZIPを読み込む")} ref={normalZipRef} type="file"
               accept=".zip,application/zip" style={{ display: "none" }}
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -522,12 +529,13 @@ export default function PagePanel() {
 
       {pageKind === "redirect" && (
         <div className="stack" style={{ gap: 4 }}>
-          <label className="lbl lbl-info">
+          <label className="lbl lbl-info" htmlFor={`page-${page.id}-redirect`}>
             {tr("301リダイレクト先")}
             <InfoTip text={tr("このページへアクセスしたブラウザを転送先へ恒久的に移動します。リダイレクトページのキャンバスは編集できません。")} />
           </label>
           <input
             key={`${page.id}-redirect-${page.redirectTo ?? "empty"}`}
+            id={`page-${page.id}-redirect`}
             className="input"
             defaultValue={page.redirectTo ?? ""}
             placeholder={tr("/new-page または https://example.com/...")}
@@ -546,12 +554,13 @@ export default function PagePanel() {
 
       {pageKind === "redirect" && (
         <div className="stack" style={{ gap: 4 }}>
-          <label className="lbl lbl-info">
+          <label className="lbl lbl-info" htmlFor={`page-${page.id}-rewrite`}>
             {tr("外部サイトを表示（リバースプロキシ）")}
             <InfoTip text={tr("ブラウザのURLは変えず、指定した外部サイトの内容をこのURLで中継して表示します。トップページ（/）の配下では、このサイトのページ・ファイルを優先し、見つからないパスを中継します。転送先URLに ? または # がある場合は、このページのURLに一致するパスだけを中継します。301リダイレクトとは同時に設定できません。")} />
           </label>
           <input
             key={`${page.id}-rewrite-${page.rewriteTo ?? "empty"}`}
+            id={`page-${page.id}-rewrite`}
             className="input"
             defaultValue={page.rewriteTo ?? ""}
             placeholder="https://example.com/..."
@@ -589,6 +598,8 @@ export default function PagePanel() {
             </button>
             <input
               ref={htmlFileRef}
+              id={`page-${page.id}-raw-html-import`}
+              aria-label={tr("HTMLファイルを読み込む")}
               type="file"
               accept=".html,.htm,text/html"
               style={{ display: "none" }}
@@ -612,6 +623,8 @@ export default function PagePanel() {
             />
             <input
               ref={htmlZipRef}
+              id={`page-${page.id}-raw-zip-import`}
+              aria-label={tr("HTMLとアセットのZIPを読み込む")}
               type="file"
               accept=".zip,application/zip"
               style={{ display: "none" }}
@@ -627,12 +640,13 @@ export default function PagePanel() {
               {zipMessage}
             </p>
           )}
-          <label className="lbl lbl-info">
+          <label className="lbl lbl-info" htmlFor={`page-${page.id}-rawhtml`}>
             {tr("HTMLコード")}
             <InfoTip text={tr("scriptやCSSを含むHTMLをそのまま配信します（このページにはNext.jsのレイアウトやメタデータは適用されません）。")} />
           </label>
           <CommitTextarea
             key={`${page.id}-rawhtml`}
+            id={`page-${page.id}-rawhtml`}
             className="textarea mono"
             rows={14}
             value={page.rawHtml ?? ""}
@@ -649,12 +663,13 @@ export default function PagePanel() {
         <>
           {/* ---- このページのみ ---- */}
           <div className="stack" style={{ gap: 4 }}>
-            <label className="lbl lbl-info">
+            <label className="lbl lbl-info" htmlFor={`page-${page.id}-top`}>
               {tr("先頭コード（このページのみ）")}
               <InfoTip text={tr("このページのHTMLの先頭・末尾に挿入されます。このページだけで使う計測タグや構造化データ（JSON-LD）などに使います。タイトルや説明文は「検索・シェア」で設定してください。")} />
             </label>
             <CommitTextarea
               key={`${page.id}-top`}
+              id={`page-${page.id}-top`}
               className="textarea mono"
               rows={5}
               value={page.customTopHtml ?? ""}
@@ -666,12 +681,13 @@ export default function PagePanel() {
             />
           </div>
           <div className="stack" style={{ gap: 4 }}>
-            <label className="lbl lbl-info">
+            <label className="lbl lbl-info" htmlFor={`page-${page.id}-end`}>
               {tr("末尾コード（このページのみ）")}
               <InfoTip text={tr("このページのHTMLの先頭・末尾に挿入されます。このページだけで使う計測タグや構造化データ（JSON-LD）などに使います。タイトルや説明文は「検索・シェア」で設定してください。")} />
             </label>
             <CommitTextarea
               key={`${page.id}-end`}
+              id={`page-${page.id}-end`}
               className="textarea mono"
               rows={5}
               value={page.customEndHtml ?? ""}

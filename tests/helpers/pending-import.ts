@@ -16,6 +16,7 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style" | "bac
   const cells: any[] = [];
   const equal = (a: unknown[], b?: unknown[]) => !!b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
   const hooks = {
+    useId() { const i = cursor++; return cells[i] ??= `test-field-${i}`; },
     useMemo(compute: () => unknown) { return compute(); },
     useState(initial: unknown) {
       const i = cursor++;

@@ -920,8 +920,9 @@ export default function Canvas() {
         <div className="dyn-bar">
           {primaryFindBy ? (
             <>
-              <span>{tr("表示中のデータ:")}</span>
+              <label htmlFor="canvas-preview-data">{tr("表示中のデータ:")}</label>
               <select
+                id="canvas-preview-data"
                 className="select dyn-select"
                 value={slugNotFound ? "" : previewIndex}
                 onChange={(e) => {
@@ -936,8 +937,9 @@ export default function Canvas() {
                   </option>
                 ))}
               </select>
-              <span>slug:</span>
+              <label htmlFor="canvas-preview-slug">slug:</label>
               <input
+                id="canvas-preview-slug"
                 className="input dyn-select dyn-slug"
                 value={slugVal}
                 onChange={(e) => {
@@ -957,8 +959,9 @@ export default function Canvas() {
             </>
           ) : (
             <>
-              <span>slug:</span>
+              <label htmlFor="canvas-preview-slug">slug:</label>
               <input
+                id="canvas-preview-slug"
                 className="input dyn-select"
                 value={previewSlug}
                 onChange={(e) => setPreviewSlug(e.target.value)}

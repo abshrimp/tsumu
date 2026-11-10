@@ -123,7 +123,7 @@ test("range bounds and input type can still be edited before entering preview", 
   await value(page, "15");
   expect(await snapshot(page)).toEqual(bounded);
   await toggle(page);
-  await page.locator("aside .row").filter({ has: page.locator("label").filter({ hasText: /^type$/ }) }).locator(".dd").click();
+  await page.locator("aside .row").filter({ has: page.locator("span.lbl").filter({ hasText: /^type$/ }) }).locator(".dd").click();
   await page.getByRole("button", { name: "color（色）", exact: true }).click();
   await toggle(page);
   await value(page, "#000000");
