@@ -5,6 +5,7 @@ import {
   DEFAULT_BRANCH,
   DEFAULT_PREVIEW_BRANCH,
   getSite,
+  getSiteRoomKey,
   isSiteId,
   normalizeSiteInput,
   type SiteDest,
@@ -21,10 +22,13 @@ export async function siteIdOf(value: unknown): Promise<string | NextResponse> {
  * サイトの公開先。D1 があればそこから読む。
  * D1 が無いとき（サイトの一覧をブラウザ内に保存しているとき）は、ブラウザから送られた公開先を使う
  */
-export async function siteDestOf(siteId: string, clientDest?: unknown): Promise<SiteDest | NextResponse> {
+export async function siteDestOf(siteId: string, clientDest?: unknown): Promise<(SiteDest & { roomKey?: string | null }) | NextResponse> {
   if (dbConfigured()) {
-    const site = await getSite(await getDb(), siteId);
-    if (site) return site;
+    const db = await getDb();
+    // 公開先と世代を対応付け、途中で作り直されたサイトの記録を更新しない。
+    const roomKey = db.backend === "d1" ? await getSiteRoomKey(db, siteId) : undefined;
+    const site = roomKey === null ? null : await getSite(db, siteId, roomKey);
+    if (site) return { ...site, roomKey };
     const tr = await serverTr();
     return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
   }
