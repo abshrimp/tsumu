@@ -368,10 +368,12 @@ async function authorizeWebSocket(
 }
 
 export default {
-  scheduled(_event: unknown, env: WorkerEnv, ctx: ExecutionContext): void {
-    // Opt-in physical deletion after seven days of non-reference.
-    // Disabled by default; the cron continues collecting candidates in dry-run.
-    if (!env.DB || !env.ASSETS_KV?.list || !env.DOC_STORE) return;
+  scheduled(event: { cron?: string }, env: WorkerEnv, ctx: ExecutionContext): void {
+    // Every day: only expired D1 candidates. Weekly: reconcile one KV page
+    // to find failed uploads or assets orphaned by deleted sites.
+    const discoverUntracked = event.cron === "0 19 * * 0";
+    if (!env.DB || !env.ASSETS_KV || !env.DOC_STORE ||
+        (discoverUntracked && !env.ASSETS_KV.list)) return;
     ctx.waitUntil((async () => {
       try {
         const db = await getDbFromBinding(env.DB!);
@@ -381,6 +383,7 @@ export default {
           graceDays: env.ASSET_GC_GRACE_DAYS === undefined ? undefined : Number(env.ASSET_GC_GRACE_DAYS),
           maxDeletes: env.ASSET_GC_MAX_DELETES === undefined ? undefined : Number(env.ASSET_GC_MAX_DELETES),
           dryRun: env.ASSET_GC_ENABLED !== "true",
+          discoverUntracked,
         });
       } catch {
         // A failed run records the number of completed deletes in D1.
