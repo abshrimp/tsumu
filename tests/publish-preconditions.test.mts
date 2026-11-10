@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
 import * as files from "../lib/publish-files";
+import * as publishPwa from "../lib/publish-pwa";
 import * as contract from "../lib/publish-preconditions";
 import { advanceBranchRef } from "../lib/github";
 import { hasPublishCredentials } from "../lib/publish-security";
@@ -107,7 +108,7 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
     "lib/site-server": { siteIdOf: async (site: string) => site, siteDestOf: async () => dest, destParam: () => undefined },
     "lib/github": { advanceBranchRef, targetConfig: conf, configError: () => null, githubClient: client, branchPath: (s: string) => s, previewEnabled: () => true },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
-    "lib/publish-files": files, "lib/publish-preconditions": contract, "lib/publish-security": { hasPublishCredentials },
+    "lib/publish-files": files, "lib/publish-pwa": publishPwa, "lib/publish-preconditions": contract, "lib/publish-security": { hasPublishCredentials },
   };
   function load(path: string) {
     const code = transformSync(readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), { loader: "ts", format: "cjs" }).code;

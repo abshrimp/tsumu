@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
 import * as files from "../lib/publish-files";
+import * as publishPwa from "../lib/publish-pwa";
 import * as preconditions from "../lib/publish-preconditions";
 import { advanceBranchRef } from "../lib/github";
 import { hasPublishCredentials } from "../lib/publish-security";
@@ -140,7 +141,7 @@ function fixture(target: "production" | "test", manual: files.TreeEntry, histori
       githubClient: () => ({ gh, head: async () => head, fail: async () => { throw new Error("GitHub failure"); } }),
     },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
-    "lib/publish-files": files, "lib/publish-preconditions": preconditions, "lib/publish-security": { hasPublishCredentials },
+    "lib/publish-files": files, "lib/publish-pwa": publishPwa, "lib/publish-preconditions": preconditions, "lib/publish-security": { hasPublishCredentials },
   };
   const load = (path: string) => {
     const code = transformSync(readFileSync(new URL(path, import.meta.url), "utf8"), { loader: "ts", format: "cjs" }).code;

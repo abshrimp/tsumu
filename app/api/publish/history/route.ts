@@ -29,6 +29,7 @@ import {
 
 import { matchesPublishTarget, publishConflictMessage } from "../../../../lib/publish-preconditions";
 import { hasPublishCredentials } from "../../../../lib/publish-security";
+import { rollbackPwaRetirement } from "../../../../lib/publish-pwa";
 
 export const maxDuration = 30;
 const PRIVATE_NO_STORE = { "Cache-Control": "private, no-store" };
@@ -262,9 +263,10 @@ export async function POST(req: Request) {
           !Object.hasOwn(currentBlobs, entry.path))
       : [];
     const deletedPaths = new Set(deletedManual.map(entry => entry.path));
-    if (!kept || conflictingCommitPaths([
-      ...sourcePaths.filter(path => !isProtectedPath(path) && !deletedPaths.has(path)), ...keptPaths,
-    ])) {
+    const restoredPaths = sourcePaths.filter(path => !isProtectedPath(path) && !deletedPaths.has(path));
+    const retirement = await rollbackPwaRetirement(generated, sourcePaths, [...restoredPaths, ...keptPaths], sourceGenerated);
+    const addedPaths = retirement ? [retirement.path] : [];
+    if (!kept || conflictingCommitPaths([...restoredPaths, ...keptPaths, ...addedPaths])) {
       return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 409 });
     }
     // Preserve .github as a whole subtree. Do not also write its nested files
@@ -275,7 +277,7 @@ export async function POST(req: Request) {
     // 手動ファイルとディレクトリを入れ替えた場合は、古いパスを先に別ツリーから除く。
     // 親と子の編集を同時に渡さず、最後のコミットまでブランチの先端は動かさない。
     const pruneFirst = !!conflictingCommitPaths([
-      ...sourcePaths.filter(path => !isProtectedPath(path)), ...keptPaths,
+      ...sourcePaths.filter(path => !isProtectedPath(path)), ...keptPaths, ...addedPaths,
     ]);
     const deletions: TreeEntry[] = deletedManual.map(entry => ({
       path: entry.path, mode: entry.mode, type: entry.type, sha: null,
@@ -283,6 +285,7 @@ export async function POST(req: Request) {
     const edits: (TreeEntry | { path: string; mode: "100644"; type: "blob"; content: string })[] = [
       ...protectedTreeEdits(sourceRoot, currentRoot),
       ...(!pruneFirst ? deletions : []),
+      ...(retirement ? [{ path: retirement.path, mode: "100644" as const, type: "blob" as const, content: retirement.content }] : []),
       ...kept.filter(entry => {
         const prior = sourceByPath.get(entry.path);
         return !prior || prior.sha !== entry.sha || prior.mode !== entry.mode || prior.type !== entry.type;
@@ -291,15 +294,16 @@ export async function POST(req: Request) {
     // A retained manual file may reuse a formerly generated path. Restoring
     // its old ownership would let the next publish delete it, even when its
     // content and Git attributes happen to match the historical version.
-    if (sourceGenerated && keptPaths.some(path => Object.hasOwn(sourceGenerated, path))) {
+    if (retirement || (sourceGenerated && keptPaths.some(path => Object.hasOwn(sourceGenerated, path)))) {
       const retained = new Set(keptPaths);
       edits.push({
         path: GENERATED_MANIFEST_PATH,
         mode: "100644",
         type: "blob",
-        content: serializeGeneratedManifest(Object.fromEntries(
-          Object.entries(sourceGenerated).filter(([path]) => !retained.has(path))
-        )),
+        content: serializeGeneratedManifest({
+          ...Object.fromEntries(Object.entries(sourceGenerated ?? {}).filter(([path]) => !retained.has(path))),
+          ...(retirement ? { [retirement.path]: retirement.sha } : {}),
+        }),
       });
     }
     let treeSha = src.tree.sha;
