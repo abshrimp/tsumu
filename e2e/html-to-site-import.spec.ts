@@ -270,10 +270,12 @@ test("linked CSS @imports and external JS module files are preserved and resolve
 test("multi-page HTML ZIP imports every page and converts internal page links", async ({ page }) => {
   await localMode(page);
   const zip = new JSZip();
-  zip.file("website/index.html", '<html><head><title>Multi HTML</title></head><body><a id="next" href="about.html">About</a></body></html>');
-  zip.file("website/about.html", '<html><head><title>About</title></head><body><h1>About us</h1>' +
+  zip.file("docs.html", '<html><head><title>Docs file</title></head><body><p>Separate page</p></body></html>');
+  zip.file("docs/index.htm", '<html><head><title>Docs</title></head><body><a id="home" href="../">Home</a></body></html>');
+  zip.file("index.htm", '<html><head><title>Multi HTML</title></head><body><a id="next" href="about.html">About</a>' +
+    '<a id="docs" href="docs/">Documentation</a><a id="root" href="/?lang=en#home">Home</a></body></html>');
+  zip.file("about.html", '<html><head><title>About</title></head><body><h1>About us</h1>' +
     '<a id="query-only" href="?lang=en#details">English details</a></body></html>');
-  zip.file("website/docs/index.html", '<html><head><title>Docs</title></head><body><p>Documentation</p></body></html>');
   await page.goto("/");
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
@@ -282,14 +284,16 @@ test("multi-page HTML ZIP imports every page and converts internal page links", 
   });
   await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   const doc = await importedDoc(page);
-  expect(doc.pageOrder).toHaveLength(3);
+  expect(doc.pageOrder).toHaveLength(4);
   const paths = doc.pageOrder.map((id: string) => doc.pages[id].slug);
-  expect(paths).toEqual(["", "about", "docs"]);
-  const link = Object.values(doc.nodes).find((node: any) => node.attrId === "next") as any;
+  expect(paths).toEqual(["", "docs", "docs-2", "about"]);
+  const linkFor = (attrId: string) => (Object.values(doc.nodes).find((node: any) => node.attrId === attrId) as any).link;
+  expect(linkFor("home")).toMatchObject({ kind: "page", pageId: doc.pageOrder[0] });
+  expect(linkFor("root")).toMatchObject({ kind: "url", url: "/?lang=en#home" });
+  expect(linkFor("docs")).toMatchObject({ kind: "page", pageId: doc.pageOrder[2] });
   const aboutId = doc.pageOrder.find((id: string) => doc.pages[id].slug === "about");
-  expect(link.link).toMatchObject({ kind: "page", pageId: aboutId });
-  const queryLink = Object.values(doc.nodes).find((node: any) => node.attrId === "query-only") as any;
-  expect(queryLink.link).toMatchObject({ kind: "url", url: "/about?lang=en#details" });
+  expect(linkFor("next")).toMatchObject({ kind: "page", pageId: aboutId });
+  expect(linkFor("query-only")).toMatchObject({ kind: "url", url: "/about?lang=en#details" });
 });
 
 

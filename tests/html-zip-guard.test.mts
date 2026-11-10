@@ -11,6 +11,7 @@ async function reopen(zip: JSZip): Promise<JSZip> {
 
 test("HTML ZIP inspection accepts ordinary nested pages and static assets", async () => {
   const zip = await reopen(new JSZip()
+    .file("site/docs/index.html", "<main>Docs</main>")
     .file("site/index.html", "<main>Home</main>")
     .file("site/about.html", "<main>About</main>")
     .file("site/styles.css", "body{margin:0}")
@@ -18,7 +19,7 @@ test("HTML ZIP inspection accepts ordinary nested pages and static assets", asyn
   const result = inspectHtmlZip(zip);
   assert.equal(result.htmlEntry.name, "site/index.html");
   assert.deepEqual(result.htmlEntries.map((e) => e.name),
-    ["site/index.html", "site/about.html"]);
+    ["site/docs/index.html", "site/index.html", "site/about.html"]);
   assert.deepEqual(result.assetEntries.map((e) => e.name),
     ["site/styles.css", "site/photo.png"]);
 });

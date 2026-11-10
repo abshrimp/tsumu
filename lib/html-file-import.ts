@@ -2,6 +2,7 @@ import { withImportUploads } from "./import-uploads";
 import { openImportZip } from "./zip-directory";
 import type { Asset, BreakpointDef, SiteDoc } from "./types";
 import { readHtmlZip, readHtmlZipPages } from "./html-zip";
+import { isHtmlIndex } from "./html-zip-guard";
 import { convertHtmlToSite, type HtmlConversion } from "./html-to-site";
 import { IMPORT_LIMITS } from "./site-import";
 import { tr } from "./i18n";
@@ -93,7 +94,13 @@ function convertHtmlPages(
     result.pages[id] = page;
     result.pageOrder.push(id);
     Object.assign(result.nodes, doc.nodes);
-    paths.set(canonical(source.name), { id, slug: unique });
+    const path = canonical(source.name);
+    const target = { id, slug: unique };
+    paths.set(path, target);
+    if (isHtmlIndex(path)) {
+      const directory = path.slice(0, path.lastIndexOf("/") + 1);
+      if (!paths.has(directory)) paths.set(directory, target);
+    }
     originForPage.set(id, source.name);
     breakpoints = doc.breakpoints;
     for (const warning of converted.warnings) if (!warnings.includes(warning)) warnings.push(warning);
@@ -118,9 +125,10 @@ function convertHtmlPages(
           const candidate = canonical(relative
             ? relative.startsWith("/") ? prefix + relative : folder + relative
             : filename);
-          const matches = [candidate, candidate + ".html", candidate + ".htm",
-            candidate.replace(/\/$/, "") + "/index.html"];
-          const found = matches.map((name) => paths.get(name)).find(Boolean);
+          const directoryPage = paths.get(candidate ? candidate + "/" : "");
+          const directoryLink = /(?:\/|(?:^|\/)\.{1,2})$/.test(relative);
+          const found = directoryLink ? directoryPage :
+            paths.get(candidate) ?? paths.get(candidate + ".html") ?? paths.get(candidate + ".htm") ?? directoryPage;
           if (found) {
             node.link = suffix
               ? { kind: "url", url: "/" + found.slug + suffix, newTab: node.link.newTab }
