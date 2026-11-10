@@ -118,6 +118,64 @@ test("closing during a drag and reopening leaves no late operation or listener",
   expect((await snapshot(page)).past).toBe(1);
 });
 
+test("dragged steps retain their width without narrowing the source stack", async ({ page }) => {
+  // A wide step determines the source stack width; removing it would normally shrink the stack.
+  await page.addStyleTag({ content: '.se-ws [data-sel-key="step:wait"] { min-width: 480px; }' });
+  const source = page.locator('.se-ws .se-stack[data-script-id="script"]');
+  const originalStack = (await source.boundingBox())!;
+  await start(page, "step");
+  const preview = (await visibleGhost(page).boundingBox())!;
+  const remaining = (await source.boundingBox())!;
+  // Compare the card's outer box: the workspace-only min-width rule in this
+  // fixture intentionally does not apply to the preview's inner step row.
+  expect(Math.abs(preview.width - originalStack.width)).toBeLessThan(1);
+  expect(Math.abs(remaining.width - originalStack.width)).toBeLessThan(1);
+  await pointer(page, "pointercancel", { buttons: 0 });
+  await expect(transient(page)).toHaveCount(0);
+});
+
+test("dragging multiple scripts preserves each original stack width", async ({ page }) => {
+  await page.evaluate(() => {
+    (window as any).scriptDragEditor.getState().updateDoc((doc: any) => {
+      doc.pages.p.pageScripts.push({
+        id: "second", trigger: "load", pos: { x: 490, y: 32 },
+        steps: [{ id: "second-wait", kind: "wait", seconds: 2 }],
+      });
+    });
+  });
+  await page.addStyleTag({ content: [
+    '.se-ws .se-stack[data-script-id="script"] { min-width: 420px; }',
+    '.se-ws .se-stack[data-script-id="second"] { min-width: 530px; }',
+  ].join(" ") });
+  const widths: number[] = [];
+  for (const id of ["script", "second"]) {
+    const hat = page.locator(`.se-ws .se-stack[data-script-id="${id}"] .se-hat`);
+    const rect = (await hat.boundingBox())!;
+    await hat.dispatchEvent("pointerdown", {
+      pointerId: 1, pointerType: "mouse", button: 0, buttons: 1, shiftKey: true,
+      clientX: rect.x + 6, clientY: rect.y + 6,
+    });
+    widths.push((await page.locator(`.se-ws .se-stack[data-script-id="${id}"]`).boundingBox())!.width);
+  }
+  await expect(page.locator(".se-ws .se-stack.is-selected")).toHaveCount(2);
+  // Select a specific hat: the workspace now contains more than one.
+  const mainHat = page.locator('.se-ws .se-stack[data-script-id="script"] .se-hat');
+  const rect = (await mainHat.boundingBox())!;
+  await mainHat.dispatchEvent("pointerdown", {
+    pointerId: 1, pointerType: "touch", button: 0, buttons: 1,
+    clientX: rect.x + 6, clientY: rect.y + 6,
+  });
+  const p = await point(page);
+  await pointer(page, "pointermove", { x: p.x - 50, y: p.y - 50 });
+  await expect(visibleGhost(page)).toBeVisible();
+  for (const [i, id] of ["script", "second"].entries()) {
+    const width = (await page.locator(`.se-ghost .se-stack[data-script-id="${id}"]`).boundingBox())!.width;
+    expect(Math.abs(width - widths[i])).toBeLessThan(1);
+  }
+  await pointer(page, "pointercancel", { buttons: 0 });
+  await expect(transient(page)).toHaveCount(0);
+});
+
 test("a real mouse drop still moves one stack and supports Undo/Redo", async ({ page }) => {
   const before = await snapshot(page);
   const r = await page.locator(owner("script")).boundingBox(); const p = await point(page);
