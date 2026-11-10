@@ -18,6 +18,11 @@ const cases = [
   ["literal-percent", "data:text/plain,100% complete%2"],
   ["unicode", "data:text/plain;charset=utf-8,雪🌸%00"],
   ["fragment", "data:text/plain,keep%23payload?query#discard-fragment"],
+  ["empty-fragment", "data:text/plain,payload#"],
+  ["empty-query", "data:text/plain,keep?"],
+  ["empty-query-fragment", "data:text/plain,?#discard-fragment"],
+  ["authority", "data://host,payload"],
+  ["authority-query-fragment", "data://host,payload?query#discard-fragment"],
   ["base64-fragment", "data:application/octet-stream;base64,AQID#discard-fragment"],
   ["large", "data:application/octet-stream," + "%ff%00%80".repeat(12000)],
 ] as const;
@@ -59,6 +64,14 @@ for (const framework of ["nextjs", "react", "vue", "nuxt", "sveltekit", "html"] 
     assert.deepEqual(doc, before);
   });
 }
+
+test("invalid and non-data asset URLs are omitted without aborting project generation", () => {
+  for (const url of ["not-a-url", "//example.test/a.png", "https://example.test/a.png", "data:text/plain", "data://[broken],payload"]) {
+    const project = generateExportProject(fixture(url), "html");
+    assert.equal(Object.hasOwn(project.binaries, "assets/payload.bin"), false, url);
+    assert.equal(Object.hasOwn(project.binaries, "assets/_imports/original/nested/payload.bin"), false, url);
+  }
+});
 
 test("4000 nested nodes, 160 scripts and binary assets survive JSON, ZIP, restore and a second export", async () => {
   const doc = fixture(cases.find(([name]) => name === "binary-percent")![1], 4000);
