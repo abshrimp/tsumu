@@ -5,7 +5,7 @@ import { createInitialDoc } from "../lib/presets";
 import { useEditor } from "../lib/store";
 import { applyBreakpoints, BP_INFO, BP_ORDER, normalizeBreakpoints } from "../lib/style";
 
-const unsafeIds = ["__proto__", "constructor", "prototype", "toString", "valueOf", "hasOwnProperty"];
+const unsafeIds = [...new Set(["prototype", ...Object.getOwnPropertyNames(Object.prototype)])];
 
 for (const id of unsafeIds) {
   test(`saved breakpoint IDs cannot address the object prototype: ${id}`, () => {
