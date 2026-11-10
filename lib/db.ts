@@ -113,8 +113,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
               room_key TEXT PRIMARY KEY,
               queued_at INTEGER NOT NULL
             )`,
-            // Candidate tracking is non-destructive. Physical KV deletion is
-            // intentionally not enabled until history/DO write fencing exists.
+            // KV GC candidate tracking, run auditing and resumable inventory.
             `CREATE TABLE IF NOT EXISTS asset_gc_candidates (
               path TEXT PRIMARY KEY,
               first_unreferenced_at INTEGER NOT NULL,
