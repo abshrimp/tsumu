@@ -23,7 +23,8 @@ import {
   nextHiddenOn,
 } from "./style";
 import { retargetPageUrl } from "./vars";
-import { mergeDocs } from "./merge";
+import { mergeDocs, rebaseNodePatch } from "./merge";
+import type { DocPatch } from "./doc-patch";
 import { showAlert, showConfirm } from "./dialog";
 import { refreshClonedIds } from "./cloneIds";
 import { tr } from "./i18n";
@@ -445,7 +446,7 @@ export interface EditorStore {
    * 他の編集者の変更（WebSocket・ポーリングで受け取ったもの）を取り込む。
    * 選択・表示ページ・編集中コンポーネントを可能な限り維持する
    */
-  applyRemoteDoc: (doc: SiteDoc) => void;
+  applyRemoteDoc: (doc: SiteDoc, patchHint?: { baseDoc: SiteDoc; patch: DocPatch }) => void;
 
   /** 追加・貼り付けする位置の決め方（ブラウザごとに覚える） */
   insertMode: InsertMode;
@@ -692,10 +693,6 @@ export const useEditor = create<EditorStore>((set, get) => {
     };
     commitDoc(next, opts);
   };
-
-  /** リモートの変更（current → next）を履歴にも反映し、同じ項目の競合は最新の変更を優先する */
-  const rebaseHistory = (list: SiteDoc[], current: SiteDoc, next: SiteDoc) =>
-    list.map((snap) => mergeDocs(current, next, snap));
 
   return {
     doc: initialDoc,
@@ -947,21 +944,24 @@ export const useEditor = create<EditorStore>((set, get) => {
       });
     },
 
-    applyRemoteDoc: (doc) => {
+    applyRemoteDoc: (doc, patchHint) => {
       set((s) => {
         const selectedIds = validSelectedIds(doc, s.selectedIds);
         const selection = validSelection(doc, s.selection);
-        // 履歴をそのまま使うとundoでリモートの変更まで巻き戻るため、
-        // 各スナップショットへリモートの変更を三方向マージで取り込んでおく
+        // A live node-only patch can rebase a checkpoint without rebuilding
+        // the entire document tree. If a gesture or history entry involves a
+        // structural conflict, retain the existing full three-way merge.
+        const rebase = patchHint?.baseDoc === s.doc
+          ? (snap: SiteDoc) => rebaseNodePatch(s.doc, doc, snap, patchHint.patch) ?? mergeDocs(s.doc, doc, snap)
+          : (snap: SiteDoc) => mergeDocs(s.doc, doc, snap);
         let past: SiteDoc[] = [];
         let future: SiteDoc[] = [];
         try {
-          past = rebaseHistory(s.past, s.doc, doc);
-          future = rebaseHistory(s.future, s.doc, doc);
-          // A gesture may still be waiting for its first actual change. Keep
-          // its checkpoint in sync too, so that change remains undoable and
-          // discards stale redo without reverting the collaborator's edits.
-          if (pendingBase) pendingBase = mergeDocs(s.doc, doc, pendingBase);
+          past = s.past.map(rebase);
+          future = s.future.map(rebase);
+          // Keep a pending gesture checkpoint in sync so its first real edit
+          // remains undoable and never rolls back a collaborator's change.
+          if (pendingBase) pendingBase = rebase(pendingBase);
         } catch {
           // マージできない場合は安全側に倒して履歴を破棄
           pendingBase = null;
