@@ -36,20 +36,13 @@ export class DocumentRoom extends DurableObject {
   }
 
   /**
-   * Full current + restorable daily-backup reference set for GC inspection.
-   * A corrupt snapshot or backup throws; the caller must abort the entire scan.
-   * Synchronous DO reads keep all snapshots consistent with this invocation.
+   * Return asset references from the current persisted editor document only.
+   * Old backup and GitHub publication revisions are intentionally excluded
+   * from the seven-day unused-asset retention policy.
    */
   gcAssetReferences(): string[] {
-    const found = new Set<string>();
     const current = this.documents.snapshot();
-    if (current) for (const path of extractAssetReferences(current.body)) found.add(path);
-    for (const backup of this.documents.listBackups()) {
-      const raw = this.documents.readBackup(backup.day);
-      if (raw === null) throw new Error("Backup disappeared during GC scan");
-      for (const path of extractAssetReferences(raw)) found.add(path);
-    }
-    return [...found];
+    return current ? [...extractAssetReferences(current.body)] : [];
   }
   readBackup(day: number): string | null {
     return this.documents.readBackup(day);
