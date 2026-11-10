@@ -814,7 +814,7 @@ function ScriptEditorInner({
         ) : drag.payload.type === "script" ? (
           (() => {
             const main = drag.payload.script;
-            return drag.payload.group.slice(0, 8).map((s) => (
+            return drag.payload.group.slice(0, 8).map((s, i) => (
               <div
                 key={s.id}
                 className="se-ghost-item"
@@ -824,9 +824,9 @@ function ScriptEditorInner({
                   width: drag.scriptWidths?.[s.id] ?? (s.id === main.id ? drag.w : undefined),
                 }}
               >
-                {drag.previewNodes?.[drag.payload.group.indexOf(s)] ? (
+                {drag.previewNodes?.[i] ? (
                   <div ref={(host) => {
-                    const node = drag.previewNodes?.[drag.payload.group.indexOf(s)];
+                    const node = drag.previewNodes?.[i];
                     if (host && node && host.firstChild !== node) host.replaceChildren(node);
                   }} />
                 ) : (
