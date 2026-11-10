@@ -20,6 +20,7 @@ function mount(kind: "input" | "textarea", extra: Record<string, unknown> = {}) 
   const document = { activeElement: element as typeof element | null };
   const hooks = {
     ...React,
+    useId() { const i = cursor++; return slots[i] ??= `test-field-${i}`; },
     useRef(initial: unknown) { return slots[cursor++] ??= { current: initial }; },
     useEffect(effect: () => void, deps: unknown[]) {
       const i = cursor++;
