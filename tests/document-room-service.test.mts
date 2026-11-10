@@ -189,3 +189,22 @@ test("missing Cloudflare bindings remain configuration errors", async () => {
   await assert.rejects(f.store.readSiteDocument(f.db, "site"), /DOC_STORE binding is required/);
   assert.equal(f.localCalls, 0);
 });
+
+test("initialization bound to a D1 generation never falls back to local storage", async () => {
+  const f = fixture({ local: true });
+  assert.deepEqual(await f.store.saveSiteDocument(f.db, "site", "{}", null, "required-room"), { kind: "missing" });
+  assert.equal(f.localCalls, 0);
+});
+
+test("initialization refuses an empty or replaced required D1 generation before writing", async () => {
+  for (const key of ["", "previous-room"]) {
+    const f = fixture();
+    assert.deepEqual(await f.store.saveSiteDocument(f.db, "site", "{}", null, key), { kind: "missing" });
+    assert.equal(f.timestampWrites, 0);
+  }
+});
+
+test("initialization bound to the current D1 generation retains the saved result shape", async () => {
+  const f = fixture();
+  assert.deepEqual(await f.store.saveSiteDocument(f.db, "site", "{}", null, "first-room"), { kind: "saved", rev: "2", savedAt: 200 });
+});

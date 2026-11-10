@@ -119,10 +119,12 @@ async function finishSave(db: Db, siteId: string, roomKey: string | null, result
   return result;
 }
 
-export async function saveSiteDocument(db: Db, siteId: string, raw: string, base: string | null):
+export async function saveSiteDocument(db: Db, siteId: string, raw: string, base: string | null, expectedRoomKey?: string):
   Promise<SaveDocResult> {
   const target = await forSite(db, siteId);
-  if (target.kind === "missing") return { kind: "missing" };
+  // 初期保存の対象が消えたり作り直されたりしても、別の世代を初期化しない。
+  if (target.kind === "missing" || expectedRoomKey !== undefined &&
+      (target.kind !== "room" || target.roomKey !== expectedRoomKey)) return { kind: "missing" };
   const result = target.kind === "room" ? await target.stub.replaceDocument(raw, base)
     : await saveLocalDocument(db, siteId, raw, base);
   return finishSave(db, siteId, target.kind === "room" ? target.roomKey : null, result);

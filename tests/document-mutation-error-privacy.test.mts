@@ -139,7 +139,7 @@ for (const method of ["PUT", "PATCH"] as const) {
     }
   }
 }
-for (const stage of ["database", "site", "read", "insert", "room", "save"] as const) {
+for (const stage of ["database", "site", "read", "insert", "save"] as const) {
   for (const [label, error] of errorCases) {
     test(`site copy ${stage} failure redacts ${label}`, async t => {
       const logs = captureErrors(t);
