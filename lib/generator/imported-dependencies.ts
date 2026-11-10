@@ -1,4 +1,5 @@
-import { assetSrc, fetchWithRetry, readAssetBytes } from "../assets";
+import { assetSrc, fetchWithRetry } from "../assets";
+import { readResponseBytes } from "../response-bytes";
 import type { Asset, SiteDoc } from "../types";
 import { zipDependency } from "../zip-references";
 import { zipStylesheet } from "../zip-css";
@@ -43,7 +44,7 @@ export async function retainImportedDependencies(scoped: SiteDoc, assets: Record
         void response.body?.cancel().catch(() => {});
         throw new Error("Could not read the imported module: " + zip.path);
       }
-      const bytes = await readAssetBytes(response, limit);
+      const bytes = await readResponseBytes(response, limit);
       remaining -= bytes.length;
       const [imports] = parse(new TextDecoder().decode(bytes));
       references += imports.length;

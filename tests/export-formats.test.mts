@@ -25,7 +25,8 @@ import { ZipArchive } from "../lib/zip";
 import { exportProjectZip } from "../lib/exportZip";
 import { parseSiteImport, restoreImportAssets, EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH } from "../lib/site-import";
 import { attachZipDependencies, zipCssUrl } from "../lib/zip-css";
-import { assetSrc, fetchWithRetry, readAssetBytes } from "../lib/assets";
+import { assetSrc, fetchWithRetry } from "../lib/assets";
+import { readResponseBytes } from "../lib/response-bytes";
 import { buildAssetNames } from "../lib/generator/names";
 import { generateSiteCss, rewriteHtmlAssetUrls } from "../lib/generator/css";
 import { buildCanvasCss } from "../components/canvas/css";
@@ -1970,7 +1971,7 @@ function clonedResponse(t: TestContext, init?: ResponseInit, body: BodyInit = '{
 
 for (const [name, read, error] of [
   ["history restore", readRestoreJson, /編集データが大きすぎます/],
-  ["asset export", readAssetBytes, /Resource exceeds export size limit/],
+  ["asset export", readResponseBytes, /Resource exceeds export size limit/],
 ] as const) {
   for (const declared of [false, true]) {
     test(`${name} rejects ${declared ? "declared" : "streamed"} oversize without waiting for an unread cloned body`, async (t) => {

@@ -6,7 +6,8 @@ import { requireSiteAccess } from "../../../../lib/site-access";
 import { siteIdOf, siteDestOf } from "../../../../lib/site-server";
 import { configError, targetConfig, type TargetConfig } from "../../../../lib/github";
 import { gitBlobSha } from "../../../../lib/git-blob-sha";
-import { gitlabClient, type GitLabCommitAction } from "../../../../lib/gitlab";
+import { ResponseTooLargeError } from "../../../../lib/response-bytes";
+import { gitlabClient, MAX_GITLAB_PUBLISH_BYTES, type GitLabCommitAction } from "../../../../lib/gitlab";
 import { matchesPublishTarget, publishConflictMessage } from "../../../../lib/publish-preconditions";
 import { siteHasAsset } from "../../../../lib/site-asset-access";
 import { assetStore } from "../../../../lib/kv";
@@ -24,7 +25,6 @@ import type { Tr } from "../../../../lib/i18n-server";
 import type { PublishTarget } from "../../../../lib/generator";
 
 export const maxDuration = 60;
-const MAX_REQUEST_BYTES = 48 * 1024 * 1024;
 const MAX_ACTIONS = 3000;
 const isSha = (value: unknown): value is string =>
   typeof value === "string" && /^[a-f0-9]{40}$/i.test(value);
@@ -89,7 +89,7 @@ export async function POST(req: Request) {
 
   let body: Body;
   try {
-    body = await readJsonObjectLimited(req, MAX_REQUEST_BYTES) as Body;
+    body = await readJsonObjectLimited(req, MAX_GITLAB_PUBLISH_BYTES) as Body;
   } catch (error) {
     const status = jsonErrorStatus(error);
     return NextResponse.json({ error: status === 413 ? tr("Request too large") : tr("Invalid request (request body)") }, { status });
@@ -272,6 +272,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, commit: commitSha,
       commitUrl: commitSha ? "https://gitlab.com/" + conf.repo + "/-/commit/" + commitSha : null, optionsSaved });
   } catch (error) {
+    if (error instanceof ResponseTooLargeError) {
+      return NextResponse.json({ error: tr("Request too large") }, { status: 413 });
+    }
     if (error instanceof MissingAssetError) {
       return NextResponse.json({ error: error.message, missing: true }, { status: 404 });
     }

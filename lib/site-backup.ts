@@ -1,5 +1,6 @@
 import type { Asset, SiteDoc } from "./types";
-import { ASSET_FETCH_CONCURRENCY, assetSrc, fetchWithRetry, mapLimit, readAssetBytes } from "./assets";
+import { ASSET_FETCH_CONCURRENCY, assetSrc, fetchWithRetry, mapLimit } from "./assets";
+import { readResponseBytes } from "./response-bytes";
 import { buildAssetNames } from "./generator/names";
 import { EDITABLE_ASSETS_PATH, EDITABLE_DOC_PATH, type ArchiveAssetMap } from "./site-import";
 import { IMPORT_LIMITS, validateImportedDoc } from "./site-import-format";
@@ -44,7 +45,7 @@ export async function createSiteBackup(doc: SiteDoc): Promise<Blob> {
             ? tr("Could not retrieve the asset: {name}", { name: asset.name })
             : tr("Couldn't load asset ({status}): {path}", { status: response.status, path: asset.name }));
         }
-        bytes = await readAssetBytes(response, IMPORT_LIMITS.assetBytes,
+        bytes = await readResponseBytes(response, IMPORT_LIMITS.assetBytes,
           tr("The asset is too large to import: {name}", { name: asset.name }));
       } else {
         // ZIP-imported stylesheets can still have their original source without a stored file.

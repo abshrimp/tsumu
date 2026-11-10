@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { gitBlobSha } from "../lib/git-blob-sha";
-import { gitlabClient } from "../lib/gitlab";
+import { gitlabClient, MAX_GITLAB_PUBLISH_BYTES } from "../lib/gitlab";
 import { isSafeRepo, normalizeSiteInput } from "../lib/site-model";
 import { targetConfig } from "../lib/github";
 import { matchesPublishTarget } from "../lib/publish-preconditions";
@@ -305,6 +305,8 @@ test("GitLab rollback caps changed blob fetches rather than total unchanged site
 
   try {
     let rawFetches = 0;
+    let pageSize: number | undefined;
+    let commits = 0;
     globalThis.fetch = async (url, init) => {
       const u = String(url);
       const method = init?.method ?? "GET";
@@ -328,14 +330,20 @@ test("GitLab rollback caps changed blob fetches rather than total unchanged site
       if (u.endsWith("/repository/blobs/" + curManifestSha + "/raw")) return new Response(serializeGeneratedManifest(curGenerated));
       if (u.endsWith("/repository/blobs/" + chosenManifestSha + "/raw")) return new Response(serializeGeneratedManifest(chosenGenerated));
       if (u.endsWith("/repository/blobs/" + docSha + "/raw")) { rawFetches++; return new Response(docJson); }
-      if (u.endsWith("/repository/blobs/" + oldPageSha + "/raw")) { rawFetches++; return new Response("<h1>old</h1>"); }
+      if (u.endsWith("/repository/blobs/" + oldPageSha + "/raw")) {
+        rawFetches++;
+        return new Response("<h1>old</h1>", {
+          headers: pageSize === undefined ? {} : { "Content-Length": String(pageSize) },
+        });
+      }
       if (u.endsWith("/repository/commits") && method === "POST") {
+        commits++;
         return Response.json({ id: "8".repeat(40), web_url: "https://gitlab.com/group/project/-/commit/" + "8".repeat(40) }, { status: 201 });
       }
       throw new Error(`Unexpected GitLab API call: ${method} ${u}`);
     };
 
-    const res = await route.POST(new Request("http://localhost/api/publish/gitlab/history", {
+    const restore = () => route.POST(new Request("http://localhost/api/publish/gitlab/history", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -346,8 +354,12 @@ test("GitLab rollback caps changed blob fetches rather than total unchanged site
         expected: { site: "site1", provider: "gitlab", target: "production", repo: "group/project", branch: "main", productionBranch: "main" },
       }),
     }));
-    assert.equal(res.status, 200);
+    assert.equal((await restore()).status, 200);
     assert.equal(rawFetches, 2);
+    // This file alone would fit, but the generated manifest shares the commit budget.
+    pageSize = 3 * Math.floor(MAX_GITLAB_PUBLISH_BYTES / 4);
+    assert.equal((await restore()).status, 413);
+    assert.equal(commits, 1);
   } finally {
     globalThis.fetch = previousFetch;
     if (savedToken === undefined) delete process.env.GITLAB_TOKEN;

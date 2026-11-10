@@ -2,7 +2,8 @@ import { zipMediaMime } from "../zip-mime";
 import { bytesToBase64 } from "../base64";
 import { createIntegrityVerifier } from "../resource-integrity";
 import type { GeneratedProject } from "../generator";
-import { readAssetBytes, withSiteAssetUrl } from "../assets";
+import { withSiteAssetUrl } from "../assets";
+import { readResponseBytes } from "../response-bytes";
 import { iterateCssAssetReferences, escapeCssAssetUrl } from "../css-assets";
 
 export const EXPORT_BASE = new URL("https://export.invalid/index.html");
@@ -136,7 +137,7 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
         throw new Error("Could not embed the resource (" + response.status + "): " + key);
       }
       if (!local && response.url) base = new URL(response.url);
-      bytes = await readAssetBytes(response, SINGLE_HTML_LIMIT - inputBytes, "Resource exceeds single HTML size limit: " + key);
+      bytes = await readResponseBytes(response, SINGLE_HTML_LIMIT - inputBytes, "Resource exceeds single HTML size limit: " + key);
       const contentType = response.headers.get("content-type") ?? "";
       charset = httpCharset(contentType);
       const type = contentType.split(";")[0].trim().toLowerCase();

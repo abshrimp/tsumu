@@ -1,9 +1,12 @@
+import { readResponseBytes } from "./response-bytes";
 import type { Tr } from "./i18n-server";
 import type { PublishCommit, TargetConfig } from "./github";
 import { isSafeBranch, isSafeRepo } from "./site-model";
 import {
   ASSET_MANIFEST_PATH, GENERATED_MANIFEST_PATH, isSafeCommitPath, parseGeneratedManifest,
 } from "./publish-files";
+
+export const MAX_GITLAB_PUBLISH_BYTES = 48 * 1024 * 1024;
 
 export interface GitLabCommitAction {
   action: "create" | "update" | "delete";
@@ -84,11 +87,11 @@ export function gitlabClient(conf: Required<TargetConfig>, tr: Tr) {
     }
     throw new Error(tr("Publishing stopped because the complete file list could not be retrieved from the destination"));
   };
-  const blob = async (sha: string): Promise<Uint8Array> => {
+  const blob = async (sha: string, maxBytes: number): Promise<Uint8Array> => {
     if (!/^[0-9a-f]{40}$/i.test(sha)) throw new Error("Invalid GitLab blob SHA");
     const res = await request("/repository/blobs/" + sha + "/raw");
     if (!res.ok) await fail(tr("Fetching the tree"), res);
-    return new Uint8Array(await res.arrayBuffer());
+    return readResponseBytes(res, maxBytes, tr("Request too large"));
   };
   const snapshot = async (ref?: string) => {
     const commit = ref ?? await head();
@@ -106,7 +109,7 @@ export function gitlabClient(conf: Required<TargetConfig>, tr: Tr) {
       const sha = blobs[path];
       if (!sha) return null;
       try {
-        return new TextDecoder("utf-8", { fatal: true }).decode(await blob(sha));
+        return new TextDecoder("utf-8", { fatal: true }).decode(await blob(sha, MAX_GITLAB_PUBLISH_BYTES));
       } catch (error) {
         if (required) throw error;
         return null;

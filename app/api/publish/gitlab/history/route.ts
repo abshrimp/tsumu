@@ -5,7 +5,9 @@ import { recordPublish, requireAuth } from "../../../../../lib/server";
 import { requireSiteAccess } from "../../../../../lib/site-access";
 import { siteIdOf, siteDestOf, destParam } from "../../../../../lib/site-server";
 import { targetConfig, configError, type TargetConfig } from "../../../../../lib/github";
-import { gitlabClient, type GitLabCommitAction } from "../../../../../lib/gitlab";
+import { ResponseTooLargeError } from "../../../../../lib/response-bytes";
+import { gitBlobSha } from "../../../../../lib/git-blob-sha";
+import { gitlabClient, MAX_GITLAB_PUBLISH_BYTES, type GitLabCommitAction } from "../../../../../lib/gitlab";
 import { matchesPublishTarget, publishConflictMessage } from "../../../../../lib/publish-preconditions";
 import { validatePublishDocument } from "../../../../../lib/publish-security";
 import { readJsonObjectLimited, jsonErrorStatus } from "../../../../../lib/api-json";
@@ -140,15 +142,22 @@ export async function POST(req: Request) {
     // The GitLab commits API cannot reference existing blob SHAs. Fetch only
     // changed content, preserving every manually maintained path in the branch.
     const docValidationBytes = !changedPaths.includes(DOC_PATH)
-      ? await client.blob(chosen.blobs[DOC_PATH])
+      ? await client.blob(chosen.blobs[DOC_PATH], IMPORT_LIMITS.docBytes)
       : null;
     if (docValidationBytes) {
       const invalid = validatePublishDocument(docValidationBytes, tr);
       if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
     }
+    const manifestBytes = new TextEncoder().encode(manifestText);
+    const updateManifest = current.blobs[GENERATED_MANIFEST_PATH] !== await gitBlobSha(manifestBytes);
+    let remaining = MAX_GITLAB_PUBLISH_BYTES - (updateManifest ? 4 * Math.ceil(manifestBytes.length / 3) : 0);
+    if (remaining < 0) return NextResponse.json({ error: tr("Request too large") }, { status: 413 });
     for (const path of changedPaths) {
       const wantedSha = chosen.blobs[path];
-      const bytes = await client.blob(wantedSha);
+      // Account for base64 expansion before buffering the next file.
+      const limit = 3 * Math.floor(remaining / 4);
+      const bytes = await client.blob(wantedSha, path === DOC_PATH ? Math.min(limit, IMPORT_LIMITS.docBytes) : limit);
+      remaining -= 4 * Math.ceil(bytes.length / 3);
       if (path === DOC_PATH) {
         const invalid = validatePublishDocument(bytes, tr);
         if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
@@ -164,10 +173,7 @@ export async function POST(req: Request) {
         actions.push({ action: "delete", file_path: path });
       }
     }
-    const manifestBytes = new TextEncoder().encode(manifestText);
-    const oldManifestBytes = current.blobs[GENERATED_MANIFEST_PATH]
-      ? await client.blob(current.blobs[GENERATED_MANIFEST_PATH]) : null;
-    if (!oldManifestBytes || new TextDecoder().decode(oldManifestBytes) !== manifestText) {
+    if (updateManifest) {
       actions.push({
         action: Object.hasOwn(current.blobs, GENERATED_MANIFEST_PATH) ? "update" : "create",
         file_path: GENERATED_MANIFEST_PATH, content: Buffer.from(manifestBytes).toString("base64"), encoding: "base64",
@@ -181,6 +187,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, commit,
       commitUrl: "https://gitlab.com/" + conf.repo + "/-/commit/" + commit });
   } catch (error) {
+    if (error instanceof ResponseTooLargeError) {
+      return NextResponse.json({ error: tr("Request too large") }, { status: 413 });
+    }
     return NextResponse.json({ error: tr(userMessage(error, "Couldn't roll back")) }, { status: 502 });
   }
 }
