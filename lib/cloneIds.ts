@@ -22,8 +22,10 @@ function mapSteps(steps: ScriptStep[], fn: (id: string) => string | null) {
       if (m) st.url = `#${fn(m[1]) ?? m[1]}`;
     }
     if (st.kind === "if") {
-      if (st.cond.target && st.cond.target !== SELF_TARGET) {
-        st.cond.target = fn(st.cond.target) ?? st.cond.target;
+      for (const condition of [st.cond, ...(st.conditions ?? [])]) {
+        if (condition.target && condition.target !== SELF_TARGET) {
+          condition.target = fn(condition.target) ?? condition.target;
+        }
       }
       mapSteps(st.then, fn);
       if (st.else) mapSteps(st.else, fn);
