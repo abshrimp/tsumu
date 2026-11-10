@@ -43,10 +43,10 @@ export function loadPublishedExportOptions(): PublishedExportOptions {
 }
 
 /** Call only after a successful GitHub commit, not when an option is selected. */
-export function savePublishedExportOptions(options: PublishedExportOptions): void {
-  if (typeof window === "undefined" || !currentSiteId()) return;
+export function savePublishedExportOptions(options: PublishedExportOptions, siteId: string): void {
+  if (typeof window === "undefined" || !siteId) return;
   try {
-    window.localStorage.setItem(siteKey(PUBLISHED_EXPORT_OPTIONS_KEY), JSON.stringify(options));
+    window.localStorage.setItem(siteKey(PUBLISHED_EXPORT_OPTIONS_KEY, siteId), JSON.stringify(options));
   } catch {
     // Publishing succeeded even if the browser refuses optional preferences.
   }
