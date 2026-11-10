@@ -38,6 +38,7 @@ export function siteKey(key: string, id: string = currentSiteId()): string {
 export const SITE_SCOPED_KEYS = [
   storageKey("published-v1"),
   storageKey("published-hash-v1"),
+  storageKey("publish-options-v1"),
   storageKey("active-page-v1"),
   storageKey("ui-v1"),
   storageKey("unsynced-v1"),
