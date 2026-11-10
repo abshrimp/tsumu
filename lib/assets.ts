@@ -171,17 +171,27 @@ export async function detectSvgFilters(
 /** アセットを同時に取得する数（多すぎるとサーバーが 503・接続エラーを返す） */
 export const ASSET_FETCH_CONCURRENCY = 6;
 
-/** items を最大 limit 件ずつ並行して処理する（どれかが失敗したらその例外を投げる） */
+/** items を最大 limit 件ずつ並行して処理する。失敗後は追加せず、実行中の処理を待って最初の例外を投げる。 */
 export async function mapLimit<T>(
   items: T[],
   limit: number,
   fn: (item: T) => Promise<void>
 ): Promise<void> {
   let next = 0;
+  let failed = false;
+  let failure: unknown;
   const worker = async () => {
-    while (next < items.length) await fn(items[next++]);
+    try {
+      while (!failed && next < items.length) await fn(items[next++]);
+    } catch (error) {
+      if (!failed) {
+        failed = true;
+        failure = error;
+      }
+    }
   };
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  if (failed) throw failure;
 }
 
 /** Consume only bounded bytes, including responses with no length or a misleading one. */
