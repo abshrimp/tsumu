@@ -44,16 +44,19 @@ export async function readPublishedExportOptions(db: Db, siteId: string): Promis
 export async function savePublishedExportOptions(
   db: Db,
   siteId: string,
-  options: PublishedExportOptions
+  options: PublishedExportOptions,
+  expectedRoomKey?: string | null
 ): Promise<boolean> {
+  const fenced = db.backend === "d1" && expectedRoomKey !== undefined;
   const result = await db.execute({
     sql: `INSERT INTO site_publish_options (site_id, framework, language, style)
       SELECT id, ?, ?, ? FROM sites WHERE id = ?
+      ${fenced ? "AND EXISTS (SELECT 1 FROM site_document_rooms WHERE site_id = ? AND room_key = ?)" : ""}
       ON CONFLICT(site_id) DO UPDATE SET
         framework = excluded.framework,
         language = excluded.language,
         style = excluded.style`,
-    args: [options.framework, options.language, options.style, siteId],
+    args: [options.framework, options.language, options.style, siteId, ...(fenced ? [siteId, expectedRoomKey ?? null] : [])],
   });
   return result.rowsAffected > 0;
 }
