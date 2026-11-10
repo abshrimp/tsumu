@@ -20,8 +20,14 @@ import {
 import { getSite, getSiteRoomKey } from "../../../lib/sites";
 import { userMessage } from "../../../lib/errors";
 import { isDocPatch } from "../../../lib/doc-patch";
+import type { SiteDoc } from "../../../lib/types";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
 
 export const maxDuration = 30;
+
+// Large documents remain supported, but a malformed client cannot stream an unbounded body.
+const MAX_DOC_REQUEST_BYTES = 64 * 1024 * 1024;
+const PRIVATE_CACHE = { "Cache-Control": "private, no-store" } as const;
 
 /**
  * Cloudflare上の編集データはサイトごとのDocumentRoom内SQLiteに保存する。
@@ -50,17 +56,17 @@ export async function GET(req: Request) {
     }
     if (metaOnly) {
       const meta = await readSiteDocumentMeta(db, siteId);
-      if (!meta) return NextResponse.json({ exists: false });
-      return NextResponse.json({ exists: true, rev: meta.rev, savedAt: meta.savedAt });
+      if (!meta) return NextResponse.json({ exists: false }, { headers: PRIVATE_CACHE });
+      return NextResponse.json({ exists: true, rev: meta.rev, savedAt: meta.savedAt }, { headers: PRIVATE_CACHE });
     }
 
     const cur = await readSiteDocument(db, siteId);
-    if (!cur) return NextResponse.json({ exists: false });
+    if (!cur) return NextResponse.json({ exists: false }, { headers: PRIVATE_CACHE });
     // body は保存済みJSONなので、パースし直さず文字列結合で返す
     //（Workers無料プランのCPU時間制限対策）
     return new NextResponse(
       `{"exists":true,"rev":"${cur.rev}","savedAt":${cur.savedAt},"doc":${cur.body}}`,
-      { headers: { "Content-Type": "application/json" } }
+      { headers: { "Content-Type": "application/json", ...PRIVATE_CACHE } }
     );
   } catch (e) {
     return NextResponse.json(
@@ -89,9 +95,17 @@ async function save(req: Request, partial: boolean) {
   if (denied) return denied;
   if (!dbConfigured()) return await dbUnavailable();
 
-  let input;
-  try { input = await req.json(); } catch {
-    return NextResponse.json({ error: tr(partial ? "不正なリクエスト" : "JSONが壊れています") }, { status: 400 });
+  let input: unknown;
+  try {
+    input = await readJsonLimited(req, MAX_DOC_REQUEST_BYTES);
+  } catch (error) {
+    const status = error instanceof JsonBodyTooLargeError ? 413
+      : error instanceof JsonContentTypeError ? 415 : 400;
+    return NextResponse.json({
+      error: tr(status === 413
+        ? "ドキュメントが大きすぎて、保存先に入りきりません"
+        : partial ? "不正なリクエスト" : "JSONが壊れています"),
+    }, { status });
   }
   const patch = partial ? input : undefined;
   const validationError = partial
@@ -135,7 +149,7 @@ async function save(req: Request, partial: boolean) {
       const cur = result.current;
       return new NextResponse(
         `{"conflict":true,"rev":"${cur.rev}","savedAt":${cur.savedAt},"doc":${cur.body}}`,
-        { status: 409, headers: { "Content-Type": "application/json" } }
+        { status: 409, headers: { "Content-Type": "application/json", ...PRIVATE_CACHE } }
       );
     }
     // 右下の「保存」にホバーしたときに出す、最近編集した人
@@ -149,7 +163,7 @@ async function save(req: Request, partial: boolean) {
     if (db.backend !== "d1" || roomKey) {
       notifyDocUpdated(siteId, partial && isDocPatch(patch)
         ? { ...metadata, type: "doc-patched", base: base!, patch }
-        : { ...metadata, type: "doc-updated", doc: input }, roomKey ?? undefined);
+        : { ...metadata, type: "doc-updated", doc: input as SiteDoc }, roomKey ?? undefined);
     }
     return NextResponse.json({
       ok: true,

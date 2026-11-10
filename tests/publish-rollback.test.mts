@@ -7,6 +7,7 @@ import * as files from "../lib/publish-files";
 import * as preconditions from "../lib/publish-preconditions";
 import { advanceBranchRef } from "../lib/github";
 import { hasPublishCredentials } from "../lib/publish-security";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
 // Persist Git objects between real rollback, snapshot and publish handlers so
 // ownership errors that only delete files on the next publication are visible.
@@ -141,6 +142,7 @@ function fixture(target: "production" | "test", manual: files.TreeEntry, histori
     },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
     "lib/publish-files": files, "lib/publish-preconditions": preconditions, "lib/publish-security": { hasPublishCredentials },
+    "lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
   };
   const load = (path: string) => {
     const code = transformSync(readFileSync(new URL(path, import.meta.url), "utf8"), { loader: "ts", format: "cjs" }).code;
@@ -160,7 +162,7 @@ function fixture(target: "production" | "test", manual: files.TreeEntry, histori
     sourceManifest: () => blobs.get(trees.get(commits.get(source)!.tree.sha)!.find(e => e.path === files.GENERATED_MANIFEST_PATH)!.sha!),
     entries: () => trees.get(commits.get(head)!.tree.sha)!,
     send: (body: object, history = false) => (history ? rollback : publish)(new Request("https://example.test", {
-      method: "POST", body: JSON.stringify({ site: "site", target, expected, expectedHead: head, ...body }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ site: "site", target, expected, expectedHead: head, ...body }),
     })),
   };
 }

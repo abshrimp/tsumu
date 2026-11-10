@@ -6,6 +6,7 @@ import * as preconditions from "../lib/publish-preconditions";
 import { advanceBranchRef } from "../lib/github";
 import { hasPublishCredentials } from "../lib/publish-security";
 import * as helpers from "../lib/publish-files";
+import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
 // 外部通信せず、公開 API が GitHub に渡すツリーを確かめる。
 function fixture(truncated?: boolean, manifestText?: string, documentBlob?: string,
@@ -46,6 +47,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     return NextResponse.json({});
   };
   const injected = {
+    JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited,
     matchesPublishTarget: preconditions.matchesPublishTarget,
     publishConflictMessage: preconditions.publishConflictMessage,
     GENERATED_MANIFEST_PATH: helpers.GENERATED_MANIFEST_PATH,
@@ -77,7 +79,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     .replace(/^export /gm, "");
   const post = new Function(...Object.keys(injected), `${source}\nreturn POST;`)(...Object.values(injected)) as (req: Request) => Promise<Response>;
   const send = (body: object) => post(new Request("https://example.com/api/publish", {
-    method: "POST", body: JSON.stringify({ expected: { site: "site", target: "production", repo: "test/site", branch: "main", productionBranch: "main" }, expectedHead: "head", ...body, site: "site", target: "production" }),
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected: { site: "site", target: "production", repo: "test/site", branch: "main", productionBranch: "main" }, expectedHead: "head", ...body, site: "site", target: "production" }),
   }));
   return { entries, trees, writes, refUpdates, uploaded, send, get recorded() { return recorded; } };
 }
