@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { transformSync } from "esbuild";
 import * as files from "../lib/publish-files";
 import * as preconditions from "../lib/publish-preconditions";
+import * as preferences from "../lib/publish-preferences";
 import { advanceBranchRef } from "../lib/github";
 import { hasPublishCredentials } from "../lib/publish-security";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
@@ -145,7 +146,7 @@ function fixture(target: "production" | "test", manual: files.TreeEntry, histori
       githubClient: () => ({ gh, head: async () => head, fail: async () => { throw new Error("GitHub failure"); } }),
     },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
-    "lib/publish-files": files, "lib/publish-preconditions": preconditions, "lib/publish-security": { hasPublishCredentials },
+    "lib/publish-files": files, "lib/publish-preconditions": preconditions, "lib/publish-preferences": preferences, "lib/publish-security": { hasPublishCredentials },
     "lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
   };
   const load = (path: string) => {
@@ -166,7 +167,8 @@ function fixture(target: "production" | "test", manual: files.TreeEntry, histori
     sourceManifest: () => blobs.get(trees.get(commits.get(source)!.tree.sha)!.find(e => e.path === files.GENERATED_MANIFEST_PATH)!.sha!),
     entries: () => trees.get(commits.get(head)!.tree.sha)!,
     send: (body: object, history = false) => (history ? rollback : publish)(new Request("https://example.test", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ site: "site", target, expected, expectedHead: head, ...body }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ site: "site", target, expected, expectedHead: head,
+         exportOptions: preferences.DEFAULT_PUBLISHED_EXPORT_OPTIONS, ...body }),
     })),
   };
 }
