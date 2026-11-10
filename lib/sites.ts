@@ -205,6 +205,7 @@ export async function deleteSite(db: Db, id: string, expectedRoomKey?: string): 
     const result = await db.batch([
       { sql: `DELETE FROM sites WHERE id = ? AND ${gate}`, args: [id, id, expectedRoomKey] },
       { sql: `DELETE FROM site_activity WHERE site_id = ? AND ${gate}`, args: [id, id, expectedRoomKey] },
+      { sql: `DELETE FROM site_publish_options WHERE site_id = ? AND ${gate}`, args: [id, id, expectedRoomKey] },
       { sql: `DELETE FROM comment_messages WHERE site_id = ? AND ${gate}`, args: [id, id, expectedRoomKey] },
       { sql: `DELETE FROM comment_threads WHERE site_id = ? AND ${gate}`, args: [id, id, expectedRoomKey] },
       { sql: `INSERT OR IGNORE INTO document_room_cleanup(room_key,queued_at)
@@ -220,6 +221,7 @@ export async function deleteSite(db: Db, id: string, expectedRoomKey?: string): 
     { sql: "DELETE FROM docs WHERE id = ?", args: [id] },
     { sql: "DELETE FROM site_backups WHERE site_id = ?", args: [id] },
     { sql: "DELETE FROM site_activity WHERE site_id = ?", args: [id] },
+    { sql: "DELETE FROM site_publish_options WHERE site_id = ?", args: [id] },
     { sql: "DELETE FROM comment_messages WHERE site_id = ?", args: [id] },
     { sql: "DELETE FROM comment_threads WHERE site_id = ?", args: [id] },
   ]);
