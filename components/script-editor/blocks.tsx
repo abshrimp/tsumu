@@ -464,7 +464,7 @@ export function HatView({
   );
 }
 
-export function StackView({ script }: { script: PageScript }) {
+export function StackView({ script, fixedWidth }: { script: PageScript; fixedWidth?: number }) {
   const ctx = useContext(Ctx);
   const ref = useRef<HTMLDivElement>(null);
   const [inViewport, setInViewport] = useState(false);
@@ -516,7 +516,8 @@ export function StackView({ script }: { script: PageScript }) {
         ctx.readOnly
           ? undefined
           : { left: script.pos.x, top: script.pos.y, zIndex: ctx.zOrder.get(script.id),
-              ...(!mounted ? { width: placeholder.width, height: placeholder.height } : {}) }
+              ...(!mounted ? { width: placeholder.width, height: placeholder.height } : {}),
+              ...(fixedWidth !== undefined ? { width: fixedWidth } : {}) }
       }
     >
       {mounted && (script.trigger ? (
