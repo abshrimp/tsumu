@@ -164,3 +164,113 @@ test("mature candidates appear in dry-run without being deleted", async () => {
     assert.equal(f.deletes(), 0);
   } finally { f.sql.close(); }
 });
+
+test("seven days after becoming unreferenced, active GC deletes a mature KV key", async () => {
+  const path = key(30);
+  const f = fixture(async () => [], [path]);
+  try {
+    f.sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)")
+      .run(path, now - 8 * day, now - day, 17);
+    const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now, dryRun: false });
+    assert.equal(report.deleted, 1);
+    assert.equal(report.deletedBytesKnown, 17);
+    assert.deepEqual(report.deletedPaths, [path]);
+    assert.equal(report.candidates, 0);
+    assert.equal(f.stored.has(path), false);
+    assert.equal(f.sql.prepare("SELECT deleted FROM asset_gc_runs").get()?.deleted, 1);
+    assert.equal(f.sql.prepare("SELECT dry_run FROM asset_gc_runs").get()?.dry_run, 0);
+  } finally { f.sql.close(); }
+});
+
+test("recent uploads and newly unreferenced assets are never deleted", async () => {
+  const recent = key(2), old = key(100);
+  const f = fixture(async () => [], [recent, old]);
+  try {
+    f.sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)")
+      .run(recent, now - 10 * day, now - day, 17);
+    f.sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)")
+      .run(old, now - 6 * day, now - day, 17);
+    const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now, dryRun: false });
+    assert.equal(report.deleted, 0);
+    assert.deepEqual([...f.stored].sort(), [recent, old].sort());
+  } finally { f.sql.close(); }
+});
+
+test("a newly added current-document reference cancels deletion during final recheck", async () => {
+  const path = key(100);
+  let reads = 0;
+  const f = fixture(async () => ++reads === 1 ? [] : [path], [path]);
+  try {
+    f.sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)")
+      .run(path, now - 9 * day, now - day, 17);
+    const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now, dryRun: false });
+    assert.equal(reads, 2);
+    assert.equal(report.deleted, 0);
+    assert.equal(f.deletes(), 0);
+    assert.ok(f.stored.has(path));
+    assert.equal(f.sql.prepare("SELECT count(*) AS n FROM asset_gc_candidates").get()?.n, 0);
+  } finally { f.sql.close(); }
+});
+
+test("failure to inspect any current doc during final recheck aborts before deleting", async () => {
+  const path = key(100);
+  let reads = 0;
+  const f = fixture(async () => {
+    if (++reads === 2) throw new Error("DO unavailable");
+    return [];
+  }, [path]);
+  try {
+    f.sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)")
+      .run(path, now - 9 * day, now - day, 17);
+    await assert.rejects(runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now, dryRun: false }));
+    assert.equal(f.deletes(), 0);
+    assert.equal(f.sql.prepare("SELECT status FROM asset_gc_runs").get()?.status, "aborted");
+  } finally { f.sql.close(); }
+});
+
+test("a partial KV scan defers all physical deletions", async () => {
+  const path = key(100);
+  const f = fixture(async () => [], [path]);
+  try {
+    f.sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)")
+      .run(path, now - 9 * day, now - day, 17);
+    let pageNumber = 0;
+    f.kv.list = async () => ({
+      keys: pageNumber++ === 0 ? [{ name: path, metadata: { bytes: 17 } }] : [],
+      list_complete: false, cursor: "cursor-" + pageNumber,
+    });
+    const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now, dryRun: false });
+    assert.equal(report.scanComplete, false);
+    assert.equal(report.deleted, 0);
+    assert.ok(f.stored.has(path));
+  } finally { f.sql.close(); }
+});
+
+test("configured delete cap leaves other eligible keys for later GC runs", async () => {
+  const keys = [key(100, "one.png"), key(100, "two.png"), key(100, "three.png")];
+  const f = fixture(async () => [], keys);
+  try {
+    for (const path of keys) f.sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)")
+      .run(path, now - 9 * day, now - day, 17);
+    const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now, dryRun: false, maxDeletes: 1 });
+    assert.equal(report.deleted, 1);
+    assert.equal(f.stored.size, 2);
+    assert.equal(report.candidates, 2);
+  } finally { f.sql.close(); }
+});
+
+test("a failed KV delete records previously completed deletes and retains later candidates", async () => {
+  const paths = [key(100, "first.png"), key(100, "second.png")];
+  const f = fixture(async () => [], paths);
+  f.failDeleteAt(2);
+  try {
+    for (const path of paths) f.sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)")
+      .run(path, now - 9 * day, now - day, 17);
+    await assert.rejects(runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now, dryRun: false }));
+    const run = f.sql.prepare("SELECT status,deleted,deleted_bytes FROM asset_gc_runs").get();
+    assert.equal(run?.status, "failed");
+    assert.equal(run?.deleted, 1);
+    assert.equal(run?.deleted_bytes, 17);
+    assert.equal(f.stored.size, 1);
+  } finally { f.sql.close(); }
+});
