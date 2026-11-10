@@ -2,6 +2,8 @@
 import nextHandler from "./.open-next/worker.js";
 import { DurableObject } from "cloudflare:workers";
 import { getDbFromBinding, type D1LikeDatabase } from "./lib/db";
+import { runAssetGc, type AssetGcDocumentNamespace } from "./lib/asset-gc";
+import type { KVLikeNamespace } from "./lib/kv";
 export { DocumentRoom } from "./document-room";
 import {
   readCurrentDoc,
@@ -21,6 +23,10 @@ import { isDocPatch } from "./lib/doc-patch";
 interface WorkerEnv {
   COLLAB_ROOM: DurableObjectNamespace<CollaborationRoom>;
   DOC_STORE: DurableObjectNamespace;
+  ASSETS_KV?: KVLikeNamespace;
+  ASSET_GC_ENABLED?: string;
+  ASSET_GC_GRACE_DAYS?: string;
+  ASSET_GC_MAX_DELETES?: string;
   /** 未設定なら編集データはブラウザ内に保存する（クライアントがHTTPの503を見て切り替える） */
   DB?: D1LikeDatabase;
   ALLOWED_EMAILS?: string;
@@ -362,6 +368,25 @@ async function authorizeWebSocket(
 }
 
 export default {
+  scheduled(_event: unknown, env: WorkerEnv, ctx: ExecutionContext): void {
+    // Intentionally scan-only even when ASSET_GC_ENABLED=true: published
+    // doc.json restoration and concurrent DO saves are not yet KV-fenced.
+    if (!env.DB || !env.ASSETS_KV?.list || !env.DOC_STORE) return;
+    ctx.waitUntil((async () => {
+      try {
+        const db = await getDbFromBinding(env.DB!);
+        await runAssetGc({
+          db, kv: env.ASSETS_KV!,
+          rooms: env.DOC_STORE as unknown as AssetGcDocumentNamespace,
+          graceDays: env.ASSET_GC_GRACE_DAYS === undefined ? undefined : Number(env.ASSET_GC_GRACE_DAYS),
+          maxDeletes: env.ASSET_GC_MAX_DELETES === undefined ? undefined : Number(env.ASSET_GC_MAX_DELETES),
+        });
+      } catch {
+        // No document or KV content is modified by the GC inventory.
+        console.error("[asset-gc] dry-run inventory aborted");
+      }
+    })());
+  },
   async fetch(
     request: Request,
     env: WorkerEnv,
