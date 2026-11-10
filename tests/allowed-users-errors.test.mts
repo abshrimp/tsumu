@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { isValidEmail } from "../lib/email";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
@@ -13,7 +14,7 @@ function fixture(failRefresh: boolean) {
   let changed = false;
   const emails = new Set<string>();
   const injected = {
-    NextResponse, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited, dbUnavailable: () => { throw new Error("Unexpected unavailable"); },
+    NextResponse, isValidEmail, JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited, dbUnavailable: () => { throw new Error("Unexpected unavailable"); },
     serverTr: async () => (value: string) => value,
     allowedEmails: () => ["owner@example.com"], auth: async () => ({ user: { email: "owner@example.com" } }), authConfigured: () => true,
     dbConfigured: () => true, userMessage: (_error: unknown, fallback: string) => fallback,

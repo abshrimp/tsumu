@@ -247,7 +247,10 @@ export const SCRIPT_RUNTIME = `function (env) {
   }
   function cookieGet(name) {
     var n = name + "=";
-    var parts = document.cookie ? document.cookie.split("; ") : [];
+    var raw;
+    try { raw = document.cookie; } catch (e) { return null; }
+    if (!raw) return null;
+    var parts = raw.split("; ");
     for (var i = 0; i < parts.length; i++) {
       if (parts[i].indexOf(n) !== 0) continue;
       try {
@@ -293,7 +296,7 @@ export const SCRIPT_RUNTIME = `function (env) {
     var k = prefix + key;
     if (shared) {
       var s = cookieGet(encodeURIComponent(k));
-      if (s != null) return s;
+      if (s != null) return decodeStored(s);
     }
     var v = lsGet(k);
     if (v == null) v = ckGet(k);

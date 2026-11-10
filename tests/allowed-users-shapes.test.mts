@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { isValidEmail } from "../lib/email";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
@@ -23,6 +24,7 @@ function fixture(identity: unknown = "owner@example.com") {
     },
     "../../../lib/i18n-server": { serverTr: async () => (s: string) => s },
     "../../../lib/unavailable": { dbUnavailable: async () => NextResponse.json({}, { status: 503 }) },
+    "../../../lib/email": { isValidEmail },
     "../../../lib/db": { dbConfigured: () => true },
     "../../../lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
     "../../../lib/errors": { userMessage: (_e: unknown, fallback: string) => fallback },

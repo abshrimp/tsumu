@@ -40,7 +40,7 @@ test("editor state cannot close its data delimiter to impersonate instructions",
 
 test("provider requests forbid redirects while preserving the configured authentication", async (t) => {
   t.mock.method(globalThis, "fetch", async (_url, init: RequestInit) => {
-    assert.equal(init.redirect, "error");
+    assert.equal(init.redirect, "manual");
     assert.equal(new Headers(init.headers).get("authorization"), "Bearer test-api-key");
     return Response.json({ choices: [{ message: { role: "assistant", content: "Done" }, finish_reason: "stop" }] });
   });

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { dbUnavailable } from "../../../lib/unavailable";
 import { serverTr } from "../../../lib/i18n-server";
 import { dbConfigured, getDb } from "../../../lib/db";
-import { requireAuth, sessionUser } from "../../../lib/server";
+import { requireAuth } from "../../../lib/server";
 import { siteIdOf } from "../../../lib/site-server";
 import { listCommentPage, parseCommentCursor, parseCommentAction, runCommentAction } from "../../../lib/comments";
 import { userMessage } from "../../../lib/errors";
@@ -36,8 +36,8 @@ export async function GET(req: Request) {
 /** コメントを書く・返信する・解決する・消す（lib/comments.ts の CommentAction） */
 export async function POST(req: Request) {
   const tr = await serverTr();
-  const denied = await requireAuth();
-  if (denied) return denied;
+  const user = await requireAuth("user");
+  if (user instanceof NextResponse) return user;
   if (!dbConfigured()) return await dbUnavailable();
   const siteId = await siteIdOf(new URL(req.url).searchParams.get("site"));
   if (siteId instanceof NextResponse) return siteId;
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
   if (!action) return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
   try {
     const db = await getDb();
-    const ok = await runCommentAction(db, siteId, action, await sessionUser().catch(() => null));
+    const ok = await runCommentAction(db, siteId, action, user);
     if (ok === "site-missing") {
       return NextResponse.json({ error: tr("サイトが見つかりません"), code: "comment_site_missing" }, { status: 404 });
     }

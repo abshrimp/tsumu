@@ -35,6 +35,10 @@ interface WorkerEnv {
   AUTH_GOOGLE_SECRET?: string;
 }
 
+function signInConfigured(env: WorkerEnv): boolean {
+  return Boolean(env.AUTH_SECRET && env.AUTH_GOOGLE_ID && env.AUTH_GOOGLE_SECRET);
+}
+
 /** siteId は接続時の ?site=、user は Worker が認証の結果から渡すログイン中の人 */
 type SocketAttachment = { clientId: string; siteId: string; roomKey?: string; user?: ActivityUser | null };
 
@@ -86,7 +90,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
     const user = (socket as AttachableSocket).deserializeAttachment()?.user;
     const allowed = user
       ? await isEmailAllowed(user.email, parseAllowedEmails(this.env.ALLOWED_EMAILS), readExtra)
-      : !(this.env.AUTH_SECRET && this.env.AUTH_GOOGLE_ID && this.env.AUTH_GOOGLE_SECRET);
+      : !signInConfigured(this.env);
     if (!allowed) socket.close(1008, "Access revoked");
     return allowed;
   }
@@ -136,12 +140,17 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       return new Response("Invalid site", { status: 400 });
     }
 
+    const rawUser = request.headers.get(USER_HEADER);
     let user: ActivityUser | null = null;
-    try {
-      const raw = request.headers.get(USER_HEADER);
-      user = raw ? parseActivityUser(JSON.parse(decodeURIComponent(raw))) : null;
-    } catch {
-      user = null;
+    if (rawUser !== null) {
+      try {
+        user = parseActivityUser(JSON.parse(decodeURIComponent(rawUser)));
+      } catch {
+        return new Response("Invalid user", { status: 401 });
+      }
+    }
+    if (!user && (rawUser !== null || signInConfigured(this.env))) {
+      return new Response("Invalid user", { status: 401 });
     }
 
     const roomKey = request.headers.get(ROOM_KEY_HEADER) ?? undefined;
@@ -445,6 +454,9 @@ export default {
     if (!authorized.ok) return authorized;
     const auth = (await authorized.json().catch(() => null)) as { user?: unknown } | null;
     const user = parseActivityUser(auth?.user);
+    if (!user && (auth?.user !== null || signInConfigured(env))) {
+      return new Response("Invalid user", { status: 401 });
+    }
 
     const siteId = url.searchParams.get("site");
     if (!isSiteId(siteId)) {

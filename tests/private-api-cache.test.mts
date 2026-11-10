@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { isValidEmail } from "../lib/email";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import { transformSync } from "esbuild";
@@ -18,8 +19,8 @@ function load(path: string) {
     loader: "ts", format: "cjs", target: "es2022",
   }).code;
   const shared: Record<string, unknown> = {
-    NextResponse,
-    requireAuth: async () => null,
+    NextResponse, isValidEmail,
+    requireAuth: async (mode?: "user") => mode === "user" ? { email: "user@example.test", name: "User" } : null,
     authConfigured: () => true,
     auth: async () => ({ user: { email: "user@example.test" } }),
     sessionUser: async () => ({ email: "user@example.test", name: "User" }),

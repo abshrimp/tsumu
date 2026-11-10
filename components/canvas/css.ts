@@ -5,7 +5,7 @@
 import { escapeStyleContent } from "../../lib/css-assets";
 import { safeCssDeclaration } from "../../lib/css-declaration";
 import { keyframesCss, motionCss } from "../../lib/motion";
-import type { Breakpoint, NodeStyles, SiteDoc, StyleState } from "../../lib/types";
+import type { Breakpoint, DocNode, NodeStyles, SiteDoc, StyleState } from "../../lib/types";
 import { customStateSelector } from "../../lib/custom-states";
 import { cssQuotedAttributeValue } from "../../lib/css-selector";
 import {
@@ -44,6 +44,95 @@ export function previewHtmlWithBodyStyles(
     : `${style}${html}`;
 }
 
+interface NodeCss {
+  rules: string;
+  usedKeyframes: string[];
+  customKeyframes: { name: string; css: string }[];
+}
+
+/** Keep only the last rendered rules for each node on the current canvas. */
+export type CanvasCssCache = Map<string, {
+  node: DocNode;
+  context: string;
+  state: StyleState;
+  hasAbsChild: boolean;
+  css: NodeCss;
+}>;
+
+function buildNodeCss(
+  node: DocNode,
+  id: string,
+  bp: Breakpoint,
+  mode: "design" | "preview",
+  state: StyleState,
+  hasAbsChild: boolean
+): NodeCss {
+  const rules: string[] = [];
+  // 通常の data-node と、インスタンス内の data-ghost の両方に効かせる
+  const safeId = cssQuotedAttributeValue(id);
+  const sel = `.cv-root :is([data-node=${safeId}], [data-ghost=${safeId}])`;
+
+  // モーション（transitionは常時、animationはプレビュー時のみ・画面内トリガーは即時再生）
+  const mCss = motionCss(node.motions, "run", node.id);
+  const motionBase =
+    mode === "preview"
+      ? mCss.base
+      : mCss.base.filter((d) => d.startsWith("transition:"));
+  const motionExtra = motionBase.length ? " " + motionBase.join(" ") : "";
+  if (mode === "preview") {
+    for (const p of mCss.pseudo) {
+      rules.push(`${sel}${p.pseudo} { ${p.decls.join(" ")} }`);
+    }
+  }
+
+  // 生CSS宣言（波括弧はルール破壊防止のため除去）
+  const raw = node.customCss?.replace(/[{}]/g, " ").trim() ?? "";
+  const extra = raw ? ` ${raw}${raw.endsWith(";") ? "" : ";"}` : "";
+
+  const map = resolveStyles(node, bp, state);
+  map.width ??= "auto";
+  // 音声はブラウザ標準の操作部の高さを保つ（auto で上書きすると潰れる）。
+  if (node.type !== "media" || node.media?.kind !== "audio") map.height ??= "auto";
+  const selMap = extractSelectionStyles(map);
+  const parts = extractPartStyles(map);
+  if (hasAbsChild && !map.position) map.position = "relative";
+  if (isHiddenAt(node, bp)) map.display = "none";
+  rules.push(`${sel} { ${cssBody(map)}${extra}${motionExtra} }`);
+  if (selMap) {
+    rules.push(
+      `${sel}::selection, ${sel} *::selection { ${cssBody(selMap)} }`
+    );
+  }
+  for (const p of parts) rules.push(`${p.selector(sel)} { ${cssBody(p.map)} }`);
+  if (mode === "preview") {
+    const customStates = [...new Set(Object.values(node.styles)
+      .flatMap((states) => Object.keys(states))
+      .filter((state) => customStateSelector(state) !== null))];
+    for (const st of [...["hover", "active", "focus"], ...customStates] as StyleState[]) {
+      const merged: Record<string, string> = {};
+      for (const b of bpChain(bp)) Object.assign(merged, node.styles[b]?.[st]);
+      const suffix = customStateSelector(st) ?? `:${st}`;
+      const stSel = extractSelectionStyles(merged);
+      for (const p of extractPartStyles(merged)) {
+        rules.push(`${p.selector(`${sel}${suffix}`)} { ${cssBody(p.map)} }`);
+      }
+      if (Object.keys(merged).length) {
+        rules.push(`${sel}${suffix} { ${cssBody(merged)} }`);
+      }
+      if (stSel) {
+        rules.push(
+          `${sel}${suffix}::selection, ${sel}${suffix} *::selection { ${cssBody(stSel)} }`
+        );
+      }
+    }
+  }
+  return {
+    rules: rules.join("\n"),
+    usedKeyframes: mCss.usedKeyframes,
+    customKeyframes: mCss.customKeyframes,
+  };
+}
+
 export function buildCanvasCss(
   doc: SiteDoc,
   rootIds: string[],
@@ -51,8 +140,12 @@ export function buildCanvasCss(
   mode: "design" | "preview",
   selection: string | null,
   styleState: StyleState,
-  bodyStyles?: NodeStyles
+  bodyStyles?: NodeStyles,
+  cache?: CanvasCssCache
 ): string {
+  // Custom breakpoint ordering can change the cascade without replacing a node.
+  const chain = bpChain(bp);
+  const context = JSON.stringify([mode, bp, ...chain]);
   const rules: string[] = [];
   const walked = new Set<string>();
   const usedKeyframes: string[] = [];
@@ -72,89 +165,28 @@ export function buildCanvasCss(
       }
       return;
     }
-    // 通常の data-node と、インスタンス内の data-ghost の両方に効かせる
-    const safeId = cssQuotedAttributeValue(id);
-    const sel = `.cv-root :is([data-node=${safeId}], [data-ghost=${safeId}])`;
-
-    // モーション（transitionは常時、animationはプレビュー時のみ・画面内トリガーは即時再生）
-    const mCss = motionCss(node.motions, "run", node.id);
-    usedKeyframes.push(...mCss.usedKeyframes);
-    customKeyframes.push(...mCss.customKeyframes);
-    const motionBase =
-      mode === "preview"
-        ? mCss.base
-        : mCss.base.filter((d) => d.startsWith("transition:"));
-    const motionExtra = motionBase.length ? " " + motionBase.join(" ") : "";
-    if (mode === "preview") {
-      for (const p of mCss.pseudo) {
-        rules.push(`${sel}${p.pseudo} { ${p.decls.join(" ")} }`);
+    // A direct absolute child makes this node its containing block.
+    const hasAbsChild = node.children.some((cid) => {
+      const styles = doc.nodes[cid]?.styles;
+      for (let i = chain.length - 1; i >= 0; i--) {
+        const defaults = styles?.[chain[i]]?.default;
+        if (defaults && Object.hasOwn(defaults, "position")) return defaults.position === "absolute";
       }
-    }
-
-    // 生CSS宣言（波括弧はルール破壊防止のため除去）
-    const raw = node.customCss?.replace(/[{}]/g, " ").trim() ?? "";
-    const extra = raw ? ` ${raw}${raw.endsWith(";") ? "" : ";"}` : "";
-
-    // 「基準: 親要素」= 直接の親。absolute の子を持つ親は包含ブロックにする
-    const hasAbsChild = node.children.some(
-      (cid) =>
-        doc.nodes[cid] &&
-        resolveStyles(doc.nodes[cid], bp, "default").position === "absolute"
-    );
-
-    if (mode === "design") {
-      const state = id === selection ? styleState : "default";
-      const map = { ...resolveStyles(node, bp, state) };
-      map.width ??= "auto";
-      // 音声はブラウザ標準の操作部の高さを保つ（auto で上書きすると潰れる）。
-      if (node.type !== "media" || node.media?.kind !== "audio") map.height ??= "auto";
-      const selMap = extractSelectionStyles(map);
-      const parts = extractPartStyles(map);
-      if (hasAbsChild && !map.position) map.position = "relative";
-      if (isHiddenAt(node, bp)) map.display = "none";
-      rules.push(`${sel} { ${cssBody(map)}${extra}${motionExtra} }`);
-      if (selMap) {
-        rules.push(
-          `${sel}::selection, ${sel} *::selection { ${cssBody(selMap)} }`
-        );
-      }
-      for (const p of parts) rules.push(`${p.selector(sel)} { ${cssBody(p.map)} }`);
+      return false;
+    });
+    const state = mode === "design" && id === selection ? styleState : "default";
+    const cached = cache?.get(id);
+    let css: NodeCss;
+    if (cached?.node === node && cached.context === context &&
+        cached.state === state && cached.hasAbsChild === hasAbsChild) {
+      css = cached.css;
     } else {
-      const base = { ...resolveStyles(node, bp, "default") };
-      base.width ??= "auto";
-      if (node.type !== "media" || node.media?.kind !== "audio") base.height ??= "auto";
-      const selMap = extractSelectionStyles(base);
-      const parts = extractPartStyles(base);
-      if (hasAbsChild && !base.position) base.position = "relative";
-      if (isHiddenAt(node, bp)) base.display = "none";
-      rules.push(`${sel} { ${cssBody(base)}${extra}${motionExtra} }`);
-      if (selMap) {
-        rules.push(
-          `${sel}::selection, ${sel} *::selection { ${cssBody(selMap)} }`
-        );
-      }
-      for (const p of parts) rules.push(`${p.selector(sel)} { ${cssBody(p.map)} }`);
-      const customStates = [...new Set(Object.values(node.styles)
-        .flatMap((states) => Object.keys(states))
-        .filter((state) => customStateSelector(state) !== null))];
-      for (const st of [...["hover", "active", "focus"], ...customStates] as StyleState[]) {
-        const merged: Record<string, string> = {};
-        for (const b of bpChain(bp)) Object.assign(merged, node.styles[b]?.[st]);
-        const suffix = customStateSelector(st) ?? `:${st}`;
-        const stSel = extractSelectionStyles(merged);
-        for (const p of extractPartStyles(merged)) {
-          rules.push(`${p.selector(`${sel}${suffix}`)} { ${cssBody(p.map)} }`);
-        }
-        if (Object.keys(merged).length) {
-          rules.push(`${sel}${suffix} { ${cssBody(merged)} }`);
-        }
-        if (stSel) {
-          rules.push(
-            `${sel}${suffix}::selection, ${sel}${suffix} *::selection { ${cssBody(stSel)} }`
-          );
-        }
-      }
+      css = buildNodeCss(node, id, bp, mode, state, hasAbsChild);
+      cache?.set(id, { node, context, state, hasAbsChild, css });
     }
+    rules.push(css.rules);
+    usedKeyframes.push(...css.usedKeyframes);
+    customKeyframes.push(...css.customKeyframes);
     node.children.forEach(walk);
   };
   const bodyMap = resolveStyleMap(bodyStyles, bp, "default");
@@ -164,6 +196,11 @@ export function buildCanvasCss(
     rules.push(`.cv-root { ${cssBody(bodyMap)} }`);
   }
   rootIds.forEach(walk);
+  if (cache) {
+    for (const [id, entry] of cache) {
+      if (!walked.has(id) || entry.node !== doc.nodes[id]) cache.delete(id);
+    }
+  }
   // モーションで使うキーフレーム
   const kf = keyframesCss(usedKeyframes, customKeyframes);
   return (kf ? kf + "\n" : "") + rules.join("\n");
