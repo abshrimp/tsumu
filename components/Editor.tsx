@@ -844,8 +844,9 @@ export default function Editor({ onReady }: EditorProps = {}) {
         if (!pendingRemote || Number(pendingRemote.rev) < incomingRev) pendingRemote = message;
         return false;
       }
+      const baseDoc = lastSyncedDoc.current;
       const incomingDoc = message.type === "doc-updated" ? message.doc
-        : applyDocPatchAtRevision(lastSyncedDoc.current, lastSyncedRev.current, message.base, message.patch);
+        : applyDocPatchAtRevision(baseDoc, lastSyncedRev.current, message.base, message.patch);
       if (!incomingDoc) {
         if (!pendingRemote || Number(pendingRemote.rev) < incomingRev) pendingRemote = message;
         // 差分が欠けた場合だけ全体を取得する。版が違う差分を無理に適用しない。
@@ -855,7 +856,8 @@ export default function Editor({ onReady }: EditorProps = {}) {
       lastSyncedRev.current = message.rev;
       lastSyncedDoc.current = incomingDoc;
       skipNextCloudSave.current = true;
-      state.applyRemoteDoc(incomingDoc);
+      state.applyRemoteDoc(incomingDoc, message.type === "doc-patched" && baseDoc
+        ? { baseDoc, patch: message.patch } : undefined);
       state.setCloud("synced", message.savedAt);
       // 通知は順不同で届くことがある。古い版を適用しても、保留中の新しい版は捨てない
       if (pendingRemote && Number(pendingRemote.rev) <= incomingRev) pendingRemote = null;
