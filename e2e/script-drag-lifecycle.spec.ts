@@ -338,7 +338,7 @@ test("large nested drag keeps its real header instead of switching to read-only 
   const ghost = page.locator('.se-ghost [data-sel-key="step:long"]');
   await expect(ghost).toBeVisible();
   await expect(ghost.locator("input").first()).toHaveValue("5");
-  expect(await ghost.locator(".se-c-head").count()).toBe(1);
+  await expect(ghost).toHaveClass(/se-c-head/);
   await pointer(page, "pointercancel", { buttons: 0 });
   await expect(transient(page)).toHaveCount(0);
 });
