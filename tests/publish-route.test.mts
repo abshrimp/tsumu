@@ -6,6 +6,7 @@ import * as preconditions from "../lib/publish-preconditions";
 import { advanceBranchRef } from "../lib/github";
 import { hasPublishCredentials } from "../lib/publish-security";
 import * as helpers from "../lib/publish-files";
+import { parsePublishedExportOptions } from "../lib/publish-preferences";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
 // 外部通信せず、公開 API が GitHub に渡すツリーを確かめる。
@@ -58,6 +59,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     parseGeneratedManifest: helpers.parseGeneratedManifest,
     DOC_PATH: helpers.DOC_PATH,
     hasPublishCredentials,
+    parsePublishedExportOptions,
     planPublish: helpers.planPublish,
     keptTreeEntries: helpers.keptTreeEntries,
     NextResponse,
@@ -79,7 +81,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     .replace(/^export /gm, "");
   const post = new Function(...Object.keys(injected), `${source}\nreturn POST;`)(...Object.values(injected)) as (req: Request) => Promise<Response>;
   const send = (body: object) => post(new Request("https://example.com/api/publish", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected: { site: "site", target: "production", repo: "test/site", branch: "main", productionBranch: "main" }, expectedHead: "head", ...body, site: "site", target: "production" }),
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected: { site: "site", target: "production", repo: "test/site", branch: "main", productionBranch: "main" }, expectedHead: "head", exportOptions: { framework: "nextjs", language: "typescript", style: "css" }, ...body, site: "site", target: "production" }),
   }));
   return { entries, trees, writes, refUpdates, uploaded, send, get recorded() { return recorded; } };
 }
@@ -398,5 +400,19 @@ test("upload requires a string path and exactly one string content source before
     const response = await f.send({ action: "upload", path: helpers.DOC_PATH, ...payload });
     assert.equal(response.status, 400);
     assert.deepEqual(f.writes, []);
+  }
+});
+
+test("invalid format preferences reject a GitHub commit without changing its branch", async () => {
+  for (const exportOptions of [
+    null, {}, { framework: "bogus", language: "typescript", style: "css" },
+    { framework: "html", language: "typescript", style: "css" },
+    { framework: "html", language: "javascript", style: "tailwind" },
+  ]) {
+    const f = fixture();
+    const response = await f.send({ action: "commit", files: { "index.html": "example" }, exportOptions });
+    assert.equal(response.status, 400);
+    assert.deepEqual(f.writes, []);
+    assert.equal(f.recorded, false);
   }
 });
