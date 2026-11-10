@@ -11,7 +11,6 @@ import type { DocNode, NodeStyles, Page, SiteDoc, StyleMap, StyleState, Script }
 import { BODY_NODE_ID } from "./types";
 import { renamePage, setPageTitle } from "./pageTitle";
 import { normalizeBreakpoints } from "./style";
-import { pageLangOf, siteLangOf } from "./site-lang";
 import { refreshClonedIds } from "./cloneIds";
 import { walkSteps } from "./script";
 
@@ -696,43 +695,13 @@ function validateOperation(op: AiOp) {
 
 /* ---------- AIに見せる編集中の状態 ---------- */
 
-const MAX_TEXT = 400;
-
 /** AIへ送る、いま開いているページ（またはコンポーネント）の部分コピーと説明 */
 export interface AiContext {
   /** サーバーで操作を試すための、編集データの部分コピー */
   doc: SiteDoc;
   target: ApplyTarget;
-  /** AIに見せる要約（JSON） */
-  summary: string;
   selection?: string | null;
   breakpoint?: string;
-}
-
-/** 要素を、AIが読みやすい短い形にする */
-function outline(doc: SiteDoc, id: string, depth: number): unknown {
-  const n = doc.nodes[id];
-  if (!n) return null;
-  const o: Record<string, unknown> = { id: n.id, type: n.type, name: n.name };
-  if (n.semantic === "custom") o.tag = n.customTag || "div";
-  else if (n.semantic !== "auto") o.tag = n.semantic;
-  if (n.text) {
-    o.text = n.text.content.length > MAX_TEXT ? `${n.text.content.slice(0, MAX_TEXT)}…` : n.text.content;
-    if (n.text.heading) o.heading = n.text.heading;
-  }
-  if (n.link) o.link = n.link.kind === "page" ? { pageId: n.link.pageId } : { url: n.link.url };
-  if (n.image) o.image = { src: n.image.src.slice(0, 200), alt: n.image.alt };
-  if (n.type === "instance") o.component = doc.components?.[n.componentId ?? ""]?.name;
-  if (n.type === "code") o.html = (n.code?.html ?? "").slice(0, 200);
-  if (n.type === "list") o.list = n.list;
-  if (Object.keys(n.styles).length) o.styles = n.styles;
-  if (n.customCss) o.customCss = n.customCss;
-  if (n.hiddenOn?.length) o.hiddenOn = n.hiddenOn;
-  if (n.locked) o.locked = true;
-  if (n.scripts?.length) o.hasScripts = true;
-  if (n.attrId) o.attrId = n.attrId;
-  if (n.children.length) o.children = depth > 40 ? "…" : n.children.map((c) => outline(doc, c, depth + 1));
-  return o;
 }
 
 /**
@@ -750,12 +719,14 @@ export function buildAiContext(
   for (const id of rootIds) for (const d of descendants(doc, id)) if (doc.nodes[d]) nodes[d] = doc.nodes[d];
   const pages: SiteDoc["pages"] = {};
   for (const [id, p] of Object.entries(doc.pages)) {
-    pages[id] = id === opts.pageId ? p : { ...p, children: [], scripts: undefined, pageScripts: undefined, rawHtml: undefined };
+    pages[id] = !comp && id === opts.pageId ? p : {
+      id: p.id, name: p.name, slug: p.slug, title: "", description: "", children: [],
+    };
   }
   // Keep the AI request snapshot independent from subsequent in-place editor edits.
   // A shallow copy would share node/page/style objects and could mask a replay conflict.
   const part: SiteDoc = structuredClone({
-    schemaVersion: 1, siteName: doc.siteName,
+    schemaVersion: 1, siteName: doc.siteName, lang: doc.lang,
     pages,
     pageOrder: doc.pageOrder,
     nodes,
@@ -766,32 +737,9 @@ export function buildAiContext(
     customFonts: doc.customFonts,
     components: comp ? { [comp.id]: comp } : undefined,
   });
-  const bps = normalizeBreakpoints(doc.breakpoints);
-  const summary = {
-    site: doc.siteName,
-    // 新しく書く文章の言語（編集中のページの言語。コンポーネントはサイトの言語）
-    language: comp ? siteLangOf(doc) : pageLangOf(doc, page),
-    breakpoints: [
-      { id: "base", appliesTo: "all widths (desktop design)" },
-      ...bps.map((b) => ({ id: b.id, label: b.label, appliesTo: `max-width ${b.maxWidth}px` })),
-    ],
-    colorPalette: doc.colorPalette,
-    fonts: doc.customFonts?.map((f) => f.family),
-    pages: doc.pageOrder.map((id) => ({ id, name: doc.pages[id]?.name, url: `/${doc.pages[id]?.slug ?? ""}` })),
-    editing: comp
-      ? { component: comp.name, rootId: comp.rootId }
-      : {
-          page: { id: page?.id, name: page?.name, url: `/${page?.slug ?? ""}`, title: page?.title, description: page?.description },
-          bodyStyles: page?.bodyStyles,
-        },
-    viewingBreakpoint: opts.breakpoint ?? "base",
-    selectedElementId: opts.selection && (nodes[opts.selection] || opts.selection === BODY_NODE_ID) ? opts.selection : null,
-    elements: rootIds.map((id) => outline(doc, id, 0)),
-  };
   return {
     doc: part,
     target: { pageId: opts.pageId, rootId: comp?.rootId ?? null },
-    summary: JSON.stringify(summary),
     selection: opts.selection ?? null,
     breakpoint: opts.breakpoint ?? "base",
   };
