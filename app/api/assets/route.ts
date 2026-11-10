@@ -122,8 +122,8 @@ export async function GET(req: Request) {
 }
 
 /**
- * アセットを削除（path 指定）。
- * ほかのサイトが同じファイルを使っていれば（サイトをまたいでコピーしたとき）、ファイルは残す
+ * アセットを削除（path 指定）。Cloudflare は候補登録のみを行い、
+ * 猶予期間後に全サイトの現在の参照を確認する。Node/Docker は即時に他サイトを調べる。
  */
 export async function DELETE(req: Request) {
   const tr = await serverTr();
