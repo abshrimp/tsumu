@@ -27,7 +27,7 @@ const generatedManifest = (output: Record<string, string>) => files.serializeGen
 // 再帰ツリー・部分ツリーの置換・一度だけの先端更新も外部通信なしで検査する。
 async function fixture(format: ExportFormat, options: {
   currentFormat?: ExportFormat; target?: "production" | "test"; sourcePwa?: boolean;
-  noSourceManifest?: boolean; currentOwned?: boolean; currentWorkerMissing?: boolean;
+  noSourceManifest?: boolean; noSourceDoc?: boolean; currentOwned?: boolean; currentWorkerMissing?: boolean;
   manual?: files.TreeEntry[]; sourceManual?: files.TreeEntry[]; failTree?: number; concurrentRef?: boolean;
 } = {}) {
   const target = options.target ?? "production";
@@ -67,7 +67,7 @@ async function fixture(format: ExportFormat, options: {
   };
   const sourceDoc = { ...doc, pwa: { enabled: options.sourcePwa ?? false } };
   const sourceOutput = (await prepareExportProject(sourceDoc, format)).files;
-  sourceOutput[files.DOC_PATH] = JSON.stringify(sourceDoc);
+  if (!options.noSourceDoc) sourceOutput[files.DOC_PATH] = JSON.stringify(sourceDoc);
   const sourceEntries = Object.entries(sourceOutput).map(([path, content]) => blob(path, content));
   if (!options.noSourceManifest) sourceEntries.push(blob(files.GENERATED_MANIFEST_PATH, generatedManifest(sourceOutput)));
   sourceEntries.push(blob(".github/workflows/ci.yml", "historical workflow"), ...(options.sourceManual ?? []));
@@ -323,3 +323,24 @@ test("retirement prunes deleted historical manual path conflicts before adding t
   assert.equal(failed.recorded, 0);
   assert.equal(failed.writes.some(write => write.path === "/git/commits" || write.path.startsWith("/git/refs")), false);
 });
+
+
+for (const target of ["production", "test"] as const) {
+  for (const [path, mode, type] of [
+    ["_tsumu", "100644", "blob"], ["_tsumu", "100755", "blob"],
+    ["_tsumu", "120000", "blob"], ["_tsumu", "160000", "commit"],
+    ["_tsumu/generated.json/manual.txt", "100644", "blob"],
+  ]) {
+    test(`${target}: retirement rejects a legacy ${mode} ${path} manifest conflict before any Git write`, async () => {
+      // 所有情報と編集データがまだなかった版では、_tsumu 自体が手動ファイルの場合がある。
+      const f = await fixture("nextjs", { target, noSourceManifest: true, noSourceDoc: true,
+        sourceManual: [{ path, mode, type, sha: "historical-manual" }],
+      });
+      const response = await f.send({ sha: f.source }, true);
+      assert.equal(response.status, 409, await response.text());
+      assert.deepEqual(f.writes, [], "manifest paths must be checked before creating even a detached tree");
+      assert.equal(f.head, f.initial);
+      assert.equal(f.recorded, 0);
+    });
+  }
+}

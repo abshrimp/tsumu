@@ -265,7 +265,7 @@ export async function POST(req: Request) {
     const deletedPaths = new Set(deletedManual.map(entry => entry.path));
     const restoredPaths = sourcePaths.filter(path => !isProtectedPath(path) && !deletedPaths.has(path));
     const retirement = await rollbackPwaRetirement(generated, sourcePaths, [...restoredPaths, ...keptPaths], sourceGenerated);
-    const addedPaths = retirement ? [retirement.path] : [];
+    const addedPaths = retirement ? [retirement.path, GENERATED_MANIFEST_PATH] : [];
     if (!kept || conflictingCommitPaths([...restoredPaths, ...keptPaths, ...addedPaths])) {
       return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 409 });
     }
