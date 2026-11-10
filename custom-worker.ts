@@ -213,6 +213,12 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       }
       if (input.type === "load") {
         const current = remote ? await remote.getSnapshot() : await readCurrentDoc(db, siteId);
+        // The site can be deleted/recreated while the document RPC is in flight.
+        // Fence empty results too: exists:false starts an initial client save.
+        if (roomKey && await getSiteRoomKey(db, siteId) !== roomKey) {
+          socket.close(1008, "Site generation changed");
+          return;
+        }
         if (!current) {
           reply(
             JSON.stringify({
