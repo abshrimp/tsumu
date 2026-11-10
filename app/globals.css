@@ -4763,6 +4763,7 @@ input.se-in {
 
 .se-ghost .se-stack {
   position: static;
+  box-sizing: border-box;
   box-shadow: var(--shadow-pop);
 }
 
