@@ -119,8 +119,8 @@ test("restoring a backup sanitizes inline SVG without changing other editable pr
   const before = structuredClone(doc);
   const restored = sanitizeImportedInlineIcons(structuredClone(doc));
   const cleaned = restored.nodes[icon.id].icon!.svg;
-  assert.match(cleaned, /<circle\\b/);
-  assert.doesNotMatch(cleaned, /onload|onerror|foreignObject|<img|alert\\(/i);
+  assert.match(cleaned, /<circle\b/);
+  assert.doesNotMatch(cleaned, /onload|onerror|foreignObject|<img|alert\(/i);
   assert.equal(validateImportedDoc(restored), restored);
   assert.equal(doc.nodes[icon.id].icon!.svg, original);
   assert.deepEqual(restored.pages, before.pages);
