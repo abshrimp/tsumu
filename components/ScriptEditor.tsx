@@ -32,12 +32,13 @@ import { ScriptPalette } from "./script-editor/ScriptPalette";
 // selection and z-order to each script so the other block trees do not redraw.
 const EMPTY_SCRIPT_KEYS: readonly string[] = [];
 const ScopedStackView = memo(function ScopedStackView({
-  script, shared, selectedKeys, zIndex,
+  script, shared, selectedKeys, zIndex, frozenWidth,
 }: {
   script: PageScript;
   shared: EdCtx;
   selectedKeys: readonly string[];
   zIndex?: number;
+  frozenWidth?: number;
 }) {
   const selected = useMemo(() => new Set(selectedKeys), [selectedKeys]);
   const context = useMemo<EdCtx>(() => ({
@@ -45,7 +46,7 @@ const ScopedStackView = memo(function ScopedStackView({
     selected,
     zOrder: zIndex === undefined ? new Map<string, number>() : new Map([[script.id, zIndex]]),
   }), [shared, selected, script.id, zIndex]);
-  return <Ctx.Provider value={context}><StackView script={script} /></Ctx.Provider>;
+  return <Ctx.Provider value={context}><StackView script={script} fixedWidth={frozenWidth} /></Ctx.Provider>;
 });
 
 /* ---------- 設定パネル用の一覧 ---------- */
@@ -118,6 +119,12 @@ export interface Drag {
   ox: number;
   oy: number;
   h: number;
+  /** ドラッグ開始前のブロック幅（倍率 1 の値） */
+  w?: number;
+  /** ブロックを取り除いた後も元のスタック幅を維持する */
+  sourceStackWidth?: number;
+  /** 複数のスタックをドラッグするときは各スタックの幅を保持する */
+  scriptWidths?: Record<string, number>;
   /** 複数選択中のブロックをクリックだけで離したら、そのブロックだけの選択にする */
   clickKey?: string;
 }
@@ -554,6 +561,20 @@ function ScriptEditorInner({
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
     // つかんだ位置は倍率 1 の大きさで持つ（ワークスペースの中は表示倍率がかかっている）
     const z = wsRef.current?.contains(e.currentTarget as Node) ? zoomRef.current : 1;
+    const sourceStack = (e.currentTarget as HTMLElement).closest(".se-stack");
+    let scriptWidths: Record<string, number> | undefined;
+    if (key?.startsWith("script:") && selectedRef.current.has(key)) {
+      const ids = new Set([...selectedRef.current]
+        .filter((selectedKey) => selectedKey.startsWith("script:"))
+        .map((selectedKey) => selectedKey.slice("script:".length)));
+      if (ids.size > 1) {
+        scriptWidths = {};
+        wsRef.current?.querySelectorAll<HTMLElement>(".se-stack[data-script-id]").forEach((stack) => {
+          const id = stack.dataset.scriptId;
+          if (id && ids.has(id)) scriptWidths![id] = stack.getBoundingClientRect().width / z;
+        });
+      }
+    }
     dragRef.current = {
       pointerId: e.pointerId,
       make,
@@ -566,6 +587,9 @@ function ScriptEditorInner({
       ox: (e.clientX - r.left) / z,
       oy: (e.clientY - r.top) / z,
       h: r.height / z,
+      w: r.width / z,
+      sourceStackWidth: sourceStack ? sourceStack.getBoundingClientRect().width / z : undefined,
+      scriptWidths,
       clickKey: key && selectedRef.current.has(key) && selectedRef.current.size > 1 ? key : undefined,
     };
   }, []);
@@ -722,7 +746,7 @@ function ScriptEditorInner({
       <div style={{ zoom }}>
       <Ctx.Provider value={{ ...ctx, readOnly: true, activeSlot: null }}>
         {drag.payload.type === "trigger" ? (
-          <div className="se-stack">
+          <div className="se-stack" style={{ width: drag.w }}>
             <HatView trigger={drag.payload.trigger} />
           </div>
         ) : drag.payload.type === "script" ? (
@@ -732,14 +756,18 @@ function ScriptEditorInner({
               <div
                 key={s.id}
                 className="se-ghost-item"
-                style={{ left: s.pos.x - main.pos.x, top: s.pos.y - main.pos.y }}
+                style={{
+                  left: s.pos.x - main.pos.x,
+                  top: s.pos.y - main.pos.y,
+                  width: drag.scriptWidths?.[s.id] ?? (s.id === main.id ? drag.w : undefined),
+                }}
               >
                 <StackView script={{ ...s, steps: ghostPreviewSteps(s.steps) }} />
               </div>
             ));
           })()
         ) : (
-          <div className="se-stack">
+          <div className="se-stack" style={{ width: drag.w }}>
             <StepList scriptId="__ghost" list="root" steps={ghostPreviewSteps(drag.payload.steps)} />
             {drag.payload.steps.length > 8 && (
               <span className="se-ghost-more">
@@ -925,7 +953,9 @@ function ScriptEditorInner({
               {view.map((s) => (
                 <ScopedStackView key={s.id} script={s} shared={sharedCtx}
                   selectedKeys={scopedSelections.get(s.id) ?? EMPTY_SCRIPT_KEYS}
-                  zIndex={zOrder.get(s.id)} />
+                  zIndex={zOrder.get(s.id)}
+                  frozenWidth={drag?.payload?.type === "steps" && drag.payload.from?.scriptId === s.id
+                    ? drag.sourceStackWidth : undefined} />
               ))}
             </div>
             {!scripts.length && (
