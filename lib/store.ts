@@ -144,31 +144,46 @@ export function findParentOf(doc: SiteDoc, nodeId: string): ParentRef | null {
   return null;
 }
 
+type ParentIndex = Map<string, { ref: ParentRef; position: number }>;
+
+/** Build once per operation; mutable updateDoc drafts must never share a cached index. */
+function indexParents(doc: SiteDoc): ParentIndex {
+  const parents: ParentIndex = new Map();
+  const add = (children: string[], ref: ParentRef) => children.forEach((id, position) => {
+    // Match findParentOf's page-first, then node insertion-order precedence.
+    if (!parents.has(id)) parents.set(id, { ref, position });
+  });
+  for (const page of Object.values(doc.pages)) add(page.children, { kind: "page", id: page.id });
+  for (const node of Object.values(doc.nodes)) add(node.children, { kind: "node", id: node.id });
+  return parents;
+}
+
+function indexedAncestors(parents: ParentIndex, nodeId: string): string[] {
+  const out: string[] = [];
+  const seen = new Set([nodeId]);
+  let parent = parents.get(nodeId)?.ref;
+  while (parent?.kind === "node" && !seen.has(parent.id)) {
+    seen.add(parent.id);
+    out.push(parent.id);
+    parent = parents.get(parent.id)?.ref;
+  }
+  return out.reverse();
+}
+
+/** Selected descendants move/copy with their nearest selected ancestor. */
+function selectedRoots(ids: readonly string[], parents: ParentIndex): string[] {
+  const selected = new Set(ids);
+  return [...selected].filter((id) =>
+    !indexedAncestors(parents, id).some((ancestor) => selected.has(ancestor))
+  );
+}
+
 /** nodeId がいずれかのコンポーネントのマスターに属しているか */
 export function componentOf(doc: SiteDoc, nodeId: string): string | null {
   const components = Object.values(doc.components ?? {});
   if (!components.length) return null;
 
-  // Resolve parent ownership once, rather than scanning the entire document
-  // separately for every candidate component and every ancestor.
-  const parents = new Map<string, ParentRef>();
-  for (const page of Object.values(doc.pages)) {
-    for (const child of page.children) {
-      if (!parents.has(child)) parents.set(child, { kind: "page", id: page.id });
-    }
-  }
-  for (const node of Object.values(doc.nodes)) {
-    for (const child of node.children) {
-      if (!parents.has(child)) parents.set(child, { kind: "node", id: node.id });
-    }
-  }
-
-  const ancestors = new Set([nodeId]);
-  let parent = parents.get(nodeId);
-  while (parent?.kind === "node" && !ancestors.has(parent.id)) {
-    ancestors.add(parent.id);
-    parent = parents.get(parent.id);
-  }
+  const ancestors = new Set([nodeId, ...indexedAncestors(indexParents(doc), nodeId)]);
   // Keep the established component-order precedence for nested master roots.
   for (const comp of components) {
     if (ancestors.has(comp.rootId)) return comp.id;
@@ -262,27 +277,26 @@ export function uniquePageNaming(
 
 /** 親から順の祖先ノードID（ページ直下の要素なら空） */
 export function ancestorsOf(doc: SiteDoc, nodeId: string): string[] {
-  const out: string[] = [];
-  let cur = findParentOf(doc, nodeId);
-  while (cur?.kind === "node") {
-    out.unshift(cur.id);
-    cur = findParentOf(doc, cur.id);
-  }
-  return out;
+  return indexedAncestors(indexParents(doc), nodeId);
 }
 
 /** ツリー上の位置（上から並べたときの順序の比較に使う） */
-function treePosition(doc: SiteDoc, nodeId: string): number[] {
+function treePosition(parents: ParentIndex, nodeId: string): number[] {
   const out: number[] = [];
-  let id = nodeId;
-  let cur = findParentOf(doc, id);
+  const seen = new Set([nodeId]);
+  let cur = parents.get(nodeId);
   while (cur) {
-    out.unshift(childrenOf(doc, cur).indexOf(id));
-    if (cur.kind === "page") break;
-    id = cur.id;
-    cur = findParentOf(doc, id);
+    out.push(cur.position);
+    if (cur.ref.kind === "page" || seen.has(cur.ref.id)) break;
+    seen.add(cur.ref.id);
+    cur = parents.get(cur.ref.id);
   }
-  return out;
+  return out.reverse();
+}
+
+function sortInTreeOrder(ids: string[], parents: ParentIndex): string[] {
+  const positions = new Map(ids.map((id) => [id, treePosition(parents, id)]));
+  return ids.sort((a, b) => comparePosition(positions.get(a)!, positions.get(b)!));
 }
 
 function comparePosition(a: number[], b: number[]): number {
@@ -1005,13 +1019,8 @@ export const useEditor = create<EditorStore>((set, get) => {
       );
       if (!targets.length) return;
       // 祖先も選ばれている要素は、祖先のコピーに含まれる
-      const inside = new Set<string>();
-      for (const id of targets) {
-        for (const d of collectDescendants(doc, id)) if (d !== id) inside.add(d);
-      }
-      const rootIds = targets
-        .filter((id) => !inside.has(id))
-        .sort((a, b) => comparePosition(treePosition(doc, a), treePosition(doc, b)));
+      const parents = indexParents(doc);
+      const rootIds = sortInTreeOrder(selectedRoots(targets, parents), parents);
       // 取り消し・削除でコピー元が消えても、同じタブから貼り付けられるよう依存も控える。
       const clipboard = buildClipPayload(doc, {
         nodes: rootIds.flatMap((root) =>
@@ -1563,14 +1572,11 @@ export const useEditor = create<EditorStore>((set, get) => {
       const compRoots = new Set(Object.values(doc.components ?? {}).map((c) => c.rootId));
       const targets = ids.filter((id) => !compRoots.has(id));
       // 祖先も選ばれている要素は、祖先の削除で一緒に消える
-      const inside = new Set<string>();
-      for (const id of targets) {
-        for (const d of collectDescendants(doc, id)) if (d !== id) inside.add(d);
-      }
-      const roots = targets.filter((id) => !inside.has(id));
+      const parents = indexParents(doc);
+      const roots = selectedRoots(targets, parents);
       get().updateDoc((d) => {
         for (const id of roots) {
-          const parent = findParentOf(d, id);
+          const parent = parents.get(id)?.ref;
           if (!parent) continue;
           for (const x of collectDescendants(d, id)) delete d.nodes[x];
           const list = childrenOf(d, parent);
@@ -1586,15 +1592,10 @@ export const useEditor = create<EditorStore>((set, get) => {
 
     duplicateNodes: (nodeIds) => {
       const doc = get().doc;
-      const ids = nodeIds.filter((id) => doc.nodes[id] && findParentOf(doc, id));
+      const parents = indexParents(doc);
+      const ids = nodeIds.filter((id) => doc.nodes[id] && parents.has(id));
       // 祖先も選ばれている要素は、祖先の複製に含まれる
-      const inside = new Set<string>();
-      for (const id of ids) {
-        for (const d of collectDescendants(doc, id)) if (d !== id) inside.add(d);
-      }
-      const roots = ids
-        .filter((id) => !inside.has(id))
-        .sort((a, b) => comparePosition(treePosition(doc, a), treePosition(doc, b)));
+      const roots = sortInTreeOrder(selectedRoots(ids, parents), parents);
       if (!roots.length) return;
       const clones: DocNode[] = [];
       const cloneTree = (id: string): string => {
@@ -1611,7 +1612,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       get().updateDoc((d) => {
         for (const c of clones) d.nodes[c.id] = c;
         for (const { from, copy } of pairs) {
-          const parent = findParentOf(d, from);
+          const parent = parents.get(from)?.ref;
           if (!parent) continue;
           const list = childrenOf(d, parent);
           list.splice(list.indexOf(from) + 1, 0, copy);
@@ -1628,32 +1629,26 @@ export const useEditor = create<EditorStore>((set, get) => {
       // ドラッグ中の削除・同時編集で移動先が無くなったら、元の構造を保つ。
       if (parent.kind === "page" ? !doc.pages[parent.id] : !doc.nodes[parent.id]) return;
       // ロック中・マスターのルート（親を持たない）は移動できない。重複選択も1回だけ扱う。
-      const movable = [...new Set(nodeIds)].filter((id) => doc.nodes[id] && !doc.nodes[id].locked && findParentOf(doc, id));
+      const parents = indexParents(doc);
+      const movable = [...new Set(nodeIds)].filter((id) => doc.nodes[id] && !doc.nodes[id].locked && parents.has(id));
       // 選択した要素の子孫は親ごと動くので個別には動かさない
-      const ids = movable.filter(
-        (id) =>
-          !movable.some((o) => o !== id && collectDescendants(doc, o).includes(id))
-      );
+      const ids = selectedRoots(movable, parents);
       if (!ids.length) return;
+      const selected = new Set(ids);
+      const ancestors = parent.kind === "node" ? indexedAncestors(parents, parent.id) : [];
       // 自分自身・子孫への移動を禁止
-      if (
-        parent.kind === "node" &&
-        ids.some((id) => collectDescendants(doc, id).includes(parent.id))
-      ) {
-        return;
-      }
-      const parentDepth = parent.kind === "page" ? 0 : ancestorsOf(doc, parent.id).length + 1;
+      if (parent.kind === "node" &&
+          (selected.has(parent.id) || ancestors.some((id) => selected.has(id)))) return;
+      const parentDepth = parent.kind === "page" ? 0 : ancestors.length + 1;
       if (parentDepth + maxSubtreeDepth(doc.nodes, ids) > MAX_NODE_DEPTH ||
           !canPlaceComponentNodes(doc, parent, ids)) return;
-      ids.sort((a, b) =>
-        comparePosition(treePosition(doc, a), treePosition(doc, b))
-      );
+      sortInTreeOrder(ids, parents);
       get().updateDoc((d) => {
         const toList = childrenOf(d, parent);
         // 挿入位置より前から抜ける要素の分だけ位置を詰める
-        const i = index - toList.slice(0, index).filter((id) => ids.includes(id)).length;
+        const i = index - toList.slice(0, index).filter((id) => selected.has(id)).length;
         for (const id of ids) {
-          const from = findParentOf(d, id);
+          const from = parents.get(id)?.ref;
           if (!from) continue;
           const list = childrenOf(d, from);
           list.splice(list.indexOf(id), 1);

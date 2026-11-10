@@ -402,7 +402,7 @@ export default {
   scheduled(event: { cron?: string }, env: WorkerEnv, ctx: ExecutionContext): void {
     // Every day: only expired D1 candidates. Weekly: reconcile one KV page
     // to find failed uploads or assets orphaned by deleted sites.
-    const discoverUntracked = event.cron === "0 19 * * 0";
+    const discoverUntracked = event.cron === "0 19 * * SUN";
     if (!env.DB || !env.ASSETS_KV || !env.DOC_STORE ||
         (discoverUntracked && !env.ASSETS_KV.list)) return;
     ctx.waitUntil((async () => {
