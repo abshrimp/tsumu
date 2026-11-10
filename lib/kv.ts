@@ -12,6 +12,8 @@ import { nodeAssetStore } from "./node-storage";
 /** アセットのメタデータ（KVのmetadataに保存） */
 export interface AssetMeta {
   contentType?: string;
+  /** Known size for GC estimates. Older KV objects may lack this field. */
+  bytes?: number;
 }
 
 /** 使用するKV APIの最小型（@cloudflare/workers-types の型衝突を避ける） */
@@ -27,6 +29,12 @@ export interface KVLikeNamespace {
     options: { type: "stream" }
   ): Promise<{ value: ReadableStream | null; metadata: AssetMeta | null }>;
   delete(key: string): Promise<void>;
+  /** Workers KV enumeration. The Node/Docker filesystem store need not implement this. */
+  list?(options: { prefix: string; cursor?: string; limit?: number }): Promise<{
+    keys: { name: string; metadata?: AssetMeta | null }[];
+    list_complete: boolean;
+    cursor?: string;
+  }>;
 }
 
 /** アセット用KV（バインディングも TSUMU_DATA_DIR も無ければ null） */
