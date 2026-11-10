@@ -113,6 +113,35 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
               room_key TEXT PRIMARY KEY,
               queued_at INTEGER NOT NULL
             )`,
+            // Candidate tracking is non-destructive. Physical KV deletion is
+            // intentionally not enabled until history/DO write fencing exists.
+            `CREATE TABLE IF NOT EXISTS asset_gc_candidates (
+              path TEXT PRIMARY KEY,
+              first_unreferenced_at INTEGER NOT NULL,
+              last_seen_at INTEGER NOT NULL,
+              bytes INTEGER
+            )`,
+            `CREATE TABLE IF NOT EXISTS asset_gc_runs (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              started_at INTEGER NOT NULL,
+              finished_at INTEGER,
+              status TEXT NOT NULL,
+              kv_keys INTEGER NOT NULL DEFAULT 0,
+              referenced INTEGER NOT NULL DEFAULT 0,
+              candidates INTEGER NOT NULL DEFAULT 0,
+              deleted INTEGER NOT NULL DEFAULT 0,
+              deleted_bytes INTEGER NOT NULL DEFAULT 0,
+              dry_run INTEGER NOT NULL DEFAULT 1,
+              error TEXT
+            )`,
+            `CREATE TABLE IF NOT EXISTS asset_gc_state (
+              id INTEGER PRIMARY KEY CHECK(id=1),
+              scan_cursor TEXT,
+              scan_started_at INTEGER,
+              lease_until INTEGER NOT NULL DEFAULT 0,
+              lease_token TEXT
+            )`,
+            `INSERT OR IGNORE INTO asset_gc_state(id) VALUES(1)`,
           ]),
           // サイト単位で最後にGitHubへ公開した出力形式。D1とNode SQLiteで共通。
           `CREATE TABLE IF NOT EXISTS site_publish_options (
