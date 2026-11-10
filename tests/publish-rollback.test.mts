@@ -162,7 +162,7 @@ function fixture(target: "production" | "test", manual: files.TreeEntry, histori
     sourceManifest: () => blobs.get(trees.get(commits.get(source)!.tree.sha)!.find(e => e.path === files.GENERATED_MANIFEST_PATH)!.sha!),
     entries: () => trees.get(commits.get(head)!.tree.sha)!,
     send: (body: object, history = false) => (history ? rollback : publish)(new Request("https://example.test", {
-      method: "POST", body: JSON.stringify({ site: "site", target, expected, expectedHead: head, ...body }),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ site: "site", target, expected, expectedHead: head, ...body }),
     })),
   };
 }

@@ -119,7 +119,7 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
   }
   const publish = load("app/api/publish/route.ts"), history = load("app/api/publish/history/route.ts");
   const post = (body: object, isHistory = false) => (isHistory ? history : publish).POST(new Request("https://example.com", {
-    method: "POST", body: JSON.stringify({ site: "example", target: "production", expected: expected(), expectedHead: old, ...body }),
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ site: "example", target: "production", expected: expected(), expectedHead: old, ...body }),
   })) as Promise<Response>;
   const get = (extra: Record<string, string> = {}) => history.GET(new Request(`https://example.com?${new URLSearchParams({ site: "example", target: "production", expected: JSON.stringify(expected()), ...extra })}`)) as Promise<Response>;
   return { post, get, rawPublish: publish.POST, rawHistory: history.POST,

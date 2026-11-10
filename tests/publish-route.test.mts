@@ -79,7 +79,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     .replace(/^export /gm, "");
   const post = new Function(...Object.keys(injected), `${source}\nreturn POST;`)(...Object.values(injected)) as (req: Request) => Promise<Response>;
   const send = (body: object) => post(new Request("https://example.com/api/publish", {
-    method: "POST", body: JSON.stringify({ expected: { site: "site", target: "production", repo: "test/site", branch: "main", productionBranch: "main" }, expectedHead: "head", ...body, site: "site", target: "production" }),
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected: { site: "site", target: "production", repo: "test/site", branch: "main", productionBranch: "main" }, expectedHead: "head", ...body, site: "site", target: "production" }),
   }));
   return { entries, trees, writes, refUpdates, uploaded, send, get recorded() { return recorded; } };
 }
