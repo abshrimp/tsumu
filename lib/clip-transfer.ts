@@ -16,7 +16,8 @@ import { genId } from "./presets";
 import { cloneSteps, scriptUid } from "./script";
 import { currentSiteId } from "./site";
 import { storageKey } from "./storage-keys";
-import { validNodeForest } from "./doc-tree";
+import { validAssetEntry, validDocNodeShape, validNodeForest } from "./doc-tree";
+import { validSiteAdditionalFields } from "./document-value-shapes";
 import { DEFAULT_BREAKPOINTS, MAX_BREAKPOINTS, normalizeBreakpoints } from "./style";
 
 /** クリップボードに書くエディタ専用の形式 */
@@ -143,8 +144,7 @@ function validNodes(nodes: unknown, roots?: unknown): nodes is DocNode[] {
   const ids = new Set<string>();
   for (const n of nodes as DocNode[]) {
     if (
-      !n || typeof n !== "object" || typeof n.id !== "string" || typeof n.type !== "string" ||
-      !n.styles || typeof n.styles !== "object" || Array.isArray(n.styles) || !Array.isArray(n.children) ||
+      !n || typeof n !== "object" || typeof n.id !== "string" || !validDocNodeShape(n) || !Array.isArray(n.children) ||
       n.children.some((c) => typeof c !== "string") || ids.has(n.id)
     ) {
       return false;
@@ -164,13 +164,24 @@ function isPayload(v: unknown): v is ClipPayload {
   return (
     !!p && p.v === 1 && typeof p.site === "string" && Array.isArray(p.rootIds) &&
     validNodes(p.nodes, p.rootIds) &&
-    !!p.assets && typeof p.assets === "object" &&
+    !!p.assets && typeof p.assets === "object" && !Array.isArray(p.assets) &&
+    Object.entries(p.assets).every(([id, asset]) => validAssetEntry(id, asset)) &&
     !!p.components && typeof p.components === "object" && !Array.isArray(p.components) &&
     validNodes(p.componentNodes, Object.keys(p.components).length
       ? Object.values(p.components).map(c => c.rootId) : undefined) &&
     validNodeForest({}, Object.fromEntries(p.componentNodes.map(n => [n.id, n])), p.components) &&
-    Array.isArray(p.customFonts)
+    Array.isArray(p.customFonts) && validSiteAdditionalFields({ customFonts: p.customFonts }) &&
+    validClipDependencies(p)
   );
+}
+
+/** Reject missing or discarded dependencies before a paste can change the document. */
+function validClipDependencies(p: ClipPayload): boolean {
+  const assetRef = (value: { assetId?: string } | null | undefined): boolean =>
+    value?.assetId === undefined || (Object.hasOwn(p.assets, value.assetId) && isSafeClipAsset(p.assets[value.assetId]));
+  return [...p.nodes, ...p.componentNodes].every(node =>
+    (node.type !== "instance" || (typeof node.componentId === "string" && Object.hasOwn(p.components, node.componentId))) &&
+    assetRef(node.image) && assetRef(node.media) && (node.media?.sources ?? []).every(assetRef));
 }
 
 /**
@@ -413,14 +424,20 @@ function isSafeClipAsset(a: Asset): boolean {
   return Boolean(a.path || a.dataUrl);
 }
 
-/** 要素の中のアセットIDを付け替える（IDは一意な文字列なので、文字列として置き換える） */
+/** Remap asset references without rewriting structural IDs, ordinary text or stored file URLs. */
 export function remapAssetIds<T>(value: T, remap: Map<string, string>): T {
   if (!remap.size) return value;
-  // Replace original identities once: a dedupe target can itself be a conflicting
-  // source ID that has a different mapping. Sequential replacements would cascade.
-  const pattern = [...remap.keys()].filter(Boolean).sort((a, b) => b.length - a.length)
-    .map((id) => id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
-  if (!pattern) return value;
-  const json = JSON.stringify(value).replace(new RegExp(pattern, "g"), (id) => remap.get(id)!);
+  const json = JSON.stringify(value, (key, item: unknown) => {
+    if (typeof item !== "string") return item;
+    // Each original reference is mapped once, even when its destination ID
+    // is another source ID. Property names and unrelated strings stay intact.
+    if (key === "assetId") return remap.get(item) ?? item;
+    return item.replace(/tsumu-zip-css:([A-Za-z0-9%._~-]+)/g, (token, encoded: string) => {
+      try {
+        const id = remap.get(decodeURIComponent(encoded));
+        return id === undefined ? token : `tsumu-zip-css:${encodeURIComponent(id)}`;
+      } catch { return token; }
+    });
+  });
   return JSON.parse(json) as T;
 }

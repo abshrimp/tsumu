@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
+import { parseFragment } from "parse5";
+import { createInitialDoc } from "../lib/presets";
+import { validSiteDoc } from "../lib/doc-tree";
+import { cssAssetReferences } from "../lib/css-assets";
 import { assetUploadedAt, extractAssetReferences, planAssetGc } from "../lib/asset-gc-plan";
 import { recordAssetGcCandidates, runAssetGc, type AssetGcDocumentNamespace } from "../lib/asset-gc";
 import type { Db } from "../lib/db";
@@ -23,6 +27,68 @@ test("asset GC finds paths in nested doc HTML/CSS and encoded image URLs", () =>
   // /api/assets/file) is harmless; losing a real reference is not.
   for (const path of [a, b, c]) assert.equal(refs.has(path), true);
   assert.throws(() => extractAssetReferences("{broken"));
+});
+
+test("asset GC retains encoded URL paths next to malformed percent escapes", () => {
+  const path = key(60);
+  const escaped = encodeURIComponent(path).replaceAll("assets", "%61%73%73%65%74%73");
+  for (const extra of ["100%", "%zz", "%FF"]) {
+    const url = `/api/assets/file?path=${escaped}&note=${extra}`;
+    assert.equal(new URL(url, "https://example.com").searchParams.get("path"), path);
+    const raw = JSON.stringify({ rawHtml: `<img src="${url}">` });
+    assert.equal(extractAssetReferences(raw).has(path), true);
+  }
+});
+
+const htmlAssetForms = (path: string) => {
+  const filename = path.slice("assets/".length);
+  return [
+    `<img src="/api/assets/file?path=&#97;ssets/${filename}">`,
+    `<img src="/api/assets/file?path=&#97ssets/${filename}">`,
+    `<img src="/api/assets/file?path=&#x61;ssets/${filename}">`,
+    `<img src="/api/assets/file?path=&#X61ssets/${filename}">`,
+    `<img src="/api/assets/file?path=assets&sol;${filename.replaceAll("_fj.", "&lowbar;&fjlig;&period;")}">`,
+    `<img src="/api/assets/file?path=&#37;61ssets%2F${filename}&amp;note=100%">`,
+    `<img src="/api/assets/file?path=ass&NewLine;ets/${filename}">`,
+    `<div style="background-image:url('/api/assets/file?path=&#92;61 ssets&#92;2f ${filename}')"></div>`,
+  ];
+};
+
+test("asset GC retains HTML character references accepted by the HTML and URL parsers", () => {
+  const path = key(60, "photo_fj.png");
+  for (const html of htmlAssetForms(path)) {
+    const fragment = parseFragment(html);
+    const element = fragment.childNodes[0];
+    assert.ok("attrs" in element);
+    const source = element.attrs.find(attr => attr.name === "src")?.value;
+    const style = element.attrs.find(attr => attr.name === "style")?.value;
+    const url = source ?? cssAssetReferences(style!)[0]?.url;
+    assert.equal(new URL(url!, "https://example.com").searchParams.get("path"), path, html);
+    const doc = createInitialDoc();
+    doc.pages[doc.pageOrder[0]].rawHtml = html;
+    assert.equal(validSiteDoc(doc), true);
+    assert.equal(extractAssetReferences(JSON.stringify(doc)).has(path), true, html);
+  }
+});
+
+test("asset GC retains CSS escapes and still scans original literal strings", () => {
+  const path = key(60);
+  const filename = path.slice("assets/".length);
+  const css = `background-image:url("/api/assets/file?path=\\61 ssets\\2f ${filename}")`;
+  const url = cssAssetReferences(css)[0].url;
+  assert.equal(new URL(url, "https://example.com").searchParams.get("path"), path);
+  assert.equal(extractAssetReferences(JSON.stringify({ styles: { backgroundImage: css } })).has(path), true);
+  const literal = `${path}\\61.png`;
+  assert.equal(extractAssetReferences(JSON.stringify({ text: literal })).has(path), true);
+});
+
+test("asset GC handles wide JSON arrays and objects without argument-count overflows", () => {
+  const path = key(60);
+  const values = Array(150_000).fill(null);
+  values[values.length - 1] = path;
+  assert.equal(extractAssetReferences(JSON.stringify({ values })).has(path), true);
+  const object = Object.fromEntries(values.map((value, index) => [String(index), value]));
+  assert.equal(extractAssetReferences(JSON.stringify(object)).has(path), true);
 });
 
 test("asset GC requires both unreferenced and upload age to exceed grace", () => {
@@ -145,6 +211,40 @@ test("GC dry-run retains an asset referenced by a current document", async () =>
     assert.equal(f.deletes(), 0);
     assert.equal(Number(f.sql.prepare("SELECT deleted FROM asset_gc_runs").get()?.deleted), 0);
   } finally { f.sql.close(); }
+});
+
+test("active GC keeps a referenced candidate when URL text contains an unrelated malformed escape", async () => {
+  const path = key(100);
+  const encoded = encodeURIComponent(path).replaceAll("assets", "%61ssets");
+  const raw = JSON.stringify({ rawHtml: `<img src="/api/assets/file?path=${encoded}&note=100%">` });
+  const f = fixture(async () => [...extractAssetReferences(raw)], [path]);
+  try {
+    f.sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)")
+      .run(path, now - 9 * day, now - day, 17);
+    const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now, dryRun: false });
+    assert.equal(report.deleted, 0);
+    assert.equal(f.deletes(), 0);
+    assert.ok(f.stored.has(path));
+    assert.equal(report.candidates, 0);
+  } finally { f.sql.close(); }
+});
+
+test("active GC protects current HTML references after character-reference decoding", async () => {
+  const path = key(100, "photo_fj.png");
+  for (const html of htmlAssetForms(path)) {
+    const doc = createInitialDoc();
+    doc.pages[doc.pageOrder[0]].rawHtml = html;
+    const f = fixture(async () => [...extractAssetReferences(JSON.stringify(doc))], [path]);
+    try {
+      f.sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)")
+        .run(path, now - 9 * day, now - day, 17);
+      const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now, dryRun: false });
+      assert.equal(report.deleted, 0, html);
+      assert.equal(f.deletes(), 0);
+      assert.ok(f.stored.has(path));
+      assert.equal(report.candidates, 0);
+    } finally { f.sql.close(); }
+  }
 });
 
 test("weekly discovery aborts before KV listing if a site cannot be read", async () => {

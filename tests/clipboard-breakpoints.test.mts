@@ -156,12 +156,11 @@ for (const metadata of [false, true]) {
       const raw = buildClipPayload(original, { nodes: [structuredClone(original.nodes.box)], rootIds: ["box"] });
       if (!metadata) delete raw.breakpoints;
       Object.assign(raw.nodes[0], { hiddenOn });
-      const payload = parseClipPayload(JSON.stringify(raw));
-      assert.ok(payload);
+      assert.equal(parseClipPayload(JSON.stringify(raw)), null);
       state().replaceDoc(original);
       state().setActivePage("p");
       const before = state();
-      assert.doesNotThrow(() => state().pasteClipboard(payload));
+      assert.doesNotThrow(() => state().pasteClipboard(raw));
       assert.strictEqual(state().doc, before.doc);
       assert.strictEqual(state().past, before.past);
       assert.strictEqual(state().selectedIds, before.selectedIds);

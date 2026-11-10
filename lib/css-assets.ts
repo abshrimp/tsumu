@@ -1,4 +1,5 @@
 import { tr } from "./i18n";
+import { decodeCssEscapes as decode } from "./css-escape";
 
 /** HTML style and SVG presentation attributes whose values can contain CSS resource URLs. */
 export const CSS_ASSET_ATTRIBUTES = ["style", "fill", "stroke", "filter", "clip-path", "mask", "marker", "marker-start", "marker-mid", "marker-end", "cursor"];
@@ -19,17 +20,6 @@ function escapeEnd(css: string, start: number): number {
   } else if (css[end] === "\r" && css[end + 1] === "\n") end += 2;
   else if (end < css.length) end++;
   return end;
-}
-
-function decode(css: string): string {
-  return css.replace(/\\([0-9a-f]{1,6}(?:\r\n|[\t\n\f\r ])?|\r\n|[\s\S])/gi, (_, value: string) => {
-    if (/^[0-9a-f]/i.test(value)) {
-      const point = parseInt(value, 16);
-      return point === 0 || point > 0x10ffff || (point >= 0xd800 && point <= 0xdfff)
-        ? "\uFFFD" : String.fromCodePoint(point);
-    }
-    return /[\n\r\f]/.test(value) ? "" : value;
-  });
 }
 
 export function cssAssetReferences(css: string): Reference[] {
