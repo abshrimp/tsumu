@@ -31,6 +31,7 @@ import {
 
 import { matchesPublishTarget, publishConflictMessage } from "../../../lib/publish-preconditions";
 import { hasPublishCredentials } from "../../../lib/publish-security";
+import { gitBlobRequestBody } from "../../../lib/github-blob";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
 
 export const maxDuration = 60;
@@ -197,11 +198,11 @@ export async function POST(req: Request) {
       }),
     });
 
-  const uploadBlob = async (path: string, base64: string): Promise<string> => {
+  const uploadBlob = async (path: string, content: Uint8Array): Promise<string> => {
     const createBlob = () =>
       gh(`/git/blobs`, {
         method: "POST",
-        body: JSON.stringify({ content: base64, encoding: "base64" }),
+        body: gitBlobRequestBody(content),
       });
     const blobRes = await createBlob();
     if (!blobRes.ok) await fail(tr("アセット（{path}）のアップロード", { path }), blobRes);
@@ -304,16 +305,14 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
-      const base64 =
-        body.base64 ??
-        Buffer.from(await loadStoredAsset(body.path, body.source!)).toString(
-          "base64"
-        );
+      const content = body.base64 !== undefined
+        ? Buffer.from(body.base64, "base64")
+        : new Uint8Array(await loadStoredAsset(body.path, body.source!));
       if (body.path === DOC_PATH) {
-        const invalid = validateDocument(Buffer.from(base64, "base64"));
+        const invalid = validateDocument(content);
         if (invalid) return invalid;
       }
-      const sha = await uploadBlob(body.path, base64);
+      const sha = await uploadBlob(body.path, content);
       return NextResponse.json({ ok: true, path: body.path, sha });
     }
 

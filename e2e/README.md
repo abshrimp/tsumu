@@ -28,9 +28,36 @@ three projects and retention of the full Chromium suite:
 node --import tsx --test e2e/browser-projects.check.mts
 ```
 
-CI runs this check in the `check` job, and runs the whole Playwright suite on
-all three engines in the `e2e-shard` jobs (`scripts/run-e2e-shard.mjs`, four
-shards).
+CI runs this check in the `check` job. The four `e2e-shard` jobs
+(`scripts/run-e2e-shard.mjs`) execute the full suite on Chromium, plus only
+the tagged smoke tests on Firefox and WebKit. Each test file is assigned to
+exactly one shard; the durations file only influences load balancing.
+
+## Choosing the right test layer
+
+- Use `tests/*.test.mts` for deterministic state transitions, validation,
+  data transformations, and exhaustive input/operation combinations. These
+  checks run in the `check` job without launching a browser.
+- Use `e2e/*.spec.ts` when real browser behavior matters: pointer ownership,
+  focus and IME, DOM layout and CSS, browser storage, Service Workers, or the
+  editor's actual create/save/export/navigation flow. API-only cases in
+  Playwright still validate the built server, even if they do not open a tab.
+- For behavior covered at both layers, keep a small set of browser scenarios
+  demonstrating the integration and place the full combinatorial matrix in
+  Node tests. For example, `page-kind-confirmation` has exhaustive
+  cancellation and mode-transition cases in `tests/`, while `e2e/`
+  exercises dialogs, editor navigation, and shared-document updates.
+- Do not delete a browser test merely because its filename also exists in
+  `tests/`. Compare its assertions and unique browser behavior first.
+  Preserve the multi-engine smoke tags when changing test selection.
+
+The four shards use `scripts/e2e-shard-durations.json` as an estimate, not
+as a test manifest. It records the sum of Playwright-reported case durations
+from a successful CI run. Every run still discovers all tests dynamically,
+including tests added after the last timing snapshot. Refresh the hint data
+only from a successful full CI run, using each file's case count and summed
+Playwright case durations. Check the discovered test list after reducing a
+matrix. A failing E2E should be investigated rather than removed to make CI green.
 
 ## Coverage limits
 

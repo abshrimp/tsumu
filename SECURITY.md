@@ -28,6 +28,7 @@ Keep these points in mind when you run Tsumu.
 
 - **Set up Google sign-in and an email allowlist** for any editor reachable from the internet.
 - **Every allowed account is a fully trusted editor.** It can access all sites, publish, and manage accounts. There are no per-site roles.
+- **Removing an account does not clear its browser cache.** Uploaded files are cached privately in the browser for up to a year (their paths never change), so a removed editor can still view files they already opened.
 - **`ALLOW_ANONYMOUS=true` gives those same capabilities to everyone** who can reach the editor. Keep demos isolated from production data and from GitHub publishing tokens.
 
 ### Hosted editor Previews
