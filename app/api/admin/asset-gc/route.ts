@@ -41,8 +41,12 @@ export async function POST(req: Request) {
   }
   const params = new URL(req.url).searchParams;
   const requested = params.get("dryRun");
-  if ((requested !== "1" && requested !== "0") || params.size !== 1) {
-    return NextResponse.json({ error: "Specify dryRun=1 or dryRun=0" }, { status: 400 });
+  const discoverUntracked = params.get("discover") === "1";
+  if ((requested !== "1" && requested !== "0") ||
+      params.getAll("dryRun").length !== 1 || params.getAll("discover").length > 1 ||
+      (params.has("discover") && !discoverUntracked) ||
+      params.size !== (discoverUntracked ? 2 : 1)) {
+    return NextResponse.json({ error: "Specify dryRun=1 or dryRun=0, optionally discover=1" }, { status: 400 });
   }
   // Manual deletion obeys the same opt-in as Cron.
   if (requested === "0" && envVar("ASSET_GC_ENABLED") !== "true") {
@@ -54,7 +58,7 @@ export async function POST(req: Request) {
     const kv = env.ASSETS_KV as KVLikeNamespace | undefined;
     const rooms = env.DOC_STORE as AssetGcDocumentNamespace | undefined;
     const db = await getDb();
-    if (db.backend !== "d1" || !kv?.list || !rooms) {
+    if (db.backend !== "d1" || !kv || !rooms || (discoverUntracked && !kv.list)) {
       return NextResponse.json({ error: "Workers storage unavailable" }, { status: 503 });
     }
     const report = await runAssetGc({
@@ -62,6 +66,7 @@ export async function POST(req: Request) {
       graceDays: setting("ASSET_GC_GRACE_DAYS"),
       maxDeletes: setting("ASSET_GC_MAX_DELETES"),
       dryRun: requested !== "0",
+      discoverUntracked,
     });
     return NextResponse.json(report, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
