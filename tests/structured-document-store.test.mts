@@ -204,3 +204,86 @@ test("invalid optional fields cannot bypass full saves or fast node PATCH", () =
   assert.deepEqual(JSON.parse(store.snapshot()!.body), original);
   sqlite.close();
 });
+
+test("reopening an initialized room issues only reads so a write quota cannot block loading", () => {
+  const sqlite = new DatabaseSync(":memory:");
+  const queries: string[] = [];
+  const storage: DocumentSqlStorage = {
+    sql: {
+      exec(sql, ...args) {
+        queries.push(sql);
+        const stmt = sqlite.prepare(sql);
+        if (stmt.columns().length) {
+          return { toArray: () => stmt.all(...args) as Record<string, unknown>[] };
+        }
+        stmt.run(...args);
+        return { toArray: () => [] };
+      },
+    },
+    transactionSync(fn) {
+      return fn();
+    },
+  };
+  const first = new StructuredDocumentStore(storage);
+  assert.equal(first.replace(JSON.stringify(createInitialDoc()), null).kind, "saved");
+  queries.length = 0;
+  const reopened = new StructuredDocumentStore(storage);
+  assert.ok(reopened.snapshot());
+  assert.ok(reopened.meta());
+  assert.deepEqual(queries.filter((sql) => !/^\s*SELECT\b/i.test(sql)), []);
+});
+
+const entryWrites = (queries: string[]) =>
+  queries.filter(sql => /^(INSERT|UPDATE|DELETE)\b[^;]*document_entries/i.test(sql.trim()));
+
+test("full snapshot saves write only the entry rows that changed", () => {
+  const { store, sqlite, queries } = database();
+  const initial = createInitialDoc();
+  store.replace(JSON.stringify(initial), null);
+  queries.length = 0;
+  assert.equal(store.replace(JSON.stringify(initial), "1").kind, "saved");
+  assert.deepEqual(entryWrites(queries), []);
+
+  const next = structuredClone(initial);
+  const node = Object.values(next.nodes).find(n => n.text && typeof n.text.content === "string")!;
+  node.text!.content += "x";
+  queries.length = 0;
+  assert.equal(store.replace(JSON.stringify(next), "2").kind, "saved");
+  assert.equal(entryWrites(queries).length, 1);
+  assert.deepEqual(JSON.parse(store.snapshot()!.body), next);
+  sqlite.close();
+});
+
+test("full snapshot saves delete removed entries and insert new ones", () => {
+  const { store, sqlite } = database();
+  const initial = createInitialDoc();
+  store.replace(JSON.stringify(initial), null);
+  const next = structuredClone(initial);
+  const pageId = initial.pageOrder[1];
+  const renamed = "page_renamed000001";
+  next.pages[renamed] = { ...next.pages[pageId], id: renamed };
+  delete next.pages[pageId];
+  next.pageOrder = next.pageOrder.map(id => id === pageId ? renamed : id);
+  assert.equal(validSiteDoc(next), true);
+  assert.equal(store.replace(JSON.stringify(next), "1").kind, "saved");
+  assert.deepEqual(JSON.parse(store.snapshot()!.body), next);
+  const rows = Number(sqlite.prepare("SELECT COUNT(*) AS n FROM document_entries").get()!.n);
+  const expected = Object.keys(next.pages).length + Object.keys(next.nodes).length
+    + Object.keys(next.assets).length + Object.keys(next.components ?? {}).length;
+  assert.equal(rows, expected);
+  sqlite.close();
+});
+
+test("bucket-level patches rewrite only the changed rows of that bucket", () => {
+  const { store, sqlite, queries } = database();
+  const initial = createInitialDoc();
+  store.replace(JSON.stringify(initial), null);
+  const next = structuredClone(initial);
+  const node = Object.values(next.nodes).find(n => n.text && typeof n.text.content === "string")!;
+  node.text!.content += "x";
+  queries.length = 0;
+  assert.equal(store.patch([{ path: ["nodes"], value: next.nodes }], "1").kind, "saved");
+  assert.equal(entryWrites(queries).length, 1);
+  assert.deepEqual(JSON.parse(store.snapshot()!.body), next);
+  sqlite.close();
+});
