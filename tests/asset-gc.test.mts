@@ -1,0 +1,155 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { DatabaseSync } from "node:sqlite";
+import { assetUploadedAt, extractAssetReferences, planAssetGc } from "../lib/asset-gc-plan";
+import { runAssetGc, type AssetGcDocumentNamespace } from "../lib/asset-gc";
+import type { Db } from "../lib/db";
+import type { KVLikeNamespace } from "../lib/kv";
+
+const day = 86_400_000;
+const now = Date.UTC(2026, 10, 10);
+const key = (ageDays: number, suffix = "image.png") =>
+  `assets/${(now - ageDays * day).toString(36)}abcdef-${suffix}`;
+
+test("asset GC finds paths in nested doc HTML/CSS and encoded image URLs", () => {
+  const a = key(60), b = key(45), c = key(90);
+  const raw = JSON.stringify({
+    assets: { first: { path: a } },
+    nodes: { one: { styles: `url(/api/assets/file?path=${encodeURIComponent(b)})` } },
+    customHtml: `<img src="/api/assets/file?path=${encodeURIComponent(encodeURIComponent(c))}">`,
+  });
+  assert.deepEqual(extractAssetReferences(raw), new Set([a, b, c]));
+  assert.throws(() => extractAssetReferences("{broken"));
+});
+
+test("asset GC requires both unreferenced and upload age to exceed grace", () => {
+  const old = key(100), recent = key(4), used = key(80);
+  const unknown = "assets/preexisting.png";
+  const candidates = new Map([old, recent, used, unknown].map(path =>
+    [path, { path, firstUnreferencedAt: now - 50 * day }] as const));
+  const planned = planAssetGc({
+    kvKeys: [old, recent, used, unknown].map(name => ({ name })),
+    referenced: new Set([used]),
+    candidates, now, graceMs: 30 * day, maxDeletes: 500,
+  });
+  assert.deepEqual(planned.eligible.map(c => c.path), [old]);
+  assert.deepEqual(planned.release, [used]);
+  assert.equal(assetUploadedAt(unknown), null);
+  assert.equal(assetUploadedAt(old), now - 100 * day);
+});
+
+test("GC candidate reset, missing KV cleanup, grace period, and maximum delete cap", () => {
+  const a = key(90, "a.png"), b = key(100, "b.png"), missing = key(110, "missing.png");
+  const candidates = new Map([a, b, missing].map(path =>
+    [path, { path, firstUnreferencedAt: now - 31 * day }] as const));
+  const plan = planAssetGc({
+    kvKeys: [{ name: a }, { name: b }, { name: key(1) }],
+    referenced: new Set<string>(), candidates, now, graceMs: 30 * day, maxDeletes: 1,
+  });
+  assert.equal(plan.eligible.length, 1);
+  assert.equal(plan.remainingEligible, 1);
+  assert.ok(plan.release.includes(missing));
+  assert.equal(plan.add.length, 1);
+  const reset = planAssetGc({
+    kvKeys: [{ name: a }], referenced: new Set([a]),
+    candidates, now, graceMs: 30 * day, maxDeletes: 10,
+  });
+  assert.deepEqual(reset.eligible, []);
+  assert.ok(reset.release.includes(a));
+});
+
+function fixture(roomRefs: (key: string) => Promise<string[]>, keys: string[]) {
+  const sql = new DatabaseSync(":memory:");
+  sql.exec(`
+    CREATE TABLE sites(id TEXT PRIMARY KEY);
+    CREATE TABLE site_document_rooms(site_id TEXT PRIMARY KEY,room_key TEXT NOT NULL);
+    CREATE TABLE asset_gc_state(
+      id INTEGER PRIMARY KEY,scan_cursor TEXT,scan_started_at INTEGER,
+      lease_until INTEGER NOT NULL DEFAULT 0,lease_token TEXT
+    );
+    INSERT INTO asset_gc_state(id) VALUES(1);
+    CREATE TABLE asset_gc_candidates(
+      path TEXT PRIMARY KEY,first_unreferenced_at INTEGER NOT NULL,last_seen_at INTEGER NOT NULL,bytes INTEGER
+    );
+    CREATE TABLE asset_gc_runs(
+      id INTEGER PRIMARY KEY AUTOINCREMENT,started_at INTEGER NOT NULL,finished_at INTEGER,
+      status TEXT NOT NULL,kv_keys INTEGER NOT NULL DEFAULT 0,referenced INTEGER NOT NULL DEFAULT 0,
+      candidates INTEGER NOT NULL DEFAULT 0,deleted INTEGER NOT NULL DEFAULT 0,
+      deleted_bytes INTEGER NOT NULL DEFAULT 0,dry_run INTEGER NOT NULL DEFAULT 1,error TEXT
+    );
+    INSERT INTO sites(id) VALUES('site1');
+    INSERT INTO site_document_rooms(site_id,room_key) VALUES('site1','room1');
+  `);
+  const execute = async (input: string | { sql: string; args: (string | number | null)[] }) => {
+    const query = typeof input === "string" ? input : input.sql;
+    const args = typeof input === "string" ? [] : input.args;
+    const stmt = sql.prepare(query);
+    if (stmt.columns().length) return { rows: stmt.all(...args) as Record<string, unknown>[], rowsAffected: 0 };
+    return { rows: [] as Record<string, unknown>[], rowsAffected: Number(stmt.run(...args).changes) };
+  };
+  const db: Db = {
+    backend: "d1", execute,
+    async batch(stmts) {
+      sql.exec("BEGIN");
+      try {
+        const results = [];
+        for (const s of stmts) results.push(await execute(s));
+        sql.exec("COMMIT");
+        return results;
+      } catch (error) {
+        sql.exec("ROLLBACK");
+        throw error;
+      }
+    },
+  };
+  let lists = 0, deletes = 0;
+  const kv = {
+    async list() {
+      lists++;
+      return { keys: keys.map(name => ({ name, metadata: { bytes: 17 } })), list_complete: true };
+    },
+    async delete() { deletes++; throw new Error("GC must not delete any KV object"); },
+  } as unknown as KVLikeNamespace;
+  const rooms: AssetGcDocumentNamespace = {
+    idFromName: name => name,
+    get(id) { return { gcAssetReferences: () => roomRefs(String(id)) }; },
+  };
+  return { db, kv, rooms, sql, lists: () => lists, deletes: () => deletes };
+}
+
+test("GC dry-run retains an asset referenced only by a backup", async () => {
+  const path = key(100);
+  const f = fixture(async () => [path], [path]);
+  try {
+    const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now });
+    assert.deepEqual(report.potentialDeletePaths, []);
+    assert.equal(report.candidates, 0);
+    assert.equal(f.deletes(), 0);
+    assert.equal(Number(f.sql.prepare("SELECT deleted FROM asset_gc_runs").get()?.deleted), 0);
+  } finally { f.sql.close(); }
+});
+
+test("a failed DO reference scan aborts before KV.list or candidate changes", async () => {
+  const f = fixture(async () => { throw new Error("backup corrupted"); }, [key(100)]);
+  try {
+    await assert.rejects(runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now }));
+    assert.equal(f.lists(), 0);
+    assert.equal(f.deletes(), 0);
+    assert.equal(Number(f.sql.prepare("SELECT count(*) AS n FROM asset_gc_candidates").get()?.n), 0);
+    assert.equal(f.sql.prepare("SELECT status FROM asset_gc_runs").get()?.status, "aborted");
+  } finally { f.sql.close(); }
+});
+
+test("mature candidates appear in dry-run but can never be deleted", async () => {
+  const path = key(100);
+  const f = fixture(async () => [], [path]);
+  try {
+    f.sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)")
+      .run(path, now - 40 * day, now - day, 17);
+    const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now });
+    assert.deepEqual(report.potentialDeletePaths, [path]);
+    assert.equal(report.potentialDeleteBytesKnown, 17);
+    assert.equal(report.sweepSupported, false);
+    assert.equal(f.deletes(), 0);
+  } finally { f.sql.close(); }
+});
