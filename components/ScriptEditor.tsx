@@ -590,9 +590,7 @@ function ScriptEditorInner({
       h: r.height / z,
       // The preview adds a 1px border on each side. Its outer width must
       // account for that border so the actual dragged row keeps its width.
-      w: key?.startsWith("script:") ? (sourceStackWidth ?? r.width / z)
-        : key?.startsWith("step:") ? r.width / z + 2
-        : r.width / z + 2,
+      w: key?.startsWith("script:") ? (sourceStackWidth ?? r.width / z) : r.width / z + 2,
       sourceStackWidth,
       scriptWidths,
       clickKey: key && selectedRef.current.has(key) && selectedRef.current.size > 1 ? key : undefined,
