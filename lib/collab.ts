@@ -82,7 +82,8 @@ export function collabRoomAvailable(): boolean {
 }
 
 /**
- * D1への保存が完了したことを、接続中の共同編集クライアントへ通知する。
+ * 編集データの保存（Cloudflare は DocumentRoom、Node.js・Docker は SQLite）が完了したことを、
+ * 接続中の共同編集クライアントへ通知する。
  * WebSocket/DOが未設定でも保存自体は成功させる。
  * Durable Object の無い環境（Node.js・Docker・next dev）では、同じプロセスの
  * /api/collab/events の接続へ届ける（lib/collab-events.ts）

@@ -7,7 +7,7 @@ import type { ActivityUser } from "./activity";
 export interface ServerStatus {
   /** Google認証を使っているか（false ならログインなしで開ける） */
   auth: boolean;
-  /** 編集データの保存先（D1）があるか */
+  /** サーバーの保存先（Cloudflare の D1、または TSUMU_DATA_DIR の SQLite）があるか */
   db: boolean;
   /** アセット（画像・動画・音声）の保存先（KV）があるか */
   assets: boolean;
