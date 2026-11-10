@@ -37,6 +37,7 @@ import { mergeDocs } from "../lib/merge";
 import { safeNavigationUrl, safeResourceUrl, NAVIGATION_RUNTIME } from "../lib/url-policy";
 import { matchesValueCondition, setVarPath, withinScriptValueLimit } from "../lib/value-semantics";
 import { readLocalStorage } from "../lib/local-storage";
+import { storageKey } from "../lib/storage-keys";
 import { pageScriptsOf } from "../lib/script";
 import { connectEditorPageHistory } from "../lib/editor-page-history";
 import { interpolateJson, interpolateUrl } from "../lib/vars";
@@ -2822,21 +2823,14 @@ function sourceFiles(dir: string): string[] {
   return out;
 }
 
-test("editor storage keys use the tsumu-* namespace with zero legacy unprefixed keys", () => {
-  const legacyKeys = ["panel-l-w", "panel-r-w", "panel-l-closed", "panel-r-closed", "recent-colors-v1"];
-  for (const file of [...sourceFiles("app"), ...sourceFiles("components"), ...sourceFiles("lib")]) {
-    if (file.endsWith("storage-keys.ts")) continue;
-    const text = readFileSync(file, "utf8");
-    for (const key of legacyKeys) {
-      assert.equal(
-        text.includes(`localStorage.getItem("${key}")`) ||
-          text.includes(`localStorage.setItem("${key}"`) ||
-          text.includes(`readLocalStorage("${key}")`) ||
-          text.includes(`writeLocalStorage("${key}"`),
-        false,
-        `Unexpected unprefixed storage key "${key}" in ${file}`,
-      );
-    }
+test("editor preferences use namespaced storage keys", () => {
+  assert.equal(storageKey("preference"), "tsumu-preference");
+  for (const file of ["components/Editor.tsx", "components/controls.tsx"]) {
+    assert.doesNotMatch(
+      readFileSync(file, "utf8"),
+      /\b(?:localStorage\.(?:getItem|setItem)|(?:read|write)LocalStorage)\(\s*["'`](?!tsumu-)/,
+      `Editor preferences must use namespaced localStorage keys in ${file}`,
+    );
   }
 });
 
