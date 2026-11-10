@@ -176,7 +176,7 @@ export async function runAssetGc({
         {
           sql: `INSERT INTO asset_gc_candidates(path,first_unreferenced_at,last_seen_at,bytes)
             SELECT json_extract(value,'$.path'), ?, ?, json_extract(value,'$.bytes')
-              FROM json_each(?)
+              FROM json_each(?) WHERE true
             ON CONFLICT(path) DO UPDATE SET last_seen_at=excluded.last_seen_at,
               bytes=COALESCE(excluded.bytes,asset_gc_candidates.bytes)`,
           args: [now, now, JSON.stringify(unreferenced)],
