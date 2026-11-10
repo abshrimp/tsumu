@@ -70,3 +70,33 @@ test("ordinary workspace Delete and Undo/Redo still affect exactly the selected 
   await page.keyboard.press("ControlOrMeta+Shift+z");
   expect((await snapshot(page)).doc).toEqual(after.doc);
 });
+
+for (const key of ["Backspace", "Delete", "ControlOrMeta+a", "ControlOrMeta+z", "ControlOrMeta+Shift+z"]) {
+  test(`the element picker owns ${key} after tabbing from search to a button`, async ({ page }) => {
+    await page.evaluate((redo) => {
+      const store = (window as any).scriptKeyboardEditor.getState();
+      store.updatePage("p", { title: "Keep this edit" });
+      if (redo) store.undo();
+    }, key.includes("Shift"));
+    await block(page, "script").locator(".np-btn").click();
+    const picker = page.locator("[data-se-popover]");
+    await expect(picker.locator("input")).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(picker.locator("button.np-special")).toBeFocused();
+    await expect(selected(page, "script")).toHaveClass(/is-selected/);
+    const before = await snapshot(page);
+    await page.keyboard.press(key);
+    expect(await snapshot(page)).toEqual(before);
+    await expect(picker).toBeVisible();
+    await expect(page.locator('.se-stack[data-script-id="other"]')).not.toHaveClass(/is-selected/);
+
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Escape");
+    await expect(picker).toHaveCount(0);
+    await block(page, "script").locator(".se-ico").first().click();
+    await page.keyboard.press("Delete");
+    expect((await snapshot(page)).doc.pages.p.pageScripts.map((s: { id: string }) => s.id)).toEqual(["other"]);
+    await page.keyboard.press("ControlOrMeta+z");
+    expect((await snapshot(page)).doc).toEqual(before.doc);
+  });
+}
