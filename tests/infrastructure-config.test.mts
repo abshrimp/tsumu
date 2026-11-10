@@ -1,20 +1,23 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { test } from "node:test";
 
 const root = new URL("../", import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root), "utf8");
 
 test("all CI jobs use full commit-pinned actions and checkouts do not persist credentials", () => {
-  const workflow = read(".github/workflows/ci.yml");
-  const uses = [...workflow.matchAll(/^\s*- uses: ([^\s#]+)/gm)].map((match) => match[1]);
+  const workflow = readdirSync(new URL(".github/workflows/", root))
+    .filter(name => /\.ya?ml$/.test(name))
+    .map(name => read(`.github/workflows/${name}`))
+    .join("\n");
+  const uses = [...workflow.matchAll(/^\s*(?:- )?uses: ([^\s#]+)/gm)].map((match) => match[1]);
   assert.ok(uses.length > 0, "Expected GitHub actions in the CI workflow");
   for (const action of uses) {
     assert.match(action, /^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/, `Action ${action} must be pinned by commit SHA`);
   }
-  const checkoutCount = (workflow.match(/- uses: actions\/checkout@/g) ?? []).length;
+  const checkoutCount = (workflow.match(/^\s*(?:- )?uses: actions\/checkout@/gm) ?? []).length;
   const safeCheckouts = [...workflow.matchAll(
-    /- uses: actions\/checkout@[0-9a-f]{40}[^\n]*\n[ \t]+with:\n[ \t]+persist-credentials: false/g,
+    /^\s*(?:- )?uses: actions\/checkout@[0-9a-f]{40}[^\n]*\n[ \t]+with:\n[ \t]+persist-credentials: false/gm,
   )];
   assert.ok(checkoutCount > 0, "Expected at least one checkout step");
   assert.equal(safeCheckouts.length, checkoutCount, "Every checkout must disable credential persistence");
