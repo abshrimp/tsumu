@@ -8,6 +8,7 @@ import { dbConfigured, getDb } from "../../../lib/db";
 import { readAssetForm } from "../../../lib/asset-upload";
 import { siteIdOf } from "../../../lib/site-server";
 import { documentAssetReferences } from "../../../lib/site-document-service";
+import { recordAssetGcCandidates } from "../../../lib/asset-gc";
 
 /**
  * Read each other site's asset index directly from its SQLite-backed DO.
@@ -142,9 +143,16 @@ export async function DELETE(req: Request) {
     if (dbConfigured()) {
       const db = await getDb();
       if (db.backend === "d1") {
-        // DO metadata and KV are not one transaction. Physical deletion here
-        // can race a concurrent save/copy in another site. Keep immutable KV
-        // objects; orphan collection must use a separate, fenced GC protocol.
+        // The editor has removed the asset from its local doc. Register it now
+        // rather than listing all KV objects every night. Other sites and
+        // pending saves are rechecked after the seven-day grace period.
+        const site = await db.execute({ sql: "SELECT 1 FROM sites WHERE id=? LIMIT 1", args: [siteId] });
+        if (!site.rows.length) return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
+        const scheduled = await recordAssetGcCandidates(db, [path]);
+        return NextResponse.json({ ok: true, kept: true, scheduled: scheduled > 0 });
+      }
+      // Browser-only sites can hold references outside this server database.
+      if (params.get("browserReferenced") === "1") {
         return NextResponse.json({ ok: true, kept: true });
       }
       const refs = await otherSiteAssetReferences(db, siteId);
