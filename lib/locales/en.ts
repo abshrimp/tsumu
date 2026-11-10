@@ -65,6 +65,7 @@ const en: Dict = {
   "GitHubへPushすると、編集データには非公開ページや設定も含まれ、公開リポジトリでは第三者が閲覧できます。公開前に内容を確認してください。": "Pushing to GitHub also includes editable data, unpublished pages and settings. Anyone can view them in a public repository. Review the content before publishing.",
   "GitHubへPushしました。HTML一式はそのまま配信できる形式です。": "Pushed to GitHub. The HTML files can be served directly.",
   "GitHubへPushしました。ホスティング側のビルド・公開設定をご確認ください。": "Pushed to GitHub. Verify your hosting provider's build and publish settings.",
+  "GitHubへの公開は完了しましたが、出力形式の設定をDBに保存できませんでした。": "Published to GitHub, but the output format preferences could not be saved to the database.",
   "書き出すページを選択してください。": "Select a page to export.",
   "書き出すコンポーネントを選択してください。": "Select an element or component to export.",
   "選択した形式では次の機能を利用できません。": "This export format does not yet support these features:",
