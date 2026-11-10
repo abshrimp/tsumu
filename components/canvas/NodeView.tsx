@@ -394,17 +394,17 @@ export function NodeView({
       draggable: false,
       onLoad: (e: React.SyntheticEvent<HTMLImageElement>) => {
         const el = e.currentTarget;
-        if (
-          el.naturalWidth &&
-          (el.naturalWidth !== node.image!.width ||
-            el.naturalHeight !== node.image!.height)
-        ) {
+        // Image loading must not overwrite dimensions explicitly stored in a document.
+        // In particular, imported sites may reference an asset whose intrinsic size
+        // differs from the authored dimensions.
+        if (el.naturalWidth && el.naturalHeight &&
+            (!node.image!.width || !node.image!.height)) {
           updateDoc(
             (d) => {
               const n = d.nodes[id];
               if (n?.image) {
-                n.image.width = el.naturalWidth;
-                n.image.height = el.naturalHeight;
+                if (!n.image.width) n.image.width = el.naturalWidth;
+                if (!n.image.height) n.image.height = el.naturalHeight;
               }
             },
             { history: false }
