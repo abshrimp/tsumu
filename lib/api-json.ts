@@ -19,7 +19,8 @@ export async function readJsonLimited(
   if (declared !== null) {
     if (!/^\d+$/.test(declared)) throw new SyntaxError("Invalid Content-Length");
     if (Number(declared) > maxBytes) {
-      await req.body?.cancel().catch(() => {});
+      // 複製された本文のもう一方の読み手を待たず、上限エラーを返す。
+      void req.body?.cancel().catch(() => {});
       throw new JsonBodyTooLargeError("JSON request too large");
     }
   }
@@ -34,12 +35,15 @@ export async function readJsonLimited(
       if (done) break;
       bytes += value.byteLength;
       if (bytes > maxBytes) {
-        await reader.cancel().catch(() => {});
         throw new JsonBodyTooLargeError("JSON request too large");
       }
       raw += decoder.decode(value, { stream: true });
     }
     return JSON.parse(raw + decoder.decode());
+  } catch (error) {
+    // 上限超過や不正な文字コードで残りの受信を止め、後始末の完了は待たない。
+    void reader.cancel(error).catch(() => {});
+    throw error;
   } finally {
     reader.releaseLock();
   }
