@@ -34,6 +34,7 @@ import { localSaveBlock, type LocalSaveResult } from "./local-save";
 import {
   buildClipPayload,
   mergeClipDeps,
+  prepareClipBreakpoints,
   remapAssetIds,
   writeClipPayload,
   type ClipPayload,
@@ -1229,8 +1230,13 @@ export const useEditor = create<EditorStore>((set, get) => {
     },
 
     pasteClipboard: (external) => {
-      const clip = external ?? get().clipboard;
-      if (!clip) return;
+      const payload = external ?? get().clipboard;
+      if (!payload) return;
+      const clip = prepareClipBreakpoints(get().doc, payload);
+      if (!clip) {
+        void showAlert(tr("コピー元とコピー先の画面幅設定が一致しないか、参照できない設定があります。表示を保持するためコピーを中止しました。画面幅設定を揃えてから再試行してください。"));
+        return;
+      }
       const idMap = new Map(clip.nodes.map((n) => [n.id, genId("node")]));
       const clones = clip.nodes.map((n) => {
         const c = structuredClone(n);
