@@ -6,12 +6,14 @@ import { resolve } from "node:path";
 import { transformSync } from "esbuild";
 import { useEditor } from "../lib/store";
 import { applyPageScripts, pageScriptsOf } from "../lib/script";
+import { slotKey } from "../components/script-editor/step-tree";
+import { validDocumentScripts } from "../lib/document-validation";
 import type { Drag, Marquee, ScriptEditorLatest } from "../components/ScriptEditor";
 import { scriptDragBundle, scriptDragDoc } from "./helpers/script-drag";
 
 // 実フックを読み込み、DOMの寸法とイベントだけを固定する。保存・Undoは実ストアを使う。
-function mount(targetSlot?: string) {
-  useEditor.getState().replaceDoc(scriptDragDoc());
+function mount(targetSlot?: string, inputDoc = scriptDragDoc(), slotKind = "step") {
+  useEditor.getState().replaceDoc(inputDoc);
   useEditor.getState().setActivePage("p");
   const win = new EventTarget();
   const doc = Object.assign(new EventTarget(), { visibilityState: "visible", querySelector: () => null });
@@ -33,7 +35,7 @@ function mount(targetSlot?: string) {
   const rect = (left: number, right: number) => ({ left, right, top: 0, bottom: 600 });
   const ws = { scrollLeft: 0, scrollTop: 0, getBoundingClientRect: () => rect(300, 1200),
     querySelectorAll: (selector: string) => targetSlot && selector === '[data-slot-kind]'
-      ? [{ dataset: { slot: targetSlot, slotKind: "step" },
+      ? [{ dataset: { slot: targetSlot, slotKind },
         getBoundingClientRect: () => ({ left: 692, right: 740, top: 292, bottom: 315 }) }] : [],
   };
   const scripts = () => pageScriptsOf(useEditor.getState().doc, [], useEditor.getState().activePageId);
@@ -60,7 +62,8 @@ function mount(targetSlot?: string) {
     else {
       const script = scripts()[0];
       const payload = kind === "step" ? { type: "steps", steps: script.steps, from: { scriptId: "script", list: "root", index: 0 } } :
-        kind === "palette" ? { type: "steps", steps: [{ id: "palette-wait", kind: "wait", seconds: 1 }] } : { type: "script", script, group: [script] };
+        kind === "palette" ? { type: "steps", steps: [{ id: "palette-wait", kind: "wait", seconds: 1 }] } :
+        kind === "trigger" ? { type: "trigger", trigger: "click" } : { type: "script", script, group: [script] };
       dragRef.current = { pointerId: 1, make: () => payload as any, payload: null, started: false, sx: 340, sy: 40, x: 340, y: 40, ox: 8, oy: 8, h: 40 };
     }
     if (move) pointer("pointermove");
@@ -171,7 +174,7 @@ test("the browser fixture bundles the real script editor and gesture hooks", asy
 });
 
 test("dropping a selected chain inside its own removed subtree leaves document and undo history unchanged", () => {
-  const m = mount("script|repeat:then|0");
+  const m = mount(slotKey({ scriptId: "script", list: "repeat:then", index: 0 }));
   try {
     state().updateDoc((doc) => {
       doc.pages.p.pageScripts![0].steps = [
@@ -184,5 +187,36 @@ test("dropping a selected chain inside its own removed subtree leaves document a
     m.start("step");
     m.pointer("pointerup", { x: 700, y: 300, buttons: 0 });
     assert.deepEqual(snapshot(), before, "an invalid descendant drop must not delete source steps");
+  } finally { m.close(); }
+});
+
+for (const kind of ["step", "palette", "trigger"]) test(`${kind}: delimiter IDs cannot redirect a drop to a different script`, () => {
+  const doc = scriptDragDoc();
+  const targetId = kind === "trigger" ? "script|head|0" : "script|root|0";
+  doc.pages.p.scripts = [{ id: targetId, pos: { x: 400, y: 280 },
+    steps: [{ id: "target-wait", kind: "wait", seconds: 9 }] }];
+  assert.equal(validDocumentScripts(doc.pages.p.scripts), true);
+  const loc = { scriptId: targetId, list: kind === "trigger" ? "head" : "root", index: 0 };
+  const m = mount(slotKey(loc), doc, kind === "trigger" ? "head" : "step");
+  try {
+    const before = snapshot();
+    m.start(kind);
+    // A trigger connects at the bottom of its 40px-tall preview.
+    m.pointer("pointerup", { x: 700, y: kind === "trigger" ? 260 : 300, buttons: 0 });
+    const page = state().doc.pages.p;
+    const scripts = [...(page.pageScripts ?? []), ...(page.scripts ?? [])];
+    const target = scripts.find(script => script.id === targetId)!;
+    const source = scripts.find(script => script.id === "script")!;
+    if (kind === "trigger") {
+      assert.equal(target.trigger, "click");
+      assert.deepEqual(source, before.doc.pages.p.pageScripts![0]);
+    } else {
+      assert.deepEqual(target.steps.map(step => step.id), [kind === "step" ? "wait" : "palette-wait", "target-wait"]);
+      assert.deepEqual(source.steps.map(step => step.id), kind === "step" ? [] : ["wait"]);
+    }
+    assert.equal(state().past.length, before.past + 1);
+    const after = snapshot();
+    state().undo(); assert.deepEqual(snapshot().doc, before.doc);
+    state().redo(); assert.deepEqual(snapshot().doc, after.doc);
   } finally { m.close(); }
 });
