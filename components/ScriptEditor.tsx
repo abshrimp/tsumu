@@ -1147,26 +1147,105 @@ function inPaletteHint(d: Drag, el: HTMLElement | null): boolean {
   return !!r && d.x >= r.left && d.x <= r.right && d.y >= r.top && d.y <= r.bottom;
 }
 
-/** Preserve the original visible markup rather than replacing live controls with read-only placeholders. */
-function cloneDragElement(source: HTMLElement): HTMLElement | null {
-  // Large/virtualized trees use the bounded React preview to avoid blocking a drag frame.
-  if (source.querySelectorAll("*").length > 350) return null;
-  const copy = source.cloneNode(true) as HTMLElement;
-  const actual = source.querySelectorAll("input, select, textarea");
-  const cloned = copy.querySelectorAll("input, select, textarea");
-  for (let i = 0; i < actual.length; i++) {
-    const original = actual[i];
-    const target = cloned[i];
-    if (original instanceof HTMLInputElement && target instanceof HTMLInputElement) {
-      target.value = original.value;
-      target.checked = original.checked;
-    } else if (original instanceof HTMLSelectElement && target instanceof HTMLSelectElement) {
-      target.selectedIndex = original.selectedIndex;
-    } else if (original instanceof HTMLTextAreaElement && target instanceof HTMLTextAreaElement) {
-      target.value = original.value;
+/** Clone only the visible portion of a large tree, preserving its original
+ * header instead of silently replacing all inputs with a different read-only UI. */
+function boundedDragCopy(source: HTMLElement): HTMLElement | null {
+  if (source.classList.contains("se-stack")) {
+    const copy = source.cloneNode(false) as HTMLElement;
+    const head = source.querySelector<HTMLElement>(":scope > .se-hat, :scope > .se-hat-slot");
+    if (head) copy.appendChild(cloneDragElement(head) ?? head.cloneNode(true));
+    const list = source.querySelector<HTMLElement>(":scope > .se-list");
+    if (list) {
+      const preview = list.cloneNode(false) as HTMLElement;
+      // Virtualized stacks may contain chunks rather than direct item rows.
+      const items = list.querySelectorAll<HTMLElement>(":scope > .se-item, :scope > .se-virtual-chunk > .se-item");
+      for (const item of Array.from(items).slice(0, 8)) {
+        const copyItem = cloneDragElement(item);
+        if (copyItem) preview.appendChild(copyItem);
+      }
+      copy.appendChild(preview);
+    }
+    return copy;
+  }
+  if (source.classList.contains("se-item")) {
+    const copy = source.cloneNode(false) as HTMLElement;
+    const first = source.firstElementChild;
+    if (!(first instanceof HTMLElement)) return copy;
+    if (first.classList.contains("se-c")) {
+      const structure = first.cloneNode(false) as HTMLElement;
+      const head = first.querySelector<HTMLElement>(":scope > .se-c-head");
+      if (head) structure.appendChild(cloneDragElement(head) ?? head.cloneNode(true));
+      copy.appendChild(structure);
+    } else {
+      const row = cloneDragElement(first);
+      if (row) copy.appendChild(row);
+    }
+    return copy;
+  }
+  return null;
+}
+
+/** Match the source geometry and decorations even when a row is lifted out of
+ * its original sibling/loop context in the floating drag layer. */
+function freezeDragAppearance(source: HTMLElement, copy: HTMLElement) {
+  const selector = ".se-stack, .se-item, .se-blk, .se-c, .se-c-mid";
+  const original = [source, ...source.querySelectorAll<HTMLElement>(selector)]
+    .filter((el, index, all) => el.matches(selector) && all.indexOf(el) === index);
+  const cloned = [copy, ...copy.querySelectorAll<HTMLElement>(selector)]
+    .filter((el, index, all) => el.matches(selector) && all.indexOf(el) === index);
+  for (let i = 0; i < Math.min(original.length, cloned.length); i++) {
+    const from = original[i];
+    const to = cloned[i];
+    const computed = getComputedStyle(from);
+    // Borders and indentation can depend on :first-child or .se-c-body,
+    // which the ghost cannot reproduce after detaching the block.
+    for (const property of [
+      "padding-top", "padding-right", "padding-bottom", "padding-left",
+      "border-top-width", "border-top-style", "border-top-color",
+      "border-bottom-width", "border-bottom-style", "border-bottom-color",
+      "border-top-left-radius", "border-top-right-radius",
+      "border-bottom-left-radius", "border-bottom-right-radius",
+      "background-color", "color",
+    ]) to.style.setProperty(property, computed.getPropertyValue(property));
+    // A nested item or wrapping condition can otherwise resize to its new
+    // parent even though drag.w keeps the outside of the ghost fixed.
+    if (from.classList.contains("se-blk") || from.classList.contains("se-item") ||
+        from.classList.contains("se-stack")) {
+      to.style.boxSizing = "border-box";
+      to.style.width = `${from.offsetWidth}px`;
     }
   }
-  // This temporary, inert copy must not duplicate label targets in the editor.
+}
+
+/** Preserve the actual rendered controls rather than rebuilding them as
+ * read-only placeholders. Limit huge trees to their first visible rows. */
+function cloneDragElement(source: HTMLElement): HTMLElement | null {
+  const cap = 350;
+  let count = 0;
+  const walker = document.createTreeWalker(source, NodeFilter.SHOW_ELEMENT);
+  while (walker.nextNode()) {
+    if (++count > cap) break;
+  }
+  const copy = count > cap ? boundedDragCopy(source) : source.cloneNode(true) as HTMLElement;
+  if (!copy) return null;
+  if (count <= cap) {
+    const actual = source.querySelectorAll("input, select, textarea");
+    const cloned = copy.querySelectorAll("input, select, textarea");
+    for (let i = 0; i < actual.length; i++) {
+      const original = actual[i];
+      const target = cloned[i];
+      if (original instanceof HTMLInputElement && target instanceof HTMLInputElement) {
+        target.value = original.value;
+        target.checked = original.checked;
+      } else if (original instanceof HTMLSelectElement && target instanceof HTMLSelectElement) {
+        target.selectedIndex = original.selectedIndex;
+      } else if (original instanceof HTMLTextAreaElement && target instanceof HTMLTextAreaElement) {
+        target.value = original.value;
+      }
+    }
+  }
+  freezeDragAppearance(source, copy);
+  // This inert copy must not duplicate label targets or editable content IDs.
   copy.removeAttribute("id");
   copy.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
   return copy;
