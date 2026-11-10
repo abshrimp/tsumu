@@ -12,7 +12,7 @@ import type {
   DocChangeMessage,
 } from "../lib/collab";
 import { applyDocPatchAtRevision } from "../lib/doc-patch";
-import { errorOf, scheduleCloudSave, sendCloudDoc, type CollabRequestInput } from "../lib/cloud-save";
+import { errorOf, scheduleCloudSave, sendCloudDoc, type CollabRequestInput, type DeferredCloudConflict } from "../lib/cloud-save";
 import { mergeDocs } from "../lib/merge";
 import { css2FamilyToken } from "../lib/style";
 import {
@@ -215,6 +215,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
   const skipNextCloudSave = useRef(false);
   /** テキスト編集中に競合したため、編集の確定後に保存し直す */
   const retrySaveAfterEdit = useRef(false);
+  const deferredCloudConflict = useRef<DeferredCloudConflict | null>(null);
   /** 変更が無くても自動保存をもう一度動かすための番号 */
   const [saveRetry, setSaveRetry] = useState(0);
   /** 一時的な失敗のあとの、自動の保存し直しの予約と次の間隔 */
@@ -738,7 +739,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
     if (!initialLoadComplete) return;
     return scheduleCloudSave({
       observedDoc, cloudReady, cloudDirty, skipNextCloudSave, cloudTimer, activeCloudSave,
-      cloudSaveQueued, lastSyncedRev, lastSyncedDoc, retrySaveAfterEdit,
+      cloudSaveQueued, lastSyncedRev, lastSyncedDoc, retrySaveAfterEdit, deferredCloudConflict,
       getState: useEditor.getState, saveCloudDoc, setUnsyncedFlag,
       requestRetry: () => setSaveRetry((n) => n + 1),
       retryLater: retrySaveLater,

@@ -22,6 +22,7 @@ function harness() {
     skipNextCloudSave: ref(false), cloudTimer: ref<any>(null),
     activeCloudSave: ref<Promise<void> | null>(null), cloudSaveQueued: ref(false),
     lastSyncedRev: ref("1"), lastSyncedDoc: ref<object>(original), retrySaveAfterEdit: ref(false),
+    deferredCloudConflict: ref(null),
     getState: () => state,
     setUnsyncedFlag: (value: boolean) => { unsynced = value; },
     requestRetry: () => { retries++; },
