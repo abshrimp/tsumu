@@ -28,13 +28,22 @@ export type AssetDeletion =
   | { mode: "kept" };
 
 let cached: Promise<ServerStatus | null> | null = null;
+let loaded: ServerStatus | null = null;
 
-/** 設定状況を1回だけ取りに行く（失敗時は null）。フックを使えない処理の途中から読む */
-export function loadServerStatus(): Promise<ServerStatus | null> {
+function loadServerStatus(): Promise<ServerStatus | null> {
   cached ??= fetch("/api/status")
     .then((res) => (res.ok ? (res.json() as Promise<ServerStatus>) : null))
-    .catch(() => null);
+    .catch(() => null)
+    .then((s) => (loaded = s));
   return cached;
+}
+
+/**
+ * 読み込み済みの設定状況（まだなら null）。クリックの処理など、待たずに読む場所で使う。
+ * 確認ダイアログは操作の直後に出す必要があるため、ここで通信を待たない
+ */
+export function serverStatusSnapshot(): ServerStatus | null {
+  return loaded;
 }
 
 /** 設定状況を1回だけ取りに行く（読み込み中・失敗時は null） */

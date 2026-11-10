@@ -51,7 +51,7 @@ import { Icon } from "../icons";
 import { userMessage } from "../../lib/errors";
 import { showConfirm } from "../../lib/dialog";
 import { tr } from "../../lib/i18n";
-import { loadServerStatus, useServerStatus, type AssetDeletion } from "../../lib/status";
+import { serverStatusSnapshot, useServerStatus, type AssetDeletion } from "../../lib/status";
 import { computeStorageUsage, type StorageUsageResponse } from "../../lib/storage-usage";
 
 /* ============ アセット ============ */
@@ -430,7 +430,7 @@ export function AssetsTab() {
     if (!unused.length) return;
     const current = removalScope();
     if (
-      !(await showConfirm(serverFileNotice((await loadServerStatus())?.assetDeletion, true), {
+      !(await showConfirm(serverFileNotice(serverStatusSnapshot()?.assetDeletion, true), {
         title: tr("使用していないアセット {length}件を削除しますか？", { length: unused.length }),
         okLabel: tr("削除"),
         danger: true,
@@ -574,7 +574,7 @@ export function AssetsTab() {
   const removeAsset = async (asset: Asset) => {
     const used = usedBy(asset);
     const current = removalScope();
-    const notice = asset.path ? serverFileNotice((await loadServerStatus())?.assetDeletion, false) : "";
+    const notice = asset.path ? serverFileNotice(serverStatusSnapshot()?.assetDeletion, false) : "";
     if (
       !(await showConfirm(
         used
