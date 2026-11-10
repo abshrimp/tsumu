@@ -1,5 +1,5 @@
 import { validAssetSuffix } from "./media-url";
-import { isBreakpointId } from "./breakpoint-id";
+import { isDocumentId } from "./document-id";
 /** インポート・保存・差分で共通に使う、保存する任意の項目の実行時の検査。 */
 type Check = (value: unknown) => boolean;
 const record = (value: unknown): value is Record<string, unknown> =>
@@ -53,7 +53,7 @@ export function validNodeAdditionalFields(node: Record<string, unknown>): boolea
     optional(node.customCss, str) && optional(node.htmlClass, str) &&
     optional(node.htmlAttrs, stringMap) &&
     optional(node.motions, x => arrayOf(x, validMotion)) &&
-    optional(node.hiddenOn, strings) && optional(node.locked, bool) &&
+    optional(node.hiddenOn, x => arrayOf(x, isDocumentId)) && optional(node.locked, bool) &&
     optional(node.attrId, str) &&
     nullable(node.link, x => record(x) &&
       choice(x.kind, ["url", "page"]) &&
@@ -138,7 +138,7 @@ function validAdobeFont(value: unknown): boolean {
     Object.keys(value).every((key) => ["family", "kitId", "loading"].includes(key));
 }
 function validBreakpoint(value: unknown): boolean {
-  return record(value) && isBreakpointId(value.id) && str(value.label) &&
+  return record(value) && isDocumentId(value.id) && value.id !== "base" && str(value.label) &&
     nonnegative(value.maxWidth);
 }
 

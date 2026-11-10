@@ -161,80 +161,13 @@ test("successive moves, duplication and undo always use the current parent relat
 });
 });
 
-describe("breakpoint-compatibility", () => {
+describe("breakpoints", () => {
   before(() => {
     useEditor.setState({
       breakpoint: "base", customWidth: null, styleState: "default", mode: "design",
       pageTheme: "light", selection: null, selectedIds: [], editingComponentId: null, scriptEditor: null,
     });
   });
-describe("breakpoint-compatibility", () => {
-  for (const id of ["phone.landscape", "wide:layout", "スマホ", "custom-" + "x".repeat(200)]) {
-    test(`existing safe breakpoint spelling survives import, editing, and export: ${id}`, async () => {
-      const doc = createInitialDoc();
-      const breakpoint = { id, label: "Custom width", maxWidth: 600 };
-      doc.breakpoints = [breakpoint];
-      const nodeId = Object.keys(doc.nodes)[0];
-      doc.nodes[nodeId].styles[id] = { default: { color: "rgb(11, 22, 33)" } };
-      assert.equal(validSiteDoc(doc), true);
-      assert.deepEqual(normalizeBreakpoints(doc.breakpoints), [breakpoint]);
-      const imported = await parseSiteImport(new TextEncoder().encode(JSON.stringify(doc)), "doc");
-      assert.deepEqual(imported.doc, doc);
-      try {
-        useEditor.getState().replaceDoc(imported.doc);
-        useEditor.getState().setCustomWidth(550);
-        assert.equal(useEditor.getState().breakpoint, id);
-        assert.equal(useEditor.getState().doc.nodes[nodeId].styles[id]?.default?.color, "rgb(11, 22, 33)");
-        useEditor.getState().setStyleProps(nodeId, { color: "rgb(44, 55, 66)" });
-        const edited = useEditor.getState().doc;
-        assert.equal(edited.nodes[nodeId].styles[id]?.default?.color, "rgb(44, 55, 66)");
-        assert.equal(validSiteDoc(edited), true);
-        const project = generateExportProject(edited, "nextjs");
-        assert.ok(Object.values(project.files).some(source =>
-          source.includes("@media (max-width: 600px)") && source.includes("color: rgb(44, 55, 66)")));
-      } finally {
-        useEditor.getState().replaceDoc(createInitialDoc());
-        applyBreakpoints(undefined);
-      }
-    });
-  }
-
-  test("breakpoint IDs remain data rather than generated CSS or executable source", () => {
-    const marker = "__breakpoint_id_marker__";
-    const ids = [
-      `bp\"><script>${marker}()</script>`,
-      `bp};.${marker}{color:red}/*`,
-      `bp\");${marker}();//`,
-    ];
-    try {
-      for (const id of ids) {
-        const doc: SiteDoc = {
-          schemaVersion: 1, siteName: "Breakpoint data", pageOrder: ["home"], assets: {},
-          pages: { home: { id: "home", name: "Home", title: "Home", description: "", slug: "", children: ["box"] } },
-          nodes: { box: { ...makeBox(), id: "box", styles: { [id]: { default: { color: "rgb(11, 22, 33)" } } } } },
-          breakpoints: [{ id, label: "Custom width", maxWidth: 600 }],
-        };
-        assert.equal(validSiteDoc(doc), true);
-        applyBreakpoints(doc);
-        const canvasCss = buildCanvasCss(doc, ["box"], id, "preview", null, "default");
-        assert.ok(canvasCss.includes("color: rgb(11, 22, 33)"));
-        assert.ok(!canvasCss.includes(marker));
-        for (const format of ["nextjs", "react", "vue", "nuxt", "sveltekit", "html"] as const) {
-          const project = generateExportProject(doc, format);
-          for (const [path, source] of Object.entries(project.files)) {
-            if (path.endsWith(".json")) continue;
-            assert.ok(!source.includes(marker), `${format}: ${path} must not emit breakpoint IDs as source`);
-          }
-          assert.ok(Object.values(project.files).some(source =>
-            source.includes("@media (max-width: 600px)") && source.includes("color: rgb(11, 22, 33)")));
-        }
-      }
-    } finally {
-      applyBreakpoints(undefined);
-    }
-  });
-});
-
 describe("breakpoint-confirmation", () => {
   const state = () => useEditor.getState();
   function fixture() {
@@ -329,29 +262,58 @@ describe("breakpoint-labels", () => {
 });
 
 describe("breakpoint-security", () => {
-  const unsafeIds = [...new Set(["prototype", ...Object.getOwnPropertyNames(Object.prototype)])];
-
-  for (const id of unsafeIds) {
-    test(`saved breakpoint IDs cannot address the object prototype: ${id}`, () => {
+  test("breakpoint definitions and style references require document IDs", () => {
+    const invalid = ["", "phone.landscape", "スマホ", "x".repeat(201), "prototype", ...Object.getOwnPropertyNames(Object.prototype)];
+    for (const id of invalid) {
       const doc = createInitialDoc();
-      doc.breakpoints = [{ id, label: "Imported width", maxWidth: 600 }];
-      assert.equal(validSiteDoc(doc), false);
-      assert.deepEqual(normalizeBreakpoints(doc.breakpoints), []);
-    });
-  }
-
-  test("safe custom breakpoint IDs preserve their labels, widths, and style edits", () => {
+      const node = Object.values(doc.nodes)[0];
+      doc.breakpoints = [{ id, label: "スマホ", maxWidth: 600 }];
+      assert.equal(validSiteDoc(doc), false, id);
+      assert.deepEqual(normalizeBreakpoints(doc.breakpoints), [], id);
+      delete doc.breakpoints;
+      node.styles = { [id]: { default: { color: "red" } } };
+      assert.equal(validSiteDoc(doc), false, id);
+      node.styles = {};
+      node.hiddenOn = [id];
+      assert.equal(validSiteDoc(doc), false, id);
+    }
     const doc = createInitialDoc();
-    const breakpoint = { id: "bp_custom-1", label: "Custom width", maxWidth: 600 };
+    doc.breakpoints = [{ id: "base", label: "Default width", maxWidth: 600 }];
+    assert.equal(validSiteDoc(doc), false);
+    assert.deepEqual(normalizeBreakpoints(doc.breakpoints), []);
+  });
+
+  test("custom breakpoint labels and styles survive import, editing, and export", async () => {
+    const doc = createInitialDoc();
+    const breakpoint = { id: "bp_custom-1", label: "スマホ（横）", maxWidth: 600 };
     doc.breakpoints = [breakpoint];
-    assert.equal(validSiteDoc(doc), true);
-    assert.deepEqual(normalizeBreakpoints(doc.breakpoints), [breakpoint]);
-    useEditor.getState().replaceDoc(doc);
-    useEditor.getState().setCustomWidth(550);
-    const id = Object.keys(doc.nodes)[0];
-    useEditor.getState().setStyleProps(id, { color: "red" });
-    assert.equal(useEditor.getState().breakpoint, breakpoint.id);
-    assert.equal(useEditor.getState().doc.nodes[id].styles[breakpoint.id]?.default?.color, "red");
+    const imported = await parseSiteImport(new TextEncoder().encode(JSON.stringify(doc)), "doc");
+    assert.deepEqual(imported.doc.breakpoints, [breakpoint]);
+    const editor = () => useEditor.getState();
+    try {
+      editor().replaceDoc(imported.doc);
+      editor().setCustomWidth(550);
+      const id = Object.keys(doc.nodes)[0];
+      editor().setStyleProps(id, { color: "rgb(11, 22, 33)" });
+      const edited = editor().doc;
+      assert.equal(editor().breakpoint, breakpoint.id);
+      assert.equal(edited.nodes[id].styles[breakpoint.id]?.default?.color, "rgb(11, 22, 33)");
+      assert.ok(validSiteDoc(edited));
+      const canvas = buildCanvasCss(edited, [id], breakpoint.id, "preview", null, "default");
+      assert.ok(canvas.includes("color: rgb(11, 22, 33)"));
+      assert.ok(!canvas.includes(breakpoint.id));
+      for (const format of ["nextjs", "react", "vue", "nuxt", "sveltekit", "html"] as const) {
+        const project = generateExportProject(edited, format);
+        for (const [path, source] of Object.entries(project.files)) {
+          if (!path.endsWith(".json")) assert.ok(!source.includes(breakpoint.id), path);
+        }
+        assert.ok(Object.values(project.files).some(source =>
+          source.includes("@media (max-width: 600px)") && source.includes("color: rgb(11, 22, 33)")));
+      }
+    } finally {
+      editor().replaceDoc(createInitialDoc());
+      applyBreakpoints(undefined);
+    }
   });
 
   test("resizing an imported document cannot make style editing mutate Object.prototype", () => {

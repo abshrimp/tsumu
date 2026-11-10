@@ -62,8 +62,8 @@ const SEMANTICS = new Set(["auto", "form", "button", "div", "section", "header",
 /** 保存したエディタのデータの形は、キャンバスとコードの生成処理で扱えるものでなければならない。 */
 export function validStyleDefinitions(value: unknown): boolean {
   if (!isObject(value)) return false;
-  for (const states of Object.values(value)) {
-    if (!isObject(states)) return false;
+  for (const [breakpoint, states] of Object.entries(value)) {
+    if (!isDocumentId(breakpoint) || !isObject(states)) return false;
     for (const declarations of Object.values(states)) {
       if (!isObject(declarations) ||
           !Object.values(declarations).every(item => typeof item === "string")) return false;

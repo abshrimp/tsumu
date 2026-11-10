@@ -112,7 +112,7 @@ Optional node fields include `darkStyles` (`prefers-color-scheme: dark` override
 }
 ```
 
-Use **camelCase** CSS property names and **string** values (e.g. `"fontSize": "16px"`, not `"font-size": "16px"`). Available state keys are `default`, `hover`, `active`, `focus`, and named states written as `custom:<name>` (up to 40 letters, digits, `_`, `-` or spaces; a `set-state` script step switches an element into one). `base` applies to all widths; built-in responsive breakpoint IDs include `lg`, `md`, and `sm`. Custom breakpoints may be specified with `SiteDoc.breakpoints: [{ id, label, maxWidth }]`.
+Use **camelCase** CSS property names and **string** values (e.g. `"fontSize": "16px"`, not `"font-size": "16px"`). Available state keys are `default`, `hover`, `active`, `focus`, and named states written as `custom:<name>` (up to 40 letters, digits, `_`, `-` or spaces; a `set-state` script step switches an element into one). `base` applies to all widths; built-in responsive breakpoint IDs include `lg`, `md`, and `sm`. Custom breakpoints may be specified with `SiteDoc.breakpoints: [{ id, label, maxWidth }]`. Use 1–200 ASCII letters, digits, underscores, or hyphens for an ID. The ID `base`, `prototype`, and inherited object property names are reserved. Labels can use any language.
 
 ## Links and components
 

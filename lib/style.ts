@@ -13,7 +13,7 @@ import type {
 import { tr } from "./i18n";
 import { filterFunctions } from "./filter-edit";
 import { EASING_PRESETS } from "./easing";
-import { isBreakpointId } from "./breakpoint-id";
+import { isDocumentId } from "./document-id";
 
 interface BpInfo {
   label: string;
@@ -62,7 +62,7 @@ export function normalizeBreakpoints(raw: unknown): BreakpointDef[] {
   let list: BreakpointDef[];
   if (Array.isArray(raw)) {
     list = raw
-      .filter((b): b is BreakpointDef => !!b && typeof b === "object" && isBreakpointId(b.id))
+      .filter((b): b is BreakpointDef => !!b && typeof b === "object" && isDocumentId(b.id))
       .map((b) => ({
         id: b.id,
         label: String(b.label || "").trim() || tr("Screen width"),
