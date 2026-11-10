@@ -99,3 +99,90 @@ Nuxt HTTP integration, E2E/browser navigation, Worker build, Docker, or dependen
 audit was completed in this sandbox. Full acceptance (all generated projects
 build and behave correctly) remains subject to those checks in CI. No commit,
 push, PR creation, merge, deployment, or infrastructure mutation was performed.
+
+## Investigation 2/3 — adversarial (2026-11-10)
+
+Baseline: `fb5bd0477d1eb7a58658ed55fff63260470075b9`, matching HEAD,
+origin/main and the main commit returned by the GitHub connector. Shell Git
+network access failed DNS resolution. The open PR inventory (#138–#143) was
+checked, including #142's changed-file list. #142 changes asset byte handling
+in lib/generator.ts, which this investigation does
+not modify. The unmerged historical generator-refactor branch changes React
+route lookup, already incorporated into main, not the adaptation below. No
+tasks.json or applicable AGENTS.md was found. This is not release-baseline
+approval: open PRs remain and main CI was not independently certified here.
+
+The entry points and contracts inventoried above still apply. Additional
+read-only tracing covered JSX rendering and escaping, native component names
+and templates, CSS Modules token handling, browser/native data startup and
+request failures, the publish dialog, editable ZIP caller, and CI's generated
+project build smoke. Existing fixes for query routing, Nuxt noindex, React
+script-list types, escaped CSS, and asset references were retained.
+
+### New finding: P2 — React adaptation reads authored literals as code
+
+Reproduction: create a normal text node containing `import 'next/link'`, then
+export React (TypeScript or JavaScript). Export throws
+`Next.js-only imports cannot be used in React exports.` The same document
+generates successfully in Next.js, Vue, Nuxt, SvelteKit and HTML. A second
+symptom of the same root cause is silent content corruption: text containing
+`<Link>Example</Link>` becomes `<a>Example</a>`; `<Image />` and an example
+`export default async function Page() { ... }` are also rewritten. Serialized
+raw HTML has the same tag corruption. No execution of authored text is claimed.
+
+Cause: `reactSource` applied framework-code replacements and its unsupported
+import check across every byte of the source, including serialized user text.
+Fix: constrain declaration/import handling to the generator's LF-delimited
+source lines, and skip quoted literals/comments during JSX tag conversion.
+Literal U+2028/U+2029 must not become source boundaries. Real inline JSX still
+converts, and unsupported generated Next imports still fail closed. This
+changes only React source adaptation; no SiteDoc, schema, node ID or saved data
+changes, migration code, dependency additions, or CI changes.
+
+Regression: `tests/react-export-literal-boundaries.test.mts` exercises the
+public preparation pipeline in both languages, compiles the emitted page with
+esbuild, renders it with React, and compares decoded text with the exact input.
+It also checks input immutability, raw HTML literals, inline JSX conversion and
+unsupported-import rejection. All **9 tests failed before the source fix and
+passed afterward**. Acceptance for this defect is unchanged rendered content
+and successful export while actual framework imports/tags retain their handling.
+
+### Other hypotheses and validation
+
+- Malformed template delimiters, imported attributes, component naming,
+  escaped CSS and keyframe pairing: inspected implementations and exercised
+  the existing relevant regressions; no additional new defect established.
+- Reentrancy/global breakpoint state and recovery after failure: generated all
+  68 valid format/language/style/production-preview combinations concurrently,
+  compared each result with sequential generation, rejected an HTML/Tailwind
+  request, then successfully regenerated React. All comparisons and input
+  immutability checks passed. This tests generation, not installed runtimes.
+- Native navigation/startup and streamed request interruption remain adjacent
+  runtime risks needing integration testing; they are not reported as proven
+  defects and no competing request/security changes were implemented.
+
+Commands/results (Node 26.12.1, dependencies temporarily reused via a workspace
+symlink to /Users/riku/tsumu/node_modules):
+
+- `node --import tsx --test tests/react-export-literal-boundaries.test.mts`:
+  0 passed / 9 failed before the fix; 9 passed after it.
+- `node --import tsx --test tests/react-export-literal-boundaries.test.mts tests/export-formats.test.mts tests/react-export-script-types.test.mts`:
+  **33 passed**, including generated React strict TypeScript checks and JS
+  bundling in the existing compile tests.
+- `node --import tsx --test tests/*export*.test.mts tests/css-module*.test.mts tests/native-*.test.mts tests/generator-*.test.mts tests/javascript-entry-rewrite.test.mts tests/nuxt-preview-robots.test.mts`:
+  **383 passed / 1 environment failure** out of 384. The existing Vue HTTP test
+  in export-recursive-ssr.test.mts cannot bind 127.0.0.1 (`listen EPERM`).
+- `npm run typecheck`: passed.
+- `npm run i18n:check`: passed.
+- In-memory 68-combination generation/reentrancy smoke described above: passed.
+- `npm run build -- --webpack`: passed, including compilation, TypeScript and
+  static page generation. Existing middleware-deprecation and jose Edge Runtime
+  CompressionStream/DecompressionStream warnings remain. Webpack was used
+  because the prior investigation identified Turbopack's external-symlink limit.
+- `git diff --check`: passed.
+
+Evidence logs are `/private/tmp/tsumu-p3-03-adversarial-{red,green,focused,typecheck,matrix,i18n,build}.log`.
+No clean npm ci, full installed framework build matrix, E2E/browser navigation,
+Worker build, Docker or dependency audit is claimed. Full task acceptance
+still requires those environment-dependent build/runtime checks. No commits,
+pushes, PRs, merges, deployments or external infrastructure changes were made.
