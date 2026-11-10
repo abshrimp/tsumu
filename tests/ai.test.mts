@@ -197,6 +197,7 @@ test("Anthropic uses standard messages and returns tool results before finishing
   t.mock.method(globalThis, "fetch", async (input, init) => {
     const req = new Request(input, init);
     const body = await req.json();
+    assert.equal(req.redirect, "manual");
     assert.equal(req.headers.get("anthropic-beta"), null);
     assert.equal(body.fallbacks, undefined);
     assert.equal(body.model, "claude-test");
