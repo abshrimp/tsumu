@@ -1,5 +1,5 @@
 import type { SiteDoc } from "../types";
-import type { GeneratedProject } from "../generator";
+import type { GeneratedProject, PublishTarget } from "../generator";
 import type { ExportLanguage } from "../export-formats";
 import { obfuscateVarNames } from "../data";
 import { scriptsFile } from "../script-runtime";
@@ -66,7 +66,7 @@ const jsonIndent = (value: unknown) => JSON.stringify(value, null, 2) + "\n";
 
 export function buildAdditionalFramework(
   doc: SiteDoc, next: GeneratedProject, framework: AdditionalFramework,
-  language: ExportLanguage,
+  language: ExportLanguage, target: PublishTarget = "production",
 ): GeneratedProject {
   const common = commonFiles(doc, next, framework);
   const files = common.files;
@@ -114,11 +114,15 @@ export function buildAdditionalFramework(
   } else if (framework === "nuxt") {
     files["app/assets/globals.css"] = common.baseCss;
     files["app/assets/site.css"] = common.siteCss;
+    // Nuxt has no HTML entry file for the shared preview postprocessor.
+    // Put the directive in its global head so every SSR route receives it.
+    const meta = [{ name: "description", content: "" }, ...(target === "test"
+      ? [{ name: "robots", content: "noindex, nofollow, noarchive, nosnippet, noimageindex" }] : [])];
     files["nuxt.config." + ext] = [
       'export default defineNuxtConfig({',
       '  ssr: true,',
       '  css: ["~/assets/globals.css", "~/assets/site.css"],',
-      '  app: { head: { title: ' + json(doc.siteName) + ', meta: [{ name: "description", content: "" }] } },',
+      '  app: { head: { title: ' + json(doc.siteName) + ', meta: ' + json(meta) + ' } },',
       '});', "",
     ].join("\n");
     files["package.json"] = jsonIndent({
