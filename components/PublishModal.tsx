@@ -25,11 +25,12 @@ import { sanitizeImportedInlineIcons } from "../lib/imported-svg";
 import { hasPublishCredentials, readRestoreJson } from "../lib/publish-security";
 import { validateImportedDoc, IMPORT_LIMITS } from "../lib/site-import";
 import type { PublishTarget } from "../lib/generator";
-import { DEFAULT_EXPORT_OPTIONS, EXPORT_FRAMEWORK_OPTIONS, exportLimitations, prepareExportProject, type ExportFormat, type ExportLanguage, type ExportOptions, type ExportStyle } from "../lib/export-formats";
+import { EXPORT_FRAMEWORK_OPTIONS, exportLimitations, prepareExportProject, type ExportFormat, type ExportLanguage, type ExportOptions, type ExportStyle } from "../lib/export-formats";
 import { runChecks, type CheckResult } from "../lib/generator/checks";
 import { Dropdown, Seg } from "./controls";
 import { userMessage } from "../lib/errors";
 import { currentSiteId, sitePublishFields, siteApi } from "../lib/site";
+import { loadPublishedExportOptions, savePublishedExportOptions } from "../lib/publish-preferences";
 import { getLang, tr } from "../lib/i18n";
 import {
   GENERATED_MANIFEST_PATH,
@@ -290,9 +291,10 @@ export default function PublishModal({
     format?: ExportFormat;
   }>({});
   const [progress, setProgress] = useState("");
-  const [format, setFormat] = useState<ExportFormat>(DEFAULT_EXPORT_OPTIONS.framework);
-  const [language, setLanguage] = useState<ExportLanguage>(DEFAULT_EXPORT_OPTIONS.language);
-  const [style, setStyle] = useState<ExportStyle>(DEFAULT_EXPORT_OPTIONS.style);
+  const [initialOptions] = useState(loadPublishedExportOptions);
+  const [format, setFormat] = useState<ExportFormat>(initialOptions.framework);
+  const [language, setLanguage] = useState<ExportLanguage>(initialOptions.language);
+  const [style, setStyle] = useState<ExportStyle>(initialOptions.style);
   const options: ExportOptions = { framework: format, language, style, scope: "project" };
   const checks = useMemo<CheckResult[]>(() => [
     ...runChecks(doc),
@@ -444,6 +446,8 @@ export default function PublishModal({
         },
         tr("公開できませんでした")
       );
+      // 設定を変えただけでは保存せず、GitHubで公開に成功した設定だけを次回の初期値にする。
+      savePublishedExportOptions({ framework: format, language, style });
       // フッターの「公開済み」表示は本番サイトの状態を表す
       if (site === "production") markPublished(docFingerprint(target));
       setResult({ commitUrl: data.commitUrl, warnings, format });
