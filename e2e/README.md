@@ -33,7 +33,6 @@ CI runs this check in the `check` job. The four `e2e-shard` jobs
 the tagged smoke tests on Firefox and WebKit. Each test file is assigned to
 exactly one shard; the durations file only influences load balancing.
 
-
 ## Choosing the right test layer
 
 - Use `tests/*.test.mts` for deterministic state transitions, validation,
@@ -55,7 +54,10 @@ exactly one shard; the durations file only influences load balancing.
 The four shards use `scripts/e2e-shard-durations.json` as an estimate, not
 as a test manifest. It records the sum of Playwright-reported case durations
 from a successful CI run. Every run still discovers all tests dynamically,
-including tests added after the last timing snapshot.
+including tests added after the last timing snapshot. Refresh the hint data
+only from a successful full CI run, using each file's case count and summed
+Playwright case durations. Check the discovered test list after reducing a
+matrix. A failing E2E should be investigated rather than removed to make CI green.
 
 ## Coverage limits
 
