@@ -588,10 +588,9 @@ function ScriptEditorInner({
       ox: (e.clientX - r.left) / z,
       oy: (e.clientY - r.top) / z,
       h: r.height / z,
-      // Preserve the original stack width when dragging an existing step or script.
-      // Palette blocks have no source stack, so include the preview border.
-      // offsetWidth is independent of modal entrance transforms and workspace zoom.
-      w: sourceStackWidth ?? target.offsetWidth + 2,
+      // Preserve the measured source stack width when dragging an existing step
+      // or script; palette blocks have no stack, so include the preview border.
+      w: sourceStackWidth ?? r.width / z + 2,
       sourceStackWidth,
       scriptWidths,
       clickKey: key && selectedRef.current.has(key) && selectedRef.current.size > 1 ? key : undefined,
