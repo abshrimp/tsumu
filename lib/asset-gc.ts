@@ -169,7 +169,7 @@ export async function runAssetGc({
       }
       scanned += page.keys.length;
       scanComplete = page.list_complete;
-      const next = scanComplete ? null : page.cursor;
+      const next = scanComplete ? null : (page.cursor ?? null);
       if (!scanComplete && (!next || next === cursor)) throw new Error("KV pagination did not advance");
       // Candidate writes and the cursor are committed in one D1 transaction.
       await db.batch([
