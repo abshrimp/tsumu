@@ -105,22 +105,30 @@ function fixture(roomRefs: (key: string) => Promise<string[]>, keys: string[]) {
       }
     },
   };
-  let lists = 0, deletes = 0;
+  let lists = 0, deletes = 0, failDeleteAt = Number.POSITIVE_INFINITY;
+  const stored = new Set(keys);
   const kv = {
     async list() {
       lists++;
-      return { keys: keys.map(name => ({ name, metadata: { bytes: 17 } })), list_complete: true };
+      return { keys: [...stored].map(name => ({ name, metadata: { bytes: 17 } })), list_complete: true };
     },
-    async delete() { deletes++; throw new Error("GC must not delete any KV object"); },
+    async delete(path: string) {
+      deletes++;
+      if (deletes === failDeleteAt) throw new Error("Simulated KV failure");
+      stored.delete(path);
+    },
   } as unknown as KVLikeNamespace;
   const rooms: AssetGcDocumentNamespace = {
     idFromName: name => name,
     get(id) { return { gcAssetReferences: () => roomRefs(String(id)) }; },
   };
-  return { db, kv, rooms, sql, lists: () => lists, deletes: () => deletes };
+  return {
+    db, kv, rooms, sql, lists: () => lists, deletes: () => deletes,
+    stored, failDeleteAt: (n: number) => { failDeleteAt = n; },
+  };
 }
 
-test("GC dry-run retains an asset referenced only by a backup", async () => {
+test("GC dry-run retains an asset referenced by a current document", async () => {
   const path = key(100);
   const f = fixture(async () => [path], [path]);
   try {
@@ -133,7 +141,7 @@ test("GC dry-run retains an asset referenced only by a backup", async () => {
 });
 
 test("a failed DO reference scan aborts before KV.list or candidate changes", async () => {
-  const f = fixture(async () => { throw new Error("backup corrupted"); }, [key(100)]);
+  const f = fixture(async () => { throw new Error("Current doc unreadable"); }, [key(100)]);
   try {
     await assert.rejects(runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now }));
     assert.equal(f.lists(), 0);
@@ -143,7 +151,7 @@ test("a failed DO reference scan aborts before KV.list or candidate changes", as
   } finally { f.sql.close(); }
 });
 
-test("mature candidates appear in dry-run but can never be deleted", async () => {
+test("mature candidates appear in dry-run without being deleted", async () => {
   const path = key(100);
   const f = fixture(async () => [], [path]);
   try {
@@ -152,7 +160,7 @@ test("mature candidates appear in dry-run but can never be deleted", async () =>
     const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now });
     assert.deepEqual(report.potentialDeletePaths, [path]);
     assert.equal(report.potentialDeleteBytesKnown, 17);
-    assert.equal(report.sweepSupported, false);
+    assert.equal(report.sweepSupported, true);
     assert.equal(f.deletes(), 0);
   } finally { f.sql.close(); }
 });
