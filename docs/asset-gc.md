@@ -43,8 +43,6 @@ reconciliation** checks one KV page per invocation:
   completed inventory can be cleaned up.
 - The ordinary nightly task does **not** enumerate KV. Weekly reconciliation
   is intentionally lower priority than normal delete-event cleanup.
-- Administrators can explicitly advance a reconciliation page using
-  `POST /api/admin/asset-gc?dryRun=1&discover=1`.
 
 ## Storage ledger and the usage meter
 
@@ -61,8 +59,8 @@ assets that are waiting for GC, failed uploads and the files of deleted sites.
   uploaded before it began) are removed.
 - `asset_ledger_state.complete_at` is set after the first full pass that
   started after the ledger was created. Until then, the meter falls back to
-  counting the files that site documents reference. The administrator can
-  advance the inventory sooner with `POST /api/admin/asset-gc?dryRun=1&discover=1`.
+  counting the files that site documents reference. With more than 1,000
+  keys in KV, this takes one week per 1,000 keys.
 - Objects uploaded before sizes were recorded have no size in KV metadata.
   The meter fills these from the open site's document when it can and
   otherwise reports them as unknown.
@@ -93,26 +91,28 @@ deleted immediately on Node.js and Docker.
 - A deleted site's D1 record is removed and its old Durable Object is
   sealed. Node.js and Docker retain their immediate-delete behavior.
 
-## Configuration and administration
+## Configuration and inspection
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `ASSET_GC_ENABLED` | `false` | Set to `true` to permit physical deletes; default is dry-run |
 | `ASSET_GC_GRACE_DAYS` | `7` | Time from last explicit removal or first orphan discovery |
 | `ASSET_GC_MAX_DELETES` | `500` | Selection cap; deletes also stop at the per-invocation subrequest budget |
-| `ASSET_GC_ADMIN_EMAILS` | unset | Comma-separated Google email allowlist for the manual API |
 
-The admin endpoint requires Google sign-in plus an explicit admin email;
-ordinary `ALLOWED_EMAILS` grants no administrative privileges.
+GC runs only from the Cron triggers; there is no HTTP endpoint. Inspect its
+state in D1 with Wrangler:
 
-- `POST /api/admin/asset-gc?dryRun=1`: inspect expired candidates and
-  report potential deletion without changing KV bytes.
-- `POST /api/admin/asset-gc?dryRun=0`: physically delete eligible
-  candidates, only when `ASSET_GC_ENABLED=true`.
-- Add `&discover=1` to run **one** weekly-style reconciliation page
-  along with the requested candidate sweep.
+```sh
+# Candidates and when they became unreferenced (milliseconds since epoch)
+npx wrangler d1 execute tsumu --remote --command \
+  "SELECT path, bytes, first_unreferenced_at FROM asset_gc_candidates ORDER BY first_unreferenced_at"
+# Recent runs, including dry runs
+npx wrangler d1 execute tsumu --remote --command \
+  "SELECT * FROM asset_gc_runs ORDER BY id DESC LIMIT 10"
+```
 
-**First deployment:** leave deletion disabled and inspect candidate reports.
+**First deployment:** leave deletion disabled and inspect the candidates and
+dry-run records above.
 Enable the flag only after reviewing live references and accepting the
 seven-day retention policy. Preexisting orphans discovered during weekly
 reconciliation start their grace period when first observed; merging this

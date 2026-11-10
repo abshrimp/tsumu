@@ -25,7 +25,7 @@ export interface AssetGcDependencies {
   maxDeletes?: number;
   /** Explicit opt-in for physical deletion; the default is dry-run. */
   dryRun?: boolean;
-  /** Weekly or manual reconciliation, not part of the daily scheduled sweep. */
+  /** Weekly reconciliation, not part of the daily scheduled sweep. */
   discoverUntracked?: boolean;
 }
 
@@ -193,7 +193,7 @@ function candidateFromRow(row: Record<string, unknown>): GcCandidate {
 }
 
 /** Scan one KV page for paths missed by client-side deletion events.
- * Called weekly (or explicitly by an administrator), never on daily Cron.
+ * Called weekly, never on daily Cron.
  */
 async function discoverOrphans(
   db: Db, kv: AssetGcKv, refs: ReadonlySet<string>,
@@ -330,7 +330,7 @@ export async function runAssetGc({
     let eligible = plan.eligible;
     if (eligible.length) {
       stage = "references";
-      // Required even in dry-run so administrators see only currently unused keys.
+      // Required even in dry-run so the run log counts only currently unused keys.
       // The weekly inventory just scanned every site in this run; reuse it to
       // save one Durable Object call per site. Deletion still rescans below.
       if (!refs) {
