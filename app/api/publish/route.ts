@@ -340,6 +340,29 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 400 });
     }
 
+    // Ownership metadata controls deletion on the next publish and rollback.
+    // It may only claim files supplied by this publication, never retained
+    // manual entries. Validate SHA-based manifests as well as inline text.
+    if (Object.hasOwn(body.files, GENERATED_MANIFEST_PATH) || Object.hasOwn(assetShas, GENERATED_MANIFEST_PATH)) {
+      let manifestText: string;
+      if (Object.hasOwn(body.files, GENERATED_MANIFEST_PATH)) {
+        manifestText = body.files[GENERATED_MANIFEST_PATH];
+      } else {
+        const res = await gh(`/git/blobs/${assetShas[GENERATED_MANIFEST_PATH]}`);
+        if (!res.ok) await fail(tr("ツリーの取得"), res);
+        const blob = (await res.json()) as { content?: unknown; encoding?: unknown };
+        if (typeof blob.content !== "string" || (blob.encoding && blob.encoding !== "base64")) {
+          return NextResponse.json({ error: tr("公開ファイル一覧が壊れているため、公開を中止しました") }, { status: 400 });
+        }
+        manifestText = Buffer.from(blob.content, "base64").toString("utf8");
+      }
+      const generated = parseGeneratedManifest(manifestText);
+      if (!generated || Object.keys(generated).some(path =>
+        !Object.hasOwn(body.files, path) && !Object.hasOwn(assetShas, path))) {
+        return NextResponse.json({ error: tr("公開ファイル一覧が壊れているため、公開を中止しました") }, { status: 400 });
+      }
+    }
+
     // The browser's credential check is not a security boundary. Inspect
     // doc.json again in the committing request, including when the document
     // was uploaded as a detached blob because it exceeded the inline limit.
