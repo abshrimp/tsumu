@@ -4,12 +4,6 @@ import { auth, authConfigured } from "../auth";
 import { anonymousAllowed } from "./anonymous";
 import { parseActivityUser, recordActivity, type ActivityUser } from "./activity";
 import { dbConfigured, getDb } from "./db";
-import {
-  DEFAULT_PUBLISHED_EXPORT_OPTIONS,
-  readPublishedExportOptions,
-  savePublishedExportOptions,
-  type PublishedExportOptions,
-} from "./publish-preferences";
 
 /**
  * APIの認可チェック。通れば null、弾く場合はレスポンスを返す。
@@ -41,35 +35,17 @@ export async function sessionUser(): Promise<ActivityUser | null> {
   return parseActivityUser({ email: u.email, name: u.name, image: u.image });
 }
 
-/** Return the last successful GitHub Push format from this site's database record. */
-export async function getPublishOptions(siteId: string): Promise<PublishedExportOptions> {
-  if (!dbConfigured()) return { ...DEFAULT_PUBLISHED_EXPORT_OPTIONS };
-  return readPublishedExportOptions(await getDb(), siteId);
-}
-
-/** Record the completed publish. Rollbacks do not change the last output format. */
-export async function recordPublish(
-  siteId: string,
-  target: "production" | "test",
-  options?: PublishedExportOptions
-): Promise<boolean> {
-  if (!dbConfigured()) return false;
-  let savedOptions = false;
+/** 公開（ロールバックも含む）したことと、公開した人を記録する（右下の「公開」にホバーしたときに出す） */
+export async function recordPublish(siteId: string, target: "production" | "test"): Promise<void> {
+  if (!dbConfigured()) return;
   try {
-    const db = await getDb();
-    // This runs after GitHub confirms the commit. A DB failure must not
-    // misreport an already successful GitHub publish as a failed publish.
-    if (options) {
-      try {
-        savedOptions = await savePublishedExportOptions(db, siteId, options);
-      } catch (error) {
-        console.warn("Published to GitHub, but could not save export preferences", error);
-      }
-    }
-    await recordActivity(db, siteId, target === "test" ? "publish-test" : "publish",
-      await sessionUser().catch(() => null));
+    await recordActivity(
+      await getDb(),
+      siteId,
+      target === "test" ? "publish-test" : "publish",
+      await sessionUser().catch(() => null)
+    );
   } catch {
-    // Activity is informational; failure must not undo a GitHub publication.
+    // 記録は表示のためだけなので、失敗しても公開は成功させる
   }
-  return savedOptions;
 }
