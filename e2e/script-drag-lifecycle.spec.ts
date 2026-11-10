@@ -145,16 +145,17 @@ test("dragging multiple scripts preserves each original stack width", async ({ p
   await page.addStyleTag({ content: [
     '.se-ws .se-stack[data-script-id="script"] { min-width: 420px; }',
     '.se-ws .se-stack[data-script-id="second"] { min-width: 530px; }',
-  ].join("\\n") });
-  const widths = await Promise.all(["script", "second"].map(async (id) => {
+  ].join(" ") });
+  const widths: number[] = [];
+  for (const id of ["script", "second"]) {
     const hat = page.locator(`.se-ws .se-stack[data-script-id="${id}"] .se-hat`);
     const rect = (await hat.boundingBox())!;
     await hat.dispatchEvent("pointerdown", {
       pointerId: 1, pointerType: "mouse", button: 0, buttons: 1, shiftKey: true,
       clientX: rect.x + 6, clientY: rect.y + 6,
     });
-    return (await page.locator(`.se-ws .se-stack[data-script-id="${id}"]`).boundingBox())!.width;
-  }));
+    widths.push((await page.locator(`.se-ws .se-stack[data-script-id="${id}"]`).boundingBox())!.width);
+  }
   await expect(page.locator(".se-ws .se-stack.is-selected")).toHaveCount(2);
   await start(page, "script");
   for (const [i, id] of ["script", "second"].entries()) {
