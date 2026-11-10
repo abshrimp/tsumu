@@ -46,7 +46,7 @@ To give Previews shared server storage:
 4. Before using shared storage, configure sign-in on the Preview itself: `AUTH_SECRET`, `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `AUTH_URL`, a Preview-specific OAuth callback URL and a narrow `ALLOWED_EMAILS` allowlist. The example removes `ALLOW_ANONYMOUS`; without sign-in configured, access stays blocked. Keep credentials in Preview secrets, not `previews.vars`.
 5. Inspect `wrangler.preview.generated.jsonc`: the `previews` block must contain the test `DB` and `ASSETS_KV` bindings and both Durable Object bindings. Verify sign-in, site creation, editing, saving and reopening from another browser. Do not use production data for this check.
 
-Adding D1 and KV alone is insufficient: document access fails with `DOC_STORE binding is required` when D1 exists without `DOC_STORE`. The Preview helper does not check storage completeness, so a successful build or config generation does not prove server storage works. See [Document storage](durable-object-storage.md#hosted-preview-storage) for the routing model.
+When the Preview configures `DB`, the helper checks that `DOC_STORE` binds to its local SQLite-backed `DocumentRoom` before deploying. See [Document storage](durable-object-storage.md#hosted-preview-storage) for the routing model.
 
 ## What the script refuses
 

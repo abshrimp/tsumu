@@ -4,7 +4,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { parseJsonc, wranglerConfigPath } from "./cloudflare.mjs";
+import { parseJsonc, storageBindings, wranglerConfigPath } from "./cloudflare.mjs";
 
 const LOCAL_DO = { name: "COLLAB_ROOM", class_name: "CollaborationRoom" };
 
@@ -46,6 +46,10 @@ export function isolatedPreviewConfig(config, env = {}) {
       }
       if (productionIds.has(id.toLowerCase())) throw new Error(`Preview ${key} must not reuse a production resource ID.`);
     }
+  }
+  const storage = storageBindings({ ...previews, exports: result.exports });
+  if (storage.db && !storage.doc) {
+    throw new Error("Preview DB requires a local DOC_STORE binding to the SQLite-backed DocumentRoom export.");
   }
   // Wrangler "vars" are plain-text configuration, not encrypted secrets.
   // Do not let a public, anonymous Preview accidentally publish credential-like
