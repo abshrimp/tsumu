@@ -241,7 +241,12 @@ export async function runAssetGc({
       // A fresh scan after all KV/D1 reads guards against references added
       // while pagination or candidate selection was in progress. Any failed
       // site read aborts before the first physical deletion.
-      const freshRefs = await collectAllAssetReferences(db, rooms);
+      let freshRefs: Set<string>;
+      try {
+        freshRefs = await collectAllAssetReferences(db, rooms);
+      } catch {
+        throw new AssetGcAbortedError("Final reference scan unavailable");
+      }
       referencedCount = freshRefs.size;
       const protectedNow = eligible.filter(candidate => freshRefs.has(candidate.path));
       if (protectedNow.length) {
@@ -274,6 +279,11 @@ export async function runAssetGc({
       }
     }
     candidateCount -= deleted;
+    // Report the surviving candidate metadata after successful removals.
+    const latestStats = deleted ? await db.execute(
+      "SELECT COUNT(*) AS total, COALESCE(SUM(bytes),0) AS bytes FROM asset_gc_candidates"
+    ) : null;
+    if (latestStats) candidateCount = Number(latestStats.rows[0]?.total ?? candidateCount);
     await finishRun(db, id, {
       status: "ok", now: Date.now(), kvKeys: scanned,
       referenced: referencedCount, candidates: candidateCount,
@@ -282,7 +292,8 @@ export async function runAssetGc({
     return {
       status: "ok", dryRun, sweepSupported: true,
       kvKeysScanned: scanned, referenced: referencedCount,
-      candidates: candidateCount, candidateBytesKnown: Number(counts.rows[0]?.bytes ?? 0),
+      candidates: candidateCount,
+      candidateBytesKnown: Number(latestStats?.rows[0]?.bytes ?? counts.rows[0]?.bytes ?? 0),
       scanComplete, deleted, deletedBytesKnown, deletedPaths,
       potentialDeletePaths: eligible.map(c => c.path),
       potentialDeleteBytesKnown: eligible.reduce((sum, c) => sum + (c.bytes ?? 0), 0),
