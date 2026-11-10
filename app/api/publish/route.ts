@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { serverTr } from "../../../lib/i18n-server";
-import { recordPublish, requireAuth } from "../../../lib/server";
+import { getPublishOptions, recordPublish, requireAuth } from "../../../lib/server";
+import { parsePublishedExportOptions, type PublishedExportOptions } from "../../../lib/publish-preferences";
 import {
   branchPath as toBranchPath,
   advanceBranchRef,
@@ -54,6 +55,7 @@ interface CommitBody extends TargetField {
   action: "commit";
   expectedHead: string | null;
   files: Record<string, string>;
+  exportOptions: PublishedExportOptions;
   assetShas?: Record<string, string>;
   /** 手で追加した項目は、先端のモード・種類・内容をそのまま保持する */
   keptPaths?: string[];
@@ -112,6 +114,7 @@ export async function GET(req: Request) {
     /** 足りない設定（token = 環境変数の GITHUB_TOKEN / repo = サイトの公開先） */
     unset: !prod.token ? "token" : !prod.repo ? "repo" : null,
     previewEnabled: previewEnabled(dest),
+    lastExportOptions: await getPublishOptions(siteId),
     test: describe("test"),
     production: describe("production"),
   }, { headers: { "Cache-Control": "private, no-store" } });
@@ -322,6 +325,12 @@ export async function POST(req: Request) {
         { error: tr("ファイルがありません") },
         { status: 400 }
       );
+    }
+
+    // Never advance the GitHub branch if the format to persist is invalid.
+    const exportOptions = parsePublishedExportOptions(body.exportOptions);
+    if (!exportOptions) {
+      return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
     }
 
     const assetShas = body.assetShas ?? {};
@@ -551,8 +560,9 @@ export async function POST(req: Request) {
 
     // The GitHub commit already exists: a local history bookkeeping failure
     // must not turn successful publication into a misleading 502/retry.
+    let optionsSaved = false;
     try {
-      await recordPublish(siteId, target);
+      optionsSaved = await recordPublish(siteId, target, exportOptions);
     } catch {
       console.warn("Publish completed, but the local publication record could not be updated", { siteId, target });
     }
@@ -560,6 +570,7 @@ export async function POST(req: Request) {
       ok: true,
       commit: commitSha,
       commitUrl: `https://github.com/${repo}/commit/${commitSha}`,
+      optionsSaved,
     });
   } catch (e) {
     if (e instanceof MissingAssetError) {
