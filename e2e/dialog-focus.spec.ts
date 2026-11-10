@@ -4,6 +4,9 @@ import { dialogFocusBundle } from "../tests/helpers/dialog-focus";
 let bundle: string;
 test.beforeAll(async () => { bundle = await dialogFocusBundle(); });
 test.beforeEach(async ({ page }) => {
+  // loadLocale writes a language cookie; about:blank has an opaque origin.
+  // Use the running test server's plain-text endpoint before injecting the fixture.
+  await page.goto("/robots.txt");
   await page.setContent('<div id="app"></div>');
   await page.addScriptTag({ content: bundle });
   await expect(page.locator("#confirm")).toBeVisible();
