@@ -11,7 +11,7 @@ test("page settings fields have stable identifiers and associated labels", async
   await expect(settings).toBeVisible();
 
   await expect(settings.getByRole("textbox", { name: "名前", exact: true })).toBeVisible();
-  await expect(settings.getByRole("textbox", { name: "URL", exact: true })).toBeVisible();
+  await expect(settings.getByRole("textbox", { name: /^URL/ })).toBeVisible();
   await expect(settings.getByRole("combobox", { name: "言語", exact: true })).toBeVisible();
 
   const problems = await settings.evaluate((root) => {
