@@ -72,13 +72,12 @@ export async function GET(req: Request) {
       `{"exists":true,"rev":"${cur.rev}","savedAt":${cur.savedAt},"doc":${cur.body}}`,
       { headers: { "Content-Type": "application/json", ...PRIVATE_CACHE } }
     );
-  } catch (e) {
-    // Some localized storage errors are deliberately safe to show to users, but
-    // userMessage does not log them. Record all failures to identify whether
-    // D1, site lookup, or DocumentRoom failed without logging document content.
-    console.error("[api/doc GET] document read failed", { stage, siteId, metaOnly }, e);
+  } catch {
+    // JSONパースやDBの例外には本文・接続情報が混ざり得るため、段階だけを記録する。
+    // userMessageも元の例外をログ出力するので、この読み込み経路では使わない。
+    console.error("[api/doc GET] document read failed", { stage, siteId, metaOnly });
     return NextResponse.json(
-      { error: tr(userMessage(e, "読み込めませんでした")) },
+      { error: tr("読み込めませんでした") },
       { status: 502, headers: { ...PRIVATE_CACHE, "X-Tsumu-Error-Stage": stage } }
     );
   }
