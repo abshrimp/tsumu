@@ -1,95 +1,89 @@
-# Cloudflare KV asset GC: safe inventory stage
+# Cloudflare KV asset garbage collection
 
-## Status
+## Policy
 
-The daily GC task is **non-destructive**. No code path added here calls
-`ASSETS_KV.delete()`. Setting `ASSET_GC_ENABLED=true` does **not** enable
-physical deletion in this implementation. This is intentional, not a rollout
-switch awaiting activation.
+The Cloudflare deployment removes unused KV assets after a **seven-day grace
+period**, with an operator-controlled rollout. It intentionally prioritizes
+ordinary editor storage cleanup over indefinite preservation of historical
+restore snapshots.
 
-The existing `DELETE /api/assets` behavior on Cloudflare D1 remains
-`{ ok: true, kept: true }`.
+- A path is in use if it appears anywhere in a **current saved document** of
+  any live site. The scanner includes direct `assets[].path`, JSON string
+  values, object keys, HTML/CSS and URL-encoded paths.
+- Previous editor backups, GitHub publish-history `doc.json` files and stale
+  browser drafts **do not protect** a KV object from cleanup. Restoring those
+  old states after deletion may yield broken images; this is an explicit
+  product trade-off.
+- A new unused candidate records the first time it was *observed* unused.
+  Physical deletion is permitted only after **both** the observation time
+  and the original upload timestamp embedded in the key exceed seven days.
+  Actual deletion may be later, because checks are daily and paginated.
+- If a current document is unreadable, the site list changes during an
+  inspection, or a Durable Object cannot be reached, the run aborts.
+- Immediately before the first deletion, all current site documents are
+  read again. Any newly referenced candidate is removed from the list.
+  This narrows but does **not eliminate** the small race with a concurrent
+  new save after the last reference check. If this trade-off is unacceptable,
+  implement a shared write/delete barrier instead of using this policy.
 
-## Why sweep is disabled
+Deleted sites are physically removed from D1; their retired Durable Objects
+are sealed and have no live references. Local Node/Docker storage is unchanged.
 
-- Restorable editor documents exist in each site's Durable Object: the current
-  snapshot plus seven UTC-weekday backup slots. The inventory scans all of
-  these. A weekday backup can survive longer than seven days.
-- `components/PublishModal.tsx` can restore `doc.json` from an arbitrary
-  retained GitHub publish commit. The published files are copied to GitHub,
-  but a restored editor document can refer to the original KV keys. This
-  first-stage inventory does **not** traverse those Git histories.
-- A reference recheck immediately before `KV.delete()` still has a TOCTOU
-  window with new document writes (including WebSocket edits, imports/copies
-  and restore). Neither D1 nor Durable Objects can atomically commit a KV
-  delete. A real sweep needs a shared, generation-aware write/delete fence
-  across **every** document mutation path, plus a restoration policy for
-  GitHub history.
-- Browser-only drafts and offline tabs cannot be enumerated centrally.
-  Any eventual deletion policy also needs an explicit staleness assumption
-  or a client-side asset rehydration mechanism.
+## Execution
 
-For these reasons, **do not implement a `KV.delete` call merely by turning
-on a feature flag or adding another reference scan**.
+- Cron: **18:00 UTC / 03:00 JST**, daily.
+- Workers KV: `ASSETS_KV.list({ prefix: "assets/" })`, up to two pages
+  of 500 keys per invocation. The next cursor is stored in D1.
+- Only a fully completed KV scan may perform deletion. A failed or partial
+  scan can record candidates but never delete KV files.
+- D1 persists `asset_gc_candidates`, `asset_gc_runs` and
+  `asset_gc_state` (lease and scan cursor). A single GC lease prevents
+  overlapping cron/manual runs.
+- The configured maximum is **500** candidate paths per run, but actual
+  deletion is additionally capped at **20 files per invocation** to leave
+  headroom under Workers Free's subrequest budget. Remaining candidates are
+  retried on later runs. KV delete failures stop the run; successfully deleted
+  paths and known bytes are retained in the D1 run log.
+- The `bytes` metadata is set on new uploads. Old keys may lack size
+  metadata, so known-byte totals are only lower bounds.
+- Unrecognized/old-format keys cannot pass the upload-timestamp check and
+  will be retained until an explicit separate decision.
 
-## Inventory behavior
+The normal `DELETE /api/assets` endpoint continues to return
+`{ ok: true, kept: true }` on Cloudflare D1. It never physically deletes
+shared KV objects immediately.
 
-- Cron runs daily at **18:00 UTC / 03:00 JST** in deployments using
-  `wrangler.jsonc` or a generated configuration copied from it.
-- Every invocation reads every live site's current document and all
-  restorable daily backups through `DocumentRoom.gcAssetReferences()`.
-  Any failed RPC, corrupt document/backup, missing document room, or site
-  generation change aborts the run before candidate writes.
-- Every string field is searched for raw and percent-encoded `assets/...`
-  references, not only `assets[].path`. False positives retain data.
-- Workers KV is listed with `prefix: "assets/"` and a persisted cursor,
-  at most two 500-key pages per run. Candidate insert/update/delete and
-  scan cursor advancement are in one D1 batch. Completed scans remove
-  candidate records no longer present in KV.
-- `first_unreferenced_at` starts when inventory first sees an unreferenced
-  key; it is cleared when a key becomes referenced. Candidate age and
-  the upload timestamp in the key must both exceed the configured grace
-  period before a key is *listed as potentially deletable*.
-- A D1 lease prevents overlapping inventory runs. `asset_gc_runs`
-  stores counts and fixed-category errors; candidate records reside in
-  `asset_gc_candidates`; scan state resides in `asset_gc_state`.
-- Inventory can be incomplete across invocations. Only after the KV
-  cursor reaches the final page will the API return tentative candidate
-  paths. A complete KV scan does **not** mean GitHub history has been scanned.
-- `bytes` was added to new upload KV metadata. Historical keys lack that
-  metadata, so `candidateBytesKnown` and
-  `potentialDeleteBytesKnown` are lower bounds, not authoritative usage.
+## Rollout settings
 
-## Admin API and configuration
-
-`POST /api/admin/asset-gc?dryRun=1` invokes inventory. It requires all
-of the following: configured Google authentication, a valid authenticated
-session, and the user's email explicitly present in
-`ASSET_GC_ADMIN_EMAILS` (comma-separated; case-insensitive). Tsumu's
-ordinary `ALLOWED_EMAILS` setting is **not** an administrator permission.
-Anonymous installations cannot invoke this endpoint.
-
-`dryRun=0` and omitted `dryRun` return HTTP 409. No API enables deletion.
-
-| Environment setting | Default | Use |
+| Environment variable | Default | Effect |
 | --- | --- | --- |
-| `ASSET_GC_ADMIN_EMAILS` | unset | Authorized operators for the manual endpoint |
-| `ASSET_GC_GRACE_DAYS` | `30` | Minimum observation and upload age for tentative candidates |
-| `ASSET_GC_MAX_DELETES` | `500` | Maximum number of tentative paths returned |
-| `ASSET_GC_ENABLED` | `false` | Reserved for a later, safely fenced sweep; ignored by this stage |
+| `ASSET_GC_ENABLED` | `false` | `true` enables the 7-day physical sweep for Cron and the manual API |
+| `ASSET_GC_GRACE_DAYS` | `7` | Days from first unused observation **and** upload age |
+| `ASSET_GC_MAX_DELETES` | `500` | Candidate upper bound; 20 physical deletes per run maximum |
+| `ASSET_GC_ADMIN_EMAILS` | unset | Comma-separated Google login emails authorized to run the manual API |
 
-An invalid numeric setting causes the run to abort. Local Node/Docker
-storage is unaffected.
+The admin route is protected by Google login and the explicit admin email
+allowlist; `ALLOWED_EMAILS` alone is not administrator authorization.
 
-## Conditions before implementing the physical sweep
+- `POST /api/admin/asset-gc?dryRun=1`: inventory/candidates and deletion
+  preview, even while physical deletion is disabled. No KV delete.
+- `POST /api/admin/asset-gc?dryRun=0`: execute eligible deletion, only
+  when `ASSET_GC_ENABLED=true`. Otherwise HTTP 409.
+- Both modes update D1 inventory state and run logs.
+- Errors after some successful deletes return 503, and the D1 run log
+  records the partial count; do not infer that a failed run changed no files.
 
-1. Define and test a complete policy for restoreable GitHub publish history
-   (protect old refs or rehydrate KV objects on restore).
-2. Install a global write/delete barrier covering HTTP saves, WebSocket saves,
-   copy/import/restore and any other writers, including crash recovery.
-3. Prevent old client drafts from silently recreating references to deleted
-   keys, or rehydrate them before saving.
-4. Add final recheck under that barrier, a bounded deletion budget,
-   interruption recovery, and integration tests for races with save/copy.
-5. Review several days of non-destructive logs before separately approving
-   any irreversible deletion change.
+**First deployment:** leave `ASSET_GC_ENABLED=false`. Inspect several
+Cron/dry-run reports, confirm the site's current references are accurate,
+and set `ASSET_GC_ENABLED=true` only when the seven-day deletion policy
+is acceptable. All preexisting orphan objects are first observed at
+deployment, so none are eligible for deletion immediately.
+
+## What this policy does not guarantee
+
+There is no cross-service transaction between Durable Object document writes
+and Workers KV deletes. An editor that has remained offline more than seven
+days, or a user restoring historical GitHub data, may reintroduce references
+to a deleted asset. Current-doc rechecking reduces accidental deletions but
+does not make concurrent saving and deletion atomic. Backups and history are
+deliberately excluded from retention.
