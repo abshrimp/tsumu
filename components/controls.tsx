@@ -521,6 +521,7 @@ export function NumField({
       )}
       <input
         id={fieldId}
+        aria-label={title ?? (typeof pre === "string" ? pre : undefined)}
         key={editTarget}
         ref={ref}
         defaultValue={parsed?.num ?? ""}
@@ -973,6 +974,7 @@ export function VarInput({
   style,
   onActivate,
   onDeactivate,
+  id,
 }: {
   value: string;
   /** blur時に確定（Enterでもblurする） */
@@ -996,6 +998,8 @@ export function VarInput({
   /** Compute expensive suggestions only while this input is focused. */
   onActivate?: () => void;
   onDeactivate?: () => void;
+  /** Optional DOM identifier for an associated visible label. */
+  id?: string;
 }) {
   const fieldId = useId();
   const ref = useRef<HTMLInputElement>(null);
@@ -1117,7 +1121,7 @@ export function VarInput({
   return (
     <>
       <input
-        id={fieldId}
+        id={id ?? fieldId}
         ref={ref}
         className={className ?? "input"}
         style={style}
