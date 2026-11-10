@@ -21,15 +21,17 @@ test("all three engines discover the same core editing smoke tests", () => {
     file: string; title: string; tags: string[]; tests: { projectName: string }[];
   }[] };
   const smoke = new Map<string, Set<string>>();
+  const forms = new Map<string, Set<string>>();
   let chromiumOnly = 0;
   function visit(suite: Suite) {
     for (const spec of suite.specs ?? []) {
       const projects = spec.tests.map((t) => t.projectName).sort();
-      if (spec.tags.includes("core-editing")) {
+      const group = spec.tags.includes("core-editing") ? smoke : spec.tags.includes("form-values") ? forms : null;
+      if (group) {
         assert.deepEqual(projects, ["chromium", "firefox", "webkit"], spec.title);
-        const titles = smoke.get(spec.file) ?? new Set<string>();
+        const titles = group.get(spec.file) ?? new Set<string>();
         titles.add(spec.title);
-        smoke.set(spec.file, titles);
+        group.set(spec.file, titles);
       } else {
         assert.deepEqual(projects, ["chromium"], spec.title);
         chromiumOnly++;
@@ -42,5 +44,7 @@ test("all three engines discover the same core editing smoke tests", () => {
   assert.equal(smoke.get("editor.spec.ts")?.size, 6);
   assert.equal(smoke.get("text-editing.spec.ts")?.size, 3);
   assert.equal(smoke.size, 2);
+  assert.equal(forms.get("search-form-values.spec.ts")?.size, 2);
+  assert.equal(forms.size, 1);
   assert.ok(chromiumOnly > 0, "keep the full existing Chromium suite");
 });

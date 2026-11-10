@@ -26,8 +26,8 @@ export default defineConfig({
   // engines. CDP multitouch tests remain in the full Chromium suite.
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"], viewport } },
-    { name: "firefox", grep: /@core-editing\b/, use: { ...devices["Desktop Firefox"], viewport } },
-    { name: "webkit", grep: /@core-editing\b/, use: { ...devices["Desktop Safari"], viewport } },
+    { name: "firefox", grep: /@(?:core-editing|form-values)\b/, use: { ...devices["Desktop Firefox"], viewport } },
+    { name: "webkit", grep: /@(?:core-editing|form-values)\b/, use: { ...devices["Desktop Safari"], viewport } },
   ],
   webServer: {
     command: `rm -rf .e2e-data && npx --no-install next start -p ${PORT}`,
