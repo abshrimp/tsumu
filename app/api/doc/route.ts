@@ -49,17 +49,21 @@ export async function GET(req: Request) {
   if (siteId instanceof NextResponse) return siteId;
   const metaOnly = params.get("meta") === "1";
 
+  let stage: "database" | "site" | "metadata" | "snapshot" = "database";
   try {
     const db = await getDb();
+    stage = "site";
     if (!(await getSite(db, siteId))) {
       return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
     }
     if (metaOnly) {
+      stage = "metadata";
       const meta = await readSiteDocumentMeta(db, siteId);
       if (!meta) return NextResponse.json({ exists: false }, { headers: PRIVATE_CACHE });
       return NextResponse.json({ exists: true, rev: meta.rev, savedAt: meta.savedAt }, { headers: PRIVATE_CACHE });
     }
 
+    stage = "snapshot";
     const cur = await readSiteDocument(db, siteId);
     if (!cur) return NextResponse.json({ exists: false }, { headers: PRIVATE_CACHE });
     // body は保存済みJSONなので、パースし直さず文字列結合で返す
@@ -69,9 +73,13 @@ export async function GET(req: Request) {
       { headers: { "Content-Type": "application/json", ...PRIVATE_CACHE } }
     );
   } catch (e) {
+    // Some localized storage errors are deliberately safe to show to users, but
+    // userMessage does not log them. Record all failures to identify whether
+    // D1, site lookup, or DocumentRoom failed without logging document content.
+    console.error("[api/doc GET] document read failed", { stage, siteId, metaOnly }, e);
     return NextResponse.json(
       { error: tr(userMessage(e, "読み込めませんでした")) },
-      { status: 502 }
+      { status: 502, headers: { ...PRIVATE_CACHE, "X-Tsumu-Error-Stage": stage } }
     );
   }
 }
