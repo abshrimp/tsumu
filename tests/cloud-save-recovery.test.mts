@@ -26,6 +26,7 @@ for (const laterEdit of ["undo", "rename", "none"] as const) {
       skipNextCloudSave: ref(false), cloudTimer: ref(null),
       activeCloudSave: ref(null), cloudSaveQueued: ref(false),
       lastSyncedRev: ref("1"), lastSyncedDoc: ref(original), retrySaveAfterEdit: ref(false),
+      deferredCloudConflict: ref(null),
       getState: useEditor.getState,
       setUnsyncedFlag: value => { unsynced = value; },
       requestRetry() {}, retryLater() { assert.fail("HTTP recovery is available"); },

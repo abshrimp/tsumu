@@ -33,7 +33,7 @@ npm run typecheck
 npm test
 npm run i18n:check
 npm run build
-npx playwright install chromium
+npx playwright install chromium firefox webkit
 npm run test:e2e
 ```
 

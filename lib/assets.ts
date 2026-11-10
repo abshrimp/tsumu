@@ -198,7 +198,7 @@ export async function mapLimit<T>(
 export async function readAssetBytes(response: Response, limit: number, message = "Resource exceeds export size limit."): Promise<Uint8Array<ArrayBuffer>> {
   const tooLarge = () => new Error(message);
   if (Number(response.headers.get("content-length")) > limit) {
-    await response.body?.cancel().catch(() => {});
+    void response.body?.cancel().catch(() => {});
     throw tooLarge();
   }
   const reader = response.body?.getReader();
@@ -210,11 +210,14 @@ export async function readAssetBytes(response: Response, limit: number, message 
       if (part.done) break;
       size += part.value.length;
       if (size > limit) {
-        await reader.cancel().catch(() => {});
         throw tooLarge();
       }
       chunks.push(part.value);
     }
+  } catch (error) {
+    // Release the consumer even when an unread clone delays upstream cleanup.
+    void reader?.cancel(error).catch(() => {});
+    throw error;
   } finally { reader?.releaseLock(); }
   const bytes = new Uint8Array(size);
   let offset = 0;
@@ -477,7 +480,8 @@ export async function downloadAsset(asset: Asset): Promise<void> {
 
 /**
  * サーバー上のアセットを削除（dataURL資産は何もしない）。
- * ほかのサイトが同じファイルを使っていれば消さない（サーバーでも D1 の全サイトを見て確かめる）
+ * ほかのサイトが同じファイルを使っていれば消さない（Node.js・Docker のサーバーは全サイトを見て確かめる。
+ * Cloudflare のサーバーは同時保存との競合を避けるため KV のファイルを消さない）
  */
 export async function deleteAssetRemote(asset: Asset): Promise<void> {
   if (!asset.path) return;

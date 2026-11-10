@@ -2,7 +2,9 @@
 // A file-size check alone cannot bound other fields or a chunked request.
 export async function readAssetForm(req: Request, maxBytes: number): Promise<FormData | null> {
   if (Number(req.headers.get("content-length")) > maxBytes) {
-    await req.body?.cancel().catch(() => {});
+    // A cloned request cannot finish cancellation until its other branch ends.
+    // Stop receiving this branch without holding the oversized-upload response.
+    void req.body?.cancel().catch(() => {});
     throw new RangeError("Upload too large");
   }
   if (!req.body) return null;

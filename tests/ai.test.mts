@@ -120,8 +120,8 @@ test("request validation rejects malformed and cyclic documents and ignores supp
 test("request limits count UTF-8 bytes, including chunked requests", async () => {
   const text = JSON.stringify({ text: "あ".repeat(Math.floor(MAX_REQUEST_BYTES / 3)) });
   assert.ok(text.length < MAX_REQUEST_BYTES);
-  await assert.rejects(readAiRequest(new Request("https://example.test", { method: "POST", body: text })), RangeError);
-  assert.deepEqual(await readAiRequest(new Request("https://example.test", { method: "POST", body: '{"ok":true}' })), { ok: true });
+  await assert.rejects(readAiRequest(new Request("https://example.test", { method: "POST", body: text, headers: { "Content-Type": "application/json" } })), RangeError);
+  assert.deepEqual(await readAiRequest(new Request("https://example.test", { method: "POST", body: '{"ok":true}', headers: { "Content-Type": "application/json" } })), { ok: true });
 });
 
 test("empty and truncated responses never report success", async (t) => {

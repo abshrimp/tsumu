@@ -346,6 +346,8 @@ export function insertPointFor(
 let lastKnownBrowserRaw: string | null = null;
 let browserSnapshotUnavailable = false;
 let browserHydration: Promise<void> | null = null;
+// Preferences refer to the persisted document, not the temporary starter doc.
+let browserPositionReady = false;
 
 /** 前回開いていたページ。削除済みなら先頭ページへ安全に戻す */
 function loadActivePageId(doc: SiteDoc): string {
@@ -1927,12 +1929,8 @@ export const useEditor = create<EditorStore>((set, get) => {
 // ページ切替だけでなく、追加・複製・削除・リセットによる表示ページの変更も記憶する。
 if (typeof window !== "undefined") {
   let rememberedPageId = useEditor.getState().activePageId;
-  try {
-    window.localStorage.setItem(ACTIVE_PAGE_KEY, rememberedPageId);
-  } catch {
-    // 保存できなくても編集操作は続けられる
-  }
   useEditor.subscribe((state) => {
+    if (!browserPositionReady) return;
     if (state.activePageId === rememberedPageId) return;
     rememberedPageId = state.activePageId;
     try {
@@ -1962,6 +1960,7 @@ if (typeof window !== "undefined") {
   let last = JSON.stringify(pickUi(useEditor.getState()));
   let timer: ReturnType<typeof setTimeout> | null = null;
   useEditor.subscribe((state) => {
+    if (!browserPositionReady) return;
     const next = JSON.stringify(pickUi(state));
     if (next === last) return;
     last = next;
@@ -1988,11 +1987,19 @@ export function hydrateBrowserDoc(): Promise<void> {
         browserSnapshotUnavailable = true;
         return;
       }
-      useEditor.getState().replaceDoc(parsed as SiteDoc);
+      const doc = parsed as SiteDoc;
+      applyBreakpoints(doc);
+      const position = { ...loadUi(doc), activePageId: loadActivePageId(doc) };
+      useEditor.getState().replaceDoc(doc);
+      browserPositionReady = true;
+      useEditor.setState(position);
     } catch (error) {
       // Never overwrite a document that could not be loaded.
       browserSnapshotUnavailable = true;
       console.error("[Tsumu] Failed to load browser document", error);
+    } finally {
+      // A later cloud load can still provide a usable editor after cache failure.
+      browserPositionReady = true;
     }
   })();
   return browserHydration;

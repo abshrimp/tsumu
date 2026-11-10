@@ -78,6 +78,7 @@ export function hasPublishCredentials(doc: SiteDoc): boolean {
 export async function readRestoreJson(response: Response, maxBytes: number): Promise<unknown> {
   const sizeHeader = response.headers.get("Content-Length");
   if (sizeHeader && Number(sizeHeader) > maxBytes) {
+    void response.body?.cancel().catch(() => {});
     throw new Error("編集データが大きすぎます。");
   }
   if (!response.body) throw new Error("編集データを読み込めませんでした");
@@ -91,11 +92,14 @@ export async function readRestoreJson(response: Response, maxBytes: number): Pro
       if (!value) continue;
       total += value.byteLength;
       if (total > maxBytes) {
-        await reader.cancel().catch(() => {});
         throw new Error("編集データが大きすぎます。");
       }
       chunks.push(value);
     }
+  } catch (error) {
+    // A cloned response may wait for another reader to finish cancellation.
+    void reader.cancel(error).catch(() => {});
+    throw error;
   } finally {
     reader.releaseLock();
   }

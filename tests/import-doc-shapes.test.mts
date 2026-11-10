@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createInitialDoc, makeIcon } from "../lib/presets";
 import { parseSiteImport, validateImportedDoc } from "../lib/site-import";
-import { sanitizeImportedSvg } from "../lib/imported-svg";
+import { sanitizeImportedInlineIcons, sanitizeImportedSvg } from "../lib/imported-svg";
 
 const encoder = new TextEncoder();
 
@@ -106,4 +106,23 @@ test("direct API SiteDoc validation blocks executable inline SVG without browser
     icon.icon!.svg = payload;
     assert.throws(() => validateImportedDoc(doc), /要素の設定/);
   }
+});
+
+test("restoring a backup sanitizes inline SVG without changing other editable properties", () => {
+  const doc = createInitialDoc();
+  const icon = makeIcon();
+  const original = '<svg xmlns="http://www.w3.org/2000/svg" onload="globalThis.bad=1">' +
+    '<circle cx="5" cy="5" r="3"/><foreignObject><img src=x onerror="alert(1)"/></foreignObject></svg>';
+  icon.icon!.svg = original;
+  doc.nodes[icon.id] = icon;
+  doc.pages[doc.pageOrder[0]].children.push(icon.id);
+  const before = structuredClone(doc);
+  const restored = sanitizeImportedInlineIcons(structuredClone(doc));
+  const cleaned = restored.nodes[icon.id].icon!.svg;
+  assert.match(cleaned, /<circle\b/);
+  assert.doesNotMatch(cleaned, /onload|onerror|foreignObject|<img|alert\(/i);
+  assert.equal(validateImportedDoc(restored), restored);
+  assert.equal(doc.nodes[icon.id].icon!.svg, original);
+  assert.deepEqual(restored.pages, before.pages);
+  assert.deepEqual(restored.assets, before.assets);
 });
