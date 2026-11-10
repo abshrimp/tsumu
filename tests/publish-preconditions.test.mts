@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { transformSync } from "esbuild";
 import * as files from "../lib/publish-files";
 import * as contract from "../lib/publish-preconditions";
+import * as preferences from "../lib/publish-preferences";
 import { advanceBranchRef } from "../lib/github";
 import { hasPublishCredentials } from "../lib/publish-security";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
@@ -108,7 +109,7 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
     "lib/site-server": { siteIdOf: async (site: string) => site, siteDestOf: async () => dest, destParam: () => undefined },
     "lib/github": { advanceBranchRef, targetConfig: conf, configError: () => null, githubClient: client, branchPath: (s: string) => s, previewEnabled: () => true },
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
-    "lib/publish-files": files, "lib/publish-preconditions": contract, "lib/publish-security": { hasPublishCredentials },
+    "lib/publish-files": files, "lib/publish-preconditions": contract, "lib/publish-preferences": preferences, "lib/publish-security": { hasPublishCredentials },
     "lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
   };
   function load(path: string) {
@@ -119,7 +120,8 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
   }
   const publish = load("app/api/publish/route.ts"), history = load("app/api/publish/history/route.ts");
   const post = (body: object, isHistory = false) => (isHistory ? history : publish).POST(new Request("https://example.com", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ site: "example", target: "production", expected: expected(), expectedHead: old, ...body }),
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ site: "example", target: "production", expected: expected(), expectedHead: old,
+      exportOptions: preferences.DEFAULT_PUBLISHED_EXPORT_OPTIONS, ...body }),
   })) as Promise<Response>;
   const get = (extra: Record<string, string> = {}) => history.GET(new Request(`https://example.com?${new URLSearchParams({ site: "example", target: "production", expected: JSON.stringify(expected()), ...extra })}`)) as Promise<Response>;
   return { post, get, rawPublish: publish.POST, rawHistory: history.POST,
