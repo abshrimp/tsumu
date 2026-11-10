@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { assetUploadedAt, extractAssetReferences, planAssetGc } from "../lib/asset-gc-plan";
-import { runAssetGc, type AssetGcDocumentNamespace } from "../lib/asset-gc";
+import { recordAssetGcCandidates, runAssetGc, type AssetGcDocumentNamespace } from "../lib/asset-gc";
 import type { Db } from "../lib/db";
 import type { KVLikeNamespace } from "../lib/kv";
 
@@ -140,10 +140,11 @@ test("GC dry-run retains an asset referenced by a current document", async () =>
   } finally { f.sql.close(); }
 });
 
-test("a failed DO reference scan aborts before KV.list or candidate changes", async () => {
+test("weekly discovery aborts before KV listing if a site cannot be read", async () => {
   const f = fixture(async () => { throw new Error("Current doc unreadable"); }, [key(100)]);
   try {
-    await assert.rejects(runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now }));
+    await assert.rejects(runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now,
+      discoverUntracked: true }));
     assert.equal(f.lists(), 0);
     assert.equal(f.deletes(), 0);
     assert.equal(Number(f.sql.prepare("SELECT count(*) AS n FROM asset_gc_candidates").get()?.n), 0);
@@ -228,7 +229,7 @@ test("failure to inspect any current doc during final recheck aborts before dele
   } finally { f.sql.close(); }
 });
 
-test("a partial KV scan defers all physical deletions", async () => {
+test("incomplete weekly KV inventory does not block daily expiry cleanup", async () => {
   const path = key(100);
   const f = fixture(async () => [], [path]);
   try {
@@ -239,10 +240,11 @@ test("a partial KV scan defers all physical deletions", async () => {
       keys: pageNumber++ === 0 ? [{ name: path, metadata: { bytes: 17 } }] : [],
       list_complete: false, cursor: "cursor-" + pageNumber,
     });
-    const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now, dryRun: false });
+    const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now,
+      dryRun: false, discoverUntracked: true });
     assert.equal(report.scanComplete, false);
-    assert.equal(report.deleted, 0);
-    assert.ok(f.stored.has(path));
+    assert.equal(report.deleted, 1);
+    assert.equal(f.stored.has(path), false);
   } finally { f.sql.close(); }
 });
 
@@ -272,5 +274,97 @@ test("a failed KV delete records previously completed deletes and retains later 
     assert.equal(run?.deleted, 1);
     assert.equal(run?.deleted_bytes, 17);
     assert.equal(f.stored.size, 1);
+  } finally { f.sql.close(); }
+});
+test("the image-delete event registers a candidate immediately without KV enumeration", async () => {
+  const path = key(35);
+  const f = fixture(async () => [], [path]);
+  try {
+    const inserted = await recordAssetGcCandidates(f.db, [path], now);
+    assert.equal(inserted, 1);
+    assert.equal(f.lists(), 0);
+    const candidate = f.sql.prepare("SELECT first_unreferenced_at FROM asset_gc_candidates WHERE path=?").get(path);
+    assert.equal(candidate?.first_unreferenced_at, now);
+    const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now: now + 6 * day, dryRun: false });
+    assert.equal(report.deleted, 0);
+    assert.equal(f.lists(), 0, "daily expiry must never enumerate KV");
+    assert.ok(f.stored.has(path));
+  } finally { f.sql.close(); }
+});
+
+test("repeated image deletion resets the seven-day candidate clock", async () => {
+  const path = key(50);
+  const f = fixture(async () => [], [path]);
+  try {
+    await recordAssetGcCandidates(f.db, [path], now - 6 * day);
+    await recordAssetGcCandidates(f.db, [path], now);
+    const candidate = f.sql.prepare("SELECT first_unreferenced_at FROM asset_gc_candidates WHERE path=?").get(path);
+    assert.equal(candidate?.first_unreferenced_at, now);
+    const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms,
+      now: now + 2 * day, dryRun: false });
+    assert.equal(report.deleted, 0);
+    assert.ok(f.stored.has(path));
+    assert.equal(f.lists(), 0);
+  } finally { f.sql.close(); }
+});
+
+test("weekly KV discovery finds missed orphan uploads without deleting anything", async () => {
+  const path = key(100);
+  const f = fixture(async () => [], [path]);
+  try {
+    const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms,
+      now, discoverUntracked: true });
+    assert.equal(report.kvKeysScanned, 1);
+    assert.equal(report.scanComplete, true);
+    assert.equal(report.deleted, 0);
+    assert.equal(report.candidates, 1);
+    const saved = f.sql.prepare("SELECT first_unreferenced_at FROM asset_gc_candidates WHERE path=?").get(path);
+    assert.equal(saved?.first_unreferenced_at, now);
+    await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms,
+      now: now + 8 * day, dryRun: false });
+    assert.equal(f.deletes(), 1);
+    assert.equal(f.lists(), 1, "daily expiry must not run KV.list");
+    assert.equal(f.stored.size, 0);
+  } finally { f.sql.close(); }
+});
+
+test("weekly reconciliation preserves explicit delete-event age", async () => {
+  const path = key(100);
+  const f = fixture(async () => [], [path]);
+  try {
+    await recordAssetGcCandidates(f.db, [path], now - 4 * day);
+    await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now,
+      discoverUntracked: true });
+    const saved = f.sql.prepare("SELECT first_unreferenced_at FROM asset_gc_candidates WHERE path=?").get(path);
+    assert.equal(saved?.first_unreferenced_at, now - 4 * day);
+    assert.equal(f.stored.has(path), true);
+  } finally { f.sql.close(); }
+});
+
+test("daily GC skips all site reads when no candidate is old enough", async () => {
+  const f = fixture(async () => { throw new Error("DO unavailable"); }, [key(50)]);
+  try {
+    await recordAssetGcCandidates(f.db, [key(50)], now);
+    const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms,
+      now: now + day, dryRun: false });
+    assert.equal(report.status, "ok");
+    assert.equal(report.deleted, 0);
+    assert.equal(f.lists(), 0);
+    assert.equal(f.deletes(), 0);
+  } finally { f.sql.close(); }
+});
+
+test("expired orphan from an explicit delete is protected by a different current site", async () => {
+  const path = key(100);
+  const f = fixture(async () => [path], [path]);
+  try {
+    await recordAssetGcCandidates(f.db, [path], now - 9 * day);
+    const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms,
+      now, dryRun: false });
+    assert.equal(report.deleted, 0);
+    assert.equal(report.candidates, 0);
+    assert.equal(f.deletes(), 0);
+    assert.ok(f.stored.has(path));
+    assert.equal(f.lists(), 0);
   } finally { f.sql.close(); }
 });
