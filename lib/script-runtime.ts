@@ -4,7 +4,7 @@
 
 import { NAVIGATION_RUNTIME } from "./url-policy";
 import { type ScriptCond, type ScriptStep, type ScriptTrigger, type SiteDoc } from "./types";
-import { isDataStep, listFromOf, pagePlan } from "./data";
+import { isDataStep, listFromOf, pagePlan, toListItem } from "./data";
 import { extractVars, hardNavPatterns } from "./vars";
 import { fieldVarNames } from "./fields";
 import { EMPTY_GIF, allScripts, pageNodeIds, walkSteps } from "./script";
@@ -828,19 +828,8 @@ export const SCRIPT_RUNTIME = `function (env) {
         }
       }
       /*/filter*/
-      /*#clist|filter*/
-      // 配列の要素を項目にする（文字や数値は {値} に入れる）
-      function itemsOf(v) {
-        var out = [];
-        if (!Array.isArray(v)) return out;
-        v.forEach(function (x) {
-          if (x == null || Array.isArray(x)) return;
-          out.push(typeof x === "object" ? x : { "値": x });
-        });
-        return out;
-      }
-      /*/clist|filter*/
       /*#clist*/
+      var toListItem = (${toListItem.toString()});
       // 画面上で値が決まる配列のリスト: お手本（data-tpl）を項目ごとに複製して並べる
       var rendered = new WeakSet();
       // 項目の値だけを覚える。画面の変数は描き直すたびに読むので古い値を閉じ込めない。
@@ -1016,7 +1005,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           /*/filter*/
           return;
         }
-        var items = itemsOf(value);
+        var items = value && typeof value === "object" ? Object.values(value).map(toListItem) : [];
         /*#filter*/
         // 配信前の操作は項目ごとに解決し、画面上の一時的な操作と分けて適用する。
         var ops = listJson(list, "data-list-ops", []);

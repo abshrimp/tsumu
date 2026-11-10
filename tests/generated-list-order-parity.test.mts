@@ -19,6 +19,14 @@ async function load(data: unknown, operations: ListOp[], native: boolean) {
   return JSON.parse(JSON.stringify((await context.window.__pageDataReady).rows));
 }
 for (const native of [false, true]) {
+  test(`${native ? "native" : "browser"}: filters nested array rows by their displayed value`, async () => {
+    const data = [null, [2, 3], { 値: [2, 3] }, [4]];
+    const ops: ListOp[] = [{ kind: "filter", conds: [{ field: "値", op: "eq", value: "[2,3]" }] }];
+    const result = await load(data, ops, native);
+    assert.deepEqual(result, [[2, 3], { 値: [2, 3] }]);
+    assert.deepEqual(toListItems(result), applyList(toListItems(data), {}, ops));
+  });
+
   for (const data of [[3, 1, 2], ["item10", "item2", "item1"], [[3], [1], [2]], [null, false, true]]) {
     test(`${native ? "native" : "browser"}: sorts raw rows ${JSON.stringify(data)} by their displayed value`, async () => {
       for (const dir of ["asc", "desc"] as const) {

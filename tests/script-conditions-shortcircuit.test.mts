@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runInNewContext } from "node:vm";
+import { toListItem } from "../lib/data";
 import { SCRIPT_RUNTIME } from "../lib/script-runtime";
 import { PAGE_DATA_RUNTIME } from "../lib/generator/browser-data";
 
@@ -98,7 +99,7 @@ test("generated page-data filter skips irrelevant filter operations", () => {
     }
     ${PAGE_DATA_RUNTIME.slice(start, end)}
     return filter;
-  })()`, { reads }) as (items: object[], ops: object[], vars: object) => object[];
+  })()`, { reads, toListItem }) as (items: object[], ops: object[], vars: object) => object[];
   const item = { id: 1 };
   const run = (first: boolean, join: string) => filter([item], [
     { kind: "filter", conds: [{ id: "first", ok: first }] },
