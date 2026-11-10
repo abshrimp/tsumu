@@ -447,7 +447,7 @@ export default function PublishModal({
         tr("公開できませんでした")
       );
       // 設定を変えただけでは保存せず、GitHubで公開に成功した設定だけを次回の初期値にする。
-      savePublishedExportOptions({ framework: format, language, style });
+      savePublishedExportOptions({ framework: format, language, style }, targets.site);
       // フッターの「公開済み」表示は本番サイトの状態を表す
       if (site === "production") markPublished(docFingerprint(target));
       setResult({ commitUrl: data.commitUrl, warnings, format });
