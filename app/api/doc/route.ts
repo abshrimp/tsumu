@@ -20,6 +20,7 @@ import {
 import { getSite, getSiteRoomKey } from "../../../lib/sites";
 import { userMessage } from "../../../lib/errors";
 import { isDocPatch } from "../../../lib/doc-patch";
+import type { SiteDoc } from "../../../lib/types";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../../lib/api-json";
 
 export const maxDuration = 30;
@@ -162,7 +163,7 @@ async function save(req: Request, partial: boolean) {
     if (db.backend !== "d1" || roomKey) {
       notifyDocUpdated(siteId, partial && isDocPatch(patch)
         ? { ...metadata, type: "doc-patched", base: base!, patch }
-        : { ...metadata, type: "doc-updated", doc: input }, roomKey ?? undefined);
+        : { ...metadata, type: "doc-updated", doc: input as SiteDoc }, roomKey ?? undefined);
     }
     return NextResponse.json({
       ok: true,
