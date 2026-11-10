@@ -25,12 +25,12 @@ import { sanitizeImportedInlineIcons } from "../lib/imported-svg";
 import { hasPublishCredentials, readRestoreJson } from "../lib/publish-security";
 import { validateImportedDoc, IMPORT_LIMITS } from "../lib/site-import";
 import type { PublishTarget } from "../lib/generator";
-import { EXPORT_FRAMEWORK_OPTIONS, exportLimitations, prepareExportProject, type ExportFormat, type ExportLanguage, type ExportOptions, type ExportStyle } from "../lib/export-formats";
+import { DEFAULT_EXPORT_OPTIONS, EXPORT_FRAMEWORK_OPTIONS, exportLimitations, prepareExportProject, type ExportFormat, type ExportLanguage, type ExportOptions, type ExportStyle } from "../lib/export-formats";
 import { runChecks, type CheckResult } from "../lib/generator/checks";
 import { Dropdown, Seg } from "./controls";
 import { userMessage } from "../lib/errors";
 import { currentSiteId, sitePublishFields, siteApi } from "../lib/site";
-import { loadPublishedExportOptions, savePublishedExportOptions } from "../lib/publish-preferences";
+import type { PublishedExportOptions } from "../lib/publish-preferences";
 import { getLang, tr } from "../lib/i18n";
 import {
   GENERATED_MANIFEST_PATH,
@@ -203,6 +203,7 @@ interface PublishConfig {
   unset: "token" | "repo" | null;
   /** テスト公開を使うか（サイトの設定でテスト公開のブランチが空なら使わない） */
   previewEnabled: boolean;
+  lastExportOptions?: PublishedExportOptions;
   test: TargetInfo;
   production: TargetInfo;
 }
@@ -289,12 +290,18 @@ export default function PublishModal({
     warnings?: string[];
     conflict?: boolean;
     format?: ExportFormat;
+    optionsSaved?: boolean;
   }>({});
   const [progress, setProgress] = useState("");
-  const [initialOptions] = useState(loadPublishedExportOptions);
-  const [format, setFormat] = useState<ExportFormat>(initialOptions.framework);
-  const [language, setLanguage] = useState<ExportLanguage>(initialOptions.language);
-  const [style, setStyle] = useState<ExportStyle>(initialOptions.style);
+  const [format, setFormat] = useState<ExportFormat>(DEFAULT_EXPORT_OPTIONS.framework);
+  const [language, setLanguage] = useState<ExportLanguage>(DEFAULT_EXPORT_OPTIONS.language);
+  const [style, setStyle] = useState<ExportStyle>(DEFAULT_EXPORT_OPTIONS.style);
+  useEffect(() => {
+    if (!targets?.lastExportOptions) return;
+    setFormat(targets.lastExportOptions.framework);
+    setLanguage(targets.lastExportOptions.language);
+    setStyle(targets.lastExportOptions.style);
+  }, [targets]);
   const options: ExportOptions = { framework: format, language, style, scope: "project" };
   const checks = useMemo<CheckResult[]>(() => [
     ...runChecks(doc),
@@ -434,23 +441,22 @@ export default function PublishModal({
       files[GENERATED_MANIFEST_PATH] = serializeGeneratedManifest(generated);
       setProgress(tr("GitHubへコミットしています…"));
 
-      const data = await postPublish<{ commitUrl?: string }>(targets, site,
+      const data = await postPublish<{ commitUrl?: string; optionsSaved?: boolean }>(targets, site,
         {
           action: "commit",
           expectedHead: existing.head,
           target: site,
           files,
+          exportOptions: { framework: format, language, style },
           assetShas,
           keptPaths: Object.keys(plan.kept),
           message: `${site === "test" ? "Test publish" : "Publish"}: ${target.siteName} (${new Date().toLocaleString(getLang())})`,
         },
         tr("公開できませんでした")
       );
-      // 設定を変えただけでは保存せず、GitHubで公開に成功した設定だけを次回の初期値にする。
-      savePublishedExportOptions({ framework: format, language, style }, targets.site);
       // フッターの「公開済み」表示は本番サイトの状態を表す
       if (site === "production") markPublished(docFingerprint(target));
-      setResult({ commitUrl: data.commitUrl, warnings, format });
+      setResult({ commitUrl: data.commitUrl, warnings, format, optionsSaved: data.optionsSaved });
       setPhase("done");
     } catch (e) {
       setResult({ error: userMessage(e, tr("公開できませんでした")), conflict: e instanceof PublishConflictError });
@@ -516,7 +522,7 @@ export default function PublishModal({
                       ? tr("NuxtプロジェクトをGitHubへPushします。ホスティング側でNuxt用のビルド設定が必要です。")
                       : tr("Next.jsプロジェクトをGitHubへPushします。ホスティング側のビルドが完了すると公開サイトに反映されます。")}
             </p>
-            <fieldset className="export-options pub-export-options">
+            <fieldset className="export-options pub-export-options" disabled={!targets}>
               <div className="export-option">
                 <div className="export-option-label">{tr("フレームワーク")}</div>
                 <Dropdown
@@ -649,6 +655,9 @@ export default function PublishModal({
                 ? tr("GitHubへPushしました。HTML一式はそのまま配信できる形式です。")
                 : tr("GitHubへPushしました。ホスティング側のビルド・公開設定をご確認ください。")}
             </div>
+            {result.optionsSaved === false && (
+              <p className="hint export-note">{tr("GitHubへの公開は完了しましたが、出力形式の設定をDBに保存できませんでした。")}</p>
+            )}
             {!!result.warnings?.length && (
               <ul className="check-list">
                 {result.warnings.map((w) => (
