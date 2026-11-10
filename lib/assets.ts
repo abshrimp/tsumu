@@ -486,13 +486,19 @@ export async function downloadAsset(asset: Asset): Promise<void> {
 export async function deleteAssetRemote(asset: Asset): Promise<void> {
   if (!asset.path) return;
   const quoted = `"${asset.path}"`;
-  // If other sites cannot be inspected, do not risk deleting their asset.
+  // The Cloudflare endpoint must receive the delete event to enqueue GC even
+  // when another browser-only site still references the file. Node/Docker
+  // use the browserReferenced flag to preserve their immediate-delete safety.
+  let browserReferenced = false;
   if (typeof window !== "undefined") {
     try {
-      if ((await otherBrowserDocs(currentSiteId())).some((raw) => raw.includes(quoted))) return;
+      browserReferenced = (await otherBrowserDocs(currentSiteId()))
+        .some((raw) => raw.includes(quoted));
     } catch { return; }
   }
-  await fetch(siteApi("/api/assets", { path: asset.path }), {
+  await fetch(siteApi("/api/assets", {
+    path: asset.path, ...(browserReferenced ? { browserReferenced: "1" } : {}),
+  }), {
     method: "DELETE",
   }).catch(() => {
     // 削除失敗はドキュメント側から消えれば実害がないため無視
