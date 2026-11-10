@@ -252,11 +252,15 @@ export function mergeClipDeps(
 } {
   const remap = new Map<string, string>();
   const added: Asset[] = [];
+  const scriptGroups = new Set(Object.values(p.assets).filter(a => a && isZipJavascript(a)).map(a => a.zip!.group));
   for (const a of Object.values(p.assets)) {
     if (!a || typeof a.id !== "string" || !a.id || !isSafeClipAsset(a)) continue;
     const existing = d.assets[a.id];
     // Identical stylesheet bytes may resolve differently in different archives.
-    const sameFile = (b: Asset) => Boolean((a.path && b.path === a.path) || (a.dataUrl && b.dataUrl === a.dataUrl));
+    // JS 内の相対参照は ID の付け替えでは直せないため、同じ内容でも元の ZIP パスを残す。
+    const sameLocation = (b: Asset) => !a.zip || !scriptGroups.has(a.zip.group) ||
+      (b.zip?.group === a.zip.group && b.zip.path === a.zip.path);
+    const sameFile = (b: Asset) => sameLocation(b) && Boolean((a.path && b.path === a.path) || (a.dataUrl && b.dataUrl === a.dataUrl));
     const sameSheet = (b: Asset) => JSON.stringify(a.zip) === JSON.stringify(b.zip);
     if (existing && sameFile(existing) && ((!zipStylesheet(a) && !zipStylesheet(existing)) || sameSheet(existing))) continue;
     const same = !zipStylesheet(a) && Object.values(d.assets).find((b) => !zipStylesheet(b) && sameFile(b));
