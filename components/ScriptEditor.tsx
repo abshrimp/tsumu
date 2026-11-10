@@ -1187,12 +1187,15 @@ function boundedDragCopy(source: HTMLElement): HTMLElement | null {
 
 /** Match the source geometry and decorations even when a row is lifted out of
  * its original sibling/loop context in the floating drag layer. */
-function freezeDragAppearance(source: HTMLElement, copy: HTMLElement) {
+function freezeDragAppearance(source: HTMLElement, copy: HTMLElement, shallow = false) {
   const selector = ".se-stack, .se-item, .se-blk, .se-c, .se-c-mid";
-  const original = [source, ...source.querySelectorAll<HTMLElement>(selector)]
-    .filter((el, index, all) => el.matches(selector) && all.indexOf(el) === index);
-  const cloned = [copy, ...copy.querySelectorAll<HTMLElement>(selector)]
-    .filter((el, index, all) => el.matches(selector) && all.indexOf(el) === index);
+  // A shortened preview has fewer descendants than its source. Its children
+  // were already frozen while individually cloned; avoid pairing unrelated
+  // rows merely because they occupy the same index in different trees.
+  const original = [source, ...(shallow ? [] : source.querySelectorAll<HTMLElement>(selector))]
+    .filter((el) => el.matches(selector));
+  const cloned = [copy, ...(shallow ? [] : copy.querySelectorAll<HTMLElement>(selector))]
+    .filter((el) => el.matches(selector));
   for (let i = 0; i < Math.min(original.length, cloned.length); i++) {
     const from = original[i];
     const to = cloned[i];
@@ -1244,7 +1247,7 @@ function cloneDragElement(source: HTMLElement): HTMLElement | null {
       }
     }
   }
-  freezeDragAppearance(source, copy);
+  freezeDragAppearance(source, copy, count > cap);
   // This inert copy must not duplicate label targets or editable content IDs.
   copy.removeAttribute("id");
   copy.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
