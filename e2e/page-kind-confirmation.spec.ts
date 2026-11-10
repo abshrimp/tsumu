@@ -13,8 +13,15 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole("button", { name: "HTML", exact: true })).toBeVisible();
 });
 
-for (const kind of ["html", "redirect"]) {
-  for (const interruption of ["rawHtml", "redirectTo", "rewriteTo", "undo", "undo-redo", "restore", "delete", "page", "page-return", "unmount", "cancel", "unrelated"]) {
+// The complete kind/interruption matrix is covered by the store-level tests.
+// Keep browser cases for distinct dialog, focus, navigation, and collaboration behavior.
+const browserInterruptions = {
+  html: ["rawHtml", "undo-redo", "page-return", "unmount", "cancel", "unrelated"],
+  redirect: ["redirectTo", "restore", "delete", "page", "unrelated"],
+} as const;
+
+for (const kind of ["html", "redirect"] as const) {
+  for (const interruption of browserInterruptions[kind]) {
     test(`Changing ${kind} while confirmation is pending handles ${interruption}`, async ({ page }) => {
       await page.evaluate(() => (window as any).pageKindEditor.getState().updatePage("p", { title: "Undo this" }));
       await page.getByRole("button", { name: kind === "html" ? "HTML" : "リダイレクト", exact: true }).click();
