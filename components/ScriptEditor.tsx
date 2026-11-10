@@ -1063,6 +1063,10 @@ function ScriptEditorInner({
             <kbd>{glyphs("⌘A")}</kbd>{tr("全選択")}
           </span>
           <span>
+            <kbd>{glyphs("⌘C")}</kbd>/<kbd>{glyphs("⌘X")}</kbd>/<kbd>{glyphs("⌘V")}</kbd>
+            {tr("コピー")}・{tr("切り取り")}・{tr("貼り付け")}
+          </span>
+          <span>
             <kbd>{glyphs("⌘Z")}</kbd>/<kbd>{glyphs("⇧⌘Z")}</kbd>{tr("取り消し・やり直し")}
           </span>
           <InfoTip
