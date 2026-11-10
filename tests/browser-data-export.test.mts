@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import vm from "node:vm";
 import { generateExportProject, exportLimitations } from "../lib/export-formats";
-import { makeBox } from "../lib/presets";
+import { listRuntimeDom } from "./helpers/list-runtime-dom";
+import { makeBox, makeText } from "../lib/presets";
 import type { ScriptStep, SiteDoc } from "../lib/types";
 
 function fixture(steps: ScriptStep[]): SiteDoc {
@@ -92,6 +93,41 @@ test("native HTML fetches JSON and composes list loops, length, and join", async
   assert.ok(rows && rows.kind === "fetch");
   assert.equal(values[rows.as!][1].name, "B");
   assert.deepEqual(warnings, []);
+});
+
+test("published HTML keeps dictionary list filters and sorting when a script updates a row", async () => {
+  const doc = fixture([
+    { id: "fetch", kind: "fetch", url: "/items.json", as: "rows" },
+    { id: "filter", kind: "list-display", mode: "filter", array: "rows", field: "rank", op: "gte", value: "2", dir: "asc" },
+    { id: "sort", kind: "list-display", mode: "sort", array: "rows", field: "rank", dir: "desc", op: "eq", value: "" },
+  ]);
+  doc.nodes.list.list!.limit = 2;
+  for (const [id, rank] of [["refresh", 8], ["change", 0]] as const) {
+    doc.nodes[id] = { ...makeText(id), id, attrId: id, semantic: "button", scripts: [
+      { id: id + "-click", trigger: "click", pos: { x: 0, y: 0 }, steps: [
+        { id: id + "-set", kind: "set-list-item", list: "rows", key: "8", value: JSON.stringify({ rank }) },
+      ] },
+    ] };
+    doc.pages.main.children.push(id);
+  }
+  const { files } = generateExportProject(doc, "html");
+  const html = files["index.html"];
+  const plan = /<script type="application\/json" data-page-plan>([\s\S]*?)<\/script>/.exec(html)![1];
+  const window: Record<string, any> = {};
+  const source = { "1": { rank: 1 }, "3": { rank: 3 }, "5": { rank: 5 }, "8": { rank: 8 } };
+  vm.runInNewContext(files["data-loader.js"], {
+    window, location: { search: "" }, URLSearchParams, TextDecoder, TextEncoder,
+    document: { querySelector: () => ({ textContent: plan }) },
+    fetch: async () => Response.json(source),
+  });
+  const dom = listRuntimeDom(html, files["scripts.js"], { window });
+  await dom.dispose;
+  const ranks = () => dom.active("[data-item]").map(row => JSON.parse(row.getAttribute("data-item")!).rank);
+  assert.deepEqual(ranks(), [8, 5]);
+  await dom.click("refresh");
+  assert.deepEqual(ranks(), [8, 5]);
+  await dom.click("change");
+  assert.deepEqual(ranks(), [5, 3]);
 });
 
 test("native HTML decodes streamed multibyte JSON across chunk boundaries", async () => {

@@ -104,9 +104,12 @@ test("gte/lte list-display filters yield identical browser and SSR results", asy
   runInNewContext(PAGE_DATA_RUNTIME, sandbox, { timeout: 5000 });
   const browser = await sandbox.window.__pageDataReady;
   const uri = "data:text/javascript;base64," + Buffer.from(nativeDataModule()).toString("base64");
-  const { loadPageData } = await import(uri);
+  const { loadPageData, listItemsWithOps } = await import(uri);
   const server = await loadPageData(plan, "", response);
-  for (const result of [browser, server]) {
-    assert.deepEqual(JSON.parse(JSON.stringify(result.items)), [rows[1], rows[3]]);
+  assert.deepEqual(JSON.parse(JSON.stringify(browser.items)), rows);
+  assert.deepEqual(JSON.parse(JSON.stringify(server.items)), rows);
+  for (const shown of [sandbox.window.__pageListRows(browser.items, "items", browser),
+    listItemsWithOps(plan.listOps, server, "items", 0)]) {
+    assert.deepEqual(JSON.parse(JSON.stringify(shown)), [rows[1], rows[3]]);
   }
 });

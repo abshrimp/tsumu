@@ -115,8 +115,8 @@ function node(ctx: Context, id: string, top = false): string {
       if (!comp) return "";
       ctx.imports.add(comp);
       const scope = ctx.rows.length ? "scopeOf(scope, " + ctx.rows.join(", ") + ")" : "scope";
-      const body = ctx.vue ? "<" + comp + ' :scope="' + esc(scope) + '" />'
-        : "<" + comp + " scope={" + scope + "} />";
+      const body = ctx.vue ? "<" + comp + ' :scope="' + esc(scope) + '" :list-ops="listOps" />'
+        : "<" + comp + " scope={" + scope + "} {listOps} />";
       return '<div style="display:contents"' + common(ctx, n, [ctx.classes.get(id) || "el", importedClass(n.htmlClass)].filter(Boolean).join(" ")) +
         (n.hiddenOn?.length ? literal("data-instance-hidden", ctx.classes.get(id) || "el") : "") +
         ">" + body + "</div>";
@@ -220,7 +220,7 @@ function node(ctx: Context, id: string, top = false): string {
       const row = "row" + ctx.level;
       const index = "index" + ctx.level;
       const from = n.list.from || "";
-      const listExpr = "listItems(scope, " + q(from) + ", " + (n.list.limit || 0) +
+      const listExpr = "listItemsWithOps(listOps, scope, " + q(from) + ", " + (n.list.limit || 0) +
         (ctx.rows.length ? ", " + ctx.rows.join(", ") : "") + ")";
       const prior = ctx.rows, level = ctx.level;
       ctx.rows = [...ctx.rows, row];
@@ -311,14 +311,21 @@ export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage): NativeF
     const ext = ctx.vue ? ".vue" : ".svelte";
     const dependencyImports = [...ctx.imports].filter((name) => name !== id).map((name) =>
       'import ' + name + ' from "../components/' + name + ext + '";');
-    const helper = 'import { resolveText, resolveUrl, resolveResourceUrl, scopeOf, listItems, selectedOption, setField } from "../site-data.js";';
+    const helper = 'import { resolveText, resolveUrl, resolveResourceUrl, scopeOf, listItemsWithOps, selectedOption, setField } from "../site-data.js";';
     const constants = ctx.code;
+    if (page) {
+      const operations = Object.fromEntries(pagePlan(normalized, page.id).listOps);
+      constants.push("const listOps = JSON.parse(" + q(JSON.stringify(operations)) + ");");
+    }
+    const props = page ? "scope: Record<string, unknown>" : "scope: Record<string, unknown>; listOps?: Record<string, unknown>";
+    const propNames = page ? "scope" : "scope, listOps";
+
     if (ctx.vue) return [
       '<script setup' + (lang === "typescript" ? ' lang="ts"' : "") + '>',
       helper, ...dependencyImports,
       lang === "typescript" ?
-        'defineProps<{ scope: Record<string, unknown> }>();' :
-        "defineProps({ scope: { type: Object, required: true } });",
+        "defineProps<{ " + props + " }>();" :
+        "defineProps({ scope: { type: Object, required: true }" + (page ? "" : ", listOps: Object") + " });",
       ...constants,
       "</script>",
       "<template>", tree, "</template>", "",
@@ -327,8 +334,8 @@ export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage): NativeF
       '<script' + (lang === "typescript" ? ' lang="ts"' : "") + '>',
       helper, ...dependencyImports,
       lang === "typescript" ?
-        "let { scope }: { scope: Record<string, unknown> } = $props();" :
-        "let { scope } = $props();",
+        "let { " + propNames + " }: { " + props + " } = $props();" :
+        "let { " + propNames + " } = $props();",
       ...constants, "</script>",
       tree, "",
     ].join("\n");

@@ -337,7 +337,7 @@ export const SCRIPT_RUNTIME = `function (env) {
   }
   /*/store*/
   return {
-    install: function (root, initialVars) {
+    install: function (root, initialVars, pageListRows) {
       var alive = true;
       var pageGeneration = 0;
       var pageBody = null;
@@ -1005,7 +1005,8 @@ export const SCRIPT_RUNTIME = `function (env) {
           /*/filter*/
           return;
         }
-        var items = value && typeof value === "object" ? Object.values(value).map(toListItem) : [];
+        var items = pageListRows ? pageListRows(value, name, scope) :
+          value && typeof value === "object" ? Object.values(value).map(toListItem) : [];
         /*#filter*/
         // 配信前の操作は項目ごとに解決し、画面上の一時的な操作と分けて適用する。
         var ops = listJson(list, "data-list-ops", []);
@@ -2024,7 +2025,7 @@ export function scriptsFile(doc: SiteDoc, clientData = false): string {
   };
   const env = Object.keys(envObj).length ? codeLiteral(envObj) : "";
   const start = clientData
-    ? `Promise.resolve(window.__pageDataReady).then(function (vars) { (${runtime})(${env}).install(document, vars); });`
+    ? `Promise.resolve(window.__pageDataReady).then(function (vars) { (${runtime})(${env}).install(document, vars, window.__pageListRows); });`
     : `(${runtime})(${env}).install(document);`;
   return compactJs(start) + "\n";
 }
