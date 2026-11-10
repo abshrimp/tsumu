@@ -950,13 +950,17 @@ export const config = {
 `;
 }
 
-/** Match data URL fetching: percent escapes encode bytes, not UTF-8 text.
- * Decode before Base64 processing, and exclude the URL fragment from the file.
+/** data URL の取得と同じく、パーセントエスケープを UTF-8 文字列ではなくバイトとして読む。
+ * Base64 を処理する前にデコードし、URL のフラグメントをファイルから除く。
  */
 function dataUrlBase64(source: string): string | undefined {
-  const url = new URL(source);
+  let url: URL;
+  try { url = new URL(source); }
+  catch { return undefined; }
   if (url.protocol !== "data:") return undefined;
-  const data = url.pathname + url.search;
+  // 空のクエリの「?」や authority も、シリアライズした URL の本文として残す。
+  url.hash = "";
+  const data = url.href.slice("data:".length);
   const comma = data.indexOf(",");
   if (comma < 0) return undefined;
   const input = new TextEncoder().encode(data.slice(comma + 1));
