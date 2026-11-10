@@ -86,7 +86,7 @@ export async function POST(req: Request) {
 
   try {
     await store.put(path, await file.arrayBuffer(), {
-      metadata: { contentType: file.type },
+      metadata: { contentType: file.type, bytes: file.size },
     });
     return NextResponse.json({ ok: true, name: safeName, path });
   } catch (e) {
