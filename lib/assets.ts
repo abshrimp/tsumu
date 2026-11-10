@@ -171,15 +171,25 @@ export async function detectSvgFilters(
 /** アセットを同時に取得する数（多すぎるとサーバーが 503・接続エラーを返す） */
 export const ASSET_FETCH_CONCURRENCY = 6;
 
-/** items を最大 limit 件ずつ並行して処理する（どれかが失敗したらその例外を投げる） */
+/** items を最大 limit 件ずつ並行して処理する。失敗後は追加せず、最初の例外をすぐに返す。 */
 export async function mapLimit<T>(
   items: T[],
   limit: number,
   fn: (item: T) => Promise<void>
 ): Promise<void> {
   let next = 0;
+  let failed = false;
+  let failure: unknown;
   const worker = async () => {
-    while (next < items.length) await fn(items[next++]);
+    try {
+      while (!failed && next < items.length) await fn(items[next++]);
+    } catch (error) {
+      if (!failed) {
+        failed = true;
+        failure = error;
+      }
+      throw failure;
+    }
   };
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
@@ -215,23 +225,42 @@ export async function readAssetBytes(response: Response, limit: number, message 
   return bytes;
 }
 
+function retryDelay(milliseconds: number, signal?: AbortSignal | null): Promise<void> {
+  signal?.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const onAbort = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
+      reject(signal!.reason);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, milliseconds);
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) onAbort();
+  });
+}
+
 /**
  * 一時的な失敗（接続エラー・429・5xx）は少し待って取り直す。
  * 404 などはそのまま返す（呼び出し側で扱う）
  */
 export async function fetchWithRetry(url: string, tries = 3, init?: RequestInit): Promise<Response> {
   for (let i = 1; ; i++) {
+    init?.signal?.throwIfAborted();
     try {
       const res = await fetch(url, init);
       if ((res.status === 429 || res.status >= 500) && i < tries) {
         void res.body?.cancel().catch(() => {});
-        await new Promise((r) => setTimeout(r, 500 * i));
+        await retryDelay(500 * i, init?.signal);
         continue;
       }
       return res;
     } catch (e) {
+      init?.signal?.throwIfAborted();
       if (i >= tries) throw e;
-      await new Promise((r) => setTimeout(r, 500 * i));
+      await retryDelay(500 * i, init?.signal);
     }
   }
 }
