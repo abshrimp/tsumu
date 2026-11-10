@@ -1621,7 +1621,7 @@ export function FillControl({
         />
         <input
           id={`${colorFieldId}-hex`}
-          aria-label={tr("色コード")}
+          aria-label="HEX"
           key={value ?? "_"}
           defaultValue={isSet ? hex.slice(1) : ""}
           placeholder={tr("未設定")}
