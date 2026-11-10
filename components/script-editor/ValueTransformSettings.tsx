@@ -178,6 +178,8 @@ function FieldKeyPicker({ value, onChange, options, samples, excludedVariableNam
           setOpen(true);
         }}
         onKeyDown={(event) => {
+          // IME変換中は候補の確定・移動・終了を入力メソッドに任せる。
+          if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
           if (event.key === "Escape" && open) {
             event.preventDefault();
             event.stopPropagation();
