@@ -146,7 +146,7 @@ test("React export preserves query-variant routing", () => {
   doc.pages.tab = { ...doc.pages.home, id: "tab", name: "Tab", title: "Tab", query: "tab=2" };
   doc.pageOrder.push("tab");
   const result = generateExportProject(doc, "react");
-  assert.match(result.files["src/App.tsx"], /"tab":"2"/);
+  assert.match(result.files["src/App.tsx"], /Object\.fromEntries\(\[\["tab","2"\]\]\)/);
   assert.match(result.files["src/App.tsx"], /matches\.sort/);
   assert.ok(result.files["src/pages/Page1.tsx"]);
 });

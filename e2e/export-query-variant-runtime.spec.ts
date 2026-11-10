@@ -16,7 +16,7 @@ test("generated HTML query variants execute authored scripts and initialize page
       default: { id: "default", slug: "", name: "Default", title: "Default",
         description: "", children: ["defaultText"] },
       selected: {
-        id: "selected", slug: "", query: "tab=2", name: "Selected", title: "Selected",
+        id: "selected", slug: "", query: "tab=2&tab=ignored", name: "Selected", title: "Selected",
         description: "", children: ["selectedText"],
         customTopHtml: '<script src="https://assets.export.test/first.js"></script>' +
           '<script>window.__authorOrder = window.__externalReady ? "correct" : "early";</script>',
@@ -57,7 +57,7 @@ test("generated HTML query variants execute authored scripts and initialize page
         ? "application/javascript" : path.endsWith(".css") ? "text/css" : "text/html",
         body: source });
   });
-  await page.goto("http://static.export.test/?tab=2", { waitUntil: "domcontentloaded" });
+  await page.goto("http://static.export.test/?tab=2&tab=ignored", { waitUntil: "domcontentloaded" });
   await expect(page.getByRole("heading", { name: "State: ready" })).toBeVisible();
   const results = await page.evaluate(async () => ({
     order: (window as any).__authorOrder,

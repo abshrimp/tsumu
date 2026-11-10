@@ -10,6 +10,7 @@ import { imageRefSrc } from "./render-helpers";
 import { pwaIconType } from "./templates";
 import { REACT_SEARCH_FORM } from "./react-form";
 import { routeDir } from "./page";
+import { pageQueryConditions } from "../page-query";
 
 const esc = (value: string) =>
   value.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]!);
@@ -96,9 +97,9 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
       files["src/pages/Page" + i + ".tsx"] = reactSource(generated);
     }
     imports.push('import Page' + i + ' from "./pages/Page' + i + '";');
-    const query = Object.fromEntries(new URLSearchParams(page.query ?? ""));
+    const query = pageQueryConditions(page.query);
     entries.push("  { path: " + JSON.stringify(slug ? "/" + slug : "/") +
-      ", query: " + JSON.stringify(query) +
+      ", query: Object.fromEntries(" + JSON.stringify(query) + ")" +
       ", title: " + JSON.stringify(page.title || page.name) +
       ", description: " + JSON.stringify(page.description) +
       ", lang: " + JSON.stringify(page.lang || doc.lang || "ja") +
