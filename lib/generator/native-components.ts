@@ -12,7 +12,7 @@ import { pageQueryConditions } from "../page-query";
 import { compileScripts, hasRunnableScripts, scriptTargetIds } from "../script";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
 import { safeNavigationUrl, safeResourceUrl } from "../url-policy";
-import { pageDataPlan, pageDataServerIds } from "./browser-data";
+import { serializePageDataPlan } from "./browser-data";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
 import { cssValue } from "./css";
 
@@ -271,7 +271,7 @@ function node(ctx: Context, id: string, top = false): string {
 
 export interface NativeFiles {
   pages: { id: string; name: string; title: string; description: string; slug: string;
-    query: Record<string, string>; language: string; plan: ReturnType<typeof pageDataPlan> }[];
+    query: Record<string, string>; language: string; plan: ReturnType<typeof serializePageDataPlan> }[];
   vuePages: Record<string, string>;
   vueComponents: Record<string, string>;
   sveltePages: Record<string, string>;
@@ -301,11 +301,15 @@ export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage): NativeF
     doc: normalized, vue, classes, assets, components, toggles,
     imports: new Set(), code: [], seen: new Set(), inForm: false, rows: [], level: 0,
   });
-  const build = (ids: string[], mode: NativeView, page?: Page, id?: string) => {
+  type PageRenderPlan = Pick<Page, "id" | "pageScripts"> & {
+    serverIds: Set<string>;
+    listOps: ReturnType<typeof serializePageDataPlan>["listOps"];
+  };
+  const build = (ids: string[], mode: NativeView, page?: PageRenderPlan, id?: string) => {
     const ctx = makeCtx(mode === "vue");
     let tree = ids.map((nid) => node(ctx, nid, true)).join("\n");
     if (page) {
-      const script = compiled(ctx, { scripts: page.pageScripts }, pageDataServerIds(normalized, page));
+      const script = compiled(ctx, { scripts: page.pageScripts }, page.serverIds);
       tree = "<span hidden" + literal("data-page-body", page.id) + script + "></span>\n" + tree;
     }
     const ext = ctx.vue ? ".vue" : ".svelte";
@@ -314,8 +318,7 @@ export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage): NativeF
     const helper = 'import { resolveText, resolveUrl, resolveResourceUrl, scopeOf, listItemsWithOps, selectedOption, setField } from "../site-data.js";';
     const constants = ctx.code;
     if (page) {
-      const operations = Object.fromEntries(pagePlan(normalized, page.id).listOps);
-      constants.push("const listOps = JSON.parse(" + q(JSON.stringify(operations)) + ");");
+      constants.push("const listOps = JSON.parse(" + q(JSON.stringify(page.listOps)) + ");");
     }
     const props = page ? "scope: Record<string, unknown>" : "scope: Record<string, unknown>; listOps?: Record<string, unknown>";
     const propNames = page ? "scope" : "scope, listOps";
@@ -350,12 +353,15 @@ export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage): NativeF
     .filter((p) => p && !p.unpublished && !p.rawHtml?.trim() && p.slug !== "404")
     .map((page, index) => {
       const name = "Page" + index;
-      vuePages[name] = build(page.children, "vue", page);
-      sveltePages[name] = build(page.children, "sveltekit", page);
+      const model = pagePlan(normalized, page.id);
+      const plan = serializePageDataPlan(model);
+      const view = { id: page.id, pageScripts: page.pageScripts, serverIds: model.serverIds, listOps: plan.listOps };
+      vuePages[name] = build(page.children, "vue", view);
+      sveltePages[name] = build(page.children, "sveltekit", view);
       return { id: page.id, name, title: page.title || page.name,
         description: page.description, slug: page.slug,
         query: Object.fromEntries(pageQueryConditions(page.query)),
-        language: page.lang || normalized.lang || "ja", plan: pageDataPlan(normalized, page) };
+        language: page.lang || normalized.lang || "ja", plan };
     });
   return { pages, vuePages, vueComponents, sveltePages, svelteComponents };
 }

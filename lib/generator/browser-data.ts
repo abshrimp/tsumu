@@ -1,12 +1,15 @@
 import type { SiteDoc, Page } from "../types";
-import { pagePlan, toListItem } from "../data";
+import { pagePlan, toListItem, type PagePlan } from "../data";
 import { evaluateValueRecipe } from "../script-model/recipe-runtime";
 import { PAGE_STEP_RUNNER_SOURCE } from "../page-load-steps";
 import { matchesValueCondition, parseValueLiteral, setVarPath, withinScriptValueLimit } from "../value-semantics";
 
 /** Emit the page data plan from the shared script execution model. */
 export function pageDataPlan(doc: SiteDoc, page: Page) {
-  const plan = pagePlan(doc, page.id);
+  return serializePageDataPlan(pagePlan(doc, page.id));
+}
+
+export function serializePageDataPlan(plan: PagePlan) {
   return {
     steps: plan.steps.map((step) => {
       if (step.kind !== "fetch") return step;
