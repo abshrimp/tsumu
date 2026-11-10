@@ -5,8 +5,10 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "tsumu",
 	"main": "custom-worker.ts",
-	// 03:00 Japan Standard Time (18:00 UTC); deletion is opt-in (ASSET_GC_ENABLED=true).
-	"triggers": { "crons": ["0 18 * * *"] },
+	// 03:00 JST daily: expired D1 candidates only. Monday 04:00 JST:
+	// reconcile one KV page to find upload/site-delete orphans (no daily full scan).
+	// Physical deletion is opt-in (ASSET_GC_ENABLED=true).
+	"triggers": { "crons": ["0 18 * * *", "0 19 * * 0"] },
 	"compatibility_date": "2026-10-19",
 	"compatibility_flags": [
 		"nodejs_compat"
