@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { runInNewContext } from "node:vm";
 import { createHash } from "node:crypto";
 import { generateProject } from "../lib/generator";
+import { prepareExportProject, type ExportFormat } from "../lib/export-formats";
 import { addPwaRetirementWorker } from "../lib/publish-pwa";
 import { parseGeneratedManifest, planPublish, serializeGeneratedManifest } from "../lib/publish-files";
 import type { SiteDoc } from "../lib/types";
@@ -117,3 +118,60 @@ for (const cacheResult of ["present", "absent", "failure"] as const) {
     assert.deepEqual([...storage], ["customer-cache", "site-pwa-unrelated", ...(cacheResult === "failure" ? ["site-pwa-v2"] : [])]);
   });
 }
+
+
+const workerPaths: Record<ExportFormat, string> = {
+  nextjs: "public/sw.js", react: "public/sw.js", vue: "public/sw.js", nuxt: "public/sw.js",
+  sveltekit: "static/sw.js", html: "sw.js", "single-html": "sw.js",
+};
+
+// 実際の書き出し結果を使い、変換元・変換先ごとの配信場所と所有情報を確かめる。
+for (const previous of Object.keys(workerPaths).filter(format => format !== "single-html") as ExportFormat[]) {
+  test(`${previous} PWA retirement uses the destination's served worker path across export formats`, async () => {
+    const source = await prepareExportProject({ ...doc, pwa: { enabled: true } }, previous);
+    const generated = manifest(source.files);
+    assert.ok(Object.hasOwn(generated, workerPaths[previous]));
+    for (const format of Object.keys(workerPaths) as ExportFormat[]) {
+      const target = { ...doc, pwa: { enabled: false } };
+      const output = await prepareExportProject(target, format);
+      const paths = Object.keys(output.files);
+      const expected = workerPaths[format];
+      addPwaRetirementWorker(target, generated, output.files, paths, format);
+      assert.match(output.files[expected] ?? "", /registration\.unregister\(\)/, format);
+      assert.deepEqual(paths.filter(path => /^(?:public\/|static\/)?sw\.js$/.test(path)), [expected]);
+      const next = parseGeneratedManifest(serializeGeneratedManifest(manifest(output.files)))!;
+      const repeated = await prepareExportProject(target, format);
+      addPwaRetirementWorker(target, next, repeated.files, Object.keys(repeated.files), format);
+      assert.equal(repeated.files[expected], output.files[expected], "keep retiring late visitors after repeated publishes");
+    }
+  });
+}
+
+test("single HTML retires an installed PWA even while the document's PWA setting stays enabled", async () => {
+  const target = { ...doc, pwa: { enabled: true } };
+  const output = await prepareExportProject(target, "single-html");
+  assert.deepEqual(Object.keys(output.files), ["index.html"]);
+  assert.doesNotMatch(output.files["index.html"], /serviceWorker\.register/);
+  const paths = Object.keys(output.files);
+  addPwaRetirementWorker(target, owned, output.files, paths, "single-html");
+  assert.match(output.files["sw.js"] ?? "", /registration\.unregister\(\)/);
+  assert.equal(output.files["public/sw.js"], undefined);
+  assert.deepEqual(paths, ["index.html", "sw.js"]);
+});
+
+test("SvelteKit path names do not establish ownership or replace a newly enabled worker", async () => {
+  for (const generated of [null, {}, Object.create({ "static/sw.js": "inherited" })]) {
+    const files: Record<string, string> = {};
+    const paths: string[] = [];
+    addPwaRetirementWorker(doc, generated, files, paths, "sveltekit");
+    assert.deepEqual(files, {});
+    assert.deepEqual(paths, []);
+  }
+  for (const format of Object.keys(workerPaths).filter(format => format !== "single-html") as ExportFormat[]) {
+    const target = { ...doc, pwa: { enabled: true } };
+    const output = await prepareExportProject(target, format);
+    const before = { ...output.files };
+    addPwaRetirementWorker(target, { "static/sw.js": "retired" }, output.files, Object.keys(output.files), format);
+    assert.deepEqual(output.files, before, format);
+  }
+});
