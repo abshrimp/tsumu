@@ -28,11 +28,12 @@ export async function POST(req: Request) {
   if (origin && origin !== new URL(req.url).origin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
+  const denied = await requireAuth();
+  if (denied) return denied;
+  // Anonymous mode can pass requireAuth(), but never authorizes GC inventory.
   if (!authConfigured()) {
     return NextResponse.json({ error: "Administrator authentication required" }, { status: 403 });
   }
-  const denied = await requireAuth();
-  if (denied) return denied;
   const user = await sessionUser();
   const admins = new Set((envVar("ASSET_GC_ADMIN_EMAILS") ?? "")
     .split(",").map(email => email.trim().toLowerCase()).filter(Boolean));
