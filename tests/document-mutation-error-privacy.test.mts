@@ -27,7 +27,7 @@ const docCode = routeCode("doc");
 const sitesCode = routeCode("sites");
 type Method = "PUT" | "PATCH";
 type Handler = (req: Request) => Promise<Response>;
-type Stage = "database" | "site" | "save" | "activity" | "read" | "insert" | "room";
+type Stage = "database" | "site" | "save" | "activity" | "read" | "insert";
 const doc = createInitialDoc();
 const patch: DocPatch = [{ path: ["siteName"], value: "Edited" }];
 const snapshot: SiteSnapshot = { rev: "1", savedAt: 123, body: JSON.stringify(doc) };
@@ -79,7 +79,6 @@ function fixture(options: {
     },
     sessionUser: async () => null,
     recordActivity: async () => { step("activity"); },
-    getSiteRoomKey: async () => { step("room"); return "synthetic-private-room-key"; },
     notifyDocUpdated: () => { calls.push("notify"); },
     newSiteId: () => "new-site",
     insertSite: async () => { step("insert"); },
@@ -87,6 +86,12 @@ function fixture(options: {
     eraseSiteDocument: async () => { calls.push("erase"); },
     cleanupAbandonedDocuments: async () => { calls.push("cleanup"); },
   };
+  for (const method of ["saveSiteDocument", "patchSiteDocument"]) {
+    injected[method + "WithTarget"] = async (...args: unknown[]) => ({
+      result: await (injected[method] as (...args: unknown[]) => unknown)(...args),
+      roomKey: "synthetic-private-room-key",
+    });
+  }
   const load = (code: string) => {
     const module = { exports: {} as Record<string, Handler> };
     new Function("require", "module", "exports", code)(
@@ -128,7 +133,7 @@ const errorCases: Array<[string, unknown]> = [
   ["null", null],
 ];
 for (const method of ["PUT", "PATCH"] as const) {
-  for (const stage of ["database", "site", "save", "activity", "room"] as const) {
+  for (const stage of ["database", "site", "save", "activity"] as const) {
     for (const [label, error] of errorCases) {
       test(`${method} ${stage} failure redacts ${label}`, async t => {
         const logs = captureErrors(t);

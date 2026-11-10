@@ -28,7 +28,7 @@ export const original = createInitialDoc(); original.siteName = "Synthetic origi
 export const replacement = createInitialDoc(); replacement.siteName = "Synthetic replacement content";
 export const edit = { ...original, siteName: "Synthetic edited content" };
 
-function load(path: string, injected: Record<string, unknown>) {
+export function load(path: string, injected: Record<string, unknown>) {
   const url = new URL(path, import.meta.url);
   const require = createRequire(url);
   const code = transformSync(readFileSync(url, "utf8"), { loader: "ts", format: "cjs", target: "es2022" }).code;
@@ -55,7 +55,7 @@ function sqliteStorage(t: TestContext) {
   return new StructuredDocumentStore(storage);
 }
 export async function setup(t: TestContext) {
-  t.mock.method(console, "error", () => {});
+  const logger = t.mock.method(console, "error", () => {});
   const sqlite = new DatabaseSync(":memory:"); t.after(() => sqlite.close());
   type Bound = { sql: string; args: Array<string | number | null> };
   const run = ({ sql, args }: Bound) => {
@@ -89,6 +89,7 @@ export async function setup(t: TestContext) {
     beforeRoomWrite?: (key: string) => Promise<void>;
     afterRoomWrite?: (key: string) => Promise<void>;
     beforeErase?: (key: string) => Promise<void>;
+    beforeNotify?: () => void;
   } = {};
   const services = load("../../lib/site-document-service.ts", {
     "@opennextjs/cloudflare": { getCloudflareContext: () => ({ env: { DB: binding, DOC_STORE: {
@@ -126,7 +127,7 @@ export async function setup(t: TestContext) {
     getDb: async () => db, dbConfigured: () => true, requireAuth: async () => null, sessionUser: async () => null,
     serverTr: async () => (value: string) => value,
     siteIdOf: async (value: unknown) => sites.isSiteId(value) ? value : NextResponse.json({}, { status: 400 }),
-    notifyDocUpdated: (id: string, message: unknown, roomKey: unknown) => { notifications.push({ id, message, roomKey }); },
+    notifyDocUpdated: (id: string, message: unknown, roomKey: unknown) => { hooks.beforeNotify?.(); notifications.push({ id, message, roomKey }); },
   };
   const route = (name: string) => {
     const source = readFileSync(new URL(`../../app/api/${name}/route.ts`, import.meta.url), "utf8");
@@ -151,5 +152,5 @@ export async function setup(t: TestContext) {
     if (doc) assert.equal((await services.saveSiteDocument(rawDb, id, JSON.stringify(doc), null)).kind, "saved");
     return key;
   };
-  return { rawDb, db, hooks, room, rooms, services, notifications, create, replace, doc: route("doc"), sites: route("sites") };
+  return { rawDb, db, hooks, room, rooms, services, notifications, logs: () => logger.mock.calls.map(call => call.arguments), create, replace, doc: route("doc"), sites: route("sites") };
 }

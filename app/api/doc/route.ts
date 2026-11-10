@@ -14,10 +14,10 @@ import {
 import {
   readSiteDocument,
   readSiteDocumentMeta,
-  saveSiteDocument,
-  patchSiteDocument,
+  saveSiteDocumentWithTarget,
+  patchSiteDocumentWithTarget,
 } from "../../../lib/site-document-service";
-import { getSite, getSiteRoomKey } from "../../../lib/sites";
+import { getSite } from "../../../lib/sites";
 import { userMessage } from "../../../lib/errors";
 import { isDocPatch } from "../../../lib/doc-patch";
 import type { SiteDoc } from "../../../lib/types";
@@ -139,9 +139,9 @@ async function save(req: Request, partial: boolean) {
     if (!(await getSite(db, siteId))) {
       return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
     }
-    const result = partial && isDocPatch(patch)
-      ? await patchSiteDocument(db, siteId, patch, base!)
-      : await saveSiteDocument(db, siteId, raw, base);
+    const { result, roomKey } = partial && isDocPatch(patch)
+      ? await patchSiteDocumentWithTarget(db, siteId, patch, base!)
+      : await saveSiteDocumentWithTarget(db, siteId, raw, base);
     if (result.kind === "missing") {
       return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
     }
@@ -159,11 +159,15 @@ async function save(req: Request, partial: boolean) {
       savedAt: result.savedAt,
       senderId,
     };
-    const roomKey = db.backend === "d1" ? await getSiteRoomKey(db, siteId) : null;
-    if (db.backend !== "d1" || roomKey) {
-      notifyDocUpdated(siteId, partial && isDocPatch(patch)
-        ? { ...metadata, type: "doc-patched", base: base!, patch }
-        : { ...metadata, type: "doc-updated", doc: input as SiteDoc }, roomKey ?? undefined);
+    // 保存した世代だけに通知し、通知の失敗で確定済みの保存を失敗扱いにしない。
+    try {
+      if (db.backend !== "d1" || roomKey) {
+        notifyDocUpdated(siteId, partial && isDocPatch(patch)
+          ? { ...metadata, type: "doc-patched", base: base!, patch }
+          : { ...metadata, type: "doc-updated", doc: input as SiteDoc }, roomKey ?? undefined);
+      }
+    } catch {
+      console.error("[api/doc] document notification failed");
     }
     return NextResponse.json({
       ok: true,

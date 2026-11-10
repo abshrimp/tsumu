@@ -39,13 +39,13 @@ function fixture() {
     getSiteRoomKey: async () => null,
     readSiteDocument: async () => snapshot,
     readSiteDocumentMeta: async () => snapshot && { rev: snapshot.rev, savedAt: snapshot.savedAt },
-    saveSiteDocument: async () => {
+    saveSiteDocumentWithTarget: async () => {
       writes++;
-      return conflict ? { kind: "conflict", current: snapshot } : { kind: "saved", rev: "5", savedAt: 124 };
+      return { result: conflict ? { kind: "conflict", current: snapshot } : { kind: "saved", rev: "5", savedAt: 124 }, roomKey: null };
     },
-    patchSiteDocument: async () => {
+    patchSiteDocumentWithTarget: async () => {
       writes++;
-      return conflict ? { kind: "conflict", current: snapshot } : { kind: "saved", rev: "5", savedAt: 124 };
+      return { result: conflict ? { kind: "conflict", current: snapshot } : { kind: "saved", rev: "5", savedAt: 124 }, roomKey: null };
     },
     validateDocValue: () => null,
     isDocPatch: (value: unknown) => Array.isArray(value),
