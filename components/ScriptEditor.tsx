@@ -562,6 +562,7 @@ function ScriptEditorInner({
     // つかんだ位置は倍率 1 の大きさで持つ（ワークスペースの中は表示倍率がかかっている）
     const z = wsRef.current?.contains(e.currentTarget as Node) ? zoomRef.current : 1;
     const sourceStack = (e.currentTarget as HTMLElement).closest(".se-stack");
+    const sourceStackWidth = sourceStack ? sourceStack.getBoundingClientRect().width / z : undefined;
     let scriptWidths: Record<string, number> | undefined;
     if (key?.startsWith("script:") && selectedRef.current.has(key)) {
       const ids = new Set([...selectedRef.current]
@@ -587,8 +588,8 @@ function ScriptEditorInner({
       ox: (e.clientX - r.left) / z,
       oy: (e.clientY - r.top) / z,
       h: r.height / z,
-      w: r.width / z,
-      sourceStackWidth: sourceStack ? sourceStack.getBoundingClientRect().width / z : undefined,
+      w: key?.startsWith("script:") ? (sourceStackWidth ?? r.width / z) : r.width / z,
+      sourceStackWidth,
       scriptWidths,
       clickKey: key && selectedRef.current.has(key) && selectedRef.current.size > 1 ? key : undefined,
     };
