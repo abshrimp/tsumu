@@ -6,6 +6,7 @@ import { defineConfig, devices } from "@playwright/test";
  *   npm run build && npm run test:e2e
  */
 const PORT = Number(process.env.E2E_PORT ?? 3210);
+const viewport = { width: 1440, height: 900 };
 
 export default defineConfig({
   testDir: "e2e",
@@ -18,10 +19,16 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     locale: "ja-JP",
-    viewport: { width: 1440, height: 900 },
+    viewport,
     trace: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } } }],
+  // Keep the full Chromium suite; run the same core UI smoke cases on the other
+  // engines. CDP multitouch tests remain in the full Chromium suite.
+  projects: [
+    { name: "chromium", use: { ...devices["Desktop Chrome"], viewport } },
+    { name: "firefox", grep: /@core-editing\b/, use: { ...devices["Desktop Firefox"], viewport } },
+    { name: "webkit", grep: /@core-editing\b/, use: { ...devices["Desktop Safari"], viewport } },
+  ],
   webServer: {
     command: `rm -rf .e2e-data && npx --no-install next start -p ${PORT}`,
     url: `http://localhost:${PORT}/robots.txt`,
