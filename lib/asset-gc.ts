@@ -3,12 +3,10 @@ import type { KVLikeNamespace } from "./kv";
 import { planAssetGc, type GcCandidate } from "./asset-gc-plan";
 
 /**
- * Non-destructive Workers KV inventory. Never call KV.delete() here.
- *
- * Cloudflare documents live in DO SQLite while published doc.json snapshots
- * can be restored from GitHub at any time. There is no transaction that fences
- * new DO writes against KV deletion. Until both histories and concurrent
- * writes are protected, these candidates are telemetry, not deletion permits.
+ * A deliberately simple seven-day KV GC: unused current-site assets become
+ * candidates, then a completed KV scan and fresh full-site reference check
+ * precede bounded deletion. Restorable backups, GitHub history and stale
+ * browser drafts are outside the protection policy by product decision.
  */
 export interface AssetGcDocumentNamespace {
   idFromName(name: string): unknown;
@@ -22,18 +20,23 @@ export interface AssetGcDependencies {
   now?: number;
   graceDays?: number;
   maxDeletes?: number;
+  /** Explicit opt-in for physical deletion; the default is dry-run. */
+  dryRun?: boolean;
 }
 
 export interface AssetGcReport {
   status: "ok";
-  dryRun: true;
-  sweepSupported: false;
+  dryRun: boolean;
+  sweepSupported: true;
   kvKeysScanned: number;
   referenced: number;
   candidates: number;
   candidateBytesKnown: number;
   scanComplete: boolean;
-  /** Only a bounded, tentative preview. Not permission to delete. */
+  deleted: number;
+  deletedBytesKnown: number;
+  deletedPaths: string[];
+  /** Eligible paths, subject to a final current-site reference recheck. */
   potentialDeletePaths: string[];
   potentialDeleteBytesKnown: number;
   previewTruncated: boolean;
@@ -62,9 +65,7 @@ async function siteRoomMapping(db: Db): Promise<SiteRoom[]> {
   });
 }
 
-/** Read every current DO document and every restorable daily backup.
- * Never return a partial Set on failure or if a site's generation changed.
- */
+/** Scan every site's current saved doc. Any RPC/generation failure aborts. */
 export async function collectAllAssetReferences(
   db: Db, rooms: AssetGcDocumentNamespace,
 ): Promise<Set<string>> {
@@ -94,13 +95,15 @@ export async function collectAllAssetReferences(
 async function finishRun(db: Db, id: number, fields: {
   status: "ok" | "aborted" | "failed";
   now: number; kvKeys: number; referenced: number; candidates: number;
+  dryRun: boolean; deleted: number; deletedBytes: number;
   error?: string | null;
 }) {
   await db.execute({
     sql: `UPDATE asset_gc_runs SET finished_at=?, status=?, kv_keys=?, referenced=?,
-      candidates=?, deleted=0, deleted_bytes=0, dry_run=1, error=? WHERE id=?`,
+      candidates=?, deleted=?, deleted_bytes=?, dry_run=?, error=? WHERE id=?`,
     args: [fields.now, fields.status, fields.kvKeys, fields.referenced,
-      fields.candidates, fields.error ?? null, id],
+      fields.candidates, fields.deleted, fields.deletedBytes, fields.dryRun ? 1 : 0,
+      fields.error ?? null, id],
   });
 }
 
@@ -108,24 +111,29 @@ const PAGE_LIMIT = 500;
 const PAGES_PER_INVOCATION = 2;
 const PREVIEW_LIMIT = 2000;
 const LEASE_MS = 20 * 60 * 1000;
+// Remain within Workers Free's 50-subrequest budget with headroom for
+// D1/DO checks. ASSET_GC_MAX_DELETES is the configured policy upper bound.
+const KV_DELETES_PER_RUN = 20;
 
-/** Continues a KV inventory cursor from D1. It cannot delete any KV object. */
+/** Continue a bounded KV inventory, sweeping only when the full scan ends. */
 export async function runAssetGc({
-  db, kv, rooms, now = Date.now(), graceDays, maxDeletes,
+  db, kv, rooms, now = Date.now(), graceDays, maxDeletes, dryRun = true,
 }: AssetGcDependencies): Promise<AssetGcReport> {
   if (db.backend !== "d1" || !kv.list) throw new AssetGcAbortedError("D1 and Workers KV list binding required");
-  if (!Number.isSafeInteger(now)) throw new RangeError("Invalid clock");
-  const grace = positiveInteger(graceDays, 30, 3650, "ASSET_GC_GRACE_DAYS") * 86_400_000;
+  if (!Number.isSafeInteger(now) || typeof dryRun !== "boolean") throw new RangeError("Invalid GC settings");
+  const grace = positiveInteger(graceDays, 7, 3650, "ASSET_GC_GRACE_DAYS") * 86_400_000;
   const max = positiveInteger(maxDeletes, 500, 500, "ASSET_GC_MAX_DELETES");
   const opened = await db.execute({
-    sql: "INSERT INTO asset_gc_runs(started_at,status,dry_run) VALUES(?,'aborted',1) RETURNING id",
-    args: [now],
+    sql: "INSERT INTO asset_gc_runs(started_at,status,dry_run) VALUES(?,'aborted',?) RETURNING id",
+    args: [now, dryRun ? 1 : 0],
   });
   const id = Number(opened.rows[0]?.id);
   if (!Number.isSafeInteger(id)) throw new Error("Unable to log GC run");
   const token = crypto.randomUUID();
   let locked = false, scanned = 0, referencedCount = 0, candidateCount = 0;
-  let stage: "collect" | "list" | "summary" = "collect";
+  let deleted = 0, deletedBytesKnown = 0;
+  const deletedPaths: string[] = [];
+  let stage: "collect" | "list" | "summary" | "sweep" = "collect";
   try {
     const lock = await db.execute({
       sql: `UPDATE asset_gc_state SET lease_until=?, lease_token=?
@@ -192,8 +200,7 @@ export async function runAssetGc({
         },
       ]);
       if (scanComplete) {
-        // Remove candidates not observed in this completed scan. This is only
-        // book-keeping: KV contents are never changed.
+        // Remove candidates not observed in this completed scan.
         await db.execute({
           sql: "DELETE FROM asset_gc_candidates WHERE last_seen_at < ?",
           args: [scanStarted],
@@ -225,17 +232,59 @@ export async function runAssetGc({
       kvKeys: limited.map(row => ({ name: String(row.path), bytes: row.bytes as number | null })),
       candidates, referenced: refs, now, graceMs: grace, maxDeletes: max,
     });
+    // Never delete from an incomplete KV inventory. If this is the final
+    // page, the candidate observation age and upload timestamp must both
+    // exceed the seven-day threshold.
+    let eligible = scanComplete ? planned.eligible : [];
+    if (eligible.length && !dryRun) {
+      stage = "sweep";
+      // A fresh scan after all KV/D1 reads guards against references added
+      // while pagination or candidate selection was in progress. Any failed
+      // site read aborts before the first physical deletion.
+      const freshRefs = await collectAllAssetReferences(db, rooms);
+      referencedCount = freshRefs.size;
+      const protectedNow = eligible.filter(candidate => freshRefs.has(candidate.path));
+      if (protectedNow.length) {
+        await db.execute({
+          sql: "DELETE FROM asset_gc_candidates WHERE path IN (SELECT value FROM json_each(?))",
+          args: [JSON.stringify(protectedNow.map(candidate => candidate.path))],
+        });
+      }
+      eligible = eligible.filter(candidate => !freshRefs.has(candidate.path));
+      // Workers Free subrequest limits make a 500-delete burst unreliable.
+      // The user-configured max remains an upper bound, and the next Cron
+      // continues with the oldest remaining candidate.
+      const toDelete = eligible.slice(0, KV_DELETES_PER_RUN);
+      for (const candidate of toDelete) {
+        // An extra D1 check guards against a reset/re-registration of the
+        // candidate during an interrupted or resumed inventory.
+        const latest = await db.execute({
+          sql: "SELECT first_unreferenced_at FROM asset_gc_candidates WHERE path=?",
+          args: [candidate.path],
+        });
+        if (Number(latest.rows[0]?.first_unreferenced_at) !== candidate.firstUnreferencedAt) continue;
+        await kv.delete(candidate.path);
+        deleted++;
+        deletedBytesKnown += candidate.bytes ?? 0;
+        deletedPaths.push(candidate.path);
+        await db.execute({
+          sql: "DELETE FROM asset_gc_candidates WHERE path=? AND first_unreferenced_at=?",
+          args: [candidate.path, candidate.firstUnreferencedAt],
+        });
+      }
+    }
+    candidateCount -= deleted;
     await finishRun(db, id, {
       status: "ok", now: Date.now(), kvKeys: scanned,
       referenced: referencedCount, candidates: candidateCount,
+      dryRun, deleted, deletedBytes: deletedBytesKnown,
     });
-    // A partial scan cannot report deletion candidates as eligible.
-    const eligible = scanComplete ? planned.eligible : [];
     return {
-      status: "ok", dryRun: true, sweepSupported: false,
+      status: "ok", dryRun, sweepSupported: true,
       kvKeysScanned: scanned, referenced: referencedCount,
       candidates: candidateCount, candidateBytesKnown: Number(counts.rows[0]?.bytes ?? 0),
-      scanComplete, potentialDeletePaths: eligible.map(c => c.path),
+      scanComplete, deleted, deletedBytesKnown, deletedPaths,
+      potentialDeletePaths: eligible.map(c => c.path),
       potentialDeleteBytesKnown: eligible.reduce((sum, c) => sum + (c.bytes ?? 0), 0),
       previewTruncated: rows.rows.length > PREVIEW_LIMIT || planned.remainingEligible > 0,
     };
@@ -244,9 +293,10 @@ export async function runAssetGc({
     await finishRun(db, id, {
       status: aborted ? "aborted" : "failed", now: Date.now(),
       kvKeys: scanned, referenced: referencedCount, candidates: candidateCount,
-      error: aborted ? "Reference scan or exclusive lease unavailable" : "KV inventory or D1 update failed",
+      dryRun, deleted, deletedBytes: deletedBytesKnown,
+      error: aborted ? "Reference scan or exclusive lease unavailable" : "KV inventory, sweep or D1 update failed",
     }).catch(() => {});
-    throw new AssetGcAbortedError(aborted ? "Asset GC safely aborted" : "Asset GC inventory failed");
+    throw new AssetGcAbortedError(aborted ? "Asset GC safely aborted" : "Asset GC run failed");
   } finally {
     if (locked) await db.execute({
       sql: "UPDATE asset_gc_state SET lease_until=0,lease_token=NULL WHERE id=1 AND lease_token=?",
