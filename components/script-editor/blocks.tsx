@@ -514,10 +514,10 @@ export function StackView({ script, fixedWidth }: { script: PageScript; fixedWid
       data-script-id={script.id}
       style={
         ctx.readOnly
-          ? undefined
+          ? (fixedWidth === undefined ? undefined : { width: fixedWidth })
           : { left: script.pos.x, top: script.pos.y, zIndex: ctx.zOrder.get(script.id),
               ...(!mounted ? { width: placeholder.width, height: placeholder.height } : {}),
-              ...(fixedWidth !== undefined ? { width: fixedWidth, boxSizing: "border-box" as const } : {}) }
+              ...(fixedWidth !== undefined ? { width: fixedWidth } : {}) }
       }
     >
       {mounted && (script.trigger ? (
