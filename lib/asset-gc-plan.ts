@@ -96,7 +96,8 @@ export function extractAssetReferences(raw: string): Set<string> {
     } else if (Array.isArray(value)) {
       pending.push(...value);
     } else if (value !== null && typeof value === "object") {
-      pending.push(...Object.values(value));
+      // Paths in object keys (e.g. imported lookup maps) also retain objects.
+      pending.push(...Object.keys(value), ...Object.values(value));
     }
   }
   return paths;
