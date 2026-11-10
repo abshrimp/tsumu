@@ -177,7 +177,14 @@ export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) 
             a.retrySaveAfterEdit.current = true;
             st.setCloud("saving");
           } else if (data?.doc && baseDoc) {
-            const merged = mergeDocs(baseDoc, now.doc, data.doc);
+            // The attempted snapshot may already have committed (for example,
+            // a lost WebSocket acknowledgment followed by an HTTP 409). First
+            // reconcile that attempt, then replay edits made while it was in
+            // flight. Comparing only now.doc with baseDoc would mistake Undo
+            // back to the base for "no local change" and resurrect the edit.
+            const reconciled = mergeDocs(baseDoc, snapshot, data.doc);
+            const merged = now.doc === snapshot ? reconciled
+              : mergeDocs(snapshot, now.doc, reconciled);
             a.lastSyncedRev.current = data.rev ?? a.lastSyncedRev.current;
             a.lastSyncedDoc.current = data.doc;
             // dirty のまま適用 → 保存エフェクトが再スケジュールされる
