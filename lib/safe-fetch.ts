@@ -239,7 +239,9 @@ export async function fetchPublic(
     const res = await fetchOnce(url, { ...init, signal, headers, method, body, redirect: "manual" }, maxResponseBytes);
     const location = res.headers.get("location");
     if (![301, 302, 303, 307, 308].includes(res.status) || !location) return res;
-    await res.body?.cancel().catch(() => {});
+    // A cloned/teed body's cancellation can wait for another consumer forever.
+    // Initiate cleanup without delaying redirect validation or the request deadline.
+    void res.body?.cancel().catch(() => {});
     if (i >= maxRedirects) throw new BlockedUrlError("too many redirects");
     const next = await assertPublicUrl(new URL(location, url).toString(), signal);
     // 任意のヘッダーや本文には API キーなどが入るため、別オリジンへは転送しない。
@@ -263,7 +265,7 @@ export async function fetchPublic(
 /** 本文を上限まで読む（超えたら TooLargeError。Content-Length が無い・偽っていても上限で止める） */
 export async function readTextLimited(res: Response, maxBytes: number): Promise<string> {
   if (Number(res.headers.get("content-length")) > maxBytes) {
-    await res.body?.cancel().catch(() => {});
+    void res.body?.cancel().catch(() => {});
     throw new TooLargeError("too large");
   }
   const reader = res.body?.getReader();
@@ -272,15 +274,20 @@ export async function readTextLimited(res: Response, maxBytes: number): Promise<
   const decoder = new TextDecoder("utf-8", { fatal: true });
   let bytes = 0;
   let out = "";
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    bytes += value.byteLength;
-    if (bytes > maxBytes) {
-      await reader.cancel().catch(() => {});
-      throw new TooLargeError("too large");
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) throw new TooLargeError("too large");
+      out += decoder.decode(value, { stream: true });
     }
-    out += decoder.decode(value, { stream: true });
+    return out + decoder.decode();
+  } catch (error) {
+    // Size and decoding failures must stop the upstream without awaiting cleanup.
+    void reader.cancel(error).catch(() => {});
+    throw error;
+  } finally {
+    reader.releaseLock();
   }
-  return out + decoder.decode();
 }
