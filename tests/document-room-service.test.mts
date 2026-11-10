@@ -75,6 +75,13 @@ function fixture(options: { local?: boolean; missingBinding?: boolean } = {}) {
         queue.length = 0;
         return { rows: [], rowsAffected: 1 };
       }
+      if (sql.includes("FROM site_document_rooms r JOIN sites s")) {
+        const key = typeof statement === "string" ? null : statement.args[1];
+        return {
+          rows: key === generation ? [{ saved_at: null, updated_at: 0 }] : [],
+          rowsAffected: 0,
+        };
+      }
       throw new Error("Unexpected D1 SQL: " + sql);
     },
     async batch(stmts: Array<{ sql: string; args: unknown[] }>) {
