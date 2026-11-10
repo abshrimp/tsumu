@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./styles/side-panels.css";
 import "./styles/canvas-and-dialogs.css";
 import "./styles/accounts-and-loading.css";
+import "./styles/tooltips.css";
+import "./styles/help-and-guides.css";
+import "./styles/page-folders.css";
 import "./styles/home.css";
+import "./styles/comments.css";
+import "./styles/font-add.css";
 import "./styles/editor-dark.css";
 import { serverLang, serverTr } from "../lib/i18n-server";
 
