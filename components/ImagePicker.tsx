@@ -1,7 +1,7 @@
 "use client";
 
 import { isEnterKey } from "../lib/keys";
-import { useRef, useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, ImagePlus, Images, LoaderCircle, Music, Search, Upload, Video, X } from "lucide-react";
 import { useEditor } from "../lib/store";
 import type { Asset, ImageRef } from "../lib/types";
@@ -27,6 +27,7 @@ export default function ImagePicker({
   /** ページ・要素・画面幅など、同じ入力欄の書き込み先を識別する。 */
   editTarget?: string;
 }) {
+  const inputId = useId();
   const doc = useEditor((s) => s.doc);
   const updateDoc = useEditor((s) => s.updateDoc);
   const [open, setOpen] = useState(false);
@@ -95,6 +96,8 @@ export default function ImagePicker({
           </button>
         ) : (
           <input
+            id={`${inputId}-url`}
+            aria-label="URL"
             key={JSON.stringify([editTarget, value?.url ?? null])}
             className="input"
             defaultValue={value?.url ?? ""}
@@ -158,6 +161,8 @@ export default function ImagePicker({
                 {busy ? <LoaderCircle size={14} className="spin" /> : <Upload size={14} />}
               </button>
               <input
+                id={`${inputId}-upload`}
+                aria-label={tr("新しい画像をアップロード")}
                 ref={inputRef}
                 type="file"
                 accept="image/*"
@@ -193,6 +198,7 @@ export function AssetGrid({
   lead?: ReactNode;
   emptyText?: string;
 }) {
+  const searchId = useId();
   const doc = useEditor((s) => s.doc);
   const [query, setQuery] = useState("");
   // 静的ファイルはライブラリ上では画像と同じ分類だが、画像の選択先には渡さない。
@@ -208,6 +214,7 @@ export function AssetGrid({
         <label className="asset-search asset-pick-search">
           <Search size={13} />
           <input
+            id={searchId}
             type="search"
             autoFocus
             placeholder={tr("アセットを検索")}
