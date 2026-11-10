@@ -32,7 +32,11 @@ export function loadPublishedExportOptions(): PublishedExportOptions {
       ((options.framework === "html" || options.framework === "single-html") &&
         (options.language !== "javascript" || options.style !== "css"))
     ) return defaults();
-    return options as PublishedExportOptions;
+    return {
+      framework: options.framework as PublishedExportOptions["framework"],
+      language: options.language as PublishedExportOptions["language"],
+      style: options.style as PublishedExportOptions["style"],
+    };
   } catch {
     return defaults();
   }
