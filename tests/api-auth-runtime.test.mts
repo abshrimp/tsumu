@@ -4,6 +4,7 @@ import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { transformSync } from "esbuild";
+import { isValidEmail } from "../lib/email";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const apiDir = join(root, "app/api");
@@ -30,7 +31,7 @@ function deniedRoute(path: string, status: number) {
   const module = { exports: {} as Record<string, unknown> };
   let checks = 0;
   const shared: Record<string, unknown> = {
-    NextResponse,
+    NextResponse, isValidEmail,
     requireAuth: async () => {
       checks++;
       return NextResponse.json({ error: "Access denied" }, { status });
