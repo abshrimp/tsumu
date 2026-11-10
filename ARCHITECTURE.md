@@ -140,7 +140,7 @@ Generated server code that fetches external data embeds the editor's own SSRF pr
 
 - **Tsumu zip or `doc.json`** (`lib/site-import.ts`). A zip must contain exactly one `_tsumu/doc.json`; `_tsumu/assets.json` maps original asset IDs to files in the archive. A `doc.json` may be plain JSON or the compact gzip+Base64 envelope from `lib/portable-doc.ts`. The doc is validated, and its assets are uploaded again with their original IDs. Paths aren't guessed: an asset that the manifest doesn't list, and that has no data URL, becomes a warning. Archive names that escape the root are rejected.
 - **HTML file or website zip** (`lib/html-to-site.ts`). Every page is converted into editable nodes. Classes and a short list of safe attributes are kept (`lib/imported-html-attrs.ts`); event handlers, URL-bearing attributes and Tsumu's internal `data-*` markers never are.
-- **Limits** (`IMPORT_LIMITS`): 100 MB per zip, 12 MB per `doc.json` or HTML file, 500 entries and 300 MB after expansion.
+- **Limits** (`IMPORT_LIMITS`): 100 MB per zip, 12 MB per `doc.json` or HTML file, 1,500 entries and 300 MB after expansion.
 
 A page's settings in the editor can also load HTML into one page, either converted into nodes or kept as a raw HTML page; the latter is described next.
 
