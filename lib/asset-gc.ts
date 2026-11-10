@@ -280,7 +280,7 @@ export async function runAssetGc({
     }
     candidateCount -= deleted;
     // Report the surviving candidate metadata after successful removals.
-    const latestStats = deleted ? await db.execute(
+    const latestStats = !dryRun && scanComplete ? await db.execute(
       "SELECT COUNT(*) AS total, COALESCE(SUM(bytes),0) AS bytes FROM asset_gc_candidates"
     ) : null;
     if (latestStats) candidateCount = Number(latestStats.rows[0]?.total ?? candidateCount);
