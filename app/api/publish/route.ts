@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { serverTr } from "../../../lib/i18n-server";
-import { getPublishOptions, recordPublish, requireAuth } from "../../../lib/server";
-import { parsePublishedExportOptions, type PublishedExportOptions } from "../../../lib/publish-preferences";
+import { recordPublish, requireAuth } from "../../../lib/server";
+import { dbConfigured, getDb } from "../../../lib/db";
+import { DEFAULT_PUBLISHED_EXPORT_OPTIONS, parsePublishedExportOptions, readPublishedExportOptions, savePublishedExportOptions, type PublishedExportOptions } from "../../../lib/publish-preferences";
 import {
   branchPath as toBranchPath,
   advanceBranchRef,
@@ -114,7 +115,9 @@ export async function GET(req: Request) {
     /** 足りない設定（token = 環境変数の GITHUB_TOKEN / repo = サイトの公開先） */
     unset: !prod.token ? "token" : !prod.repo ? "repo" : null,
     previewEnabled: previewEnabled(dest),
-    lastExportOptions: await getPublishOptions(siteId),
+    lastExportOptions: dbConfigured()
+      ? await readPublishedExportOptions(await getDb(), siteId)
+      : DEFAULT_PUBLISHED_EXPORT_OPTIONS,
     test: describe("test"),
     production: describe("production"),
   }, { headers: { "Cache-Control": "private, no-store" } });
@@ -561,8 +564,15 @@ export async function POST(req: Request) {
     // The GitHub commit already exists: a local history bookkeeping failure
     // must not turn successful publication into a misleading 502/retry.
     let optionsSaved = false;
+    if (dbConfigured()) {
+      try {
+        optionsSaved = await savePublishedExportOptions(await getDb(), siteId, exportOptions);
+      } catch (error) {
+        console.warn("Published to GitHub, but could not save export preferences", error);
+      }
+    }
     try {
-      optionsSaved = await recordPublish(siteId, target, exportOptions);
+      await recordPublish(siteId, target);
     } catch {
       console.warn("Publish completed, but the local publication record could not be updated", { siteId, target });
     }
