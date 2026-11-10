@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { makeText } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
 import { browserDoc } from "./helpers/browser-doc";
+import { dispatchTextPaste } from "./helpers/text-paste";
 
 async function openSite(page: Page) {
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
@@ -98,12 +99,11 @@ test("Canvas variable suggestions stay open for menu actions but dismiss on outs
 test("Pasted variable chips and trailing newlines survive local Undo/Redo and saving", { tag: "@core-editing" }, async ({ page }) => {
   const siteId = await openSite(page);
   await textNode(page).dblclick();
+  await expect(editing(page)).toBeFocused();
+  expect(await editing(page).textContent()).toBe("Before");
   const content = "<&>\nHello {profile.name}\n\n";
-  await editing(page).evaluate((el, text) => {
-    const clipboardData = new DataTransfer();
-    clipboardData.setData("text/plain", text);
-    el.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
-  }, content);
+  const paste = await editing(page).evaluate(dispatchTextPaste, content);
+  expect(paste).toEqual({ eventText: content, receivedText: content, canceled: true });
   expect(await editing(page).textContent()).toBe(content);
   await expect(editing(page).locator(".cv-tok")).toHaveText("{profile.name}");
   await page.keyboard.press("ControlOrMeta+z");

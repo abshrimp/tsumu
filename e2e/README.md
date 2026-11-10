@@ -34,6 +34,10 @@ node --import tsx --test e2e/browser-projects.check.mts
   some pointer cancellation fixtures assume a Chromium mouse pointer ID.
 - The text paste case dispatches a `ClipboardEvent` with `DataTransfer`; it
   verifies editor handling, not OS clipboard permissions or native paste UI.
+  The fixture explicitly attaches the data store because Firefox's event
+  constructor can discard it. It checks the event payload before dispatch and
+  in the receiving listener, then requires the editor to cancel the event and
+  preserve the full text, variable chip, Undo/Redo history, and saved document.
 - Playwright WebKit coverage does not establish support for every shipping
   Safari version or for iOS devices.
 
