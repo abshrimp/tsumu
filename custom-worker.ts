@@ -369,8 +369,8 @@ async function authorizeWebSocket(
 
 export default {
   scheduled(_event: unknown, env: WorkerEnv, ctx: ExecutionContext): void {
-    // Intentionally scan-only even when ASSET_GC_ENABLED=true: published
-    // doc.json restoration and concurrent DO saves are not yet KV-fenced.
+    // Opt-in physical deletion after seven days of non-reference.
+    // Disabled by default; the cron continues collecting candidates in dry-run.
     if (!env.DB || !env.ASSETS_KV?.list || !env.DOC_STORE) return;
     ctx.waitUntil((async () => {
       try {
@@ -380,10 +380,11 @@ export default {
           rooms: env.DOC_STORE as unknown as AssetGcDocumentNamespace,
           graceDays: env.ASSET_GC_GRACE_DAYS === undefined ? undefined : Number(env.ASSET_GC_GRACE_DAYS),
           maxDeletes: env.ASSET_GC_MAX_DELETES === undefined ? undefined : Number(env.ASSET_GC_MAX_DELETES),
+          dryRun: env.ASSET_GC_ENABLED !== "true",
         });
       } catch {
-        // No document or KV content is modified by the GC inventory.
-        console.error("[asset-gc] dry-run inventory aborted");
+        // A failed run records the number of completed deletes in D1.
+        console.error("[asset-gc] run aborted or failed; see asset_gc_runs");
       }
     })());
   },
