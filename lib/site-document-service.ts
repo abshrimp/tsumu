@@ -1,7 +1,7 @@
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import type { Db } from "./db";
 import type { DocPatch } from "./doc-patch";
-import { getSiteRoomKey } from "./sites";
+import { getSiteRoomKey, recordSiteSavedAt } from "./sites";
 import {
   readCurrentDoc as readLocalDocument,
   saveCurrentDoc as saveLocalDocument,
@@ -96,23 +96,7 @@ async function finishSave(db: Db, siteId: string, roomKey: string | null, result
   }
   if (result.kind !== "saved") return result;
   try {
-    if (roomKey) {
-      // Two D1 statements, one transaction, fenced by the room-generation key.
-      const rows = await db.batch([
-        { sql: `UPDATE site_document_rooms SET saved_at=MAX(COALESCE(saved_at,0),?)
-          WHERE site_id=? AND room_key=?`, args: [result.savedAt, siteId, roomKey] },
-        { sql: `UPDATE sites SET updated_at=MAX(updated_at,?) WHERE id=?
-          AND EXISTS(SELECT 1 FROM site_document_rooms WHERE site_id=? AND room_key=?)`,
-          args: [result.savedAt, siteId, siteId, roomKey] },
-      ]);
-      if (!rows[0]?.rowsAffected || !rows[1]?.rowsAffected) return { kind: "missing" };
-    } else {
-      const rs = await db.execute({
-        sql: "UPDATE sites SET updated_at=MAX(updated_at, ?) WHERE id=?",
-        args: [result.savedAt, siteId],
-      });
-      if (!rs.rowsAffected) return { kind: "missing" };
-    }
+    if (!await recordSiteSavedAt(db, siteId, roomKey, result.savedAt)) return { kind: "missing" };
   } catch {
     // The document commit succeeded; do not misreport it as an unsuccessful save.
   }
