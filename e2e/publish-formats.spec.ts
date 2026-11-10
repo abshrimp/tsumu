@@ -61,4 +61,28 @@ test("GitHub Push publishes the selected Vue file tree, not the Next.js tree", a
   expect(paths).not.toContain("next.config.mjs");
   expect(paths).toContain("_tsumu/doc.json");
   expect(messages.map((m) => m.action)).toContain("commit");
+
+  // Only successful GitHub Push remembers its options, even across reloads.
+  await modal.getByRole("button", { name: "閉じる" }).click();
+  await page.reload();
+  await expect(page.locator('[data-tutorial="canvas"]').getByText("見出しをここに").first()).toBeVisible();
+  await page.locator('[data-tutorial="publish"]').click();
+  await expect(modal.getByRole("button", { name: "フレームワーク" })).toContainText("Vue 3 + Vite");
+
+  // Changing the selection without publishing must not overwrite the last Push.
+  await modal.getByRole("button", { name: "フレームワーク" }).click();
+  await page.getByRole("button", { name: "React + Vite" }).click();
+  await modal.getByRole("button", { name: "閉じる" }).click();
+  await page.locator('[data-tutorial="publish"]').click();
+  await expect(modal.getByRole("button", { name: "フレームワーク" })).toContainText("Vue 3 + Vite");
+  await modal.getByRole("button", { name: "閉じる" }).click();
+
+  // A different site must not inherit this site's publishing preferences.
+  const another = await page.request.post("/api/sites", { data: { name: "Different publish target" } });
+  expect(another.ok()).toBe(true);
+  const { site: otherSite } = await another.json();
+  await page.goto("/sites/" + otherSite.id);
+  await expect(page.locator('[data-tutorial="canvas"]').getByText("見出しをここに").first()).toBeVisible();
+  await page.locator('[data-tutorial="publish"]').click();
+  await expect(page.locator(".pub-modal").getByRole("button", { name: "フレームワーク" })).toContainText("Next.js");
 });
