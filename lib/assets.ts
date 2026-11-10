@@ -494,7 +494,11 @@ export async function deleteAssetRemote(asset: Asset): Promise<void> {
     try {
       browserReferenced = (await otherBrowserDocs(currentSiteId()))
         .some((raw) => raw.includes(quoted));
-    } catch { return; }
+    } catch {
+      // An unavailable browser index must not suppress Cloudflare's GC event.
+      // Node/Docker still safely retain the file on this uncertainty.
+      browserReferenced = true;
+    }
   }
   await fetch(siteApi("/api/assets", {
     path: asset.path, ...(browserReferenced ? { browserReferenced: "1" } : {}),
