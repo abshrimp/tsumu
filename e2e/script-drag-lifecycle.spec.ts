@@ -126,8 +126,12 @@ test("dragged steps retain their width without narrowing the source stack", asyn
   const originalBlock = (await page.locator(owner("step")).boundingBox())!;
   await start(page, "step");
   const preview = (await visibleGhost(page).boundingBox())!;
+  const previewBlock = (await page.locator(".se-ghost .se-blk").first().boundingBox())!;
   const remaining = (await source.boundingBox())!;
-  expect(Math.abs(preview.width - originalBlock.width)).toBeLessThan(1);
+  // The preview card has its own border. Compare the row to the original row,
+  // and each card's outer width to the original card's outer width.
+  expect(Math.abs(previewBlock.width - originalBlock.width)).toBeLessThan(1);
+  expect(Math.abs(preview.width - originalStack.width)).toBeLessThan(1);
   expect(Math.abs(remaining.width - originalStack.width)).toBeLessThan(1);
   await pointer(page, "pointercancel", { buttons: 0 });
   await expect(transient(page)).toHaveCount(0);
