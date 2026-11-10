@@ -120,6 +120,8 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
               last_seen_at INTEGER NOT NULL,
               bytes INTEGER
             )`,
+            `CREATE INDEX IF NOT EXISTS asset_gc_candidates_due
+              ON asset_gc_candidates(first_unreferenced_at, path)`,
             `CREATE TABLE IF NOT EXISTS asset_gc_runs (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               started_at INTEGER NOT NULL,
