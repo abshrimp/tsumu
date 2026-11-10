@@ -588,7 +588,11 @@ function ScriptEditorInner({
       ox: (e.clientX - r.left) / z,
       oy: (e.clientY - r.top) / z,
       h: r.height / z,
-      w: key?.startsWith("script:") ? (sourceStackWidth ?? r.width / z) : r.width / z,
+      // The preview adds a 1px border on each side. Its outer width must
+      // account for that border so the actual dragged row keeps its width.
+      w: key?.startsWith("script:") ? (sourceStackWidth ?? r.width / z)
+        : key?.startsWith("step:") ? r.width / z + 2
+        : r.width / z + 2,
       sourceStackWidth,
       scriptWidths,
       clickKey: key && selectedRef.current.has(key) && selectedRef.current.size > 1 ? key : undefined,
@@ -763,7 +767,8 @@ function ScriptEditorInner({
                   width: drag.scriptWidths?.[s.id] ?? (s.id === main.id ? drag.w : undefined),
                 }}
               >
-                <StackView script={{ ...s, steps: ghostPreviewSteps(s.steps) }} />
+                <StackView script={{ ...s, steps: ghostPreviewSteps(s.steps) }}
+                  fixedWidth={drag.scriptWidths?.[s.id] ?? (s.id === main.id ? drag.w : undefined)} />
               </div>
             ));
           })()
