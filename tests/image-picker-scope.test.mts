@@ -10,7 +10,7 @@ function fixture() {
   let query = "", assets: any = {};
   const mod = { exports: {} as any };
   new Function("require", "module", "exports", transformSync(readFileSync(path, "utf8"), { loader: "tsx", format: "cjs", jsx: "automatic" }).code)(
-    (id: string) => id === "react" ? { useState: () => [query, (v: string) => { query = v; }], useRef: () => ({ current: null }) } :
+    (id: string) => id === "react" ? { useId: () => "test-image-field", useState: () => [query, (v: string) => { query = v; }], useRef: () => ({ current: null }) } :
       id === "../lib/assets" ? { assetKind: () => "image", assetSrc: (a: any) => a.url } :
       id === "../lib/store" ? { useEditor: (select: any) => select({ doc: { assets } }) } :
       id === "../lib/use-pending-import" ? { usePendingImport: () => ({ busy: false, cancel() {} }) } : require(id), mod, mod.exports);
