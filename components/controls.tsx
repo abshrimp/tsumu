@@ -7,6 +7,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -411,6 +412,7 @@ export function NumField({
   /** 値が数値でない（空・auto・none）ときにドラッグを始める値（px） */
   scrubFrom?: () => number | undefined;
 }) {
+  const fieldId = useId();
   const parsed = parseNumeric(value);
   const [unit, setUnit] = useState(parsed?.unit ?? units[0]);
   const editTarget = useContext(InspectorCtx)?.editTarget;
@@ -518,6 +520,7 @@ export function NumField({
         </span>
       )}
       <input
+        id={fieldId}
         key={editTarget}
         ref={ref}
         defaultValue={parsed?.num ?? ""}
@@ -638,8 +641,10 @@ export function TextField({
   placeholder?: string;
 }) {
   const editTarget = useContext(InspectorCtx)?.editTarget;
+  const fieldId = useId();
   return (
     <input
+      id={fieldId}
       key={JSON.stringify([editTarget, value ?? "_"])}
       className="input"
       defaultValue={value ?? ""}
@@ -692,11 +697,13 @@ export function CommitInput({
   onCommit,
   ...rest
 }: CommitProps<InputHTMLAttributes<HTMLInputElement>>) {
+  const fieldId = useId();
   const editing = useRef(false);
   const { ref, afterCommit } = useCommitSync<HTMLInputElement>(value, editing);
   return (
     <input
       {...rest}
+      id={rest.id ?? fieldId}
       ref={ref}
       defaultValue={value}
       onInput={(e) => {
@@ -720,11 +727,13 @@ export function CommitTextarea({
   onCommit,
   ...rest
 }: CommitProps<TextareaHTMLAttributes<HTMLTextAreaElement>>) {
+  const fieldId = useId();
   const editing = useRef(false);
   const { ref, afterCommit } = useCommitSync<HTMLTextAreaElement>(value, editing);
   return (
     <textarea
       {...rest}
+      id={rest.id ?? fieldId}
       ref={ref}
       defaultValue={value}
       onInput={(e) => {
@@ -988,6 +997,7 @@ export function VarInput({
   onActivate?: () => void;
   onDeactivate?: () => void;
 }) {
+  const fieldId = useId();
   const ref = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [sug, setSug] = useState<VarSuggest | null>(null);
@@ -1107,6 +1117,7 @@ export function VarInput({
   return (
     <>
       <input
+        id={fieldId}
         ref={ref}
         className={className ?? "input"}
         style={style}
@@ -1509,6 +1520,7 @@ export function FillControl({
   onChangeTransient?: (v: string | null) => void;
   allowClear?: boolean;
 }) {
+  const colorFieldId = useId();
   const [open, setOpen] = useState(false);
   const [recent, setRecent] = useState<string[]>([]);
   const palette =
@@ -1604,6 +1616,8 @@ export function FillControl({
           data-tip={value ?? tr("未設定")}
         />
         <input
+          id={`${colorFieldId}-hex`}
+          aria-label={tr("色コード")}
           key={value ?? "_"}
           defaultValue={isSet ? hex.slice(1) : ""}
           placeholder={tr("未設定")}
@@ -1631,6 +1645,7 @@ export function FillControl({
       </div>
       <div className="fill-alpha">
         <NumField
+          title={tr("不透明度")}
           value={isSet ? `${Math.round(alpha * 100)}%` : undefined}
           units={["%"]}
           min={0}
@@ -1645,6 +1660,8 @@ export function FillControl({
       {open && (
         <div className="color-pop">
           <input
+            id={`${colorFieldId}-picker`}
+            aria-label={tr("色")}
             type="color"
             value={hex}
             onChange={(e) =>
@@ -1653,6 +1670,8 @@ export function FillControl({
             onBlur={finishContinuousChange}
           />
           <input
+            id={`${colorFieldId}-opacity`}
+            aria-label={tr("不透明度")}
             type="range"
             className="range"
             min={0}
