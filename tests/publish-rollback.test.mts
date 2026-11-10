@@ -8,6 +8,7 @@ import * as preconditions from "../lib/publish-preconditions";
 import * as preferences from "../lib/publish-preferences";
 import { advanceBranchRef } from "../lib/github";
 import { hasPublishCredentials } from "../lib/publish-security";
+import { gitBlobRequestBody } from "../lib/github-blob";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
 // Persist Git objects between real rollback, snapshot and publish handlers so
@@ -149,6 +150,7 @@ function fixture(target: "production" | "test", manual: files.TreeEntry, histori
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
     "lib/publish-files": files, "lib/publish-preconditions": preconditions, "lib/publish-preferences": preferences, "lib/publish-security": { hasPublishCredentials },
     "lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
+    "lib/github-blob": { gitBlobRequestBody },
   };
   const load = (path: string) => {
     const code = transformSync(readFileSync(new URL(path, import.meta.url), "utf8"), { loader: "ts", format: "cjs" }).code;

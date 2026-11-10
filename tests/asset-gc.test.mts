@@ -80,6 +80,11 @@ function fixture(roomRefs: (key: string) => Promise<string[]>, keys: string[]) {
       candidates INTEGER NOT NULL DEFAULT 0,deleted INTEGER NOT NULL DEFAULT 0,
       deleted_bytes INTEGER NOT NULL DEFAULT 0,dry_run INTEGER NOT NULL DEFAULT 1,error TEXT
     );
+    CREATE TABLE asset_objects(
+      path TEXT PRIMARY KEY,bytes INTEGER,uploaded_at INTEGER NOT NULL,last_seen_at INTEGER NOT NULL
+    );
+    CREATE TABLE asset_ledger_state(id INTEGER PRIMARY KEY CHECK(id=1),created_at INTEGER NOT NULL,complete_at INTEGER);
+    INSERT INTO asset_ledger_state(id,created_at) VALUES(1,0);
     INSERT INTO sites(id) VALUES('site1');
     INSERT INTO site_document_rooms(site_id,room_key) VALUES('site1','room1');
   `);
@@ -263,6 +268,50 @@ test("configured delete cap leaves other eligible keys for later GC runs", async
   } finally { f.sql.close(); }
 });
 
+test("one run deletes more than ten eligible keys when the budget allows", async () => {
+  const keys = Array.from({ length: 40 }, (_, i) => key(100, `bulk-${i}.png`));
+  const f = fixture(async () => [], keys);
+  try {
+    for (const path of keys) f.sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)")
+      .run(path, now - 9 * day, now - day, 17);
+    const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now, dryRun: false });
+    assert.equal(report.deleted, 40);
+    assert.equal(f.stored.size, 0);
+    assert.equal(report.candidates, 0);
+  } finally { f.sql.close(); }
+});
+
+test("deletion stops inside the Workers Free subrequest limit when many sites are scanned", async () => {
+  const keys = Array.from({ length: 300 }, (_, i) => key(100, `many-${i}.png`));
+  const f = fixture(async () => [], keys);
+  try {
+    const sites = 400;
+    for (let i = 2; i <= sites; i++) {
+      f.sql.prepare("INSERT INTO sites(id) VALUES(?)").run(`site${i}`);
+      f.sql.prepare("INSERT INTO site_document_rooms(site_id,room_key) VALUES(?,?)").run(`site${i}`, `room${i}`);
+    }
+    for (const path of keys) f.sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)")
+      .run(path, now - 9 * day, now - day, 17);
+    let calls = 0;
+    const db: Db = {
+      backend: "d1",
+      execute: (stmt) => { calls++; return f.db.execute(stmt); },
+      batch: (stmts) => { calls++; return f.db.batch(stmts); },
+    };
+    const kv = { list: f.kv.list, delete: (path: string) => { calls++; return f.kv.delete(path); } };
+    const rooms: AssetGcDocumentNamespace = {
+      idFromName: name => name,
+      get(id) { return { gcAssetReferences: () => { calls++; return f.rooms.get(id).gcAssetReferences(); } }; },
+    };
+    const report = await runAssetGc({ db, kv, rooms, now, dryRun: false });
+    // Two full scans of 400 sites leave room for only some deletes.
+    assert.ok(report.deleted > 0 && report.deleted < 300, `deleted ${report.deleted}`);
+    assert.ok(calls <= 900, `used ${calls} Cloudflare-service calls`);
+    assert.equal(f.stored.size, 300 - report.deleted);
+    assert.equal(report.candidates, 300 - report.deleted);
+  } finally { f.sql.close(); }
+});
+
 test("a failed KV delete records previously completed deletes and retains later candidates", async () => {
   const paths = [key(100, "first.png"), key(100, "second.png")];
   const f = fixture(async () => [], paths);
@@ -327,6 +376,35 @@ test("weekly KV discovery finds missed orphan uploads without deleting anything"
     assert.equal(f.deletes(), 1);
     assert.equal(f.lists(), 1, "daily expiry must not run KV.list");
     assert.equal(f.stored.size, 0);
+  } finally { f.sql.close(); }
+});
+
+test("weekly inventory fills the storage ledger and GC deletes keep it in sync", async () => {
+  const used = key(100, "used.png"), orphan = key(100, "orphan.png");
+  const f = fixture(async () => [used], [used, orphan]);
+  try {
+    const row = f.sql.prepare("INSERT INTO asset_objects VALUES(?,?,?,?)");
+    row.run(key(200, "vanished.png"), 5, now - 200 * day, now - 100 * day);
+    // Uploaded while the scan ran: KV listing may not include it yet.
+    row.run(key(0, "fresh.png"), 9, now + 1, now + 1);
+    await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now, discoverUntracked: true });
+    const ledger = () => f.sql.prepare("SELECT path,bytes FROM asset_objects ORDER BY path").all()
+      .map(r => [String(r.path), r.bytes]);
+    assert.deepEqual(ledger(), [[key(0, "fresh.png"), 9], [orphan, 17], [used, 17]].sort());
+    assert.equal(f.sql.prepare("SELECT complete_at FROM asset_ledger_state").get()?.complete_at, now);
+    await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now: now + 8 * day, dryRun: false });
+    assert.equal(f.stored.has(orphan), false);
+    assert.deepEqual(ledger(), [[key(0, "fresh.png"), 9], [used, 17]].sort());
+  } finally { f.sql.close(); }
+});
+
+test("an inventory that began before the ledger existed does not mark it complete", async () => {
+  const f = fixture(async () => [], [key(100)]);
+  try {
+    f.sql.prepare("UPDATE asset_ledger_state SET created_at=?").run(now + 1);
+    await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now, discoverUntracked: true });
+    assert.equal(f.sql.prepare("SELECT complete_at FROM asset_ledger_state").get()?.complete_at, null);
+    assert.equal(Number(f.sql.prepare("SELECT count(*) AS n FROM asset_objects").get()?.n), 1);
   } finally { f.sql.close(); }
 });
 
