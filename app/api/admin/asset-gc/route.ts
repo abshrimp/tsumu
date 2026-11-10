@@ -18,10 +18,9 @@ function setting(name: string): number | undefined {
 }
 
 /**
- * Administrator-only, non-destructive GC inventory.
- *
- * There is deliberately no live delete route. A normal authenticated editor
- * (and anonymous mode) must never acquire storage-wide admin capabilities.
+ * Administrator-only GC inventory and optional bounded sweep.
+ * A normal authenticated editor (and anonymous mode) must never acquire
+ * storage-wide administrative capabilities.
  */
 export async function POST(req: Request) {
   const origin = req.headers.get("origin");
@@ -41,10 +40,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Administrator access required" }, { status: 403 });
   }
   const params = new URL(req.url).searchParams;
-  if (params.get("dryRun") !== "1" || params.size !== 1) {
-    return NextResponse.json({
-      error: "Only dryRun=1 is supported until historical restoration and concurrent saves are fenced",
-    }, { status: 409 });
+  const requested = params.get("dryRun");
+  if ((requested !== "1" && requested !== "0") || params.size !== 1) {
+    return NextResponse.json({ error: "Specify dryRun=1 or dryRun=0" }, { status: 400 });
+  }
+  // Manual deletion obeys the same opt-in as Cron.
+  if (requested === "0" && envVar("ASSET_GC_ENABLED") !== "true") {
+    return NextResponse.json({ error: "Asset GC deletion is disabled" }, { status: 409 });
   }
   if (!dbConfigured()) return NextResponse.json({ error: "D1 not configured" }, { status: 503 });
   try {
@@ -59,10 +61,13 @@ export async function POST(req: Request) {
       db, kv, rooms,
       graceDays: setting("ASSET_GC_GRACE_DAYS"),
       maxDeletes: setting("ASSET_GC_MAX_DELETES"),
+      dryRun: requested !== "0",
     });
     return NextResponse.json(report, { headers: { "Cache-Control": "private, no-store" } });
   } catch {
-    return NextResponse.json({ error: "GC inventory aborted; no KV objects were deleted" },
+    // An error after some successful KV deletes may be partial. The run log
+    // stores the completed deletion count; never misreport zero data changed.
+    return NextResponse.json({ error: "Asset GC aborted or failed; check asset_gc_runs" },
       { status: 503, headers: { "Cache-Control": "private, no-store" } });
   }
 }
