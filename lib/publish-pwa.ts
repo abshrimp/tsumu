@@ -14,9 +14,11 @@ export function addPwaRetirementWorker(
   outputPaths: string[],
   format: ExportFormat = "nextjs",
 ): void {
-  const swPath = format === "html" ? "sw.js" : "public/sw.js";
-  if (doc.pwa?.enabled ||
-      (!Object.hasOwn(generated ?? {}, "public/sw.js") && !Object.hasOwn(generated ?? {}, "sw.js"))) return;
+  // 単一 HTML は PWA を出力しない。ほかの形式は各フレームワークの公開場所に合わせる。
+  const swPath = format === "html" || format === "single-html" ? "sw.js"
+    : format === "sveltekit" ? "static/sw.js" : "public/sw.js";
+  if ((doc.pwa?.enabled && format !== "single-html") ||
+      !["public/sw.js", "static/sw.js", "sw.js"].some(path => Object.hasOwn(generated ?? {}, path))) return;
   files[swPath] = `self.addEventListener("install", function (e) {
   e.waitUntil(self.skipWaiting());
 });
