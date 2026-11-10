@@ -87,6 +87,10 @@ function fixture(target: "production" | "test", manual: files.TreeEntry, histori
       assert.notEqual(text, undefined);
       return Response.json({ encoding: "base64", content: Buffer.from(text!).toString("base64") });
     }
+    if (path === "/git/blobs") {
+      assert.equal(body.encoding, "base64");
+      return Response.json({ sha: blob("uploaded", Buffer.from(body.content, "base64").toString("utf8")).sha });
+    }
     if (path === "/git/trees") {
       treeWrites.push(body);
       if (options.failTreeAt === treeWrites.length) return Response.json({}, { status: 503 });
@@ -379,4 +383,87 @@ test("a lost final ref response after both tree writes is verified without a dup
   assert.equal(f.refs.length, 1);
   assert.equal(f.recorded, 1);
   assert.deepEqual(f.entries().find(entry => entry.path === manual.path), manual);
+});
+
+for (const target of ["production", "test"] as const) {
+  for (const transport of ["inline", "blob"] as const) {
+    test(`${target}: ${transport} generated manifest cannot claim a retained manual file`, async () => {
+      const manual = { path: "manual.sh", mode: "100755", type: "blob", sha: "manual" };
+      const f = fixture(target, manual, "old");
+      const before = f.currentHead;
+      const manifest = files.serializeGeneratedManifest({ "page.html": "page", [manual.path]: manual.sha });
+      const output: Record<string, string> = { "page.html": "page" };
+      const assetShas: Record<string, string> = {};
+      if (transport === "inline") {
+        output[files.GENERATED_MANIFEST_PATH] = manifest;
+      } else {
+        const upload = await f.send({ action: "upload", path: files.GENERATED_MANIFEST_PATH,
+          base64: Buffer.from(manifest).toString("base64") });
+        assert.equal(upload.status, 200);
+        assetShas[files.GENERATED_MANIFEST_PATH] = (await upload.json()).sha;
+      }
+      const response = await f.send({ action: "commit", files: output, assetShas, keptPaths: [manual.path] });
+      assert.equal(response.status, 400, "ownership metadata must not turn a retained file into generated output");
+      assert.equal(f.currentHead, before);
+      assert.deepEqual(f.treeWrites, []);
+      assert.equal(f.commitWrites, 0);
+      assert.equal(f.recorded, 0);
+      assert.deepEqual(f.entries().find(entry => entry.path === manual.path), manual);
+
+      // Correct the manifest, then publish twice. Retention must survive both
+      // commits, while generated output from the first one must be removed.
+      const validManifest = files.serializeGeneratedManifest({ "page.html": "page" });
+      if (transport === "inline") {
+        output[files.GENERATED_MANIFEST_PATH] = validManifest;
+      } else {
+        const upload = await f.send({ action: "upload", path: files.GENERATED_MANIFEST_PATH,
+          base64: Buffer.from(validManifest).toString("base64") });
+        assert.equal(upload.status, 200);
+        assetShas[files.GENERATED_MANIFEST_PATH] = (await upload.json()).sha;
+      }
+      const first = await f.send({ action: "commit", files: output, assetShas });
+      assert.equal(first.status, 200, await first.text());
+      const second = await f.send({ action: "commit", files: {
+        "next.html": "next",
+        [files.GENERATED_MANIFEST_PATH]: files.serializeGeneratedManifest({ "next.html": "next" }),
+      } });
+      assert.equal(second.status, 200, await second.text());
+      assert.deepEqual(f.entries().find(entry => entry.path === manual.path), manual);
+      assert.equal(f.entries().some(entry => entry.path === "page.html"), false);
+      assert.equal(f.refs.length, 2);
+    });
+  }
+}
+
+test("publication rejects malformed manifests and claims outside its own output keys", async () => {
+  const invalid = ["{", JSON.stringify({ version: 2, files: {} }),
+    ...["missing.html", "toString", "__proto__"].map(path =>
+      files.serializeGeneratedManifest(Object.fromEntries([[path, "unwritten"]])))];
+  for (const manifest of invalid) {
+    const f = fixture("production", { path: "manual.sh", mode: "100755", type: "blob", sha: "manual" }, "old");
+    const response = await f.send({ action: "commit", files: {
+      "page.html": "page", [files.GENERATED_MANIFEST_PATH]: manifest,
+    } });
+    assert.equal(response.status, 400, manifest);
+    assert.deepEqual(f.treeWrites, []);
+    assert.equal(f.commitWrites, 0);
+    assert.equal(f.recorded, 0);
+  }
+});
+
+test("a manifest may own inline and uploaded output, including an own prototype-named path", async () => {
+  const f = fixture("production", { path: "manual.sh", mode: "100755", type: "blob", sha: "manual" }, "old");
+  const upload = await f.send({ action: "upload", path: "asset.txt", base64: Buffer.from("asset").toString("base64") });
+  assert.equal(upload.status, 200);
+  const assetSha = (await upload.json()).sha;
+  const response = await f.send({ action: "commit", files: {
+    "page.html": "page", ["__proto__"]: "page data",
+    [files.GENERATED_MANIFEST_PATH]: files.serializeGeneratedManifest({
+      "page.html": "page", ["__proto__"]: "data", "asset.txt": assetSha,
+    }),
+  }, assetShas: { "asset.txt": assetSha } });
+  assert.equal(response.status, 200, await response.text());
+  assert.ok(f.entries().some(entry => entry.path === "__proto__"));
+  assert.equal(f.entries().find(entry => entry.path === "asset.txt")?.sha, assetSha);
+  assert.equal(f.entries().find(entry => entry.path === "manual.sh")?.sha, "manual");
 });
