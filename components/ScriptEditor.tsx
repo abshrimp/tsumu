@@ -588,9 +588,10 @@ function ScriptEditorInner({
       ox: (e.clientX - r.left) / z,
       oy: (e.clientY - r.top) / z,
       h: r.height / z,
-      // The preview adds a 1px border on each side. Its outer width must
-      // account for that border so the actual dragged row keeps its width.
-      w: key?.startsWith("script:") ? (sourceStackWidth ?? r.width / z) : r.width / z + 2,
+      // Preserve the original stack width when dragging an existing step or script.
+      // Palette blocks have no source stack, so include the preview border.
+      // offsetWidth is independent of modal entrance transforms and workspace zoom.
+      w: sourceStackWidth ?? target.offsetWidth + 2,
       sourceStackWidth,
       scriptWidths,
       clickKey: key && selectedRef.current.has(key) && selectedRef.current.size > 1 ? key : undefined,
