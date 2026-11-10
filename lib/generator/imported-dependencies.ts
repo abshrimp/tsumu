@@ -40,7 +40,7 @@ export async function retainImportedDependencies(scoped: SiteDoc, assets: Record
         ? await fetchWithRetry(src, 3, { credentials: "same-origin", redirect: "error" })
         : await fetch(src, { credentials: "omit" });
       if (!response.ok) {
-        await response.body?.cancel().catch(() => {});
+        void response.body?.cancel().catch(() => {});
         throw new Error("Could not read the imported module: " + zip.path);
       }
       const bytes = await readAssetBytes(response, limit);
