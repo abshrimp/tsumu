@@ -11,21 +11,47 @@ export interface ServerStatus {
   db: boolean;
   /** アセット（画像・動画・音声）の保存先（KV）があるか */
   assets: boolean;
+  /** アセットを削除したとき、サーバーのファイルをどうするか（保存先が無ければ null） */
+  assetDeletion?: AssetDeletion | null;
   /** ログインしている人（Google認証を使っていなければ null） */
   user?: ActivityUser | null;
 }
 
+/**
+ * immediate: すぐ削除する（Node.js・Docker。ほかのサイトが使っていれば残す）。
+ * scheduled: days 日後に削除する（Cloudflare。それまでに元に戻すか、ほかのサイトが使っていれば残す）。
+ * kept: 削除しない（Cloudflare で ASSET_GC_ENABLED が未設定）。
+ */
+export type AssetDeletion =
+  | { mode: "immediate" }
+  | { mode: "scheduled"; days: number }
+  | { mode: "kept" };
+
 let cached: Promise<ServerStatus | null> | null = null;
+let loaded: ServerStatus | null = null;
+
+function loadServerStatus(): Promise<ServerStatus | null> {
+  cached ??= fetch("/api/status")
+    .then((res) => (res.ok ? (res.json() as Promise<ServerStatus>) : null))
+    .catch(() => null)
+    .then((s) => (loaded = s));
+  return cached;
+}
+
+/**
+ * 読み込み済みの設定状況（まだなら null）。クリックの処理など、待たずに読む場所で使う。
+ * 確認ダイアログは操作の直後に出す必要があるため、ここで通信を待たない
+ */
+export function serverStatusSnapshot(): ServerStatus | null {
+  return loaded;
+}
 
 /** 設定状況を1回だけ取りに行く（読み込み中・失敗時は null） */
 export function useServerStatus(): ServerStatus | null {
   const [status, setStatus] = useState<ServerStatus | null>(null);
   useEffect(() => {
     let alive = true;
-    cached ??= fetch("/api/status")
-      .then((res) => (res.ok ? (res.json() as Promise<ServerStatus>) : null))
-      .catch(() => null);
-    void cached.then((s) => {
+    void loadServerStatus().then((s) => {
       if (alive) setStatus(s);
     });
     return () => {

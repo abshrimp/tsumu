@@ -45,6 +45,10 @@ function assetDeleteRoute({ backend = "d1", siteExists = true, browserReferenced
         return [{ path: "assets/shared.png", bytes: 1 }];
       },
     },
+    "../../../lib/asset-ledger": {
+      readAssetLedger: async () => null,
+      recordUploadedAsset: async () => {},
+    },
     "../../../lib/asset-gc": {
       recordAssetGcCandidates: async (_db: unknown, paths: string[]) => {
         assert.deepEqual(paths, ["assets/muhmi2o0abcdef-photo.png"]);

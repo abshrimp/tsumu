@@ -8,6 +8,7 @@ import * as contract from "../lib/publish-preconditions";
 import * as preferences from "../lib/publish-preferences";
 import { advanceBranchRef } from "../lib/github";
 import { hasPublishCredentials } from "../lib/publish-security";
+import { gitBlobRequestBody } from "../lib/github-blob";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
 const require = createRequire(import.meta.url);
@@ -112,6 +113,7 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
     "lib/kv": {}, "lib/errors": { userMessage: (e: Error) => e.message },
     "lib/publish-files": files, "lib/publish-preconditions": contract, "lib/publish-preferences": preferences, "lib/publish-security": { hasPublishCredentials },
     "lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited },
+    "lib/github-blob": { gitBlobRequestBody },
   };
   function load(path: string) {
     const code = transformSync(readFileSync(new URL(`../${path}`, import.meta.url), "utf8"), { loader: "ts", format: "cjs" }).code;
