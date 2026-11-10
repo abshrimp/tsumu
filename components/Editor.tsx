@@ -975,7 +975,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
         reconnectDelay = 1000;
         closeEvents();
         if (cloudReady.current) {
-          void requestViaWebSocket({ type: "load" })
+          void requestViaWebSocket({ type: "load", knownRev: lastSyncedRev.current ?? undefined })
             .then((message) => {
               if (
                 message.type === "snapshot" &&
