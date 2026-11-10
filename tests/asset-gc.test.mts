@@ -31,7 +31,7 @@ test("asset GC finds paths in nested doc HTML/CSS and encoded image URLs", () =>
 
 test("asset GC retains encoded URL paths next to malformed percent escapes", () => {
   const path = key(60);
-  const escaped = encodeURIComponent(path).replace("assets", "%61%73%73%65%74%73");
+  const escaped = encodeURIComponent(path).replaceAll("assets", "%61%73%73%65%74%73");
   for (const extra of ["100%", "%zz", "%FF"]) {
     const url = `/api/assets/file?path=${escaped}&note=${extra}`;
     assert.equal(new URL(url, "https://example.com").searchParams.get("path"), path);
@@ -47,7 +47,7 @@ const htmlAssetForms = (path: string) => {
     `<img src="/api/assets/file?path=&#97ssets/${filename}">`,
     `<img src="/api/assets/file?path=&#x61;ssets/${filename}">`,
     `<img src="/api/assets/file?path=&#X61ssets/${filename}">`,
-    `<img src="/api/assets/file?path=assets&sol;${filename.replace("_fj.", "&lowbar;&fjlig;&period;")}">`,
+    `<img src="/api/assets/file?path=assets&sol;${filename.replaceAll("_fj.", "&lowbar;&fjlig;&period;")}">`,
     `<img src="/api/assets/file?path=&#37;61ssets%2F${filename}&amp;note=100%">`,
     `<img src="/api/assets/file?path=ass&NewLine;ets/${filename}">`,
     `<div style="background-image:url('/api/assets/file?path=&#92;61 ssets&#92;2f ${filename}')"></div>`,
@@ -215,7 +215,7 @@ test("GC dry-run retains an asset referenced by a current document", async () =>
 
 test("active GC keeps a referenced candidate when URL text contains an unrelated malformed escape", async () => {
   const path = key(100);
-  const encoded = encodeURIComponent(path).replace("assets", "%61ssets");
+  const encoded = encodeURIComponent(path).replaceAll("assets", "%61ssets");
   const raw = JSON.stringify({ rawHtml: `<img src="/api/assets/file?path=${encoded}&note=100%">` });
   const f = fixture(async () => [...extractAssetReferences(raw)], [path]);
   try {
