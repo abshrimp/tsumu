@@ -137,6 +137,7 @@ function assertExport(doc: Parameters<typeof generateProject>[0]) {
   assert.equal(result.remoteAssets["public/assets/hero.png"], picture.path);
   assert.match(result.files["styles/site.css"], /\/assets\/hero\.png/);
   assert.doesNotMatch(result.files["styles/site.css"], /api\/assets\/file/);
+  return result.files["styles/site.css"];
 }
 
 for (const location of locations) {
@@ -160,8 +161,8 @@ for (const location of locations) {
       const target = emptyAssetDestination();
       applyPagePayload(target, payload);
       assert.deepEqual(target.assets[picture.id], picture);
-      assertExport(target);
-      if (syntax === "proxyQuery") assert.match(generateProject(target).files["styles/site.css"], /hero\.png\?v=1#icon/);
+      const outputCss = assertExport(target);
+      if (syntax === "proxyQuery") assert.match(outputCss, /hero\.png\?v=1#icon/);
       assert.deepEqual(doc.nodes, before.nodes);
       assert.deepEqual(doc.pages, before.pages);
     });
@@ -846,6 +847,9 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
     assert.equal(plainClip.media.src, "");
     const cases = [["view", "view.svg", "#detail", "&version=2"],
       ["clip", "clip.mp4", "#t=5,10", "&version=3"], ["sound", "sound.mp3", "#t=2,4", ""]];
+    const names = buildAssetNames(doc);
+    const usage = assetUsage(doc);
+    const expectedUrls: string[] = [];
     for (const [id, path, fragment, query] of cases) {
       const node = Object.values(doc.nodes).find(node => node.attrId === id)!;
       const asset = Object.values(doc.assets).find(asset => asset.zip?.path === path)!;
@@ -854,7 +858,8 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
       assert.equal(ref.assetId, asset.id);
       assert.equal(ref.assetSuffix, (local || !query ? "" : "?" + query.slice(1)) + fragment);
       assert.equal(mediaSrc(doc, ref), assetSrc(asset) + (local ? "" : query) + fragment);
-      assert.ok(assetUsage(doc).has(asset.id), path + " must remain in use");
+      assert.ok(usage.has(asset.id), path + " must remain in use");
+      expectedUrls.push("assets/" + names.get(asset.id) + ref.assetSuffix);
     }
     assert.equal(Object.values(doc.nodes).find(node => node.attrId === "sound")!.media!.sources![0].type, "audio/mpeg");
     assert.ok(!warnings.some(message => message.includes("カスタムコード")));
@@ -868,8 +873,12 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
     assert.equal(sound.media!.sources![1].assetSuffix, "#t=3");
     assert.equal(uploads, 3);
     assert.equal(Object.keys(doc.assets).length, 3);
+    const before = structuredClone(doc);
+    const sourceAssets = new Map<string, Uint8Array>();
+    for (const asset of Object.values(doc.assets)) {
+      sourceAssets.set(asset.id, await sourceArchive.file(asset.zip!.path)!.bytes());
+    }
     for (const framework of ["html", "nextjs", "react", "vue", "nuxt", "sveltekit"] as const) {
-      const before = structuredClone(doc);
       download = undefined;
       assert.deepEqual(await exportProjectZip(doc, framework), []);
       assert.ok(download);
@@ -888,19 +897,11 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
         assert.equal(html.querySelectorAll("#sound > source").length, 2);
         assert.equal(html.querySelector("#sound > source").getAttribute("type"), "audio/mpeg");
       }
-      for (const [, path, fragment, query] of cases) {
-        const asset = Object.values(doc.assets).find(asset => asset.zip?.path === path)!;
-        const exported = "assets/" + buildAssetNames(doc).get(asset.id) +
-          (!local && query ? "?" + query.slice(1) : "") + fragment;
-        assert.ok(output.includes(exported), framework + ": " + exported);
-      }
+      for (const url of expectedUrls) assert.ok(output.includes(url), framework + ": " + url);
       const imported = await parseSiteImport(archiveBytes, "zip");
       assert.deepEqual(imported.doc, before, "editable source retains its asset identities and URLs");
       assert.deepEqual(doc, before, "export must not mutate the active document");
-      assert.equal(imported.assets.size, 3);
-      for (const asset of Object.values(doc.assets)) {
-        assert.deepEqual(imported.assets.get(asset.id), await sourceArchive.file(asset.zip!.path)!.bytes());
-      }
+      assert.deepEqual(imported.assets, sourceAssets);
     }
     const responsiveBytes = await new ZipBuilder()
       .file("site/index.html", '<html><head><link rel="preload" as="image" href="small.svg" ' +

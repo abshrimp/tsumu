@@ -90,69 +90,52 @@ test("ZIP without doc.json alerts before converting HTML on homepage drop", asyn
   expect((await getLocalSite(page)).list).toHaveLength(1);
 });
 
-test("dropping a JSON file imports a new editable site", async ({ page }) => {
-  await localMode(page);
-  const doc = fixture();
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
-  const file = {
-    name: "doc.json", mimeType: "application/json",
-    buffer: Buffer.from(JSON.stringify(doc)),
-  };
-  const payload = { name: file.name, type: file.mimeType, data: Array.from(file.buffer) };
-  await expect(page.locator(".home-import-drop")).toHaveCount(0);
-  await page.evaluate((input) => {
-    const target = document.querySelector(".home-top");
-    if (!target) throw new Error("Home header missing");
-    const transfer = new DataTransfer();
-    transfer.items.add(new File([new Uint8Array(input.data)], input.name, { type: input.type }));
-    target.dispatchEvent(new DragEvent("dragenter", { bubbles: true, cancelable: true, dataTransfer: transfer }));
-    target.dispatchEvent(new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: transfer }));
-  }, payload);
-  await expect(page.locator(".home-drop-overlay")).toBeVisible();
-  await page.evaluate((input) => {
-    // 専用のドロップ先ではなく、ホームの別の部分にドロップする。
-    const target = document.querySelector(".home-main");
-    if (!target) throw new Error("Home content missing");
-    const transfer = new DataTransfer();
-    transfer.items.add(new File([new Uint8Array(input.data)], input.name, { type: input.type }));
-    target.dispatchEvent(new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer }));
-  }, payload);
-  await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
-  const imported = await getLocalSite(page);
-  expect(imported.list).toHaveLength(1);
-  expect(imported.doc.siteName).toBe(doc.siteName);
-  expect(imported.doc.customHeadHtml).toBe(doc.customHeadHtml);
-});
-
-
-test("normal text drag on the homepage does not trigger file import", async ({ page }) => {
+test("Home imports a dropped document after ignoring text drags and rejecting invalid JSON", async ({ page }) => {
   await localMode(page);
   await page.goto("/");
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
-  const prevented = await page.evaluate(() => {
-    const target = document.querySelector(".home-top");
-    if (!target) throw new Error("Home header missing");
-    const transfer = new DataTransfer();
-    transfer.setData("text/plain", "ordinary text");
-    const event = new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: transfer });
-    target.dispatchEvent(event);
-    return event.defaultPrevented;
+  const header = page.locator(".home-top");
+  const overlay = page.locator(".home-drop-overlay");
+
+  await test.step("Leave ordinary text drags untouched", async () => {
+    const prevented = await header.evaluate(target => {
+      const transfer = new DataTransfer();
+      transfer.setData("text/plain", "ordinary text");
+      const event = new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: transfer });
+      target.dispatchEvent(event);
+      return event.defaultPrevented;
+    });
+    expect(prevented).toBe(false);
+    await expect(overlay).toHaveCount(0);
+    expect((await getLocalSite(page)).list).toHaveLength(0);
   });
-  expect(prevented).toBe(false);
-  await expect(page.locator(".home-drop-overlay")).toHaveCount(0);
-  expect((await getLocalSite(page)).list).toHaveLength(0);
-});
 
-test("invalid JSON is rejected without creating a site", async ({ page }) => {
-  await localMode(page);
-  await page.goto("/");
-  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
-  await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
-    name: "doc.json", mimeType: "application/json", buffer: Buffer.from("{not-json"),
+  await test.step("Reject malformed JSON without creating a site", async () => {
+    await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
+      name: "doc.json", mimeType: "application/json", buffer: Buffer.from("{not-json"),
+    });
+    await expect(page.locator(".home-notice[role=alert]")).toBeVisible();
+    expect((await getLocalSite(page)).list).toHaveLength(0);
   });
-  await expect(page.locator(".home-notice[role=alert]")).toBeVisible();
-  expect((await getLocalSite(page)).list).toHaveLength(0);
+
+  await test.step("Drop a valid document and open its editable site", async () => {
+    const doc = fixture();
+    const transfer = await page.evaluateHandle(json => {
+      const data = new DataTransfer();
+      data.items.add(new File([json], "doc.json", { type: "application/json" }));
+      return data;
+    }, JSON.stringify(doc));
+    await expect(page.locator(".home-import-drop")).toHaveCount(0);
+    await header.dispatchEvent("dragenter", { dataTransfer: transfer });
+    await header.dispatchEvent("dragover", { dataTransfer: transfer });
+    await expect(overlay).toBeVisible();
+    await page.locator(".home-main").dispatchEvent("drop", { dataTransfer: transfer });
+    await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
+    const imported = await getLocalSite(page);
+    expect(imported.list).toHaveLength(1);
+    expect(imported.doc.siteName).toBe(doc.siteName);
+    expect(imported.doc.customHeadHtml).toBe(doc.customHeadHtml);
+  });
 });
 
 for (const lost of [false, true]) test(`server import reserves a site and saves its first revision (response lost: ${lost})`, async ({ page }) => {
