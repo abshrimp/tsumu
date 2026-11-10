@@ -23,6 +23,7 @@ import {
   type Payload,
 } from "./script-editor/palette";
 import { insertAt, listIn, mapStep, numberFilters, removeKeys, takeAt } from "./script-editor/step-tree";
+import { copyScriptBlocks, pasteScriptBlocks, type ScriptBlockClipboard } from "./script-editor/clipboard";
 import { buildTree, collectTargets, type MenuTarget } from "./script-editor/targets";
 import { useScriptDrag } from "./script-editor/useScriptDrag";
 import { useScriptEditorKeys } from "./script-editor/useScriptEditorKeys";
@@ -125,6 +126,9 @@ export interface Drag {
   sourceStackWidth?: number;
   /** 複数のスタックをドラッグするときは各スタックの幅を保持する */
   scriptWidths?: Record<string, number>;
+  /** Real DOM snapshots keep the visible controls and line wrapping unchanged during a drag. */
+  previewNodes?: HTMLElement[];
+  sourceStackIdle?: boolean;
   /** 複数選択中のブロックをクリックだけで離したら、そのブロックだけの選択にする */
   clickKey?: string;
 }
@@ -158,6 +162,8 @@ export interface ScriptEditorLatest {
   selectedList: string[];
   deleteSelected: () => void;
   selectAll: () => void;
+  copySelection: () => ScriptBlockClipboard | null;
+  pasteSelection: (copied: ScriptBlockClipboard) => void;
   peekId: string | null;
 }
 
@@ -464,6 +470,13 @@ function ScriptEditorInner({
     commit(removeKeys(scripts, selectedList));
     setSelectedList([]);
   };
+  const copySelection = () => copyScriptBlocks(scripts, selectedList);
+  const pasteSelection = (copied: ScriptBlockClipboard) => {
+    const result = pasteScriptBlocks(scripts, selectedList, copied);
+    if (!result) return;
+    commit(result.scripts);
+    setSelectedList(result.selection);
+  };
   /** ⌘A: きっかけのあるスクリプトと、きっかけの無い集まりのブロックをすべて選ぶ */
   const selectAll = () =>
     setSelectedList(
@@ -482,6 +495,8 @@ function ScriptEditorInner({
     selectedList,
     deleteSelected,
     selectAll,
+    copySelection,
+    pasteSelection,
     peekId,
   });
   latest.current = {
@@ -494,6 +509,8 @@ function ScriptEditorInner({
     selectedList,
     deleteSelected,
     selectAll,
+    copySelection,
+    pasteSelection,
     peekId,
   };
 
@@ -569,6 +586,7 @@ function ScriptEditorInner({
     // animation and the workspace's CSS zoom.
     const sourceStack = target.closest<HTMLElement>(".se-stack");
     const sourceStackWidth = sourceStack?.offsetWidth;
+    const sourceStackIdle = sourceStack?.classList.contains("is-idle") ?? false;
     let scriptWidths: Record<string, number> | undefined;
     if (key?.startsWith("script:") && selectedRef.current.has(key)) {
       const ids = new Set([...selectedRef.current]
@@ -584,7 +602,39 @@ function ScriptEditorInner({
     }
     dragRef.current = {
       pointerId: e.pointerId,
-      make,
+      make: () => {
+        const payload = make();
+        // Capture the actual block DOM before the editor temporarily removes
+        // it. Rebuilding a read-only preview changes dropdowns, inputs, and
+        // condition rows even when their data has not changed.
+        if (payload.type === "script") {
+          const nodes = payload.group.slice(0, 8).map((script) => {
+            const element = wsRef.current?.querySelector<HTMLElement>(
+              `.se-stack[data-script-id="${CSS.escape(script.id)}"]`
+            );
+            return element ? cloneDragElement(element) : null;
+          });
+          if (nodes.every((node): node is HTMLElement => node !== null)) {
+            dragRef.current!.previewNodes = nodes;
+          }
+        } else if (payload.type === "steps" && payload.from) {
+          const item = target.closest<HTMLElement>(".se-item");
+          const count = Math.min(8, payload.steps.length);
+          const siblings = item ? Array.from(item.parentElement?.children ?? []) : [];
+          const index = item ? siblings.indexOf(item) : -1;
+          if (index >= 0) {
+            const elements = siblings.slice(index, index + count);
+            const nodes = elements.map((element) =>
+              element instanceof HTMLElement && element.classList.contains("se-item")
+                ? cloneDragElement(element) : null
+            );
+            if (nodes.length === count && nodes.every((node): node is HTMLElement => node !== null)) {
+              dragRef.current!.previewNodes = nodes;
+            }
+          }
+        }
+        return payload;
+      },
       payload: null,
       started: false,
       sx: e.clientX,
@@ -598,6 +648,7 @@ function ScriptEditorInner({
       // width of the dragged row, rather than a temporarily animated rectangle.
       w: key?.startsWith("script:") ? (sourceStackWidth ?? target.offsetWidth) : target.offsetWidth + 2,
       sourceStackWidth,
+      sourceStackIdle,
       scriptWidths,
       clickKey: key && selectedRef.current.has(key) && selectedRef.current.size > 1 ? key : undefined,
     };
@@ -749,6 +800,8 @@ function ScriptEditorInner({
     <div
       ref={ghostRef}
       className="se-ghost"
+      aria-hidden="true"
+      inert
       style={{ left: 0, top: 0,
         transform: `translate3d(${drag.x - drag.ox * zoom}px, ${drag.y - drag.oy * zoom}px, 0)` }}
     >
@@ -761,7 +814,7 @@ function ScriptEditorInner({
         ) : drag.payload.type === "script" ? (
           (() => {
             const main = drag.payload.script;
-            return drag.payload.group.slice(0, 8).map((s) => (
+            return drag.payload.group.slice(0, 8).map((s, i) => (
               <div
                 key={s.id}
                 className="se-ghost-item"
@@ -771,14 +824,29 @@ function ScriptEditorInner({
                   width: drag.scriptWidths?.[s.id] ?? (s.id === main.id ? drag.w : undefined),
                 }}
               >
-                <StackView script={{ ...s, steps: ghostPreviewSteps(s.steps) }}
-                  fixedWidth={drag.scriptWidths?.[s.id] ?? (s.id === main.id ? drag.w : undefined)} />
+                {drag.previewNodes?.[i] ? (
+                  <div ref={(host) => {
+                    const node = drag.previewNodes?.[i];
+                    if (host && node && host.firstChild !== node) host.replaceChildren(node);
+                  }} />
+                ) : (
+                  <StackView script={{ ...s, steps: ghostPreviewSteps(s.steps) }}
+                    fixedWidth={drag.scriptWidths?.[s.id] ?? (s.id === main.id ? drag.w : undefined)} />
+                )}
               </div>
             ));
           })()
         ) : (
-          <div className="se-stack" style={{ width: drag.w }}>
-            <StepList scriptId="__ghost" list="root" steps={ghostPreviewSteps(drag.payload.steps)} />
+          <div className={`se-stack${drag.sourceStackIdle ? " is-idle" : ""}`} style={{ width: drag.w }}>
+            {drag.previewNodes?.length ? (
+              <div className="se-list" ref={(host) => {
+                if (host && host.firstChild !== drag.previewNodes?.[0]) {
+                  host.replaceChildren(...(drag.previewNodes ?? []));
+                }
+              }} />
+            ) : (
+              <StepList scriptId="__ghost" list="root" steps={ghostPreviewSteps(drag.payload.steps)} />
+            )}
             {drag.payload.steps.length > 8 && (
               <span className="se-ghost-more">
                 {tr("ほか{n}件の動作", { n: drag.payload.steps.length - 8 })}
@@ -995,6 +1063,10 @@ function ScriptEditorInner({
             <kbd>{glyphs("⌘A")}</kbd>{tr("全選択")}
           </span>
           <span>
+            <kbd>{glyphs("⌘C")}</kbd>/<kbd>{glyphs("⌘X")}</kbd>/<kbd>{glyphs("⌘V")}</kbd>
+            {tr("コピー")}・{tr("切り取り")}・{tr("貼り付け")}
+          </span>
+          <span>
             <kbd>{glyphs("⌘Z")}</kbd>/<kbd>{glyphs("⇧⌘Z")}</kbd>{tr("取り消し・やり直し")}
           </span>
           <InfoTip
@@ -1073,6 +1145,31 @@ function clampPal(w: number): number {
 function inPaletteHint(d: Drag, el: HTMLElement | null): boolean {
   const r = el?.getBoundingClientRect();
   return !!r && d.x >= r.left && d.x <= r.right && d.y >= r.top && d.y <= r.bottom;
+}
+
+/** Preserve the original visible markup rather than replacing live controls with read-only placeholders. */
+function cloneDragElement(source: HTMLElement): HTMLElement | null {
+  // Large/virtualized trees use the bounded React preview to avoid blocking a drag frame.
+  if (source.querySelectorAll("*").length > 350) return null;
+  const copy = source.cloneNode(true) as HTMLElement;
+  const actual = source.querySelectorAll("input, select, textarea");
+  const cloned = copy.querySelectorAll("input, select, textarea");
+  for (let i = 0; i < actual.length; i++) {
+    const original = actual[i];
+    const target = cloned[i];
+    if (original instanceof HTMLInputElement && target instanceof HTMLInputElement) {
+      target.value = original.value;
+      target.checked = original.checked;
+    } else if (original instanceof HTMLSelectElement && target instanceof HTMLSelectElement) {
+      target.selectedIndex = original.selectedIndex;
+    } else if (original instanceof HTMLTextAreaElement && target instanceof HTMLTextAreaElement) {
+      target.value = original.value;
+    }
+  }
+  // This temporary, inert copy must not duplicate label targets in the editor.
+  copy.removeAttribute("id");
+  copy.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
+  return copy;
 }
 
 /** Drag previews never mount a second copy of a very long step tree. */
