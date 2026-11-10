@@ -880,23 +880,33 @@ describe("api-json-limits", () => {
   }
   const tr = async () => (s: string) => s;
 
-  function signingFixture(authorized = true) {
+  function signingFixture({ authorized = true, serverBacked = false, token = "exp=123&sig=example" }: {
+    authorized?: boolean; serverBacked?: boolean; token?: string | null;
+  } = {}) {
     const signed: string[] = [];
+    const ownershipChecks: string[][] = [];
     const handler = load("../app/api/assets/sign/route.ts", {
       "next/server": { NextResponse },
       "../../../../lib/i18n-server": { serverTr: tr },
       "../../../../lib/server": { requireAuth: async () => authorized ? null : NextResponse.json({ error: "Unauthorized" }, { status: 401 }) },
+      "../../../../lib/db": { dbConfigured: () => serverBacked, getDb: async () => ({}) },
+      "../../../../lib/site-server": { siteIdOf: async (site: string) => site },
+      "../../../../lib/site-access": { requireSiteAccess: async () => null },
+      "../../../../lib/site-asset-access": { siteOwnsAssets: async (_db: unknown, site: string, paths: string[]) => {
+        ownershipChecks.push([site, ...paths]);
+        return paths.every(path => path !== "assets/other.png");
+      } },
       "../../../../lib/asset-token": { signAssetPaths: async (paths: string[]) => {
-        const tokens = new Map<string, string>();
+        const tokens = new Map<string, string | null>();
         for (const path of new Set(paths)) {
           signed.push(path);
-          tokens.set(path, "exp=123&sig=example");
+          tokens.set(path, token);
         }
         return tokens;
       } },
       "../../../../lib/api-json": { JsonBodyTooLargeError, JsonContentTypeError, jsonErrorStatus, readJsonLimited, readJsonObjectLimited },
     });
-    return { POST: handler.POST as (req: Request) => Promise<Response>, signed };
+    return { POST: handler.POST as (req: Request) => Promise<Response>, signed, ownershipChecks };
   }
 
   test("asset signing accepts a valid request and enforces authorization", async () => {
@@ -907,9 +917,24 @@ describe("api-json-limits", () => {
       "assets/a.png": "/api/assets/file?path=assets%2Fa.png&exp=123&sig=example",
     });
     assert.deepEqual(signed, ["assets/a.png"]);
-    const denied = signingFixture(false);
+    const denied = signingFixture({ authorized: false });
     assert.equal((await denied.POST(jsonRequest('{"paths":["assets/a.png"]}'))).status, 401);
     assert.deepEqual(denied.signed, []);
+  });
+
+  test("unsigned preview URLs carry their verified site and ownership is checked per batch", async () => {
+    const { POST, signed, ownershipChecks } = signingFixture({ serverBacked: true, token: null });
+    const paths = ["assets/a.png", "assets/b.png"];
+    const request = (paths: string[]) => jsonRequest(JSON.stringify({ site: "site-a", paths }));
+    const response = await POST(request(paths));
+    assert.equal(response.status, 200);
+    assert.deepEqual((await response.json()).urls, {
+      "assets/a.png": "/api/assets/file?path=assets%2Fa.png&site=site-a",
+      "assets/b.png": "/api/assets/file?path=assets%2Fb.png&site=site-a",
+    });
+    assert.deepEqual(ownershipChecks, [["site-a", ...paths]]);
+    assert.equal((await POST(request([...paths, "assets/other.png"]))).status, 404);
+    assert.deepEqual(signed, paths);
   });
 
   test("asset signing rejects oversized or wrongly typed request bodies before signing", async () => {

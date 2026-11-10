@@ -4,7 +4,7 @@ import { requireAuth } from "../../../../lib/server";
 import { dbConfigured, getDb } from "../../../../lib/db";
 import { siteIdOf } from "../../../../lib/site-server";
 import { requireSiteAccess } from "../../../../lib/site-access";
-import { siteHasAsset } from "../../../../lib/site-asset-access";
+import { siteOwnsAssets } from "../../../../lib/site-asset-access";
 import { signAssetPaths } from "../../../../lib/asset-token";
 import { jsonErrorStatus, readJsonObjectLimited } from "../../../../lib/api-json";
 
@@ -28,22 +28,22 @@ export async function POST(req: Request) {
   if (!paths || paths.length > 500 || !paths.every((p) => typeof p === "string" && p.startsWith("assets/") && p.length < 500)) {
     return NextResponse.json({ error: tr("Invalid request (request body)") }, { status: 400 });
   }
+  let unsignedQuery = "";
   if (dbConfigured()) {
     const siteId = await siteIdOf(body?.site);
     if (siteId instanceof NextResponse) return siteId;
     const deniedSite = await requireSiteAccess(siteId, "view");
     if (deniedSite) return deniedSite;
-    const db = await getDb();
-    for (const path of paths as string[]) {
-      if (!await siteHasAsset(db, siteId, path)) {
-        return NextResponse.json({ error: tr("Not found") }, { status: 404 });
-      }
+    if (!await siteOwnsAssets(await getDb(), siteId, paths)) {
+      return NextResponse.json({ error: tr("Not found") }, { status: 404 });
     }
+    unsignedQuery = `site=${encodeURIComponent(siteId)}`;
   }
   const urls: Record<string, string> = Object.create(null);
-  const tokens = await signAssetPaths(paths as string[]);
+  const tokens = await signAssetPaths(paths);
   for (const [path, token] of tokens) {
-    urls[path] = `/api/assets/file?path=${encodeURIComponent(path)}${token ? `&${token}` : ""}`;
+    const query = token ?? unsignedQuery;
+    urls[path] = `/api/assets/file?path=${encodeURIComponent(path)}${query ? `&${query}` : ""}`;
   }
   return NextResponse.json({ urls });
 }
