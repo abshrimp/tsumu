@@ -58,3 +58,29 @@ test("element inspector uses linked labels and identified inputs", async ({ page
 
   expect(problems).toEqual({ labels: [], unnamedFields: [] });
 });
+
+test("site settings fields have associated labels and identifiable controls", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
+  const response = await page.request.post("/api/sites", { data: { name: "Site accessibility" } });
+  expect(response.ok()).toBeTruthy();
+  const { site } = (await response.json()) as { site: { id: string } };
+
+  await page.goto(`/sites/${site.id}`);
+  await page.locator('[data-tutorial="left-tab-site"]').click();
+  const settings = page.locator('[data-tutorial="site-settings"]');
+  await expect(settings).toBeVisible();
+
+  const problems = await settings.evaluate((root) => {
+    const labels = [...root.querySelectorAll("label")]
+      .filter((label) => !label.control)
+      .map((label) => label.textContent?.trim() ?? "");
+    const fields = [...root.querySelectorAll("input, select, textarea")];
+    return {
+      labels,
+      unnamedFields: fields.filter((field) => !field.id && !field.getAttribute("name"))
+        .map((field) => field.outerHTML.slice(0, 180)),
+    };
+  });
+
+  expect(problems).toEqual({ labels: [], unnamedFields: [] });
+});
