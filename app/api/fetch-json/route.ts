@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { serverTr } from "../../../lib/i18n-server";
 import { requireAuth } from "../../../lib/server";
 import { BlockedUrlError, fetchPublic, readTextLimited, TooLargeError } from "../../../lib/safe-fetch";
-import { readJsonRequestLimited } from "../../../lib/read-json-request";
+import { readJsonLimited } from "../../../lib/api-json";
 
 export const maxDuration = 30;
 
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   let headers: unknown;
   let body: unknown;
   try {
-    ({ url, method, headers, body } = await readJsonRequestLimited(req, MAX_REQUEST_BYTES) as {
+    ({ url, method, headers, body } = await readJsonLimited(req, MAX_REQUEST_BYTES) as {
       url: string; method?: string; headers?: unknown; body?: unknown;
     });
   } catch (error) {

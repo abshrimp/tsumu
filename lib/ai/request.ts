@@ -1,7 +1,7 @@
 import { buildAiContext, type AiContext } from "../aiOps";
 import type { SiteDoc } from "../types";
 import type { ChatTurn } from "./run";
-import { readJsonRequestLimited } from "../read-json-request";
+import { readJsonLimited } from "../api-json";
 
 export const MAX_REQUEST_BYTES = 4 * 1024 * 1024;
 const record = (v: unknown): v is Record<string, any> => !!v && typeof v === "object" && !Array.isArray(v);
@@ -59,5 +59,5 @@ export function parseAiRequest(body: unknown): { turns: ChatTurn[]; context: AiC
 
 /** AI requests share the same streaming byte bound as other untrusted JSON inputs. */
 export async function readAiRequest(req: Request): Promise<unknown> {
-  return readJsonRequestLimited(req, MAX_REQUEST_BYTES);
+  return readJsonLimited(req, MAX_REQUEST_BYTES);
 }
