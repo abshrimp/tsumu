@@ -132,6 +132,8 @@ test("GC dry-run retains an asset referenced by a current document", async () =>
   const path = key(100);
   const f = fixture(async () => [path], [path]);
   try {
+    f.sql.prepare("INSERT INTO asset_gc_candidates VALUES(?,?,?,?)")
+      .run(path, now - 9 * day, now - day, 17);
     const report = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now });
     assert.deepEqual(report.potentialDeletePaths, []);
     assert.equal(report.candidates, 0);
@@ -366,5 +368,34 @@ test("expired orphan from an explicit delete is protected by a different current
     assert.equal(f.deletes(), 0);
     assert.ok(f.stored.has(path));
     assert.equal(f.lists(), 0);
+  } finally { f.sql.close(); }
+});
+test("weekly inventory resumes its persisted KV cursor without nightly listing", async () => {
+  const first = key(100, "first.png"), second = key(90, "second.png");
+  const f = fixture(async () => [], [first, second]);
+  let calls = 0;
+  f.kv.list = async (options) => {
+    calls++;
+    if (!options.cursor) {
+      return { keys: [{ name: first, metadata: { bytes: 10 } }],
+        list_complete: false, cursor: "next" };
+    }
+    assert.equal(options.cursor, "next");
+    return { keys: [{ name: second, metadata: { bytes: 20 } }],
+      list_complete: true };
+  };
+  try {
+    const one = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms,
+      now, discoverUntracked: true });
+    assert.equal(one.scanComplete, false);
+    assert.equal(f.sql.prepare("SELECT scan_cursor FROM asset_gc_state").get()?.scan_cursor, "next");
+    await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now: now + day });
+    assert.equal(calls, 1, "the nightly run must not advance the weekly KV cursor");
+    const two = await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms,
+      now: now + 7 * day, discoverUntracked: true });
+    assert.equal(two.scanComplete, true);
+    assert.equal(calls, 2);
+    assert.equal(f.sql.prepare("SELECT scan_cursor FROM asset_gc_state").get()?.scan_cursor, null);
+    assert.equal(f.sql.prepare("SELECT count(*) AS n FROM asset_gc_candidates").get()?.n, 2);
   } finally { f.sql.close(); }
 });
