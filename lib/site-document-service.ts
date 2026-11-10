@@ -119,22 +119,47 @@ async function finishSave(db: Db, siteId: string, roomKey: string | null, result
   return result;
 }
 
-export async function saveSiteDocument(db: Db, siteId: string, raw: string, base: string | null):
+/** サーバー内の通知用。HTTP応答やWebSocketメッセージには、この包みを渡さない。 */
+export interface ServerDocumentMutation {
+  result: SaveDocResult;
+  roomKey: string | null;
+}
+
+/** 保存先の世代を必要としない呼び出し元には、従来どおり保存結果だけを返す。 */
+export async function saveSiteDocument(db: Db, siteId: string, raw: string, base: string | null, expectedRoomKey?: string):
   Promise<SaveDocResult> {
+  return (await saveSiteDocumentWithTarget(db, siteId, raw, base, expectedRoomKey)).result;
+}
+
+export async function saveSiteDocumentWithTarget(db: Db, siteId: string, raw: string, base: string | null, expectedRoomKey?: string):
+  Promise<ServerDocumentMutation> {
   const target = await forSite(db, siteId);
-  if (target.kind === "missing") return { kind: "missing" };
+  // 初期保存の対象が消えたり作り直されたりしても、別の世代を初期化しない。
+  if (target.kind === "missing" || expectedRoomKey !== undefined &&
+      (target.kind !== "room" || target.roomKey !== expectedRoomKey)) {
+    return { result: { kind: "missing" }, roomKey: null };
+  }
   const result = target.kind === "room" ? await target.stub.replaceDocument(raw, base)
     : await saveLocalDocument(db, siteId, raw, base);
-  return finishSave(db, siteId, target.kind === "room" ? target.roomKey : null, result);
+  const roomKey = target.kind === "room" ? target.roomKey : null;
+  const finished = await finishSave(db, siteId, roomKey, result);
+  return { result: finished, roomKey: finished.kind === "saved" ? roomKey : null };
 }
 
 export async function patchSiteDocument(db: Db, siteId: string, patch: DocPatch, base: string):
   Promise<SaveDocResult> {
+  return (await patchSiteDocumentWithTarget(db, siteId, patch, base)).result;
+}
+
+export async function patchSiteDocumentWithTarget(db: Db, siteId: string, patch: DocPatch, base: string):
+  Promise<ServerDocumentMutation> {
   const target = await forSite(db, siteId);
-  if (target.kind === "missing") return { kind: "missing" };
+  if (target.kind === "missing") return { result: { kind: "missing" }, roomKey: null };
   const result = target.kind === "room" ? await target.stub.patchDocument(patch, base)
     : await patchLocalDocument(db, siteId, patch, base);
-  return finishSave(db, siteId, target.kind === "room" ? target.roomKey : null, result);
+  const roomKey = target.kind === "room" ? target.roomKey : null;
+  const finished = await finishSave(db, siteId, roomKey, result);
+  return { result: finished, roomKey: finished.kind === "saved" ? roomKey : null };
 }
 
 /** Seal and clear an obsolete generation, including its daily backups. */
