@@ -14,7 +14,7 @@ import type {
   DocChangeMessage,
 } from "./lib/collab";
 import { parseActivityUser, recordActivity, type ActivityUser } from "./lib/activity";
-import { isSiteId, getSiteRoomKey } from "./lib/sites";
+import { isSiteId, getSiteRoomKey, recordSiteSavedAt } from "./lib/sites";
 import { isEmailAllowed, parseAllowedEmails } from "./lib/allowlist";
 import { isDocPatch } from "./lib/doc-patch";
 
@@ -258,6 +258,15 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         return;
       }
       if (result.kind === "missing") throw new Error("サイトが見つかりません");
+      if (result.kind === "saved") {
+        // ホーム画面の「〜に編集」は D1 の saved_at/updated_at を読むので、ここでも反映する
+        try {
+          await recordSiteSavedAt(db, siteId, remote ? roomKey : null, result.savedAt);
+        } catch (error) {
+          // 本体の保存は成功しているので、時刻の反映失敗は保存失敗扱いにしない
+          console.error("Failed to record site savedAt", error);
+        }
+      }
       if (result.kind === "conflict") {
         const current = result.current;
         reply(
