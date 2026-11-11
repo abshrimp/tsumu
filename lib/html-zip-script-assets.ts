@@ -26,9 +26,10 @@ function eachScriptLiteral(source: string, visit: (literal: Literal) => void): v
             ecmaVersion: "latest", sourceType: type.toLowerCase() === "module" ? "module" : "script",
             allowHashBang: true,
           })) {
-            if (token.type === tokTypes.string && typeof token.value === "string") {
+            if (!("value" in token) || typeof token.value !== "string") continue;
+            if (token.type === tokTypes.string) {
               literals.push({ value: token.value, start: offset + token.start, end: offset + token.end, template: false });
-            } else if (token.type === tokTypes.template && typeof token.value === "string" &&
+            } else if (token.type === tokTypes.template &&
                 body[token.start - 1] === tick && body[token.end] === tick &&
                 body.slice(token.start, token.end) === token.value) {
               literals.push({ value: token.value, start: offset + token.start, end: offset + token.end, template: true });
