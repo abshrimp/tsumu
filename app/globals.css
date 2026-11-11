@@ -4146,6 +4146,8 @@ textarea {
   overflow: auto;
   background-color: var(--bg-canvas);
   background-image: radial-gradient(rgba(0, 0, 0, 0.09) 1px, transparent 1px);
+  /* Keep the dots anchored to the script content as the workspace scrolls. */
+  background-attachment: local;
   background-size: 16px 16px;
 }
 
