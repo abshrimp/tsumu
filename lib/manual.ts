@@ -16,10 +16,10 @@ type RightTab = EditorState["rightTab"];
 export type Level = 1 | 2 | 3 | 4;
 
 export const LEVELS: Record<Level, { label: string; desc: string }> = {
-  1: { label: tr("入門"), desc: tr("Webサイトを初めて作る方へ") },
-  2: { label: tr("基本"), desc: tr("ひととおりのページを作れるように") },
-  3: { label: tr("応用"), desc: tr("思いどおりのデザインに仕上げる") },
-  4: { label: tr("上級"), desc: tr("データ・スクリプト・公開のしくみまで") },
+  1: { label: tr("Beginner"), desc: tr("For first-time website builders") },
+  2: { label: tr("Basic"), desc: tr("Build a complete page") },
+  3: { label: tr("Intermediate"), desc: tr("Get the design just right") },
+  4: { label: tr("Advanced"), desc: tr("Data, scripts and publishing") },
 };
 
 export type CategoryId =
@@ -44,19 +44,19 @@ export interface Category {
 }
 
 export const CATEGORIES: Category[] = [
-  { id: "start", label: tr("はじめに"), desc: tr("画面の見方・保存・元に戻す") },
-  { id: "page", label: tr("ページ"), desc: tr("追加・URL・検索結果での見え方") },
-  { id: "element", label: tr("要素の追加と選択"), desc: tr("置く・選ぶ・並べ替える") },
-  { id: "text", label: tr("文字"), desc: tr("書き換え・大きさ・フォント") },
-  { id: "layout", label: tr("レイアウト"), desc: tr("横並び・中央寄せ・余白") },
-  { id: "look", label: tr("色と見た目"), desc: tr("背景・角丸・影・ホバー・動き") },
-  { id: "image", label: tr("画像と動画"), desc: tr("画像の追加・切り抜き・埋め込み") },
-  { id: "responsive", label: tr("スマホ対応"), desc: tr("画面幅ごとに見た目を変える") },
-  { id: "action", label: tr("リンクと動き"), desc: tr("ページ移動・メニュー開閉") },
-  { id: "data", label: tr("データとリスト表示"), desc: tr("外部データ・一覧・詳細ページ") },
-  { id: "reuse", label: tr("部品の使い回し"), desc: tr("コンポーネント") },
-  { id: "publish", label: tr("公開と管理"), desc: tr("公開・バックアップ・アカウント") },
-  { id: "design", label: tr("Webデザインの基本"), desc: tr("知っておくと迷わない決まりごと") },
+  { id: "start", label: tr("Getting started"), desc: tr("The screen, saving and undo") },
+  { id: "page", label: tr("Pages"), desc: tr("Adding pages, URLs and search results") },
+  { id: "element", label: tr("Adding and selecting"), desc: tr("Add, select and reorder") },
+  { id: "text", label: tr("Text"), desc: tr("Editing, size and fonts") },
+  { id: "layout", label: tr("Layout"), desc: tr("Rows, centering and spacing") },
+  { id: "look", label: tr("Color and look"), desc: tr("Backgrounds, corners, shadows, hover and motion") },
+  { id: "image", label: tr("Images and video"), desc: tr("Adding, cropping and embedding") },
+  { id: "responsive", label: tr("Mobile"), desc: tr("Change the look by screen width") },
+  { id: "action", label: tr("Links and interaction"), desc: tr("Navigation and menus") },
+  { id: "data", label: tr("Data and list displays"), desc: tr("External data, lists and detail pages") },
+  { id: "reuse", label: tr("Reusable parts"), desc: tr("Components") },
+  { id: "publish", label: tr("Publishing and management"), desc: tr("Publishing, backups and accounts") },
+  { id: "design", label: tr("Web design basics"), desc: tr("Conventions worth knowing") },
 ];
 
 /**

@@ -2,11 +2,11 @@ import type { Motion } from "./types";
 import { tr } from "./i18n";
 
 export const TRIGGERS: { value: Motion["trigger"]; label: string }[] = [
-  { value: "state", label: tr("状態が変わったとき") },
-  { value: "hover", label: tr("ホバーしたときに再生") },
-  { value: "active", label: tr("押したときに再生") },
-  { value: "load", label: tr("ページを開いたときに再生") },
-  { value: "in-view", label: tr("画面に入ったとき") },
+  { value: "state", label: tr("On state change") },
+  { value: "hover", label: tr("Play on hover") },
+  { value: "active", label: tr("Play on press") },
+  { value: "load", label: tr("Play on page load") },
+  { value: "in-view", label: tr("When scrolled into view") },
 ];
 
 export function triggerLabel(t: Motion["trigger"]): string {
@@ -14,108 +14,108 @@ export function triggerLabel(t: Motion["trigger"]): string {
 }
 
 export const TRANSITION_PROPS: { value: string; label: string }[] = [
-  { value: "all", label: tr("すべて（all）") },
-  { value: "opacity", label: tr("不透明度") },
-  { value: "transform", label: tr("変形") },
-  { value: "background-color", label: tr("背景色") },
-  { value: "color", label: tr("文字色") },
-  { value: "border-color", label: tr("線の色") },
-  { value: "box-shadow", label: tr("影") },
+  { value: "all", label: tr("All (all)") },
+  { value: "opacity", label: tr("Opacity") },
+  { value: "transform", label: trc("transform_variant_1", "Transform") },
+  { value: "background-color", label: tr("Background color") },
+  { value: "color", label: tr("Text color") },
+  { value: "border-color", label: tr("Border color") },
+  { value: "box-shadow", label: tr("Shadow") },
 ];
 
 /** ビルトインのキーフレーム。CSSは @keyframes anim-<key> { ... } として出力する */
 export const KEYFRAMES: { key: string; label: string; css: string }[] = [
-  { key: "fade-in", label: tr("フェードイン"), css: "from { opacity: 0; }" },
-  { key: "fade-out", label: tr("フェードアウト"), css: "to { opacity: 0; }" },
+  { key: "fade-in", label: tr("Fade in"), css: "from { opacity: 0; }" },
+  { key: "fade-out", label: tr("Fade out"), css: "to { opacity: 0; }" },
   {
     key: "fade-up",
-    label: tr("下からフェード"),
+    label: tr("Fade up"),
     css: "from { opacity: 0; transform: translateY(24px); }",
   },
   {
     key: "fade-down",
-    label: tr("上からフェード"),
+    label: tr("Fade down"),
     css: "from { opacity: 0; transform: translateY(-24px); }",
   },
   {
     key: "slide-left",
-    label: tr("左からスライド"),
+    label: tr("Slide from left"),
     css: "from { transform: translateX(-40px); }",
   },
   {
     key: "slide-right",
-    label: tr("右からスライド"),
+    label: tr("Slide from right"),
     css: "from { transform: translateX(40px); }",
   },
   {
     key: "slide-up",
-    label: tr("下からスライド"),
+    label: tr("Slide up"),
     css: "from { transform: translateY(40px); }",
   },
   {
     key: "slide-down",
-    label: tr("上からスライド"),
+    label: tr("Slide down"),
     css: "from { transform: translateY(-40px); }",
   },
-  { key: "spin", label: tr("回転"), css: "to { transform: rotate(360deg); }" },
+  { key: "spin", label: tr("Rotation"), css: "to { transform: rotate(360deg); }" },
   {
     key: "pulse",
-    label: tr("パルス"),
+    label: tr("Pulse"),
     css: "50% { transform: scale(1.06); }",
   },
   {
     key: "bounce",
-    label: tr("バウンス"),
+    label: tr("Bounce"),
     css: "0%, 50%, 85%, 100% { transform: translateY(0); } 30% { transform: translateY(-16px); } 70% { transform: translateY(-8px); }",
   },
   {
     key: "shake",
-    label: tr("シェイク"),
+    label: tr("Shake"),
     css: "0%, 100% { transform: translateX(0); } 10%, 30%, 50%, 70%, 90% { transform: translateX(-6px); } 20%, 40%, 60%, 80% { transform: translateX(6px); }",
   },
   {
     key: "flip",
-    label: tr("フリップ"),
+    label: tr("Flip"),
     css: "from { transform: perspective(600px) rotateY(0); } to { transform: perspective(600px) rotateY(360deg); }",
   },
   {
     key: "swing",
-    label: tr("スイング"),
+    label: tr("Swing"),
     css: "20% { transform: rotate(12deg); } 40% { transform: rotate(-8deg); } 60% { transform: rotate(5deg); } 80% { transform: rotate(-3deg); } 100% { transform: rotate(0); }",
   },
   {
     key: "wobble",
-    label: tr("ウォブル"),
+    label: tr("Wobble"),
     css: "15% { transform: translateX(-12px) rotate(-4deg); } 30% { transform: translateX(8px) rotate(3deg); } 45% { transform: translateX(-6px) rotate(-2deg); } 60% { transform: translateX(4px) rotate(1deg); } 100% { transform: none; }",
   },
   {
     key: "zoom-in",
-    label: tr("ズームイン"),
+    label: trc("zoom_in_variant_1", "Zoom in"),
     css: "from { opacity: 0; transform: scale(0.6); }",
   },
   {
     key: "zoom-out",
-    label: tr("ズームアウト"),
+    label: trc("zoom_out_variant_1", "Zoom out"),
     css: "from { opacity: 0; transform: scale(1.25); }",
   },
 ];
 
 export function keyframeLabel(key: string): string {
-  if (key === "custom") return tr("カスタム");
+  if (key === "custom") return tr("Custom");
   return KEYFRAMES.find((k) => k.key === key)?.label ?? key;
 }
 
 export const DIRECTIONS = [
-  { value: "normal", label: tr("通常") },
-  { value: "reverse", label: tr("逆再生") },
-  { value: "alternate", label: tr("交互") },
+  { value: "normal", label: tr("Standard") },
+  { value: "reverse", label: tr("Reverse") },
+  { value: "alternate", label: tr("Alternate") },
 ] as const;
 
 export const FILL_MODES = [
-  { value: "both", label: tr("両方を保持") },
-  { value: "forwards", label: tr("最後を保持") },
-  { value: "backwards", label: tr("最初を保持") },
-  { value: "none", label: tr("保持しない") },
+  { value: "both", label: trc("both_variant_1", "Both") },
+  { value: "forwards", label: tr("Keep end state") },
+  { value: "backwards", label: tr("Keep start state") },
+  { value: "none", label: trc("none_variant_1", "None") },
 ] as const;
 
 /**
