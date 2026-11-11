@@ -15,7 +15,7 @@ import {
 export async function siteIdOf(value: unknown): Promise<string | NextResponse> {
   if (isSiteId(value)) return value;
   const tr = await serverTr();
-  return NextResponse.json({ error: tr("サイトの指定が正しくありません") }, { status: 400 });
+  return NextResponse.json({ error: tr("Invalid site") }, { status: 400 });
 }
 
 /**
@@ -30,7 +30,7 @@ export async function siteDestOf(siteId: string, clientDest?: unknown): Promise<
     const site = roomKey === null ? null : await getSite(db, siteId, roomKey);
     if (site) return { ...site, roomKey };
     const tr = await serverTr();
-    return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
+    return NextResponse.json({ error: tr("Site not found") }, { status: 404 });
   }
   const empty: SiteDest = {
     repo: null,
