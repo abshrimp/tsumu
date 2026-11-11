@@ -524,10 +524,10 @@ test("test-site Next.js exports use proxy convention without legacy middleware",
   const files = generateProject(scriptDataPickerDoc(), "test").files;
   assert.ok(files["proxy.ts"]);
   assert.equal(files["middleware.ts"], undefined);
-  assert.match(files["proxy.ts"], /export function proxy\\(req: NextRequest\\)/);
+  assert.ok(files["proxy.ts"].includes("export function proxy(req: NextRequest)"));
   assert.match(files["proxy.ts"], /X-Robots-Tag/);
   assert.match(files["proxy.ts"], /status: 403/);
-  assert.match(files["proxy.ts"], /matcher: "\\/:path\\*"/);
+  assert.ok(files["proxy.ts"].includes('matcher: "/:path*"'));
 });
 
 test("generated recipe evaluator narrows its discriminated result under strict TypeScript", () => {
