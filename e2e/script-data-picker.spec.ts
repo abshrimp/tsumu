@@ -134,7 +134,9 @@ test("mixed templates and generated code survive exploring, cancelling and save/
 
 test("filter field dropdown marks nested Japanese category arrays as lists", async ({ page }) => {
   const filter = block(page, "category-filter");
-  await filter.locator(".se-pm-btn").click();
+  // The list-source control also uses se-pm-btn. Select only the field path control.
+  const fieldPicker = filter.locator(".se-pm-btn:not(.se-list-choice)");
+  await fieldPicker.click();
   const menu = page.locator(".se-pm");
   const title = menu.locator(".se-pm-row").filter({
     has: page.locator(".se-pm-key").filter({ hasText: /^title$/ }),
@@ -159,7 +161,7 @@ test("filter field dropdown marks nested Japanese category arrays as lists", asy
   await menu.locator(".se-pm-row").filter({
     has: page.locator(".se-pm-key").filter({ hasText: /^出展カテゴリ$/ }),
   }).locator(".dd-item").click();
-  await expect(filter.locator(".se-pm-btn")).toHaveText("categories › 出展カテゴリ");
+  await expect(fieldPicker).toHaveText("categories › 出展カテゴリ");
   const doc = await snapshot(page);
   const savedFilter = doc.pages.p.pageScripts[0].steps.find((s: any) => s.id === "category-filter");
   expect(savedFilter.field).toBe("categories.出展カテゴリ");
@@ -168,7 +170,8 @@ test("filter field dropdown marks nested Japanese category arrays as lists", asy
 
 test("filter can target the categories record and suggest key and list membership conditions", async ({ page }) => {
   const filter = block(page, "category-filter");
-  await filter.locator(".se-pm-btn").click();
+  const fieldPicker = filter.locator(".se-pm-btn:not(.se-list-choice)");
+  await fieldPicker.click();
   const menu = page.locator(".se-pm");
   const categories = menu.locator(".se-pm-row").filter({
     has: page.locator(".se-pm-key").filter({ hasText: /^categories$/ }),
@@ -181,7 +184,7 @@ test("filter can target the categories record and suggest key and list membershi
   });
   await expect(op).toHaveValue("has-key");
   await expect(op.locator('option[value="starts-with"]')).toHaveCount(0);
-  await expect(filter.locator(".se-pm-btn")).toHaveText("categories");
+  await expect(fieldPicker).toHaveText("categories");
 
   const value = filter.locator("input.se-in").first();
   await value.fill("出展カテゴリ");
@@ -191,7 +194,7 @@ test("filter can target the categories record and suggest key and list membershi
     field: "categories", op: "has-key", value: "出展カテゴリ",
   });
 
-  await filter.locator(".se-pm-btn").click();
+  await fieldPicker.click();
   await menu.locator(".se-pm-row").filter({
     has: page.locator(".se-pm-key").filter({ hasText: /^categories$/ }),
   }).locator(".se-pm-enter").click();
@@ -201,7 +204,7 @@ test("filter can target the categories record and suggest key and list membershi
 
   await expect(op).toHaveValue("contains");
   await expect(op.locator('option[value="has-key"]')).toHaveCount(0);
-  await expect(filter.locator(".se-pm-btn")).toHaveText("categories › 出展カテゴリ");
+  await expect(fieldPicker).toHaveText("categories › 出展カテゴリ");
   stored = (await snapshot(page)).pages.p.pageScripts[0].steps.find((s: any) => s.id === "category-filter");
   expect({ field: stored.field, op: stored.op, value: stored.value }).toEqual({
     field: "categories.出展カテゴリ", op: "contains", value: "",
