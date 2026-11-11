@@ -33,7 +33,7 @@ export const DEFAULT_BREAKPOINTS: BreakpointDef[] = [
 export const DEFAULT_BASE_WIDTH = 1280;
 /** 追加できるブレークポイントの数 */
 export const MAX_BREAKPOINTS = 6;
-const SHORT_LABELS: Record<string, string> = { タブレット: tr("タブレット"), スマホ横向き: tr("スマホ横"), スマホ: tr("スマホ") };
+const SHORT_LABELS: Record<string, string> = { タブレット: tr("Tablet"), スマホ横向き: tr("Phone (landscape)"), スマホ: tr("Phone") };
 
 /**
  * 表示中のブレークポイントの並び（"base" が先頭、あとは幅の大きい順）と、その情報。
@@ -50,7 +50,7 @@ export function normalizeBreakpoints(raw: unknown): BreakpointDef[] {
       .filter((b): b is BreakpointDef => !!b && typeof b === "object" && isBreakpointId(b.id))
       .map((b) => ({
         id: b.id,
-        label: String(b.label || "").trim() || tr("画面幅"),
+        label: String(b.label || "").trim() || tr("Screen width"),
         maxWidth: Math.round(Number(b.maxWidth)),
       }));
   } else {
@@ -71,17 +71,17 @@ export function normalizeBreakpoints(raw: unknown): BreakpointDef[] {
 
 /** よく使われる端末の画面幅（CSS px。ヘッダーの「よくある端末の幅で確かめる」に並べる） */
 export const DEVICE_WIDTHS: { width: number; label: string }[] = [
-  { width: 390, label: tr("スマホ（標準）") },
-  { width: 768, label: tr("タブレット縦（小）") },
-  { width: 667, label: tr("スマホ横向き") },
-  { width: 360, label: tr("スマホ（小）") },
-  { width: 430, label: tr("スマホ（大）") },
-  { width: 820, label: tr("タブレット縦") },
-  { width: 1024, label: tr("タブレット横") },
-  { width: 600, label: tr("小型タブレット") },
-  { width: 1280, label: tr("ノートパソコン") },
-  { width: 1440, label: tr("デスクトップ") },
-  { width: 1920, label: tr("大きいデスクトップ") },
+  { width: 390, label: tr("Phone (standard)") },
+  { width: 768, label: tr("Tablet portrait (small)") },
+  { width: 667, label: trc("phone_landscape_variant_1", "Phone (landscape)") },
+  { width: 360, label: tr("Phone (small)") },
+  { width: 430, label: tr("Phone (large)") },
+  { width: 820, label: tr("Tablet portrait") },
+  { width: 1024, label: tr("Tablet landscape") },
+  { width: 600, label: tr("Small tablet") },
+  { width: 1280, label: tr("Laptop") },
+  { width: 1440, label: trc("desktop_variant_1", "Desktop") },
+  { width: 1920, label: tr("Large desktop") },
 ];
 
 /** パソコン表示のキャンバス幅（いちばん大きいブレークポイントより広くする） */
@@ -107,11 +107,11 @@ export function applyBreakpoints(cfg: { breakpoints?: unknown; baseWidth?: unkno
   BP_ORDER.splice(0, BP_ORDER.length, "base", ...list.map((b) => b.id));
   for (const k of Object.keys(BP_INFO)) delete BP_INFO[k];
   BP_INFO.base = {
-    label: tr("パソコン"),
+    label: tr("Desktop"),
     short: "PC",
     width: base,
     maxWidth: null,
-    scope: tr("すべての画面に反映されます"),
+    scope: tr("Changes apply to all screen sizes"),
   };
   list.forEach((b, i) => {
     const smaller = list[i + 1];
@@ -122,8 +122,8 @@ export function applyBreakpoints(cfg: { breakpoints?: unknown; baseWidth?: unkno
       width: b.maxWidth,
       maxWidth: b.maxWidth,
       scope: smaller
-        ? tr("画面幅{maxWidth}px以下（{p2}を含む）に反映されます", { maxWidth: b.maxWidth, p2: list.slice(i + 1).map((x) => tr(x.label)).join(tr("・")) })
-        : tr("画面幅{maxWidth}px以下だけに反映されます", { maxWidth: b.maxWidth }),
+        ? tr("Changes apply to screens up to {maxWidth}px wide (including {p2})", { maxWidth: b.maxWidth, p2: list.slice(i + 1).map((x) => tr(x.label)).join(tr(", ")) })
+        : tr("Changes apply only to screens up to {maxWidth}px wide", { maxWidth: b.maxWidth }),
     };
   });
 }
@@ -141,10 +141,10 @@ export function breakpointForWidth(width: number): Breakpoint {
 }
 
 export const STATE_INFO: Record<"default" | "hover" | "active" | "focus", { label: string; pseudo: string }> = {
-  default: { label: tr("既定"), pseudo: "" },
-  hover: { label: tr("ホバー"), pseudo: ":hover" },
-  active: { label: tr("押したとき"), pseudo: ":active" },
-  focus: { label: tr("フォーカス"), pseudo: ":focus" },
+  default: { label: tr("Default"), pseudo: "" },
+  hover: { label: tr("Hover"), pseudo: ":hover" },
+  active: { label: tr("Pressed"), pseudo: ":active" },
+  focus: { label: tr("Focus"), pseudo: ":focus" },
 };
 
 export const STATE_ORDER = ["default", "hover", "active", "focus"] as const;
@@ -253,9 +253,9 @@ export function nextHiddenOn(
 
 /** 表示切替ボタン・メニューの文言（表示中のデバイスに合わせる） */
 export function hideToggleLabel(hiddenHere: boolean, bp: Breakpoint): string {
-  if (bp === "base") return hiddenHere ? tr("表示する") : tr("非表示にする");
+  if (bp === "base") return hiddenHere ? trc("show_variant_2", "Show") : trc("hide_variant_2", "Hide");
   const name = BP_INFO[bp].label;
-  return hiddenHere ? tr("{name}で表示する", { name }) : tr("{name}で非表示にする", { name });
+  return hiddenHere ? tr("show on {name}", { name }) : tr("hide on {name}", { name });
 }
 
 /**
@@ -806,7 +806,7 @@ export const FONTS: {
   value: string;
   google?: { importName: string; cssVar: string; weights?: string[] };
 }[] = [
-  { label: tr("システム"), value: "system-ui" },
+  { label: tr("System"), value: "system-ui" },
   {
     label: "Inter",
     value: "Inter",

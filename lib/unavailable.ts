@@ -10,7 +10,7 @@ export async function dbUnavailable(): Promise<NextResponse> {
   const tr = await serverTr();
   console.error("Database is not configured: set database_id on the DB binding in wrangler.jsonc, or TSUMU_DATA_DIR outside Cloudflare");
   return NextResponse.json(
-    { error: tr("データベースが設定されていません。管理者に確認してください") },
+    { error: tr("The database isn't configured. Contact your administrator") },
     { status: 503 }
   );
 }
@@ -19,7 +19,7 @@ export async function storeUnavailable(): Promise<NextResponse> {
   const tr = await serverTr();
   console.error("Asset storage is not configured: set id on the ASSETS_KV binding in wrangler.jsonc, or TSUMU_DATA_DIR outside Cloudflare");
   return NextResponse.json(
-    { error: tr("アセットの保存先が設定されていません。管理者に確認してください") },
+    { error: tr("Asset storage isn't configured. Contact your administrator") },
     { status: 503 }
   );
 }
