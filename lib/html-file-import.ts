@@ -36,11 +36,11 @@ export async function convertHtmlFile(
   options: { breakpoints?: BreakpointDef[]; progress?: (message: string) => void; allPages?: boolean } = {},
   uploaded?: string[],
 ): Promise<HtmlConversion> {
-  if (!file.size) throw new Error("ファイルが空です。");
+  if (!file.size) throw new Error(tr("The file is empty."));
   if (file.name.toLowerCase().endsWith(".zip")) {
-    if (file.size > IMPORT_LIMITS.zipBytes) throw new Error("インポートするファイルが大きすぎます。");
+    if (file.size > IMPORT_LIMITS.zipBytes) throw new Error(tr("The import file is too large."));
     // readHtmlZip/readHtmlZipPages share strict path and expansion checks before uploads.
-    options.progress?.("HTMLとアセットを読み込み中…");
+    options.progress?.(tr("Reading HTML and assets…"));
     return withImportUploads(async paths => {
       if (!options.allPages) {
         const converted = await readHtmlZip(file, options.progress, paths);
@@ -52,10 +52,10 @@ export async function convertHtmlFile(
       return requireEditableHtmlContent(convertHtmlPages(archive.pages, archive.assets, options.breakpoints));
     }, uploaded);
   }
-  if (!isHtmlFile(file.name)) throw new Error("HTMLまたはHTMLのZIPファイルを選択してください。");
-  if (file.size > IMPORT_LIMITS.docBytes) throw new Error("インポートするファイルが大きすぎます。");
+  if (!isHtmlFile(file.name)) throw new Error(tr("Choose an HTML file or ZIP containing HTML."));
+  if (file.size > IMPORT_LIMITS.docBytes) throw new Error(tr("The import file is too large."));
   const html = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
-  options.progress?.("HTMLを編集可能な要素へ変換中…");
+  options.progress?.(tr("Converting HTML into editable elements…"));
   return requireEditableHtmlContent(convertHtmlToSite(html, { breakpoints: options.breakpoints }));
 }
 

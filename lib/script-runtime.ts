@@ -69,13 +69,13 @@ export const SCRIPT_RUNTIME = `function (env) {
     return Object.prototype.hasOwnProperty.call(o, k);
   }
   // "items.0.title" のような位置を掘る（配列の "-1" は最後の要素）
-  function dig(v, path) {
+  function dig(v, path, missing) {
     var keys = String(path).split(".");
     for (var i = 0; i < keys.length; i++) {
-      if (v == null || typeof v !== "object") return undefined;
+      if (v == null || typeof v !== "object") return missing;
       var k = keys[i];
       var part = Array.isArray(v) && k === "-1" ? v.length - 1 : k;
-      if (!has(v, part)) return undefined;
+      if (!has(v, part)) return missing;
       v = v[part];
     }
     return v;
@@ -391,6 +391,14 @@ export const SCRIPT_RUNTIME = `function (env) {
             /*/filter*/
           }
           pageId = pid;
+          var seedData = body && body.getAttribute("data-list-seeds");
+          if (seedData) {
+            try {
+              JSON.parse(seedData).forEach(function (entry) {
+                writeVarPath(vars, entry[0], entry[1], withinValueLimit);
+              });
+            } catch (e) {}
+          }
         }
         return pageGeneration;
       }
@@ -414,8 +422,9 @@ export const SCRIPT_RUNTIME = `function (env) {
       // 画面上の変数（ストレージから読み込んだ値・分解した配列など）
       var vars = initialVars && typeof initialVars === "object"
         ? Object.assign(Object.create(null), initialVars) : Object.create(null);
-      function getVar(name) {
-        return has(vars, name) ? vars[name] : dig(vars, name);
+      var missingVar = {};
+      function getVar(name, missing) {
+        return has(vars, name) ? vars[name] : dig(vars, name, missing);
       }
       function writeVar(name, v) {
         var rootName = writeVarPath(vars, name, v, withinValueLimit);
@@ -488,7 +497,6 @@ export const SCRIPT_RUNTIME = `function (env) {
         } catch (e) {}
         return "";
       }
-      /*#clist*/
       // スクリプトの参照は実行時に解決する。値の中の波かっこは再解釈しない。
       function scriptReference(ref, self, item) {
         if (!ref || typeof ref !== "object" ||
@@ -497,13 +505,16 @@ export const SCRIPT_RUNTIME = `function (env) {
         if (item && (has(item, name) || has(item, head))) {
           return has(item, name) ? item[name] : dig(item, name);
         }
+        /*#clist*/
         var row = self && self.closest && self.closest("[data-row]");
         var scope = row && rowScopes.get(row);
         if (scope && (has(scope, name) || has(scope, head))) {
           return has(scope, name) ? scope[name] : dig(scope, name);
         }
+        /*/clist*/
         return has(ref, "fallback") ? ref.fallback : lookup(name, self, item);
       }
+      /*#clist*/
       function scriptExpression(s, self, item, mode) {
         var offset = 0;
         return s.scriptParts.map(function (part) {
@@ -607,16 +618,18 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*/live*/
       function setVar(name, v) {
-        if (!name || Object.is(getVar(name), v)) return;
+        if (typeof name !== "string" || !name || Object.is(getVar(name, missingVar), v)) return;
         // Variable-change scripts live on the page marker, not on an element.
         // Snapshot the watched paths before writing so unchanged nested fields
         // do not fire when their parent is reassigned.
         var owner = root.querySelector("[data-page-body]");
         var watching = [];
+        var changedRoot = name.split(".")[0];
         if (owner) parse(owner).forEach(function (s) {
           if (s.trigger !== "change" || typeof s.changeVariable !== "string" || !s.changeVariable) return;
           var watched = s.changeVariable;
-          if (name === watched || name.indexOf(watched + ".") === 0 || watched.indexOf(name + ".") === 0)
+          // An indexed write can also change its array's length and -1 alias.
+          if (watched.split(".")[0] === changedRoot)
             watching.push({ script: s, name: watched, before: getVar(watched) });
         });
         if (!writeVar(name, v)) return;
@@ -645,6 +658,11 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       // Inputs can contain a literal value, a list, one raw reference, or mixed text.
       function readInput(raw, self, scope) {
+        if (raw && typeof raw.inputRef === "string") {
+          var ref = raw.rawRef || { name: raw.inputRef };
+          if (has(raw, "raw")) ref.fallback = raw.raw;
+          return scriptReference(ref, self, scope);
+        }
         // Generated client scripts wrap mixed text in scriptParts objects.
         // Resolve them as expressions, not as literal list payloads.
         if (raw && typeof raw === "object" && Array.isArray(raw.scriptParts))
@@ -662,11 +680,15 @@ export const SCRIPT_RUNTIME = `function (env) {
         return resolve(raw, self, scope);
       }
       /*#if*/
+      function configuredInput(value) {
+        return typeof value === "string" ? !!value.trim() :
+          !!value && (typeof value.inputRef === "string" || Array.isArray(value.scriptParts));
+      }
       function test(c, self, sc) {
         if (!c || typeof c !== "object") return false;
         /*#var*/
         if (c.subject === "var") {
-          if (typeof c.left !== "string" || !c.left.trim()) return false;
+          if (!configuredInput(c.left)) return false;
           var matched = matchValueCondition(readInput(c.left, self, sc), c.op || "eq", readInput(c.value, self, sc));
           return c.not ? !matched : matched;
         }
@@ -725,7 +747,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (!condition || typeof condition !== "object") return;
           if (!condition.and) groups.push([]);
           if (condition.subject !== "var" ||
-              (typeof condition.left === "string" && !!condition.left.trim()))
+              configuredInput(condition.left))
             groups[groups.length - 1].push(condition);
         });
         return groups.some(function (group) {

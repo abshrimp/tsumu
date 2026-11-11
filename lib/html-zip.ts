@@ -1,10 +1,11 @@
 import { withImportUploads } from "./import-uploads";
 import { openImportZip } from "./zip-directory";
 import { assetSrc, uploadStaticAsset } from "./assets";
-import { resolveZipReference } from "./zip-references";
+import { archiveBaseUrl, archiveResolver } from "./zip-references";
 import { rewriteSrcsetUrls } from "./srcset";
 import { CSS_ASSET_ATTRIBUTES, rewriteCssAssetUrls } from "./css-assets";
-import { attachZipDependencies, zipCssUrl, zipStylesheet } from "./zip-css";
+import { isZipJavascript } from "./generator/imported-assets";
+import { attachZipDependencies, zipAssetClosure, zipCssUrl, zipStylesheet } from "./zip-css";
 import { HTML_ZIP_LIMITS, inspectHtmlZip, readZipEntryLimited } from "./html-zip-guard";
 import { genId } from "./presets";
 import { tr } from "./i18n";
@@ -27,34 +28,10 @@ const zipMime = (name: string) =>
 const cleanZipPath = (value: string) =>
   value.replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "");
 
-// Keep externally based references external. Resolve a local base inside the
-// archive without interpreting relative URLs against the editor origin.
-function archiveResolver(htmlPath: string, href: string | undefined | null, urls: Map<string, string>) {
-  let base: URL | undefined;
-  if (href) {
-    try {
-      const text = href.trim();
-      const value = new URL(/^[\\/]{2}/.test(text) ? "https:" + text : text, new URL(htmlPath, "file:///"));
-      if (["http:", "https:"].includes(value.protocol) ||
-          (value.protocol === "file:" && !/^[a-z][a-z0-9+.-]*:/i.test(href.trim()))) base = value;
-    } catch { /* Invalid bases use the HTML entry's directory. */ }
-  }
-  return (raw: string): string => {
-    const ref = raw.trim();
-    if (!base || !ref || /^(?:[a-z][a-z0-9+.-]*:|#|\/\/)/i.test(ref)) return resolveZipReference(ref, htmlPath, urls);
-    let url: URL;
-    try { url = new URL(ref, base); } catch { return raw; }
-    if (url.protocol !== "file:") return url.href;
-    const path = url.pathname + url.search + url.hash;
-    const target = resolveZipReference(path, htmlPath, urls);
-    return target === path ? raw : target;
-  };
-}
-
 export function rewriteZipReferences(html: string, htmlPath: string, urls: Map<string, string>) {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const base = Array.from(doc.querySelectorAll("base[href]")).find(el => el.namespaceURI === "http://www.w3.org/1999/xhtml");
-  const resolve = archiveResolver(htmlPath, base?.getAttribute("href"), urls);
+  const resolve = archiveResolver(htmlPath, archiveBaseUrl(htmlPath, base?.getAttribute("href")), urls);
   for (const el of Array.from(doc.querySelectorAll<HTMLElement>("[src],[href],[poster],[xlink\\:href]"))) {
     for (const attr of ["src", "href", "poster", "xlink:href"]) {
       const value = el.getAttribute(attr);
@@ -108,7 +85,7 @@ async function verifyZipIntegrity(htmlText: Map<string, string>, assetEntries: i
       }
       if (node.tagName === "link" || node.tagName === "script") protectedTags.push(node);
     }
-    const resolve = archiveResolver(path, baseHref, indices);
+    const resolve = archiveResolver(path, archiveBaseUrl(path, baseHref), indices);
     const remove: { startOffset: number; endOffset: number }[] = [];
     for (const node of protectedTags) {
       const metadata = node.attrs.find(attr => attr.name === "integrity")?.value;
@@ -137,6 +114,36 @@ async function verifyZipIntegrity(htmlText: Map<string, string>, assetEntries: i
   }
 }
 
+/** Existing pages can still reference the previous ZIP after a page is duplicated. */
+function bindZipDependencies(assets: Asset[], existing: Asset[]): void {
+  attachZipDependencies(assets);
+  if (!existing.length) return;
+  const previous = new Map(existing.map(asset => [asset.id, asset]));
+  const membersChanged = existing.length !== assets.length || assets.some(asset => !previous.has(asset.id));
+  if (!membersChanged) return;
+
+  // Modules resolve siblings by directory at runtime. Keep each version's entire
+  // directory together, while continuing to share the uploaded file bytes.
+  const newGroup = (assets.some(isZipJavascript) || existing.some(isZipJavascript)) ? genId("zip") : undefined;
+  const byId = Object.fromEntries(assets.map(asset => [asset.id, asset]));
+  const changedSheets = new Set(assets.filter(asset => {
+    const old = previous.get(asset.id);
+    const sheet = zipStylesheet(asset);
+    return old && sheet && JSON.stringify(sheet.references) !== JSON.stringify(zipStylesheet(old)?.references);
+  }).map(asset => asset.id));
+
+  for (const asset of assets) {
+    if (newGroup) asset.zip!.group = newGroup;
+    if (!previous.has(asset.id)) continue;
+    // An unchanged @import can point to another stylesheet whose dependencies changed.
+    if (newGroup || (changedSheets.size && zipStylesheet(asset) &&
+        [...zipAssetClosure(byId, [asset.id])].some(id => changedSheets.has(id)))) {
+      asset.id = genId("asset");
+    }
+  }
+  if (newGroup || changedSheets.size) attachZipDependencies(assets);
+}
+
 /** Preflight the archive before uploading anything; JavaScript dependencies are not resolved. */
 async function prepareHtmlZip(
   file: File | Uint8Array, progress: (message: string) => void, paths: string[],
@@ -144,7 +151,7 @@ async function prepareHtmlZip(
 ) {
   const compressedBytes = file instanceof Uint8Array ? file.byteLength : file.size;
   if (compressedBytes > HTML_ZIP_LIMITS.zipBytes) {
-    throw new Error("インポートするファイルが大きすぎます。");
+    throw new Error(tr("The import file is too large."));
   }
   const bytes = file instanceof Uint8Array ? file : new Uint8Array(await file.arrayBuffer());
   const zip = await openImportZip(bytes, HTML_ZIP_LIMITS.entries);
@@ -204,9 +211,11 @@ async function prepareHtmlZip(
     asset.zip = { version: 1, group, path, sha256,
       ...(sheet ? { stylesheet: { source: sheet.source, references: [] } } : {}) };
     assets.push(asset);
-    urls.set(path, zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset));
   }
-  attachZipDependencies(assets);
+  bindZipDependencies(assets, existing);
+  for (const asset of assets) {
+    urls.set(asset.zip!.path, zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset));
+  }
   return { assets, htmlEntries, htmlEntry, urls, htmlText, pristineHtmlText };
 }
 

@@ -4,6 +4,7 @@ import {
   type DocNode,
   type LinkSetting,
   type Script,
+  type ScriptCond,
   type ScriptPos,
   type ScriptStep,
   type ScriptTrigger,
@@ -12,6 +13,7 @@ import {
 import { filterConds, isDataStep } from "./data";
 import { tr } from "./i18n";
 import { extractVars } from "./vars";
+import { singleValueReference } from "./variable-choice";
 
 /** src が空のときに出す透明の1×1画像（壊れた画像の枠を出さない） */
 export const EMPTY_GIF = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
@@ -465,6 +467,20 @@ export function compileScripts(
    */
   raw?: (name: string, item?: boolean) => unknown
 ): RuntimeScript[] {
+  const conditionInput = (value: string) => {
+    const name = singleValueReference(value);
+    if (!name) return str(value, "value");
+    const fallback = raw?.(name);
+    return { inputRef: name, ...(fallback !== undefined ? { raw: fallback } : {}) };
+  };
+  const compileCondition = (condition: ScriptCond) => {
+    const input = condition.subject === "var" ? conditionInput : (s: string) => str(s, "value");
+    return {
+      ...condition,
+      ...(condition.left !== undefined ? { left: input(condition.left) } : {}),
+      ...(condition.value !== undefined ? { value: input(condition.value) } : {}),
+    };
+  };
   const conv = (steps: ScriptStep[]): RuntimeStep[] =>
     steps.filter((st) => !isDataStep(st) && !skip?.has(st.id)).map((st) => {
       switch (st.kind) {
@@ -521,16 +537,8 @@ export function compileScripts(
         case "if":
           return {
             kind: st.kind,
-            cond: {
-              ...st.cond,
-              ...(st.cond.value !== undefined ? { value: str(st.cond.value, "value") } : {}),
-              ...(st.cond.left !== undefined ? { left: str(st.cond.left, "value") } : {}),
-            },
-            ...(st.conditions?.length ? { conditions: st.conditions.map((condition) => ({
-              ...condition,
-              ...(condition.value !== undefined ? { value: str(condition.value, "value") } : {}),
-              ...(condition.left !== undefined ? { left: str(condition.left, "value") } : {}),
-            })) } : {}),
+            cond: compileCondition(st.cond),
+            ...(st.conditions?.length ? { conditions: st.conditions.map(compileCondition) } : {}),
             then: conv(st.then),
             ...(st.else ? { else: conv(st.else) } : {}),
           };

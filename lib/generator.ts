@@ -1,8 +1,7 @@
 import rootPackage from "../package.json";
-import { exportZipStylesheet, zipStylesheet, zipCssUrl } from "./zip-css";
+import { exportZipStylesheet, zipStylesheet } from "./zip-css";
 import { htmlZipSource } from "./html-zip-source";
 import { rewriteHtmlZipScriptUrls } from "./html-zip-script-assets";
-import { assetSrc } from "./assets";
 import type { SiteDoc } from "./types";
 import { applyBreakpoints } from "./style";
 import { siteLangOf, siteText } from "./site-lang";
@@ -18,8 +17,8 @@ import { cssValue, generateSiteCss, rawHtmlWithBodyStyles, usedGoogleFonts } fro
 import { headHtmlToJsx } from "./generator/head";
 import { SAFE_FETCH_SOURCE } from "./generator/safe-fetch-source";
 import { buildAssetNames, buildClassNames, buildComponentNames } from "./generator/names";
-import { importedAssetPath, importedAssetUrl, isZipJavascript } from "./generator/imported-assets";
-import { generatePageFile, queryDispatcherFile, routeDir, unnestLinks } from "./generator/page";
+import { htmlZipExportSource, importedAssetPath, importedAssetUrl, isZipJavascript } from "./generator/imported-assets";
+import { generatePageFile, needsPageStepRunner, queryDispatcherFile, routeDir, unnestLinks } from "./generator/page";
 import { imageRefSrc, jsxString, raiseOverCrispSvg, smartLinkComponent } from "./generator/render-helpers";
 import { renderNode, type JsxContext } from "./generator/render";
 import {
@@ -175,8 +174,7 @@ export function generateProject(
       const htmlWithAssets = rawHtmlWithBodyStyles(
         doc,
         page,
-        cssValue(doc, "rawHtml", htmlZipSource(page.rawHtml, page.htmlZip, doc.assets,
-          asset => zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset)), assetNames),
+        cssValue(doc, "rawHtml", htmlZipSource(page.rawHtml, page.htmlZip, doc.assets, htmlZipExportSource), assetNames),
         assetNames
       );
       const htmlWithScriptAssets = rewriteHtmlZipScriptUrls(htmlWithAssets, page.htmlZip, doc.assets, asset => {
@@ -418,8 +416,7 @@ export default function manifest(): MetadataRoute.Manifest {
   // Generated SSR pages share the same pure recipe evaluator as editor and client scripts.
   // Output plain JavaScript so the emitted function can be compiled without implicit-any errors.
   const needsPurePageControls = Object.values(doc.pages).some((page) => !page.unpublished &&
-    pagePlan(doc, page.id).steps.some((step) =>
-      step.kind === "for-each" || step.kind === "if" || step.kind === "repeat"));
+    pagePlan(doc, page.id).steps.some(needsPageStepRunner));
   if (needsPurePageControls || Object.values(doc.pages).some((page) => !page.unpublished &&
     pagePlan(doc, page.id).steps.some((step) => step.kind === "transform"))) {
     files["lib/value-recipe.ts"] =

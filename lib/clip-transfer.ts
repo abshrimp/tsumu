@@ -311,7 +311,11 @@ export function readClipMirror(): ClipPayload | null {
  * 戻り値はアセットIDの対応と、新しく取り込んだマスターの要素。
  */
 export function mergeClipDeps(
-  d: SiteDoc, p: ClipPayload, { preserveSourceOnCollision = false }: { preserveSourceOnCollision?: boolean } = {},
+  d: SiteDoc, p: ClipPayload,
+  { preserveSourceOnCollision = false, htmlZipAssetIds }: {
+    preserveSourceOnCollision?: boolean;
+    htmlZipAssetIds?: ReadonlySet<string>;
+  } = {},
 ): {
   assetIds: Map<string, string>;
   componentIds: Map<string, string>;
@@ -325,8 +329,10 @@ export function mergeClipDeps(
     const existing = d.assets[a.id];
     // Identical stylesheet bytes may resolve differently in different archives.
     // JS 内の相対参照は ID の付け替えでは直せないため、同じ内容でも元の ZIP パスを残す。
-    const sameLocation = (b: Asset) => !a.zip || !scriptGroups.has(a.zip.group) ||
-      (b.zip?.group === a.zip.group && b.zip.path === a.zip.path);
+    // Raw ZIP pages also resolve relative paths through each asset's metadata.
+    const needsZipPath = a.zip && (scriptGroups.has(a.zip.group) || htmlZipAssetIds?.has(a.id));
+    const sameLocation = (b: Asset) => !needsZipPath ||
+      (b.zip?.group === a.zip!.group && b.zip?.path === a.zip!.path);
     const sameFile = (b: Asset) => sameLocation(b) && Boolean((a.path && b.path === a.path) || (a.dataUrl && b.dataUrl === a.dataUrl));
     const sameSheet = (b: Asset) => JSON.stringify(a.zip) === JSON.stringify(b.zip);
     if (existing && sameFile(existing) && ((!zipStylesheet(a) && !zipStylesheet(existing)) || sameSheet(existing))) continue;

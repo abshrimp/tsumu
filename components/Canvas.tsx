@@ -1081,9 +1081,11 @@ export default function Canvas() {
               setCtxMenu({ x: e.clientX, y: e.clientY, nodeId });
             }}
           >
-            {mode === "preview" && !editingComp && page?.pageScripts && (
+            {mode === "preview" && !editingComp && page && (
               // 「このページ」のスクリプト（データの読み込み以外）を動かす目印
               <span
+                key={page.id}
+                data-page-body={page.id}
                 hidden
                 {...(() => {
                   const attrs: Record<string, unknown> = {};

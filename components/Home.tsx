@@ -502,7 +502,7 @@ export default function Home() {
     setImportStatus({ kind: "loading", message: tr("Reading edit data…") });
     try {
       const { id } = await createSiteFromFile(file, store,
-        (message) => setImportStatus({ kind: "loading", message: tr(message) }));
+        (message) => setImportStatus({ kind: "loading", message }));
       window.location.assign(sitePath(id));
     } catch (error) {
       setImportStatus({ kind: "error", message: error instanceof Error

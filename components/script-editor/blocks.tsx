@@ -57,7 +57,7 @@ function ForEachView({
       <div className="se-blk se-c-head" data-sel-key={key}>
         <Ico icon={IterationCw} cat={CAT_OF[step.kind]} />
         <Phrase
-          text="リスト{array}の要素ごとにくり返す"
+          text="For each item in list {array}"
           parts={{
             array: (
               <AnyArraySelect
@@ -106,7 +106,7 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
         <div className="se-blk se-c-head" data-sel-key={key}>
           <Ico icon={Repeat} cat={cat} />
           <Phrase
-            text="{times}{mode}"
+            text="Repeat {times} {mode}"
             parts={{
               times: !forever && (
                 <NumericVariableIn value={step.times} onCommit={setTimes}
@@ -162,7 +162,7 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
           <Ico icon={Split} cat={cat} />
           <div className="se-if-conditions">
             <div className="se-if-condition-line">
-              <Phrase text={conditions.length ? "もし{cond}" : "もし{cond}なら"} parts={{
+              <Phrase text={conditions.length ? "If {cond}" : "If {cond} then"} parts={{
                 cond: <CondEditor cond={step.cond}
                   onChange={(cond) => ctx.updateStep(step.id, (current) =>
                     current.kind === "if" ? { ...current, cond } : current)} />,
@@ -171,7 +171,7 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
             {conditions.map((condition, index) => (
               <div key={index} className="se-if-condition-line">
                 <Phrase
-                  text={index === conditions.length - 1 ? "{join}{cond}なら" : "{join}{cond}"}
+                  text={index === conditions.length - 1 ? "{join} {cond} then" : "{join} {cond}"}
                   parts={{
                     join: (
                       <select className="se-in se-fixed-select"

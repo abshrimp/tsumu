@@ -2,6 +2,7 @@ import type { DefaultTreeAdapterTypes as Html } from "parse5";
 import type { GeneratedProject } from "../generator";
 import { fetchWithRetry } from "../assets";
 import { CSS_ASSET_ATTRIBUTES, escapeStyleContent } from "../css-assets";
+import { executableScriptType, quotedScriptUrl, scriptLiterals } from "../html-zip-script-assets";
 import { rewriteSrcsetUrls } from "../srcset";
 import { EXPORT_BASE, SINGLE_HTML_LIMIT, HtmlOutput, singleHtmlResources, textBytes, type ResourceRequest } from "./single-html-resources";
 
@@ -23,6 +24,7 @@ function startTag(name: string, attrs: Map<string, string>, selfClosing = false)
 export async function toSingleHtmlProject(
   source: GeneratedProject,
   request: ResourceRequest = (url, init) => fetchWithRetry(url, 3, init),
+  zipMedia: ReadonlySet<string> = new Set(),
 ): Promise<GeneratedProject> {
   const html = source.files["index.html"];
   if (!html || Object.keys(source.files).filter(path => /\.html?$/i.test(path)).length !== 1) {
@@ -120,12 +122,27 @@ export async function toSingleHtmlProject(
         // integrity enforcement without introducing a network dependency.
         set("src", await resources.embed(get("src"), base, get("integrity"), true));
       }
-    } else if (htmlTag && name === "script" && get("type").trim().toLowerCase() === "module" && !attrs.has("src")) {
+    } else if (htmlTag && name === "script" && !attrs.has("src") && executableScriptType(get("type").trim())) {
       const stop = loc.endTag?.startOffset ?? Math.max(loc.endOffset, ...node.childNodes.map(child => child.sourceCodeLocation?.endOffset ?? 0));
       const content = html.slice(start.endOffset, stop);
-      const rewritten = await resources.inlineModule(content, base);
+      const type = get("type").trim().toLowerCase();
+      let rewritten = type === "module" ? await resources.inlineModule(content, base) : content;
+      if (zipMedia.size && base.origin === EXPORT_BASE.origin && rewritten.includes("assets/")) {
+        const embedded = new HtmlOutput();
+        let from = 0;
+        for (const literal of scriptLiterals(rewritten, type)) {
+          if (!literal.value.includes("assets/") || !/^\.\.?\//.test(literal.value)) continue;
+          const url = new URL(literal.value, base);
+          if (url.origin !== EXPORT_BASE.origin || !zipMedia.has(url.pathname)) continue;
+          embedded.append(rewritten.slice(from, literal.start));
+          embedded.append(quotedScriptUrl(literal, await resources.embed(literal.value, base)));
+          from = literal.end;
+        }
+        embedded.append(rewritten.slice(from));
+        rewritten = embedded.join();
+      }
       if (rewritten !== content) {
-        // Replacements are base64 module URLs, never raw remote URLs or HTML.
+        // Only embedded module and media URLs replace executable literals.
         replacement = (modified ? startTag(name, attrs) : original) + rewritten;
         end = stop;
       }

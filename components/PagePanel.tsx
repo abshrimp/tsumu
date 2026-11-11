@@ -163,7 +163,7 @@ export default function PagePanel() {
       const converted = await convertHtmlFile(file, {
         breakpoints: state.doc.breakpoints,
         progress: (message) => {
-          if (request.current()) setNormalImportMessage(tr(message));
+          if (request.current()) setNormalImportMessage(message);
         },
       });
       const assets = Object.values(converted.doc.assets);

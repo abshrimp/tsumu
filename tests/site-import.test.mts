@@ -94,7 +94,7 @@ test("malformed or incomplete ZIP asset manifests are rejected", async () => {
     zip.file(EDITABLE_DOC_PATH, JSON.stringify(fixture()));
     zip.file(EDITABLE_ASSETS_PATH, JSON.stringify(manifest));
     await assert.rejects(parseSiteImport(
-      await zip.generateAsync({ type: "uint8array" }), "zip"), /アセット対応表/);
+      await zip.generateAsync({ type: "uint8array" }), "zip"), /asset manifest/);
   }
 });
 
@@ -132,14 +132,14 @@ test("document validation rejects corrupt references and unsafe object keys", ()
 
 test("ZIP source limits reject oversized and enormous archives", async () => {
   await assert.rejects(parseSiteImport(new Uint8Array(IMPORT_LIMITS.zipBytes + 1),
-    "zip"), /大きすぎ/);
+    "zip"), /too large/);
   const zip = new JSZip();
   zip.file(EDITABLE_DOC_PATH, JSON.stringify(fixture()));
   for (let i = 0; i < IMPORT_LIMITS.entries + 1; i++) {
     zip.file("extra/" + i + ".txt", "x");
   }
   await assert.rejects(parseSiteImport(await zip.generateAsync({ type: "uint8array" }),
-    "zip"), /多すぎ/);
+    "zip"), /too many files/);
 });
 
 test("local file picker accepts ZIP, JSON and HTML and rejects other formats", () => {
@@ -156,7 +156,7 @@ test("archives with multiple editable documents are rejected before restoring as
   zip.file("first/_tsumu/doc.json", JSON.stringify(fixture()));
   zip.file("second/_tsumu/doc.json", JSON.stringify(fixture()));
   await assert.rejects(parseSiteImport(await zip.generateAsync({ type: "uint8array" }),
-    "zip"), /複数の編集データ/);
+    "zip"), /multiple editor documents/);
 });
 
 test("document imports reject network references disguised as embedded assets before fetching", async () => {
@@ -176,7 +176,7 @@ test("editable ZIP manifests cannot expand the same archive member once per asse
     version: 1, assets: { "original-image": "assets/logo.svg", second: "assets/logo.svg" },
   }));
   zip.file("assets/logo.svg", "unique file");
-  await assert.rejects(parseSiteImport(await zip.generateAsync({ type: "uint8array" }), "zip"), /アセット対応表/);
+  await assert.rejects(parseSiteImport(await zip.generateAsync({ type: "uint8array" }), "zip"), /asset manifest/);
 });
 
 test("document imports reject dangling references, malformed nodes, and cycles in the flat node map", async () => {

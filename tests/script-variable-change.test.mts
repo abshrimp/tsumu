@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { runInNewContext } from "node:vm";
-import { renameVarInPage, obfuscateVarNames } from "../lib/data";
+import { renameVarInPage, obfuscateVarNames, pagePlan } from "../lib/data";
 import { validDocumentScripts } from "../lib/document-validation";
 import { makeBox } from "../lib/presets";
 import { compileScripts } from "../lib/script";
@@ -32,12 +32,14 @@ function watcher(id: string, variable: string, steps: ScriptStep[]): Script {
   return { id, pos, trigger: "change", changeVariable: variable, steps };
 }
 
-function browserRun(published: boolean, doc: SiteDoc) {
+function browserRun(published: boolean, doc: SiteDoc, search = "") {
   const notifications: { name: string; value: unknown }[] = [];
   const listeners = new Map<string, Array<(event: { target: unknown }) => void>>();
   const on = (type: string, fn: (event: { target: unknown }) => void) =>
     listeners.set(type, [...(listeners.get(type) ?? []), fn]);
-  const pageScripts = JSON.stringify(compileScripts({ scripts: doc.pages.p.pageScripts }, () => "/"));
+  const pageScripts = JSON.stringify(compileScripts(
+    { scripts: doc.pages.p.pageScripts }, () => "/", undefined, true, pagePlan(doc, "p").serverIds,
+  ));
   const nodeScripts = JSON.stringify(compileScripts(doc.nodes.button, () => "/"));
   const marker = {
     nodeType: 1, parentElement: null,
@@ -57,7 +59,7 @@ function browserRun(published: boolean, doc: SiteDoc) {
     removeEventListener: () => {},
   };
   const globals = {
-    document: root,
+    document: root, location: { search }, URLSearchParams,
     window: {
       __siteVarsOnChange: (name: string, value: unknown) => notifications.push({ name, value }),
     },
@@ -135,7 +137,7 @@ for (const published of [false, true]) {
   test(where + " watches nested paths and ignores unchanged descendants", () => {
     const doc = fixture([
       watcher("child", "nested.item", [
-        { id: "child-seen", kind: "set-var", into: "unexpected", value: "{nested.other}" },
+        { id: "child-seen", kind: "set-var", into: "childSeen", value: "{nested.other}" },
       ]),
       watcher("parent", "nested", [
         { id: "parent-seen", kind: "set-var", into: "parentSeen", value: "{nested.other}" },
@@ -147,8 +149,56 @@ for (const published of [false, true]) {
     ]);
     const harness = browserRun(published, doc);
     harness.click();
-    assert.equal(harness.notifications.some((n) => n.name === "unexpected"), false);
-    assert.deepEqual(harness.notifications.filter((n) => n.name === "parentSeen").map((n) => n.value), [2]);
+    assert.deepEqual(harness.notifications.filter((n) => n.name === "childSeen").map((n) => n.value), [undefined]);
+    assert.deepEqual(harness.notifications.filter((n) => n.name === "parentSeen").map((n) => n.value), [undefined, 2]);
+  });
+
+  test(where + " writes missing values before resolving URL parameters of the same name", () => {
+    const doc = fixture([], [
+      { id: "input", kind: "set-var", into: "data", value: "{}" },
+      { id: "missing", kind: "transform", source: "data", into: "result",
+        transform: { kind: "field", key: "absent" } },
+      { id: "output", kind: "set-var", into: "message", value: "Found: {result}" },
+    ]);
+    const harness = browserRun(published, doc, "?result=stale");
+    harness.click();
+    assert.equal(harness.notifications.find((entry) => entry.name === "message")?.value, "Found: ");
+  });
+
+  test(where + " tracks last-item and length references across indexed writes", () => {
+    const doc = fixture([
+      watcher("tail", "items.-1", [{ id: "a", kind: "set-var", into: "tail", value: "{items.-1}" }]),
+      watcher("size", "items.length", [{ id: "b", kind: "set-var", into: "size", value: "{items.length}" }]),
+    ], [
+      { id: "init", kind: "set-var", into: "items", value: "[1]" },
+      { id: "append", kind: "set-var", into: "items.1", value: "2" },
+      { id: "edit", kind: "set-var", into: "items.1", value: "3" },
+      { id: "first", kind: "set-var", into: "items.0", value: "4" },
+    ]);
+    const harness = browserRun(published, doc);
+    harness.click();
+    assert.deepEqual(harness.notifications.filter((n) => n.name === "tail").map((n) => n.value), [1, 2, 3]);
+    assert.deepEqual(harness.notifications.filter((n) => n.name === "size").map((n) => n.value), [1, 2]);
+  });
+
+  test(where + " fires watchers in order for assignments in page-load scripts", () => {
+    const doc = fixture([
+      watcher("watch", "stats.total", [
+        { id: "record", kind: "set-var", into: "seen", value: "{stats.total}" },
+      ]),
+      { id: "load", pos, trigger: "load", steps: [
+        { id: "init", kind: "set-var", into: "stats", value: '{"total":1}' },
+        { id: "loop", kind: "repeat", times: 1, then: [
+          { id: "update", kind: "set-var", into: "stats.total", value: "2" },
+          { id: "copy", kind: "set-var", into: "after", value: "{seen}" },
+        ] },
+        { id: "independent", kind: "set-var", into: "title", value: "Example" },
+      ] },
+    ], []);
+    const plan = pagePlan(doc, "p");
+    assert.deepEqual([...plan.serverIds], ["independent"]);
+    assert.ok(plan.clientVars.has("stats") && plan.clientVars.has("after"));
+    assert.deepEqual(browserRun(published, doc).notifications.filter((n) => n.name === "seen").map((n) => n.value), [1, 2]);
   });
 
   test(where + " prevents recursive variable-trigger updates", () => {
@@ -162,3 +212,20 @@ for (const published of [false, true]) {
     assert.deepEqual(harness.notifications.filter((n) => n.name === "count").map((n) => n.value), [1, 2]);
   });
 }
+
+test("browser list edits retain their initialized variable and record the exact mutation target", () => {
+  const doc = fixture([
+    { id: "load", pos, trigger: "load", steps: [
+      { id: "init", kind: "set-var", into: "catalog", value: '{"rows":[1,2]}' },
+      { id: "server-init", kind: "set-var", into: "serverRows", value: "[1,2]" },
+      { id: "server-loop", kind: "repeat", times: 1, then: [
+        { id: "server-append", kind: "set-list-item", list: "serverRows", key: "", value: "3" },
+      ] },
+    ] },
+  ], [{ id: "remove", kind: "remove-list-item", list: "catalog.rows", mode: "key", value: "0" }]);
+  const plan = pagePlan(doc, "p");
+  assert.equal(plan.serverIds.has("init"), false);
+  assert.ok(plan.serverIds.has("server-loop"));
+  assert.deepEqual([...plan.clientListTargets], ["catalog.rows"]);
+  assert.ok(plan.clientVars.has("catalog"));
+});

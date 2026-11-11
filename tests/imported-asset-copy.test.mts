@@ -4,6 +4,7 @@ import { assetSrc } from "../lib/assets";
 import { buildClipPayload, mergeClipDeps } from "../lib/clip-transfer";
 import { validSiteDoc } from "../lib/doc-tree";
 import { generateProject } from "../lib/generator";
+import { htmlZipSource } from "../lib/html-zip-source";
 import { importedAssetPath } from "../lib/generator/imported-assets";
 import { buildPagePayload, applyPagePayload } from "../lib/page-transfer";
 import { createInitialDoc, makeCode } from "../lib/presets";
@@ -118,4 +119,37 @@ test("copies without ZIP scripts still dedupe identical image bytes across archi
   const payload = buildClipPayload(doc, { nodes: [code], rootIds: [code.id] });
   assert.equal(mergeClipDeps(target, payload).assetIds.get("picture"), "existing");
   assert.deepEqual(Object.keys(target.assets), ["existing"]);
+});
+
+test("copied raw ZIP pages keep their archive paths and remap destination asset IDs", () => {
+  const source = createInitialDoc();
+  const picture = asset("picture", "images/logo.png");
+  source.assets = { picture };
+  const page = source.pages[source.pageOrder[0]];
+  page.rawHtml = '<img src="images/logo.png">';
+  page.htmlZip = { path: "index.html", assetIds: [picture.id] };
+  const payload = buildPagePayload(source, [page.id]);
+
+  const target = createInitialDoc();
+  target.assets = {
+    picture: { ...asset("picture", "images/other.png"), path: "assets/other" },
+    alias: { ...picture, id: "alias", zip: undefined },
+  };
+  const original = structuredClone(target.assets);
+  applyPagePayload(target, payload);
+  const copied = target.pages[target.pageOrder.at(-1)!];
+  const [id] = copied.htmlZip!.assetIds;
+  assert.notEqual(id, picture.id);
+  assert.deepEqual(target.assets[id], { ...picture, id });
+  assert.deepEqual(target.assets.picture, original.picture);
+  assert.deepEqual(target.assets.alias, original.alias);
+  assert.equal(copied.rawHtml, page.rawHtml);
+  assert.equal(htmlZipSource(copied.rawHtml!, copied.htmlZip, target.assets, a => a.path!),
+    '<img src="assets/picture">');
+  // A second copy reuses the destination ID assigned on the first transfer.
+  const assets = structuredClone(target.assets);
+  applyPagePayload(target, payload);
+  assert.deepEqual(target.assets, assets);
+  assert.deepEqual(target.pages[target.pageOrder.at(-1)!].htmlZip!.assetIds, [id]);
+  assert.deepEqual(page.htmlZip.assetIds, [picture.id]);
 });

@@ -2,6 +2,7 @@ import type {
   DocNode,
   ListContent,
   FilterCond,
+  Script,
   ScriptOp,
   ScriptStep,
   SiteDoc,
@@ -423,9 +424,15 @@ function walkAll(steps: ScriptStep[], fn: (st: ScriptStep) => void) {
 }
 
 /** ページ内の要素のスクリプトと、ページのスクリプトすべて */
-function scriptsInPage(doc: SiteDoc, pageId: string): ScriptStep[][] {
+function scriptsInPage(doc: SiteDoc, pageId: string, runnableOnly = false): ScriptStep[][] {
   const page = doc.pages[pageId];
   const out: ScriptStep[][] = [];
+  const collect = (script: Script) => {
+    if (!runnableOnly || (script.trigger &&
+        (script.trigger !== "change" || script.changeVariable === undefined || script.changeVariable.trim()))) {
+      out.push(script.steps);
+    }
+  };
   const seen = new Set<string>();
   const walk = (id: string) => {
     if (seen.has(id)) return;
@@ -437,11 +444,12 @@ function scriptsInPage(doc: SiteDoc, pageId: string): ScriptStep[][] {
       if (comp) walk(comp.rootId);
       return;
     }
-    for (const s of n.scripts ?? []) out.push(s.steps);
+    n.scripts?.forEach(collect);
     n.children.forEach(walk);
   };
   page?.children.forEach(walk);
-  for (const s of [...(page?.pageScripts ?? []), ...(page?.scripts ?? [])]) out.push(s.steps);
+  page?.pageScripts?.forEach(collect);
+  if (!runnableOnly) page?.scripts?.forEach(collect);
   return out;
 }
 
@@ -452,6 +460,8 @@ export interface PagePlan {
   serverIds: Set<string>;
   /** 画面上（ブラウザ）で値が決まる変数・配列の名前 */
   clientVars: Set<string>;
+  /** Exact list paths mutated by browser actions, for initializing their runtime values. */
+  clientListTargets: Set<string>;
   /**
    * 配列の名前 → 配信する前にリストへ適用する絞り込み・並べ替え（実行順。value は未解決）。
    * 該当するブロックのIDは serverIds にも入る
@@ -528,22 +538,33 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
   }
   const mayRunOnServer = (st: ScriptStep) => loadRoot.has(st) || nestedLoad.has(st);
   const clientVars = new Set<string>();
+  const clientListTargets = new Set<string>();
+  const watchedRoots = new Set((page?.pageScripts ?? []).flatMap((s) =>
+    s.trigger === "change" && s.changeVariable && s.steps.length ? [rootName(s.changeVariable)] : []));
+  const runtimeScripts = scriptsInPage(doc, pageId, true);
+  const writeTarget = (st: ScriptStep) =>
+    st.kind === "set-list-item" || st.kind === "remove-list-item" ? st.list : "into" in st ? st.into : "";
+  const markClientWrite = (st: ScriptStep) => {
+    const name = writeTarget(st);
+    if (!name) return;
+    clientVars.add(rootName(name));
+    if (st.kind === "set-list-item" || st.kind === "remove-list-item") clientListTargets.add(name);
+  };
   const fieldIds = new Set(
     idVarNodesOf(doc, pageId)
       .filter((n) => n.type === "field")
       .flatMap((n) => fieldVarNames(n))
   );
-  for (const steps of scriptsInPage(doc, pageId)) {
+  for (const steps of runtimeScripts) {
     walkAll(steps, (st) => {
-      if (st.kind === "store-load" && st.into) {
-        clientVars.add(st.into);
-      }
-      // 「ページを開いたとき」の直下で {名前} だけを入れるものは、配信前に動くかを後で決める
-      if (st.kind === "set-var" && st.into && !(nestedLoad.has(st) || (loadRoot.has(st) && (setVarSource(st) || !extractVars(st.value).length)))) {
-        clientVars.add(st.into);
-      }
-      if (st.kind === "transform" && st.into && !(mayRunOnServer(st) && st.source)) {
-        clientVars.add(st.into);
+      const name = writeTarget(st);
+      if (!name) return;
+      // A watched assignment must run with the handler installed, even for
+      // constants in page-load scripts that could otherwise be precomputed.
+      if (watchedRoots.has(rootName(name)) || !mayRunOnServer(st) || st.kind === "store-load" ||
+          (st.kind === "set-var" && loadRoot.has(st) && !setVarSource(st) && extractVars(st.value).length) ||
+          (st.kind === "transform" && !st.source)) {
+        markClientWrite(st);
       }
     });
   }
@@ -551,7 +572,7 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
   // 「ページを開いたとき」の直下以外でも絞り込み・並べ替えをする配列は、
   // 後から解除・変更できるよう画面上で扱う
   const dynamicArrays = new Set<string>();
-  for (const steps of scriptsInPage(doc, pageId)) {
+  for (const steps of runtimeScripts) {
     walkAll(steps, (st) => {
       if (
         st.kind === "list-display" &&
@@ -575,14 +596,14 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
   };
   const isServerPure = (st: ScriptStep, inLoop = false): boolean => {
     if (st.kind === "set-var") return !!st.into &&
-      !clientVars.has(st.into) && !extractVars(st.value).some(isClient);
+      !clientVars.has(rootName(st.into)) && !extractVars(st.value).some(isClient);
     if (st.kind === "set-list-item") return !!st.list && !isClient(st.list) &&
       !extractVars(st.key).some(isClient) && !extractVars(st.value).some(isClient);
     if (st.kind === "remove-list-item") return !!st.list && !!st.value.trim() &&
       !isClient(st.list) && !extractVars(st.value).some(isClient);
     if (st.kind === "break-loop") return inLoop;
     if (st.kind === "transform") {
-      if (!st.into || !st.source || clientVars.has(st.into) || isClient(st.source)) return false;
+      if (!st.into || !st.source || clientVars.has(rootName(st.into)) || isClient(st.source)) return false;
       return !transformReferences(st.transform).some(isClient);
     }
     if (st.kind === "for-each") return !!st.array && !isClient(st.array) &&
@@ -613,8 +634,8 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
         if (!st.into || (!src && !(st.kind === "set-var" && !extractVars(st.value).length))) continue;
         const clientParameter = st.kind === "transform" &&
           transformReferences(st.transform).some(isClient);
-        if ((src && isClient(src)) || clientParameter || clientVars.has(st.into)) {
-          clientVars.add(st.into);
+        if ((src && isClient(src)) || clientParameter || clientVars.has(rootName(st.into))) {
+          markClientWrite(st);
         } else {
           steps.push(st);
           serverIds.add(st.id);
@@ -623,13 +644,14 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
         steps.push(st);
         serverIds.add(st.id);
       } else if (st.kind === "set-list-item" || st.kind === "remove-list-item") {
-        clientVars.add(rootName(st.list));
-      } else if (
-        (st.kind === "for-each" || st.kind === "if" || st.kind === "repeat") &&
-        isServerPure(st)
-      ) {
-        steps.push(st);
-        serverIds.add(st.id);
+        markClientWrite(st);
+      } else if (st.kind === "for-each" || st.kind === "if" || st.kind === "repeat") {
+        if (isServerPure(st)) {
+          steps.push(st);
+          serverIds.add(st.id);
+        } else {
+          walkAll([st], markClientWrite);
+        }
       } else if (
         st.kind === "list-display" && st.mode !== "clear" &&
         st.array &&
@@ -664,7 +686,7 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
       }
     }
   }
-  return { steps, serverIds, clientVars, listOps };
+  return { steps, serverIds, clientVars, clientListTargets, listOps };
 }
 
 /**
@@ -872,7 +894,7 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
       for (const c of copies) {
         if (seen.has(c.name) || !isArray(c.src)) continue;
         seen.add(c.name);
-        out.push({ name: c.name, client: clientVars.has(c.name) });
+        out.push({ name: c.name, client: clientVars.has(rootName(c.name)) });
         added = true;
       }
     }
@@ -889,7 +911,7 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
         if (!Array.isArray(lookupVar(transformedSamples, st.into))) return;
       }
       seen.add(st.into);
-      out.push({ name: st.into, client: clientVars.has(st.into) });
+      out.push({ name: st.into, client: clientVars.has(rootName(st.into)) });
     });
   }
   // Lists may have either numeric or named keys.

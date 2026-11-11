@@ -1,3 +1,5 @@
+import { assetSrc } from "../assets";
+import { zipCssUrl, zipStylesheet } from "../zip-css";
 import type { Asset } from "../types";
 
 /**
@@ -28,4 +30,10 @@ export function importedAssetUrl(asset: Asset): string | null {
 export function isZipJavascript(asset: Asset): boolean {
   return !!asset.zip && (/\b(?:javascript|ecmascript)\b/i.test(asset.mimeType || "") ||
     /\.(?:js|mjs|cjs)$/i.test(asset.zip.path));
+}
+
+/** Resolve the page's ZIP member before identical stored bytes from other archives are considered. */
+export function htmlZipExportSource(asset: Asset): string {
+  if (isZipJavascript(asset)) return importedAssetUrl(asset) ?? assetSrc(asset);
+  return zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset);
 }
