@@ -90,7 +90,5 @@ interface LoopInfo {
   /** 空のリストも含めて、参照可能な項目名を列挙する。 */
   roots?: string[];
   samples: Record<string, string>;
-  /** Preserve sample types for nested list fields; display strings cannot distinguish one-item arrays. */
-  rawSamples?: Record<string, unknown>;
 }
 export const LoopCtx = createContext<LoopInfo[]>([]);
