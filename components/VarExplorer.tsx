@@ -30,12 +30,7 @@ function childrenOf(v: unknown): [key: string, label: string, value: unknown][] 
 /** 検索用に、すべての位置を平らに並べる（4階層・配列は先頭3件まで） */
 function flatten(groups: VarGroup[]): { path: string; value: unknown; note?: string }[] {
   const out: { path: string; value: unknown; note?: string }[] = [];
-  // A known local object exposes its descendants as well as the named loop
-  // fields. Do not show the same path twice when searching.
-  const seen = new Set<string>();
   const walk = (path: string, v: unknown, depth: number, note?: string) => {
-    if (seen.has(path)) return;
-    seen.add(path);
     out.push({ path, value: v, note });
     if (depth >= 4 || !isNested(v)) return;
     const kids = Array.isArray(v) ? v.slice(0, 3).map((x, i) => [String(i), x] as const) : Object.entries(v as object);
@@ -146,7 +141,6 @@ export default function VarExplorer({
   nodeId,
   extraNames,
   localNames,
-  localSamples,
   sourceStepId,
   context = "value",
   onPick,
@@ -158,8 +152,6 @@ export default function VarExplorer({
   extraNames?: string[];
   /** 型が不明でも、くり返し中の名前をページの見本より優先する。 */
   localNames?: string[];
-  /** Raw preview values for local loop fields, including nested arrays. */
-  localSamples?: Record<string, unknown>;
   sourceStepId?: string;
   context?: ValueContext;
   onPick: (name: string) => void;
@@ -182,10 +174,7 @@ export default function VarExplorer({
         return !roots.has(root) && (g.key === "item" || !itemRoots.has(root));
       })),
     }));
-    if (local.length) gs.unshift({
-      key: "item", label: tr("Current loop item"),
-      vars: Object.fromEntries(local.map((name) => [name, localSamples?.[name]])),
-    });
+    if (local.length) gs.unshift({ key: "item", label: tr("Current loop item"), vars: Object.fromEntries(local.map((name) => [name, undefined])) });
     const known = new Set(gs.flatMap((g) => Object.keys(g.vars)));
     const extra = (extraKey ? extraKey.split("\n") : []).filter((n) => !known.has(n) && !roots.has(n.split(".")[0]) && !itemRoots.has(n.split(".")[0]));
     if (extra.length) {
@@ -197,7 +186,7 @@ export default function VarExplorer({
       });
     }
     return gs;
-  }, [doc, activePageId, nodeId, extraKey, localKey, localSamples, sourceStepId]);
+  }, [doc, activePageId, nodeId, extraKey, localKey, sourceStepId]);
   const hasAdvanced = allGroups.some((g) => g.advanced);
   const groups = useMemo(() => allGroups.filter((g) => advanced || !g.advanced), [allGroups, advanced]);
   const [query, setQuery] = useState("");
