@@ -33,12 +33,12 @@ function render(section: "BoxSec" | "LayoutSec", styles: Record<string, string>)
 }
 test("changing horizontal padding keeps existing top/bottom longhand overrides", () => {
   const view = render("BoxSec", { padding: "10px", paddingTop: "25px", paddingBottom: "30px" });
-  view.fields.find(e => e.type === "NumField" && e.props.title === "左右").props.onChange("5px");
+  view.fields.find(e => e.type === "NumField" && e.props.title === "Left & right").props.onChange("5px");
   assert.deepEqual(view.writes.at(-1), { padding: null, paddingTop: "25px", paddingRight: "5px", paddingBottom: "30px", paddingLeft: "5px" });
 });
 test("padding shorthand math survives editing another axis", () => {
   const view = render("BoxSec", { padding: "calc(1rem + 2px) 4px" });
-  view.fields.find(e => e.type === "NumField" && e.props.title === "左右").props.onChange("5px");
+  view.fields.find(e => e.type === "NumField" && e.props.title === "Left & right").props.onChange("5px");
   assert.equal(view.writes.at(-1).paddingTop, "calc(1rem + 2px)");
   assert.equal(view.writes.at(-1).paddingBottom, "calc(1rem + 2px)");
 });

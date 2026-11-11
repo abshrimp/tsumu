@@ -73,7 +73,7 @@ for (const mode of ["wrap", "nowrap"]) test(`hover can explicitly turn default c
   assert.equal(view.writes.at(-1).WebkitLineClamp, "none");
   assert.equal(view.writes.at(-1).overflow, "visible");
 });
-for (const [prop, value, tip, expected] of [["fontStyle", "italic", "斜体", "normal"], ["textDecoration", "underline", "下線", "none"], ["textDecoration", "line-through", "打ち消し線", "none"]]) test(`hover can toggle off default ${value}`, () => {
+for (const [prop, value, tip, expected] of [["fontStyle", "italic", "Italic", "normal"], ["textDecoration", "underline", "Underline", "none"], ["textDecoration", "line-through", "Strikethrough", "none"]]) test(`hover can toggle off default ${value}`, () => {
   const node = { ...makeText(), styles: { base: { default: { [prop]: value } } } };
   const view = renderTypography(node, "base", "hover");
   view.fields.find(e => e.type === "button" && e.props["data-tip"] === tip).props.onClick();
