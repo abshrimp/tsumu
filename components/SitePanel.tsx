@@ -1,7 +1,7 @@
 "use client";
 
 import { isEnterKey } from "../lib/keys";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useRef } from "react";
 import {
   AppWindow,
   FileDown,

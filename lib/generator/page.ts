@@ -20,7 +20,7 @@ import {
   setVarSource,
 } from "../data";
 import { resolveTag } from "../tags";
-import { compileScripts, walkSteps } from "../script";
+import { compileScripts } from "../script";
 import { DEFAULT_DATA_REVALIDATE } from "../types";
 import {
   dynamicOrigin,

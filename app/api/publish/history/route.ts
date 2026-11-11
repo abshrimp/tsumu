@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { serverTr } from "../../../../lib/i18n-server";
 import { recordPublish, requireAuth } from "../../../../lib/server";
 import {
-  branchPath,
   advanceBranchRef,
   configError,
   githubClient,

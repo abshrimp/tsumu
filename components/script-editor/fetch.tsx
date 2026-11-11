@@ -31,7 +31,7 @@ import {
   sendsBody,
   type FetchOptions,
 } from "../../lib/fetch-request";
-import { type FetchHeader, type FetchMethod, type ScriptStep, type SiteDoc, PAGE_TARGET } from "../../lib/types";
+import { type FetchHeader, type FetchMethod, type SiteDoc, PAGE_TARGET } from "../../lib/types";
 import { useEditor } from "../../lib/store";
 import { pageNodeIds, walkSteps } from "../../lib/script";
 import { userMessage } from "../../lib/errors";

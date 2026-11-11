@@ -8,8 +8,7 @@ import { isEnterKey } from "../../lib/keys";
 import { Fragment, useContext, useMemo, useState, type ReactNode } from "react";
 import { VarInput } from "../controls";
 import { dataVarNames, fieldLabel, flattenFields, ITEM_VALUE, scriptInputDoc, varGroupsAt, varNamesAt, varSamplesAt } from "../../lib/data";
-import { lookupVar, splitRegexVars } from "../../lib/vars";
-import { evaluateValueRecipe } from "../../lib/script-model/recipe-runtime";
+import { lookupVar } from "../../lib/vars";
 import { canPickVariable, localVariableNames, variableChoiceSamples, singleValueReference, type ValueContext } from "../../lib/variable-choice";
 import { fieldVarName, isRadioItem } from "../../lib/fields";
 import { SELF_TARGET, type FieldContent, type ScriptCond, type ScriptOp } from "../../lib/types";
@@ -304,18 +303,6 @@ export function FieldValueIn({
       <option value={OTHER_VALUE}>{tr("その他（変数・文字列）…")}</option>
     </select>
   );
-}
-
-/** Reject malformed or unsafe regex syntax using the same checks as exported runtime. */
-export function regexError(pattern: string): boolean {
-  // Dynamic variables are unknown until execution, so validate literal parts here.
-  const literal = splitRegexVars(pattern)
-    .map((part) => part.var !== undefined ? "" : part.text)
-    .join("");
-  const result = evaluateValueRecipe("", [{
-    kind: "replace", find: literal, replacement: "", regex: true,
-  }]);
-  return result.kind === "error";
 }
 
 export function NewTabCheck({
