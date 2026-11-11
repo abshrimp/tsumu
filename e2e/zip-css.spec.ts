@@ -1,4 +1,5 @@
 import { expect, test, type Frame, type Page } from "@playwright/test";
+import JSZip from "jszip";
 import { fixtureAsset, zipCssBrowser } from "../tests/helpers/zip-css-browser";
 
 async function previewFrame(page: Page) {
@@ -285,3 +286,36 @@ for (const mode of ["local", "public", "raw-html"] as const) {
     expect(fixture.errors).toEqual([]);
   });
 }
+
+test("reimporting identical ZIP files keeps source and reuses stored asset identities", async ({ page }) => {
+  const fixture = await zipCssBrowser(page, "remote");
+  const uploads = fixture.uploaded.size;
+  const second = await fixture.reimport(fixture.archiveBase64);
+  expect(fixture.uploaded.size).toBe(uploads);
+  expect(second.pages.p.rawHtml).toBe(fixture.doc.pages.p.rawHtml);
+  expect(second.pages.p.htmlZip?.assetIds).toEqual(fixture.doc.pages.p.htmlZip?.assetIds);
+  expect(second.pages.p.rawHtml).toContain("integrity=\"sha256-");
+  await fixture.mount(second);
+  const frame = await previewFrame(page);
+  await expect(frame.locator("#direct-image")).toHaveJSProperty("naturalWidth", 9);
+  expect(fixture.errors).toEqual([]);
+});
+
+test("reimporting one changed file uploads only that file", async ({ page }) => {
+  const fixture = await zipCssBrowser(page, "remote");
+  const archive = await JSZip.loadAsync(Buffer.from(fixture.archiveBase64, "base64"));
+  archive.file("site/images/direct.svg",
+    '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="6"><rect width="10" height="6" fill="red"/></svg>');
+  const updated = await fixture.reimport(await archive.generateAsync({ type: "base64" }));
+  expect(fixture.uploaded.size).toBe(fixture.doc.pages.p.htmlZip!.assetIds.length + 1);
+  const before = new Map(fixture.doc.pages.p.htmlZip!.assetIds.map(id => [fixture.doc.assets[id].zip!.path, id]));
+  const after = new Map(updated.pages.p.htmlZip!.assetIds.map(id => [updated.assets[id].zip!.path, id]));
+  for (const [path, id] of before) {
+    expect(after.get(path) === id).toBe(path !== "site/images/direct.svg");
+  }
+  expect(updated.pages.p.rawHtml).toBe(fixture.doc.pages.p.rawHtml);
+  await fixture.mount(updated);
+  const frame = await previewFrame(page);
+  await expect(frame.locator("#direct-image")).toHaveJSProperty("naturalWidth", 10);
+  expect(fixture.errors).toEqual([]);
+});
