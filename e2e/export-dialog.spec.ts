@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { createInitialDoc } from "../lib/presets";
+import { loadLocale } from "../lib/i18n";
 import JSZip from "jszip";
 import { readFile } from "node:fs/promises";
 
@@ -8,6 +9,9 @@ async function openExport(page: import("@playwright/test").Page) {
   const result = await page.request.post("/api/sites", { data: { name: "Export UI" } });
   expect(result.ok()).toBeTruthy();
   const { site } = await result.json();
+  // Preset labels are localized at creation time. Node-based E2E fixtures
+  // must load the Japanese dictionary just like the real editor does.
+  await loadLocale();
   const doc = createInitialDoc();
   doc.siteName = "Export UI";
   // The starter site has a dynamic route unsupported by non-Next.js formats.
