@@ -65,7 +65,7 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style" | "bac
       if (name.endsWith("/controls")) return { useInspector: inspector, InspectorCtx: { Provider: "inspector" } };
       if (name.endsWith("/dialog")) return {
         showAlert: (...args: unknown[]) => { alerts.push(args); },
-        showPrompt: () => new Promise<string | null>(resolve => { confirmations.push({ resolve: value => resolve(value ? "初期状態に戻す" : null) }); }),
+        showPrompt: () => new Promise<string | null>(resolve => { confirmations.push({ resolve: value => resolve(value ? "Reset" : null) }); }),
         showConfirm: () => new Promise<boolean>(resolve => { confirmations.push({ resolve }); }),
       };
       if (["/NodeContextMenu", "/CopyToSite", "/exportZip", "/export-formats", "/AiChat", "/HelpCenter", "/Tutorial", "/GuideOverlay"].some(x => name.endsWith(x))) return {};

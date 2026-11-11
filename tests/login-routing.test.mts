@@ -103,8 +103,8 @@ test("revoked sessions can see both access-denied and generic login errors", asy
     return text(element.props?.children);
   };
   for (const [error, expected] of [
-    ["AccessDenied", "このGoogleアカウントは、まだ利用が許可されていません。"],
-    ["OAuthCallbackError", "ログインできませんでした。"],
+    ["AccessDenied", "This Google account is not allowed to use the editor yet."],
+    ["OAuthCallbackError", "Couldn\'t sign in."],
   ]) {
     const f = fixture();
     assert.equal((await f.request(`/login?error=${error}`)).headers.get("location"), null);

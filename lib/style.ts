@@ -37,7 +37,7 @@ export const MAX_BREAKPOINTS = 6;
 function breakpointLabel(label: string): string {
   switch (label) {
     case "タブレット": return tr("Tablet");
-    case "スマホ横向き": return tr("Phone (landscape)");
+    case "スマホ横向き": return tr("Phone (landscape)", "phone_landscape_variant_1");
     case "スマホ": return tr("Phone");
     default: return label;
   }

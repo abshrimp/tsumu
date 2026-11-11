@@ -177,7 +177,7 @@ async function save(req: Request, partial: boolean) {
     });
   } catch (e) {
     if (e instanceof InvalidDocPatchError ||
-      (e instanceof Error && /^(不正なリクエスト|JSONが壊れています)$/.test(e.message))) {
+      (e instanceof Error && /^(不正なリクエスト|JSONが壊れています|Invalid request|Invalid JSON)$/.test(e.message))) {
       return NextResponse.json({ error: tr("Invalid request") }, { status: 400 });
     }
     // 大きさの上限は決め打ちせず、保存先が拒んだときに返す

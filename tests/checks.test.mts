@@ -33,11 +33,11 @@ test("automatic URLs from adding and duplicating pages are reported", () => {
 });
 
 test("automatic titles and shared titles are reported", () => {
-  assert.ok(messages(withPage("about", "ページ 3")).some((m) => m.includes("「ページ 3」のまま")));
+  assert.ok(messages(withPage("about", "ページ 3")).some((m) => m.includes('"ページ 3"') && m.includes("automatic")));
   // タイトルが空ならページ名がタイトルになる
-  assert.ok(messages(withPage("about", "", "ページ 12")).some((m) => m.includes("「ページ 12」のまま")));
-  assert.ok(messages(withPage("menu", "Home")).some((m) => m.includes("タイトルが同じ「ホーム」")));
-  assert.ok(!messages(withPage("about", "ページの作り方")).some((m) => m.includes("自動で付けた「")));
+  assert.ok(messages(withPage("about", "", "ページ 12")).some((m) => m.includes('"ページ 12"') && m.includes("automatic")));
+  assert.ok(messages(withPage("menu", "Home")).some((m) => m.includes("same search and share title")));
+  assert.ok(!messages(withPage("about", "ページの作り方")).some((m) => m.includes("still the automatic")));
 });
 
 test("unpublished pages are not checked", () => {
