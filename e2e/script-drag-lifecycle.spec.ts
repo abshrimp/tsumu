@@ -291,16 +291,17 @@ test("copying a whole script creates independent script and nested step IDs", as
 
 for (const hasTrailingBlock of [false, true]) {
   test(`dragging a condition with a selected element keeps its original controls and layout${hasTrailingBlock ? " across chained blocks" : ""}`, async ({ page }) => {
-    const selected = { ...makeBox("選択済みの要素（長い名前）"), id: "chosen-element" };
+    // Script condition targets store the HTML ID attribute, not the node ID.
+    const selected = { ...makeBox("選択済みの要素（長い名前）"), id: "chosen-node", attrId: "chosen-element" };
     await page.evaluate(({ selected, hasTrailingBlock }) => {
       (window as any).scriptDragEditor.getState().updateDoc((doc: any) => {
         doc.nodes[selected.id] = selected;
         doc.pages.p.children = [selected.id];
         doc.pages.p.pageScripts[0].steps = [{
           id: "condition", kind: "if",
-          cond: { subject: "value", target: selected.id, op: "eq", value: "first" },
+          cond: { subject: "value", target: selected.attrId, op: "eq", value: "first" },
           conditions: [{
-            subject: "value", target: selected.id, op: "eq", value: "second", and: true,
+            subject: "value", target: selected.attrId, op: "eq", value: "second", and: true,
           }],
           then: [{ id: "inside-condition", kind: "wait", seconds: 2 }],
           else: [],
