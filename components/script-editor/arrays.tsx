@@ -24,8 +24,6 @@ import { ListChoicePicker, type ListChoice } from "./ListChoicePicker";
 export function ArraySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const { arrays, readOnly } = useContext(Ctx);
   const options: ListChoice[] = arrays.map((array) => ({ value: array.name, label: array.name }));
-  if (value && !arrays.some((array) => array.name === value))
-    options.push({ value, label: value + tr("(not found)") });
   return <ListChoicePicker value={value} options={options} onChange={onChange} readOnly={readOnly} />;
 }
 
@@ -42,7 +40,7 @@ function arrayPathsIn(samples: Record<string, unknown>): string[] {
     out.push(path);
     if (depth === 3) return;
     let visited = 0;
-    for (const k in v) {
+    for (const k of Array.isArray(v) ? ["0"] : Object.keys(v)) {
       if (!Object.hasOwn(v, k)) continue;
       if (visited++ >= 50 || out.length >= 100) break;
       const c = (v as Record<string, unknown>)[k];
@@ -69,8 +67,6 @@ export function AnyArraySelect({ value, onChange }: { value: string; onChange: (
       group: tr("Lists inside variables"),
     })),
   ];
-  if (value && !options.some((option) => option.value === value))
-    options.push({ value, label: value + tr("(not found)") });
   return <ListChoicePicker value={value} options={options} onChange={onChange} readOnly={readOnly} />;
 }
 
