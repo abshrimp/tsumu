@@ -106,6 +106,29 @@ test("script list chooser filters candidates, supports the keyboard, and dismiss
   expect(errors).toEqual([]);
 });
 
+test("list selection menu shows the first sampled row, not all 20 records", async ({ page }) => {
+  await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
+  await page.addScriptTag({ content: await nestedOperationsBundle(true) });
+  await page.evaluate(() => (window as any).nestedOperationsStore.getState().updateDoc((doc: any) => {
+    doc.pages.p.pageScripts[0].steps[0].preview.sample = Array.from({ length: 20 }, (_, index) => ({
+      name: "Row " + index,
+      tags: [{ label: "Tag " + index }],
+    }));
+  }));
+  await page.getByRole("button", { name: "Edit descending", exact: true }).click();
+  const choice = page.locator('.se-ws [data-sel-key="step:descending-step"] button.se-list-choice');
+  await choice.click();
+  const menu = page.locator(".se-list-picker");
+  await expect(menu.getByRole("option", { name: "response.0.tags", exact: true })).toBeVisible();
+  await expect(menu.getByRole("option", { name: /^response\.[1-9]\d*(?:\.|$)/ })).toHaveCount(0);
+  await menu.locator("input").fill("response.3.tags");
+  await expect(menu.getByRole("option")).toHaveCount(0);
+  await menu.locator("input").press("Enter");
+  await expect(choice).toHaveText("response.3.tags");
+  const saved = await snapshot(page);
+  expect(saved.doc.nodes.descending.scripts[0].steps[0].array).toBe("response.3.tags");
+});
+
 test("custom list picker accepts a path absent from the sample choices", async ({ page }) => {
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
   await page.addScriptTag({ content: await nestedOperationsBundle(true) });
