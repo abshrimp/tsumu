@@ -21,7 +21,8 @@ export async function pageFolderBundle() {
     stdin: { contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { PagesTab } from "./components/left-panel/PagesTab";
+import { loadLocale } from "./lib/i18n";
+let PagesTab;
 import { useEditor } from "./lib/store";
 import { mergeDocs } from "./lib/merge";
 import css from "./app/globals.css";
@@ -35,8 +36,11 @@ window.receiveFolderDoc = (remote) => {
   const state = useEditor.getState();
   state.applyRemoteDoc(mergeDocs(base, state.doc, remote));
 };
-const root = createRoot(document.getElementById("app"));
-root.render(<React.StrictMode><div style={{ width: 300, height: 600 }}><PagesTab /></div></React.StrictMode>);
+void loadLocale().then(async () => {
+  ({ PagesTab } = await import("./components/left-panel/PagesTab"));
+  const root = createRoot(document.getElementById("app"));
+  root.render(<React.StrictMode><div style={{ width: 300, height: 600 }}><PagesTab /></div></React.StrictMode>);
+});
 `, resolveDir: resolve("."), loader: "tsx", sourcefile: "page-folder-browser.tsx" },
     loader: { ".css": "text" }, bundle: true, write: false, platform: "browser", format: "iife", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },

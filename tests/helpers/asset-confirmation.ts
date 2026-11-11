@@ -73,8 +73,9 @@ export async function assetConfirmationBundle() {
       contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { AssetsTab } from "./components/left-panel/AssetsTab";
-import DialogHost from "./components/DialogHost";
+import { loadLocale } from "./lib/i18n";
+let AssetsTab;
+let DialogHost;
 import { useEditor } from "./lib/store";
 useEditor.getState().replaceDoc(${JSON.stringify(assetConfirmationDoc())});
 window.assetEditor = useEditor;
@@ -83,7 +84,11 @@ function App() {
   window.closeAssetPanel = () => setOpen(false);
   return <>{open && <AssetsTab />}<DialogHost /></>;
 }
-createRoot(document.getElementById("app")).render(<React.StrictMode><App /></React.StrictMode>);
+void loadLocale().then(async () => {
+  ({ AssetsTab } = await import("./components/left-panel/AssetsTab"));
+    ({ default: DialogHost } = await import("./components/DialogHost"));
+  createRoot(document.getElementById("app")).render(<React.StrictMode><App /></React.StrictMode>);
+});
 `,
       loader: "tsx", sourcefile: "asset-confirmation-browser.tsx", resolveDir: resolve("."),
     },

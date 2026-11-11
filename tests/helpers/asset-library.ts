@@ -64,8 +64,9 @@ export async function assetLibraryBundle() {
       contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { AssetsTab } from "./components/left-panel/AssetsTab";
-import { NumField, FillControl } from "./components/controls";
+import { loadLocale } from "./lib/i18n";
+let AssetsTab;
+let NumField, FillControl;
 import { useEditor } from "./lib/store";
 import css from "./app/globals.css";
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
@@ -77,7 +78,11 @@ function Fixture() {
   const styles = useEditor((s) => s.doc.nodes.a?.styles.base?.default);
   return <><div id="controls"><NumField pre="W" value={styles?.width ?? "100px"} onChange={(value) => useEditor.getState().setStyleProps("a", { width: value })} /><FillControl value={styles?.backgroundColor ?? "#ff0000"} onChange={(value) => useEditor.getState().setStyleProps("a", { backgroundColor: value })} onChangeStart={() => useEditor.getState().beginGesture()} onChangeTransient={(value) => useEditor.getState().setStyleProps("a", { backgroundColor: value }, { transient: true })} /></div><button id="undo" onClick={() => useEditor.getState().undo()}>Undo</button><button id="redo" onClick={() => useEditor.getState().redo()}>Redo</button><div style={{ width: 320 }}>{visible && <AssetsTab />}</div></>;
 }
-createRoot(document.getElementById("app")).render(<React.StrictMode><Fixture /></React.StrictMode>);
+void loadLocale().then(async () => {
+  ({ AssetsTab } = await import("./components/left-panel/AssetsTab"));
+    ({ NumField, FillControl } = await import("./components/controls"));
+  createRoot(document.getElementById("app")).render(<React.StrictMode><Fixture /></React.StrictMode>);
+});
 `,
       loader: "tsx", sourcefile: "asset-library-browser.tsx", resolveDir: resolve("."),
     },
