@@ -12,7 +12,6 @@ import { importedAssetUrl, isZipJavascript } from "./imported-assets";
 import { cssValue, rawHtmlWithBodyStyles, usedGoogleFonts } from "./css";
 import { htmlZipSource } from "../html-zip-source";
 import { zipStylesheet, zipCssUrl } from "../zip-css";
-import { assetSrc } from "../assets";
 import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
 import { unnestLinks } from "./page";
 import { hasVars } from "../vars";
