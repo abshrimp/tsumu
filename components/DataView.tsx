@@ -134,7 +134,9 @@ const isRecordList = (v: unknown): v is Record<string, unknown>[] =>
 
 /** 中身の種類と数（「一覧 20件」「6項目」） */
 function containerMeta(value: unknown): string {
-  return tr("List · {length} items", "list_length_items_variant_1", { length: Object.keys(value as object).length });
+  return Array.isArray(value)
+    ? tr("List · {length} elements", { length: value.length })
+    : tr("List · {length} items", "list_length_items_variant_1", { length: Object.keys(value as object).length });
 }
 
 /** 文字・数値などの値 */
