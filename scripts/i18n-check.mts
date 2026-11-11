@@ -1,19 +1,36 @@
-/** Validate that every static English source key has a translation in the selected locale.
- * Run npm run i18n:check -- <language> (default: ja).
+/**
+ * Audit translations for one language or all discovered dictionaries.
+ * Missing entries warn by default (English source is the runtime fallback).
+ * Use --strict to enforce complete translations, e.g. for Japanese CI.
+ *
+ * npm run i18n:check -- fr
+ * npm run i18n:check -- --strict ja
+ * npm run i18n:check -- --all
  */
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "@typescript/typescript6";
+import { LANGUAGES } from "../lib/lang";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const lang = process.argv[2] ?? "ja";
-const file = path.join(root, "lib/locales", `${lang}.ts`);
-if (!fs.existsSync(file)) {
-  console.error(`lib/locales/${lang}.ts がありません`);
-  process.exit(2);
+const args = process.argv.slice(2);
+const knownFlags = new Set(["--all", "--strict", "--verbose"]);
+const unknownFlags = args.filter((arg) => arg.startsWith("--") && !knownFlags.has(arg));
+if (unknownFlags.length) throw new Error("Unknown options: " + unknownFlags.join(", "));
+const strict = args.includes("--strict");
+const all = args.includes("--all");
+const verbose = args.includes("--verbose");
+const selected = args.filter((arg) => !arg.startsWith("--"));
+if ((all && selected.length) || selected.length > 1) {
+  throw new Error("Specify either one language or --all");
 }
-const dict = (await import(file)).default as Record<string, string>;
+const codes = all
+  ? Object.keys(LANGUAGES).filter((code) => code !== "en")
+  : [selected[0] ?? "ja"];
+for (const code of codes) {
+  if (!Object.hasOwn(LANGUAGES, code)) throw new Error("Unknown language: " + code);
+}
 
 const files: string[] = [];
 const walk = (dir: string) => {
@@ -29,18 +46,14 @@ files.push(path.join(root, "auth.ts"), path.join(root, "middleware.ts"));
 
 const literal = (node: ts.Node | undefined): string | undefined =>
   node && ts.isStringLiteralLike(node) ? node.text : undefined;
-// Match the runtime's lookup: an empty translation falls back to the source text.
-const translated = (key: string) => typeof dict[key] === "string" && dict[key].length > 0;
-const missing = new Map<string, string[]>();
-const add = (f: string, key: string) => {
-  const rel = path.relative(root, f);
-  missing.set(rel, [...(missing.get(rel) ?? []), key]);
-};
-for (const f of files) {
-  if (f.endsWith(path.join("lib", "i18n.ts"))) continue;
-  // Parse TS/TSX so comments and examples are not calls, and JavaScript literal
-  // quoting/escapes are decoded correctly. Dynamic keys still require manual coverage.
-  const source = ts.createSourceFile(f, fs.readFileSync(f, "utf8"), ts.ScriptTarget.Latest);
+
+// Collect callsite keys once, including context-specific lookups. Dynamic keys
+// still require manual tests; the runtime falls back to English for those too.
+const required = new Map<string, Set<string>>();
+for (const file of files) {
+  if (file.endsWith(path.join("lib", "i18n.ts"))) continue;
+  const source = ts.createSourceFile(file, fs.readFileSync(file, "utf8"), ts.ScriptTarget.Latest);
+  const found = new Set<string>();
   const visit = (node: ts.Node) => {
     if (ts.isCallExpression(node)) {
       const name = ts.isIdentifier(node.expression) ? node.expression.text
@@ -48,29 +61,63 @@ for (const f of files) {
       const first = literal(node.arguments[0]);
       if ((name === "tr" || name === "trNodes") && first !== undefined) {
         const context = name === "tr" ? literal(node.arguments[1]) : literal(node.arguments[2]);
-        const key = context === undefined ? first : `${context}\u0004${first}`;
-        if (!translated(key)) add(f, key);
+        found.add(context === undefined ? first : context + "\u0004" + first);
       } else if (name === "trc" && first !== undefined) {
-        const second = literal(node.arguments[1]);
-        if (second !== undefined) {
-          // trc only looks up the context-specific key; it does not fall back to tr.
-          const key = `${first}\u0004${second}`;
-          if (!translated(key)) add(f, key);
-        }
+        const key = literal(node.arguments[1]);
+        if (key !== undefined) found.add(first + "\u0004" + key);
       }
     }
     ts.forEachChild(node, visit);
   };
   visit(source);
+  if (found.size) required.set(path.relative(root, file), found);
 }
 
-let n = 0;
-for (const [f, keys] of missing) {
-  console.log(`\n${f}`);
-  for (const k of new Set(keys)) {
-    console.log(`  ${JSON.stringify(k)}`);
-    n++;
+let failed = false;
+for (const code of codes) {
+  if (code === "en") {
+    console.log("English is the source language; no dictionary is required.");
+    continue;
+  }
+  const localeDir = path.join(root, "lib", "locales");
+  const filename = fs.readdirSync(localeDir).find((name) =>
+    name.endsWith(".ts") && name !== "index.ts" && !name.endsWith(".generated.ts") &&
+    Intl.getCanonicalLocales(name.slice(0, -3))[0].toLowerCase() === code
+  );
+  if (!filename) throw new Error("Missing locale dictionary for: " + code);
+  const file = path.join(localeDir, filename);
+  const dict = (await import(file)).default as Record<string, string>;
+  if (!dict || typeof dict !== "object" || Array.isArray(dict)) {
+    throw new Error("Invalid dictionary in " + file);
+  }
+
+  const missing: { file: string; key: string }[] = [];
+  for (const [source, keys] of required) {
+    for (const key of keys) {
+      if (typeof dict[key] !== "string" || dict[key].length === 0) {
+        missing.push({ file: source, key });
+      }
+    }
+  }
+  if (!missing.length) {
+    console.log("All static strings are translated for " + code);
+    continue;
+  }
+
+  const limit = verbose || strict ? missing.length : Math.min(missing.length, 25);
+  for (const { file: source, key } of missing.slice(0, limit)) {
+    console.log(source + ": " + JSON.stringify(key));
+  }
+  if (limit < missing.length) {
+    console.log("... and " + (missing.length - limit) + " more (use --verbose to list all)");
+  }
+  const message = missing.length + " untranslated static strings for " + code +
+    " (English fallback applies; dynamic keys need separate verification)";
+  if (strict) {
+    console.error("ERROR: " + message);
+    failed = true;
+  } else {
+    console.warn("WARNING: " + message);
   }
 }
-console.log(n ? `\n${n} untranslated strings for "${lang}"` : `All strings are translated for "${lang}"`);
-process.exit(n ? 1 : 0);
+if (failed) process.exitCode = 1;

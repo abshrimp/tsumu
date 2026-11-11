@@ -37,7 +37,15 @@
     "test": "node --import tsx --test tests/*.test.mts",
     "test:e2e": "playwright test",
     "i18n:check": "node --import tsx scripts/i18n-check.mts",
-    "build:worker": "node scripts/cloudflare.mjs build"
+    "build:worker": "node scripts/cloudflare.mjs build",
+    "locales:sync": "node scripts/sync-locales.mjs",
+    "predev": "node scripts/sync-locales.mjs",
+    "prebuild": "node scripts/sync-locales.mjs",
+    "prebuild:worker": "node scripts/sync-locales.mjs",
+    "pretypecheck": "node scripts/sync-locales.mjs",
+    "pretest": "node scripts/sync-locales.mjs",
+    "pretest:e2e": "node scripts/sync-locales.mjs",
+    "prei18n:check": "node scripts/sync-locales.mjs"
   },
   "dependencies": {
     "@typescript/typescript6": "6.0.2",
