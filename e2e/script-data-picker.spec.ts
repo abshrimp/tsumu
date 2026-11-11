@@ -132,6 +132,39 @@ test("mixed templates and generated code survive exploring, cancelling and save/
   expect(await page.evaluate(() => (window as any).dataPickerProject())).toEqual(original);
 });
 
+test("nested Japanese array fields stay lists in loop variable labels and explorer", async ({ page }) => {
+  const b = block(page, "loop-category");
+  await expect(b.locator(".se-value-info .vx-kind")).toHaveText("リスト");
+
+  const input = b.locator("input").first();
+  await input.focus();
+  await expect(page.locator(".var-comp-list button").filter({
+    has: page.locator(".var-chip").filter({ hasText: /^categories.出展カテゴリ$/ }),
+  }).locator(".var-comp-sample")).toHaveText("リスト");
+
+  await openPicker(page, "loop-category");
+  await picker(page).getByPlaceholder("変数名・値で検索").fill("categories.出展カテゴリ");
+  await expect(row(page, "{categories.出展カテゴリ}").locator(".vx-kind")).toContainText("リスト");
+  await row(page, "{categories.出展カテゴリ}").click();
+  await input.blur();
+
+  const doc = await snapshot(page);
+  const loop = doc.pages.p.pageScripts[0].steps.find((s: any) => s.id === "loop");
+  expect(loop.then[0].value).toBe("{categories.出展カテゴリ}");
+  expect(doc.pages.p.pageScripts[0].steps[0].preview.sample.rows[0].categories["出展カテゴリ"]).toEqual(["物販"]);
+  await expect(b.locator(".se-value-info .vx-kind")).toHaveText("リスト");
+});
+
+test("nested arrays from fetched JSON keep their list type outside loops", async ({ page }) => {
+  await openPicker(page);
+  await picker(page).getByPlaceholder("変数名・値で検索").fill("data.categories.出展カテゴリ");
+  await expect(row(page, "{data.categories.出展カテゴリ}").locator(".vx-kind")).toContainText("リスト");
+  await row(page, "{data.categories.出展カテゴリ}").click();
+  await block(page, "value").locator("input").first().blur();
+  await expect(block(page, "value").locator(".se-value-info .vx-kind")).toHaveText("リスト");
+  expect(await selected(page)).toBe("{data.categories.出展カテゴリ}");
+});
+
 test("typed references preserve arrays, false, null and runtime-unknown choices", async ({ page }) => {
   for (const name of ["data.tags", "data.available", "data.empty", "later"]) {
     await openPicker(page); await pick(page, name);
