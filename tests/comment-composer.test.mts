@@ -102,7 +102,7 @@ test("a new comment rejected for a deleted site keeps its text and draft open", 
   assert.equal(textarea(composer.render()).props.readOnly, false);
   assert.equal(useComments.getState().draft, draft);
   assert.equal(useComments.getState().openId, null);
-  assert.equal(useComments.getState().error, "Site not found");
+  assert.equal(useComments.getState().error, "Couldn\'t save the comment");
 });
 
 test("an old edit completion cannot close a cancelled and reopened edit session", async () => {

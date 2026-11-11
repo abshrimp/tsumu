@@ -2,6 +2,12 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
+  "The element hierarchy is invalid.": "要素の親子関係が不正です。",
+  "The document contains invalid element settings.": "要素の設定が不正な編集データです。",
+  "Asset references are invalid.": "アセットの参照情報が正しくありません。",
+  "Page folders are invalid.": "ページフォルダーが正しくありません。",
+  "Page folder references are invalid.": "ページフォルダーの参照が正しくありません。",
+  "The document structure or references are invalid.": "編集データの参照・構造が不正です。",
   "Request too large": "リクエストが大きすぎます",
   "Invalid JSON": "JSONが壊れています",
   "CSS": "CSS",
