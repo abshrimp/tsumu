@@ -143,6 +143,39 @@ function mergeContainers<T extends { children: string[] }>(
 /** ID単位でマージするコレクション（設定の値としては扱わない） */
 const COLLECTION_KEYS = new Set(["pages", "pageOrder", "pageFolders", "nodes", "assets", "components"]);
 
+/** Preserve the chosen sibling order. Group additions from the other list by
+ * the next surviving sibling, so a wide parent needs only one scan per list. */
+function mergeOrder(
+  base: string[] | undefined,
+  local: string[] | undefined,
+  remote: string[] | undefined,
+  keep: (id: string) => boolean,
+): string[] {
+  const preferred = pick(base, local, remote);
+  const other = preferred === local ? remote : local;
+  if (!preferred?.length && !other?.length) return [];
+  const order = new Set(preferred?.filter(keep));
+  if (!other?.length || other === preferred) return [...order];
+
+  const before = new Map<string, string[]>();
+  let additions: string[] = [];
+  for (const id of new Set(other)) {
+    if (!keep(id)) continue;
+    if (!order.has(id)) additions.push(id);
+    else if (additions.length) {
+      before.set(id, additions);
+      additions = [];
+    }
+  }
+  if (!before.size) return [...order, ...additions];
+  const result: string[] = [];
+  for (const id of order) {
+    for (const addition of before.get(id) ?? []) result.push(addition);
+    result.push(id);
+  }
+  return result.concat(additions);
+}
+
 /** フォルダの名前・存在と並び順を分け、別々のフォルダへの同時編集を残す。 */
 function mergePageFolders(
   base: PageFolder[] | undefined,
@@ -154,16 +187,7 @@ function mergePageFolders(
   const folders = mergeRecord(record(base), record(local), record(remote));
   const ids = (list: PageFolder[] | undefined) => (list ?? []).map((folder) => folder.id);
   const b = ids(base), l = ids(local), r = ids(remote);
-  const order = [...new Set(pick(b, l, r) ?? [])].filter((id) => folders[id]);
-  // 両方で追加したフォルダを、元の次のフォルダの手前へ補う。
-  for (const list of [l, r]) {
-    for (let i = 0; i < list.length; i++) {
-      const id = list[i];
-      if (!folders[id] || order.includes(id)) continue;
-      const next = list.slice(i + 1).find((sibling) => order.includes(sibling));
-      order.splice(next === undefined ? order.length : order.indexOf(next), 0, id);
-    }
-  }
+  const order = mergeOrder(b, l, r, id => Object.hasOwn(folders, id));
   if (!order.length && pick(base, local, remote) === undefined) return undefined;
   return order.map((id) => folders[id]);
 }
@@ -369,19 +393,9 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
   }
 
   const mergeChildren = (key: string): string[] => {
-    const preferred = pick(b.get(key), l.get(key), r.get(key)) ?? [];
-    const result = [...new Set(preferred)].filter((id) => parents.get(id) === key);
-    // 採用した並びに無い追加要素は、元の次の兄弟の手前に差し込む。
-    for (const list of [l.get(key) ?? [], r.get(key) ?? []]) {
-      for (let i = 0; i < list.length; i++) {
-        const id = list[i];
-        if (parents.get(id) !== key || result.includes(id)) continue;
-        const next = list.slice(i + 1).find((sibling) => result.includes(sibling));
-        result.splice(next === undefined ? result.length : result.indexOf(next), 0, id);
-      }
-    }
-    for (const id of overflowPlacements.get(key) ?? []) if (!result.includes(id)) result.push(id);
-    return result;
+    const order = mergeOrder(b.get(key), l.get(key), r.get(key), id => parents.get(id) === key);
+    const repaired = overflowPlacements.get(key);
+    return repaired ? [...new Set([...order, ...repaired])] : order;
   };
   // 入力の履歴スナップショットは書き換えない。
   for (const [id, page] of Object.entries(merged.pages)) {
