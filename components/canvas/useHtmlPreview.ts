@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Asset, HtmlZipPage } from "../../lib/types";
 import { htmlZipSource } from "../../lib/html-zip-source";
+import { rewriteHtmlZipScriptUrls } from "../../lib/html-zip-script-assets";
 import { zipCssUrl, zipStylesheet } from "../../lib/zip-css";
 import { assetSrc } from "../../lib/assets";
 import { withSignedAssetUrls, zipPreviewRoots } from "../../lib/assets";
@@ -12,8 +13,11 @@ import { tr } from "../../lib/i18n";
 // Signed URLs last one hour. Offer a refresh before expiry without resetting the live iframe.
 export const HTML_PREVIEW_REFRESH_MS = 50 * 60 * 1000;
 export function useHtmlPreview(src: string, assets: Record<string, Asset>, zip?: HtmlZipPage) {
-  const prepared = useMemo(() => htmlZipSource(src, zip, assets,
-    asset => zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset)), [src, zip, assets]);
+  const prepared = useMemo(() => {
+    const html = htmlZipSource(src, zip, assets,
+      asset => zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset));
+    return rewriteHtmlZipScriptUrls(html, zip, assets, assetSrc);
+  }, [src, zip, assets]);
   const key = useMemo(() => JSON.stringify([...zipAssetClosure(assets, zipPreviewRoots(prepared, assets))].map((id) => assets[id])), [prepared, assets]);
   const [revision, setRevision] = useState(0);
   const [result, setResult] = useState<{ src: string; key: string; revision: number; html: string; error?: string; needsRefresh?: boolean }>();
