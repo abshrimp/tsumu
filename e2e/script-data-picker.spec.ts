@@ -166,6 +166,48 @@ test("filter field dropdown marks nested Japanese category arrays as lists", asy
   expect(doc.pages.p.pageScripts[0].steps[0].preview.sample.rows[0].categories["出展カテゴリ"]).toEqual(["物販"]);
 });
 
+test("filter can target the categories record and suggest key and list membership conditions", async ({ page }) => {
+  const filter = block(page, "category-filter");
+  await filter.locator(".se-pm-btn").click();
+  const menu = page.locator(".se-pm");
+  const categories = menu.locator(".se-pm-row").filter({
+    has: page.locator(".se-pm-key").filter({ hasText: /^categories$/ }),
+  });
+  await expect(categories.locator(".dd-item")).toBeEnabled();
+  await categories.locator(".dd-item").click();
+
+  const op = filter.locator("select.se-in").filter({
+    has: page.locator('option[value="has-key"]'),
+  });
+  await expect(op).toHaveValue("has-key");
+  await expect(op.locator('option[value="starts-with"]')).toHaveCount(0);
+  await expect(filter.locator(".se-pm-btn")).toHaveText("categories");
+
+  const value = filter.locator("input.se-in").first();
+  await value.fill("出展カテゴリ");
+  await value.blur();
+  let stored = (await snapshot(page)).pages.p.pageScripts[0].steps.find((s: any) => s.id === "category-filter");
+  expect({ field: stored.field, op: stored.op, value: stored.value }).toEqual({
+    field: "categories", op: "has-key", value: "出展カテゴリ",
+  });
+
+  await filter.locator(".se-pm-btn").click();
+  await menu.locator(".se-pm-row").filter({
+    has: page.locator(".se-pm-key").filter({ hasText: /^categories$/ }),
+  }).locator(".se-pm-enter").click();
+  await menu.locator(".se-pm-row").filter({
+    has: page.locator(".se-pm-key").filter({ hasText: /^出展カテゴリ$/ }),
+  }).locator(".dd-item").click();
+
+  await expect(op).toHaveValue("contains");
+  await expect(op.locator('option[value="has-key"]')).toHaveCount(0);
+  await expect(filter.locator(".se-pm-btn")).toHaveText("categories › 出展カテゴリ");
+  stored = (await snapshot(page)).pages.p.pageScripts[0].steps.find((s: any) => s.id === "category-filter");
+  expect({ field: stored.field, op: stored.op, value: stored.value }).toEqual({
+    field: "categories.出展カテゴリ", op: "contains", value: "",
+  });
+});
+
 test("typed references preserve arrays, false, null and runtime-unknown choices", async ({ page }) => {
   for (const name of ["data.tags", "data.available", "data.empty", "later"]) {
     await openPicker(page); await pick(page, name);
