@@ -52,8 +52,8 @@ export function StepBody({ step }: { step: ScriptStep }) {
                   )
                 }
               >
-                <option value="show">{trc("show_variant_1", "Show")}</option>
-                <option value="hide">{trc("hide_variant_1", "Hide")}</option>
+                <option value="show">{tr("Show", "show_variant_1")}</option>
+                <option value="hide">{tr("Hide", "hide_variant_1")}</option>
                 <option value="toggle">{tr("Toggle visibility of")}</option>
               </select>
             ),

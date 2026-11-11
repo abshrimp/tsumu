@@ -277,7 +277,7 @@ function TransformCard({ onDelete }: { onDelete: () => void }) {
   return (
     <div className="fx-card">
       <div className="fx-head">
-        <span className="fx-label">{trc("transform_variant_1", "Transform")}</span>
+        <span className="fx-label">{tr("Transform", "transform_variant_1")}</span>
         <InfoTip
           text={tr("Moves, rotates, scales or skews only how the element looks (the layout around it doesn't change). Change it in a state such as Hover and combine it with a “state change” motion to animate it.")}
         />
@@ -286,7 +286,7 @@ function TransformCard({ onDelete }: { onDelete: () => void }) {
         </button>
       </div>
       <div className="grid2">
-        <Grp label={trc("move_x_variant_1", "Move X")} setHere={changed("x")} onReset={() => set({ x: ref.x })}>
+        <Grp label={tr("Move X", "move_x_variant_1")} setHere={changed("x")} onReset={() => set({ x: ref.x })}>
           <NumField
             value={len(tf.x)}
             units={["px", "%", "em"]}
@@ -295,7 +295,7 @@ function TransformCard({ onDelete }: { onDelete: () => void }) {
             onChange={(v) => set({ x: v || "0px" })}
           />
         </Grp>
-        <Grp label={trc("move_y_variant_1", "Move Y")} setHere={changed("y")} onReset={() => set({ y: ref.y })}>
+        <Grp label={tr("Move Y", "move_y_variant_1")} setHere={changed("y")} onReset={() => set({ y: ref.y })}>
           <NumField
             value={len(tf.y)}
             units={["px", "%", "em"]}
@@ -441,7 +441,7 @@ export function EffectsSec() {
               : [
                   {
                     value: "transform",
-                    label: trc("transform_variant_1", "Transform"),
+                    label: tr("Transform", "transform_variant_1"),
                     desc: tr("Move, scale, rotate, skew (transform)"),
                     icon: <Move size={13} />,
                   },

@@ -608,7 +608,7 @@ export function PathMenu({
   const label = path
     ? fieldLabel(path)
     : placeholder ?? (mode === "list"
-      ? trc("select_a_list_variant_1", "Select a list")
+      ? tr("Select a list", "select_a_list_variant_1")
       : mode === "item"
         ? tr("Select a path")
         : mode === "field"

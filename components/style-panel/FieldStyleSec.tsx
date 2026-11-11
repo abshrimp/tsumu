@@ -34,7 +34,7 @@ export function FieldStyleSec({ node }: { node: DocNode }) {
     "fileButtonRadius",
   ];
   return (
-    <Sec title={trc("input_variant_2", "Input")} defaultOpen={props.some((p) => insp.get(p).set)} help="form-fields">
+    <Sec title={tr("Input", "input_variant_2")} defaultOpen={props.some((p) => insp.get(p).set)} help="form-fields">
       {accent && (
         <PropFill
           label={f.kind === "checkbox" ? tr("Check color") : f.kind === "radio" ? tr("Selection color") : tr("Thumb and track color")}
@@ -74,7 +74,7 @@ export function FieldStyleSec({ node }: { node: DocNode }) {
           <PropSeg
             prop="resize"
             options={[
-              { label: trc("none_variant_2", "None"), value: "none" },
+              { label: tr("None", "none_variant_2"), value: "none" },
               { label: tr("Vertical"), value: "vertical" },
               { label: tr("Horizontal"), value: "horizontal" },
               { label: tr("Both"), value: "both" },

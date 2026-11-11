@@ -31,7 +31,7 @@ export function ArraySelect({ value, onChange }: { value: string; onChange: (v: 
       onChange={(e) => onChange(e.target.value)}
     >
       <option value="" disabled>
-        {arrays.length ? trc("select_a_list_variant_1", "Select a list") : tr("No lists")}
+        {arrays.length ? tr("Select a list", "select_a_list_variant_1") : tr("No lists")}
       </option>
       {arrays.map((a) => (
         <option key={a.name} value={a.name}>
@@ -83,7 +83,7 @@ export function AnyArraySelect({ value, onChange }: { value: string; onChange: (
       onChange={(e) => onChange(e.target.value)}
     >
       <option value="" disabled>
-        {all.length ? trc("select_a_list_variant_1", "Select a list") : tr("No lists")}
+        {all.length ? tr("Select a list", "select_a_list_variant_1") : tr("No lists")}
       </option>
       {named.map((n) => (
         <option key={n} value={n}>

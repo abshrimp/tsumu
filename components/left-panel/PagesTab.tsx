@@ -277,7 +277,7 @@ export function PagesTab() {
       "sep",
       {
         key: "publish",
-        label: allUnpublished ? trc("publish_variant_1", "Publish") : tr("Unpublish (draft)"),
+        label: allUnpublished ? tr("Publish", "publish_variant_1") : tr("Unpublish (draft)"),
         icon: allUnpublished ? <Eye size={14} /> : <EyeOff size={14} />,
         onClick: run(() =>
           updateDoc((d) => {
@@ -451,7 +451,7 @@ export function PagesTab() {
           )}
           <button
             className={`row-act${p.unpublished ? " is-on" : ""}`}
-            data-tip={p.unpublished ? trc("publish_variant_1", "Publish") : tr("Unpublish (draft)")}
+            data-tip={p.unpublished ? tr("Publish", "publish_variant_1") : tr("Unpublish (draft)")}
             onClick={(e) => {
               e.stopPropagation();
               updatePage(id, { unpublished: !p.unpublished });
@@ -482,7 +482,7 @@ export function PagesTab() {
               options={[
                 { value: "__loose__", label: tr("Outside folders"), icon: <Icon name="page" size={13} /> },
                 ...folders.map((f) => ({ value: f.id, label: f.name, icon: <Folder size={13} /> })),
-                { value: "__new__", label: trc("new_folder_variant_1", "New folder"), icon: <FolderPlus size={13} /> },
+                { value: "__new__", label: tr("New folder", "new_folder_variant_1"), icon: <FolderPlus size={13} /> },
               ]}
               onChange={(v) => {
                 if (!livePicked.length) return;
@@ -502,7 +502,7 @@ export function PagesTab() {
               title={tr("Publish / unpublish")}
               menuWidth={190}
               options={[
-                { value: "on", label: trc("publish_variant_1", "Publish"), icon: <Icon name="eye" size={13} /> },
+                { value: "on", label: tr("Publish", "publish_variant_1"), icon: <Icon name="eye" size={13} /> },
                 { value: "off", label: tr("Unpublish (draft)"), icon: <Icon name="eyeOff" size={13} /> },
               ]}
               onChange={(v) => bulkPublish(v === "on")}

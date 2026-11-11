@@ -186,7 +186,7 @@ export function TargetSelect({
               : null
       }
       sub={cur ? `#${cur.attrId}` : undefined}
-      placeholder={only ? trc("select_a_field_variant_1", "Select a field") : tr("Select an element")}
+      placeholder={only ? tr("Select a field", "select_a_field_variant_1") : tr("Select an element")}
       hint={tr("Elements without an ID get one automatically when selected")}
     />
   );

@@ -218,7 +218,7 @@ export function BackgroundSec() {
                 unsetLabel={tr("automatic")}
                 options={[
                   { label: tr("Cover"), value: "cover" },
-                  { label: trc("show_all_variant_1", "Show all"), value: "contain" },
+                  { label: tr("Show all", "show_all_variant_1"), value: "contain" },
                   { label: tr("Fit width"), value: "100% auto" },
                 ]}
               />

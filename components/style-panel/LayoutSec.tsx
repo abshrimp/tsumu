@@ -236,7 +236,7 @@ export function LayoutSec() {
               </div>
             </Grp>
             {dir === "row" && (
-              <StyleCheck prop="flexWrap" label={trc("wrap_variant_1", "Wrap")} on="wrap" off="nowrap" />
+              <StyleCheck prop="flexWrap" label={tr("Wrap", "wrap_variant_1")} on="wrap" off="nowrap" />
             )}
           </div>
         </div>

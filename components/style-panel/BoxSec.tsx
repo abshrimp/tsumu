@@ -104,7 +104,7 @@ export function ImageSec() {
         />
       </Grp>
       <Grp
-        label={trc("fit_variant_1", "Fit")}
+        label={tr("Fit", "fit_variant_1")}
         setHere={fit.changed}
         onReset={() => insp.set({ objectFit: null, objectPosition: null })}
       >
@@ -112,8 +112,8 @@ export function ImageSec() {
           value={fitValue}
           options={[
             { label: tr("Fill frame"), value: "cover", title: tr("Crops the overflow to fill the frame (good for photos)") },
-            { label: trc("show_all_variant_1", "Show all"), value: "contain", title: tr("Fits the whole image inside the frame (good for logos)") },
-            { label: trc("stretch_variant_1", "Stretch"), value: "fill", title: tr("Stretches the image to the frame's shape") },
+            { label: tr("Show all", "show_all_variant_1"), value: "contain", title: tr("Fits the whole image inside the frame (good for logos)") },
+            { label: tr("Stretch", "stretch_variant_1"), value: "fill", title: tr("Stretches the image to the frame's shape") },
           ]}
           onChange={(v) => insp.set({ objectFit: v === "fill" ? insp.cleared("objectFit") : v })}
         />

@@ -51,7 +51,7 @@ export const CAT_INFO: Record<Cat, { label: string; color: string }> = {
   move: { label: tr("Navigation"), color: "#0d99ff" },
   input: { label: tr("Input"), color: "#0f766e" },
   var: { label: tr("Variables"), color: "#0891b2" },
-  array: { label: trc("list_variant_1", "List"), color: "#db2777" },
+  array: { label: tr("List", "list_variant_1"), color: "#db2777" },
   store: { label: tr("Storage"), color: "#4f46e5" },
   control: { label: tr("Control"), color: "#52525b" },
 };

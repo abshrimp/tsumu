@@ -200,7 +200,7 @@ export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 
       loop.fields.some(sameRoot) || (loop.roots?.some(sameRoot) ?? false)));
   const sample = source && !exclusiveOwnOutput && !locallyShadowed
     ? lookupVar(samples, source) : undefined;
-  const kind = sample === undefined ? null : sample !== null && typeof sample === "object" ? trc("list_variant_1", "List") : tr("Value");
+  const kind = sample === undefined ? null : sample !== null && typeof sample === "object" ? tr("List", "list_variant_1") : tr("Value");
   if (readOnly) return <span className="se-in se-in-fake">{source ? fieldLabel(source) : value}</span>;
   return <span className="se-value-choice">
     <TextIn value={value} onCommit={onCommit} vars valueContext="value" width={width}
