@@ -206,6 +206,7 @@ export default function PagePanel() {
         target.pageScripts = undefined;
         target.scripts = undefined;
         target.rawHtml = null;
+        target.htmlZip = undefined;
         draft.breakpoints = normalizeBreakpoints(converted.doc.breakpoints);
       });
       setNormalImportMessage(converted.warnings.length
@@ -248,11 +249,13 @@ export default function PagePanel() {
         kind === "html"
           ? {
               rawHtml: page.rawHtml || "",
+              htmlZip: undefined,
               redirectTo: undefined,
               rewriteTo: undefined,
             }
           : {
               rawHtml: null,
+              htmlZip: undefined,
               ...(page.rewriteTo !== undefined
                 ? { rewriteTo: page.rewriteTo, redirectTo: undefined }
                 : { redirectTo: page.redirectTo ?? "", rewriteTo: undefined }),
@@ -261,6 +264,7 @@ export default function PagePanel() {
     } else {
       updatePage(page.id, {
         rawHtml: null,
+        htmlZip: undefined,
         redirectTo: undefined,
         rewriteTo: undefined,
       });
