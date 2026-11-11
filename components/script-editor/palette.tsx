@@ -22,6 +22,7 @@ import {
   PenLine,
   Repeat,
   IterationCw,
+  ListMinus,
   ListPlus,
   Save,
   ScanEye,
@@ -74,6 +75,7 @@ export const CAT_OF: Record<ScriptStep["kind"], Cat> = {
 
   "set-var": "var",
   "set-list-item": "array",
+  "remove-list-item": "array",
   "break-loop": "control",
   transform: "var",
   "list-display": "array",
@@ -115,6 +117,7 @@ export const STEP_ICON: Record<ScriptStep["kind"], LucideIcon> = {
 
   "set-var": Variable,
   "set-list-item": ListPlus,
+  "remove-list-item": ListMinus,
   "break-loop": LogOut,
   transform: Workflow,
   "list-display": Funnel,
@@ -267,6 +270,13 @@ export const PALETTE: PaletteItem[] = [
     make: () => one({ id: st(), kind: "set-list-item", list: "", key: "", value: "" }),
   },
   {
+    key: "remove-list-item",
+    cat: "array",
+    icon: ListMinus,
+    label: tr("Remove entries from list ［］"),
+    make: () => one({ id: st(), kind: "remove-list-item", list: "", mode: "value", value: "" }),
+  },
+  {
     key: "transform",
     cat: "var",
     icon: Workflow,
@@ -342,6 +352,7 @@ const SEARCH_TERMS: Record<string, string> = {
   "store-save": "保存 保存する 記録 記憶 ブラウザ ストレージ 保存領域 端末に保存 ブラウザに保存 設定を保存 データを保存 次回にも残す 次に開いたときも使う ローカルストレージ 永続化 localstorage storage save persist",
   "store-load": "読み込む 読み出す 呼び出す 復元 復元する 記録を読む 保存した値を使う 保存したデータを読む 保存データを取り出す 前回の値を読む 前回の状態に戻す ブラウザ保存 ローカルストレージ localstorage storage load restore retrieve",
   "set-var": "変数 変数を作る 変数に入れる 変数を設定 代入 値を入れる 名前をつける 新しい変数 既存の変数を上書き 上書き 値を保持 値を渡す 変数に保存 変数を変更 変数を更新 assign set variable",
+  "remove-list-item": "リストから項目を削除 リスト削除 要素を削除 値で削除 位置で削除 キーで削除 指定した項目を取り除く remove delete list item entry index key",
   "list-display": "リスト表示 絞り込み解除 フィルター解除 ソート 並べ替え 表示を絞り込む clear sort filter リスト表示操作",
   transform: "数値演算 値を加工 データを加工 変数を加工 加工する 組み合わせ 演算 分割 結合 検索 置換 比較 ソート フィルタ 加工ブロック 変換処理 transform operation pipeline math list text",
 

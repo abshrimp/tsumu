@@ -70,6 +70,8 @@ function validSteps(value: unknown, depth: number, count: { value: number }): bo
         valid = str(step.key) && str(step.into) && optional(step.shared, bool); break;
       case "set-list-item":
         valid = str(step.list) && str(step.key) && str(step.value); break;
+      case "remove-list-item":
+        valid = str(step.list) && oneOf(step.mode, ["value", "key"]) && str(step.value); break;
       case "break-loop":
         valid = true; break;
       case "set-var":
