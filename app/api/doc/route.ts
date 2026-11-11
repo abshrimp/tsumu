@@ -105,7 +105,7 @@ async function save(req: Request, partial: boolean) {
     return NextResponse.json({
       error: tr(status === 413
         ? "The document is too large for the storage"
-        : partial ? "Invalid request" : "JSONが壊れています"),
+        : partial ? "Invalid request" : "Invalid JSON"),
     }, { status });
   }
   const patch = partial ? input : undefined;

@@ -2,6 +2,8 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
+  "Request too large": "リクエストが大きすぎます",
+  "Invalid JSON": "JSONが壊れています",
   "CSS": "CSS",
   "The fetch settings contain credentials, a secret API key, or an unsupported internal-service header. Even server-side Next.js output can expose these values in generated source files or the editable ZIP. Remove sensitive values and use server environment variables or a secure API proxy.": "データ取得に認証情報や秘密のAPIキー、または利用できない内部向けヘッダーが含まれています。Next.jsのサーバー側処理でも生成ソースや編集用ZIPに設定値が残ります。機密値を削除し、サーバー環境変数や安全なAPI中継を使用してください。",
   "Imported HTML and regular pages, or multiple imported HTML pages, share a path. Next.js cannot export both to the same route. Give each page a different URL.": "同じパスに取り込んだHTMLページと通常ページ、または複数の取り込んだHTMLページがあります。Next.jsでは同じルートに両方を書き出せません。ページのURLを分けてください。",

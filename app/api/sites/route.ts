@@ -57,7 +57,7 @@ export async function POST(req: Request) {
     input = JSON.parse(raw);
   } catch (error) {
     const status = error instanceof TooLargeError ? 413 : 400;
-    return NextResponse.json({ error: tr(status === 413 ? "The import file is too large." : "Invalid request") }, { status });
+    return NextResponse.json({ error: tr(status === 413 ? "The import file is too large." : "Invalid request", status === 413 ? undefined : "invalid_request_variant_1") }, { status });
   }
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
