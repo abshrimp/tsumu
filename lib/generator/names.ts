@@ -39,8 +39,25 @@ const NAME_DICT: [RegExp, string][] = [
   [/^ヘッダー/, "header"],
 ];
 
+/** 重複時の続き番号を保持し、同名要素が多くても先頭から探し直さない。 */
+function nameAllocator(reserved: Iterable<string> = [], separator = "-", forbidden?: (name: string) => boolean) {
+  const used = new Set(Array.from(reserved, (name) => name.toLowerCase()));
+  const nextSuffix = new Map<string, number>();
+  return (base: string, extension = ""): string => {
+    const key = base.toLowerCase() + "\0" + extension.toLowerCase();
+    let name = base + extension;
+    let next = nextSuffix.get(key) ?? 2;
+    while (used.has(name.toLowerCase()) || forbidden?.(name)) {
+      name = base + separator + next++ + extension;
+    }
+    nextSuffix.set(key, next);
+    used.add(name.toLowerCase());
+    return name;
+  };
+}
+
 export function buildClassNames(doc: SiteDoc): Map<string, string> {
-  const used = new Set<string>();
+  const allocate = nameAllocator();
   const map = new Map<string, string>();
   for (const node of Object.values(doc.nodes)) {
     let name0 = node.name;
@@ -57,11 +74,7 @@ export function buildClassNames(doc: SiteDoc): Map<string, string> {
       .replace(/^-+|-+$/g, "")
       .replace(/-{2,}/g, "-");
     if (!base || /^\d/.test(base)) base = "el";
-    let name = base;
-    let i = 2;
-    while (used.has(name)) name = `${base}-${i++}`;
-    used.add(name);
-    map.set(node.id, name);
+    map.set(node.id, allocate(base));
   }
   return map;
 }
@@ -106,8 +119,7 @@ function extFromMime(mimeType?: string, dataUrl?: string): string {
 export function buildAssetNames(doc: SiteDoc): Map<string, string> {
   // ZIPs are frequently extracted to case-insensitive filesystems. Keep the
   // original spelling, but assign a suffix when names differ only by case.
-  const used = new Set<string>();
-  const taken = (name: string) => used.has(name.toLowerCase());
+  const allocate = nameAllocator();
   const map = new Map<string, string>();
   for (const asset of Object.values(doc.assets)) {
     // 公開URL・CSSの url() でそのまま使えるよう、アップロード時と同じ規則で安全な名前にする
@@ -134,27 +146,20 @@ export function buildAssetNames(doc: SiteDoc): Map<string, string> {
     // Rename valid uploaded assets rather than failing the entire export.
     const base = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(originalBase)
       ? "_" + originalBase : originalBase;
-    let name = `${base}${ext}`;
-    if (taken(name)) {
-      let i = 2;
-      while (taken(`${base}-${i}${ext}`)) i++;
-      name = `${base}-${i}${ext}`;
-    }
-    used.add(name.toLowerCase());
-    map.set(asset.id, name);
+    map.set(asset.id, allocate(base, ext));
   }
   return map;
 }
 
 export function buildComponentNames(doc: SiteDoc): Map<string, string> {
   // ページ・コンポーネントに生成する関数、import、型と衝突させない。
-  const used = new Set<string>([
+  const allocate = nameAllocator([
     "Page", "Image", "Link", "Fragment", "SmartLink", "SearchForm", "SiteLoadingScreen", "PageHtml",
     "Metadata", "Vars", "Item",
     // データ取得・リスト・ローディング画面で参照する組み込みオブジェクトと型。
     "Object", "Array", "Promise", "Record", "JSON", "Error", "Number", "String", "Boolean",
     "Proxy", "RegExp", "Math", "Date", "Set", "Map", "URL", "URLSearchParams", "RequestInit", "React",
-  ].map((name) => name.toLowerCase()));
+  ], "", (name) => /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(name));
   const map = new Map<string, string>();
   for (const comp of Object.values(doc.components ?? {})) {
     let base = comp.name;
@@ -170,17 +175,13 @@ export function buildComponentNames(doc: SiteDoc): Map<string, string> {
       .trim()
       .split(/\s+/)
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join("");
+      .join("")
+      // ファイル名の255バイト制限に、拡張子と重複時の番号の余地を残す。
+      .slice(0, 120);
     if (!ident || /^\d/.test(ident)) ident = "Section";
-    let name = ident;
-    let i = 2;
     // Component filenames must remain distinct on macOS/Windows as well as
     // Linux. Valid user labels must not make portable-path validation fail.
-    while (used.has(name.toLowerCase()) || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(name)) {
-      name = `${ident}${i++}`;
-    }
-    used.add(name.toLowerCase());
-    map.set(comp.id, name);
+    map.set(comp.id, allocate(ident));
   }
   return map;
 }

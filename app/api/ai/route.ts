@@ -5,7 +5,7 @@ import { applyAiOps, MAX_AI_ADDED_NODES, type AiOp } from "../../../lib/aiOps";
 import { AI_NOT_ENABLED, aiConfig } from "../../../lib/ai/config";
 import { AiApiError, runAi } from "../../../lib/ai/run";
 import { parseAiRequest, readAiRequest } from "../../../lib/ai/request";
-import { AI_STREAM_TYPE, aiStreamResponse, type AiProgress, type AiResult } from "../../../lib/ai/progress";
+import { aiStreamResponse, type AiProgress, type AiResult } from "../../../lib/ai/progress";
 
 export const maxDuration = 300;
 
@@ -51,19 +51,19 @@ export async function POST(req: Request) {
       { status: error instanceof RangeError ? 413 : 400 });
   }
   const { turns, context } = parsed;
-  const failure = (e: unknown): { error: string; status: number } => {
+  const failure = (e: unknown): string => {
     if (e instanceof AiApiError) {
       console.error("AI request failed", { kind: e.kind, status: e.status });
-      if (e.kind === "timeout") return { error: tr("AIの応答が時間内に完了しませんでした。もう一度お試しください。"), status: 504 };
-      if (e.kind === "incomplete") return { error: tr("AIの編集を完了できませんでした。変更は適用していません。依頼を小さく分けてお試しください。"), status: 502 };
-      if (e.kind === "auth") return { error: tr("AIサービスに接続できませんでした。管理者に確認してください"), status: 502 };
-      if (e.kind === "rate") return { error: tr("AIの利用が混み合っています。少し待ってからお試しください"), status: 429 };
-      return { error: tr("AIに問い合わせできませんでした（{status}）", { status: e.status ?? "?" }), status: 502 };
+      if (e.kind === "timeout") return tr("AIの応答が時間内に完了しませんでした。もう一度お試しください。");
+      if (e.kind === "incomplete") return tr("AIの編集を完了できませんでした。変更は適用していません。依頼を小さく分けてお試しください。");
+      if (e.kind === "auth") return tr("AIサービスに接続できませんでした。管理者に確認してください");
+      if (e.kind === "rate") return tr("AIの利用が混み合っています。少し待ってからお試しください");
+      return tr("AIに問い合わせできませんでした（{status}）", { status: e.status ?? "?" });
     }
     console.error("AI request failed unexpectedly", { kind: e instanceof Error ? e.name : typeof e });
-    return { error: tr("AIに問い合わせできませんでした"), status: 502 };
+    return tr("AIに問い合わせできませんでした");
   };
-  const execute = async (emit: ((event: AiProgress) => void) | undefined, signal: AbortSignal): Promise<AiResult> => {
+  const execute = async (emit: (event: AiProgress) => void, signal: AbortSignal): Promise<AiResult> => {
     const refs = new Map<string, string>();
     const operations: AiOp[] = [];
     const initialNodeCount = Object.keys(context.doc.nodes).length;
@@ -78,7 +78,7 @@ export async function POST(req: Request) {
       if (operations.length > 400) throw new AiApiError("incomplete", undefined, "Operation limit reached");
       const counts: Partial<Record<AiOp["op"], number>> = {};
       for (const op of applied) counts[op.op] = (counts[op.op] ?? 0) + 1;
-      emit?.({ type: "operations", counts, total: applied.length, errors: errors.length });
+      emit({ type: "operations", counts, total: applied.length, errors: errors.length });
       const createdIds = applied.flatMap((op) =>
         op.op === "insert" ? [op.node.id] : op.op === "duplicate" ? [op.newId] : []
       );
@@ -98,14 +98,5 @@ export async function POST(req: Request) {
       operations,
     };
   };
-  if (req.headers.get("accept")?.includes(AI_STREAM_TYPE)) {
-    return aiStreamResponse(execute, (e) => failure(e).error, req.signal);
-  }
-  // ストリーミングに対応する前のエディタを開いたままのタブ向け（公開の切り替わりの間も動くように）
-  try {
-    return NextResponse.json(await execute(undefined, req.signal));
-  } catch (e) {
-    const { error, status } = failure(e);
-    return NextResponse.json({ error }, { status });
-  }
+  return aiStreamResponse(execute, failure, req.signal);
 }

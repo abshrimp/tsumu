@@ -190,15 +190,6 @@ export default function Canvas() {
     [pageVars, fieldValues, refreshData, mode, navigateTo, plan]
   );
 
-  // ページ切替でフォーム値・再取得データをリセット
-  useEffect(() => {
-    setFieldValues({});
-    setLiveSamples({});
-    setLiveTotals({});
-    setFullData({});
-    setClientValues({});
-  }, [activePageId]);
-
   // 画面上の変数はプレビューを始めるたびに空から
   useEffect(() => {
     setClientValues({});

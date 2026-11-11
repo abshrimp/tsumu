@@ -1,7 +1,7 @@
-import { expect, test, type Page, type Route } from "@playwright/test";
+import { expect, test, type Page, type Route, type Request } from "@playwright/test";
 import { previewRefreshDoc, previewRows } from "../tests/helpers/preview-refresh";
 
-async function setup(page: Page) {
+async function setup(page: Page, doc = previewRefreshDoc()) {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
@@ -9,7 +9,7 @@ async function setup(page: Page) {
   expect(response.ok()).toBeTruthy();
   const { site } = await response.json();
   const endpoint = `/api/doc?site=${site.id}`;
-  expect((await page.request.put(endpoint, { data: previewRefreshDoc() })).ok()).toBeTruthy();
+  expect((await page.request.put(endpoint, { data: doc })).ok()).toBeTruthy();
   const requests: Route[] = [];
   await page.route("**/api/fetch-json", (route) => { requests.push(route); });
   await page.goto(`/sites/${site.id}`);
@@ -21,9 +21,23 @@ async function setup(page: Page) {
   return {
     canvas, requests,
     async finish(index: number, label: string, length = 30, status = 200) {
-      const settled = page.waitForEvent("requestfinished", (request) => request === requests[index].request());
-      await requests[index].fulfill({ status, contentType: "application/json", body: JSON.stringify({ json: previewRows(label, length) }) });
-      await settled;
+      const request = requests[index].request();
+      // A newer refresh actively aborts obsolete requests. Both browser outcomes
+      // settle the route; an aborted request must not be awaited as a success.
+      if (!request.failure()) {
+        const settled = new Promise<void>((resolve) => {
+          const done = (completed: Request) => {
+            if (completed !== request) return;
+            page.off("requestfinished", done);
+            page.off("requestfailed", done);
+            resolve();
+          };
+          page.on("requestfinished", done);
+          page.on("requestfailed", done);
+        });
+        await requests[index].fulfill({ status, contentType: "application/json", body: JSON.stringify({ json: previewRows(label, length) }) });
+        await settled;
+      }
       // Do not mistake the still-stale screen for success immediately after an old response arrives.
       await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
     },
@@ -97,5 +111,22 @@ test("a failed latest refresh retains its saved fallback without accepting an ol
   await expect.poll(() => requests.length).toBe(3);
   await finish(2, "retry", 32);
   await expect(canvas.locator('[data-node="result"]')).toHaveText("retry: 32");
+  await unchanged();
+});
+
+
+test("page navigation aborts the old fetch and starts with the destination field default", async ({ page }) => {
+  const doc = previewRefreshDoc();
+  doc.nodes["other-query"] = { ...structuredClone(doc.nodes.query), id: "other-query", field: { kind: "input", defaultValue: "other default" } };
+  doc.pages.other.children.push("other-query");
+  const { canvas, requests, finish, unchanged } = await setup(page, doc);
+  await canvas.locator('[data-node="query"]').fill("old page input");
+  await canvas.getByText("Open other", { exact: true }).click();
+  await expect.poll(() => requests.length).toBe(2);
+  await expect.poll(() => requests[0].request().failure()).not.toBeNull();
+  expect(new URL(requests[1].request().postDataJSON().url).searchParams.get("q")).toBe("other default");
+  await expect(canvas.locator('[data-node="other-query"]')).toHaveValue("other default");
+  await finish(1, "destination", 23);
+  await expect(canvas.locator('[data-node="other-result"]')).toHaveText("destination: 23");
   await unchanged();
 });

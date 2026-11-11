@@ -31,3 +31,13 @@ test("no default query keeps the first-page fallback and does not affect other r
   assert.equal(navigate(doc, "/"), "home");
   assert.equal(navigate(doc, "#section"), "home");
 });
+
+
+test("malformed escaped dynamic paths use the missing-page fallback without throwing", async () => {
+  const navigate = await fixture;
+  const doc = previewQueryDoc("posts/[slug]");
+  for (const path of ["/posts/%", "/posts/%E0%A4%A", "/posts/%FF", "/posts/%2F"]) {
+    assert.equal(navigate(doc, path), "missing", path);
+  }
+  assert.equal(navigate(doc, "/posts/%E6%97%A5%E6%9C%AC"), "variant0");
+});
