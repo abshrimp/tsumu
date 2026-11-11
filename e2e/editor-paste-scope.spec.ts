@@ -95,7 +95,13 @@ for (const context of ["preview", "settings"] as const) test(`Ctrl+V in the real
   await expect.poll(() => page.evaluate(() => !!localStorage.getItem("tsumu-clipboard-v1"))).toBe(true);
   await page.evaluate(() => {
     (window as any).nativePastes = [];
-    window.addEventListener("paste", event => (window as any).nativePastes.push({ trusted: event.isTrusted, data: event.clipboardData?.getData("application/x-tsumu+json"), prevented: event.defaultPrevented }));
+    window.addEventListener("paste", event => (window as any).nativePastes.push({
+      trusted: event.isTrusted,
+      data: event.clipboardData?.getData("application/x-tsumu+json") ||
+        event.clipboardData?.getData("web application/x-tsumu+json") ||
+        event.clipboardData?.getData("text/html"),
+      prevented: event.defaultPrevented,
+    }));
   });
   if (context === "preview") await page.getByRole("button", { name: "プレビュー", exact: true }).click();
   else {
@@ -106,7 +112,11 @@ for (const context of ["preview", "settings"] as const) test(`Ctrl+V in the real
   await page.keyboard.press("ControlOrMeta+v");
   await expect.poll(() => page.evaluate(() => (window as any).nativePastes.length)).toBe(1);
   const event = await page.evaluate(() => (window as any).nativePastes[0]);
-  expect(event.trusted).toBe(true); expect(JSON.parse(event.data).rootIds).toEqual(["a"]); expect(event.prevented).toBe(false);
+  expect(event.trusted).toBe(true);
+  const encoded = /data-tsumu-clipboard="([^"]+)"/i.exec(event.data)?.[1];
+  const payload = encoded ? JSON.parse(decodeURIComponent(encoded)) : JSON.parse(event.data);
+  expect(payload.rootIds).toEqual(["a"]);
+  expect(event.prevented).toBe(false);
   await page.waitForTimeout(1200);
   expect((await (await page.request.get(endpoint)).json()).doc).toEqual(doc);
   if (context === "settings") await page.locator(".modal").getByRole("button", { name: "閉じる", exact: true }).click();

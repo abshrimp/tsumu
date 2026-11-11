@@ -242,39 +242,54 @@ function plainText(nodes: DocNode[]): string {
     .join("\n");
 }
 
-let pending: ClipPayload | null = null;
+/** System clipboards accept standard HTML and text; custom web formats are optional. */
+const CLIP_WEB_MIME = `web ${CLIP_MIME}`;
+const MAX_CLIP_HTML = 48 * 1024 * 1024;
 
-if (typeof document !== "undefined") {
-  // execCommand("copy") で起きる copy イベントに、エディタの形式を書き込む
-  document.addEventListener(
-    "copy",
-    (e) => {
-      if (!pending || !e.clipboardData) return;
-      e.clipboardData.setData(CLIP_MIME, JSON.stringify(pending));
-      const text = plainText(pending.nodes);
-      if (text) e.clipboardData.setData("text/plain", text);
-      e.preventDefault();
-      // エディタ側の「テキストをコピーした」扱い（内部クリップボードを手放す）にしない
-      e.stopPropagation();
-    },
-    true
-  );
+export function clipHtml(payload: ClipPayload): string {
+  const escaped = plainText(payload.nodes).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `<span data-tsumu-clipboard="${encodeURIComponent(JSON.stringify(payload))}">${escaped}</span>`;
 }
 
-/** コピーした要素を OS のクリップボードとブラウザ保存に書き出す（キー操作・クリックの中で呼ぶ） */
-export function writeClipPayload(payload: ClipPayload): void {
+/** Read the current Tsumu payload without interpreting arbitrary pasted HTML as code. */
+export function clipboardPayload(data: Pick<DataTransfer, "getData">): ClipPayload | null {
+  const direct = data.getData(CLIP_MIME) || data.getData(CLIP_WEB_MIME);
+  if (direct) return parseClipPayload(direct);
+  const html = data.getData("text/html");
+  if (!html || html.length > MAX_CLIP_HTML) return null;
+  const encoded = /\\bdata-tsumu-clipboard="([^"]+)"/i.exec(html)?.[1];
+  if (!encoded) return null;
   try {
-    window.localStorage.setItem(CLIP_MIRROR_KEY, JSON.stringify(payload));
+    return parseClipPayload(decodeURIComponent(encoded));
   } catch {
-    // 大きすぎて保存できなくても、OS のクリップボードには書ける
+    return null;
   }
-  pending = payload;
+}
+
+/** Write rich editor content with the modern asynchronous Clipboard API. */
+export function writeClipPayload(payload: ClipPayload): void {
+  const raw = JSON.stringify(payload);
   try {
-    document.execCommand("copy");
+    window.localStorage.setItem(CLIP_MIRROR_KEY, raw);
   } catch {
-    // 使えないブラウザでは、同じタブの中だけで貼り付けられる
-  } finally {
-    pending = null;
+    // The browser-only clipboard mirror is optional.
+  }
+  try {
+    const text = plainText(payload.nodes);
+    if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
+      const formats: Record<string, Blob> = {
+        "text/plain": new Blob([text], { type: "text/plain" }),
+        "text/html": new Blob([clipHtml(payload)], { type: "text/html" }),
+      };
+      if (typeof ClipboardItem.supports === "function" && ClipboardItem.supports(CLIP_WEB_MIME)) {
+        formats[CLIP_WEB_MIME] = new Blob([raw], { type: CLIP_MIME });
+      }
+      void navigator.clipboard.write([new ClipboardItem(formats)]).catch(() => {});
+    } else if (navigator.clipboard?.writeText) {
+      void navigator.clipboard.writeText(text).catch(() => {});
+    }
+  } catch {
+    // Restricted clipboard permissions must not interrupt in-editor copy/paste.
   }
 }
 

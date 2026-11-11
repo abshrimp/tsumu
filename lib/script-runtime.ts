@@ -1401,23 +1401,12 @@ export const SCRIPT_RUNTIME = `function (env) {
           /*#copy*/
           case "copy": {
             var tx = resolve(st.value, self, sc);
-            var fallback = function () {
-              var ta = document.createElement("textarea");
-              ta.value = tx;
-              ta.setAttribute("readonly", "");
-              ta.style.position = "fixed";
-              ta.style.opacity = "0";
-              document.body.appendChild(ta);
-              ta.select();
-              try {
-                document.execCommand("copy");
-              } catch (e) {}
-              document.body.removeChild(ta);
-            };
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              navigator.clipboard.writeText(tx).catch(fallback);
-            } else {
-              fallback();
+            try {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(tx).catch(function () {});
+              }
+            } catch (e) {
+              // Clipboard permissions can be denied; no legacy DOM copy fallback.
             }
             break;
           }
