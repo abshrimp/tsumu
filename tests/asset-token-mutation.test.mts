@@ -15,10 +15,10 @@ function seeded(seed: number) {
   };
 }
 
-/** J-1: A URL granted to a sandbox preview must not authorize any other KV key. */
-test("AUD-J-018: signed asset URLs do not permit mutated paths, signatures or expiry", async () => {
+/** A sandbox preview URL must not authorize any other KV key. */
+test("signed asset URLs do not permit mutated paths, signatures or expiry", async () => {
   const previous = process.env.AUTH_SECRET;
-  process.env.AUTH_SECRET = "audit-j-test-isolated-secret";
+  process.env.AUTH_SECRET = "asset-token-test-isolated-secret";
   const next = seeded(SEED ^ 0x1818);
   const now = 1_800_000_000_000;
   const names = [
@@ -51,7 +51,7 @@ test("AUD-J-018: signed asset URLs do not permit mutated paths, signatures or ex
     }
     const sample = "assets/secret.png";
     const token = new URLSearchParams((await signAssetPath(sample, now))!);
-    process.env.AUTH_SECRET = "audit-j-other-secret";
+    process.env.AUTH_SECRET = "asset-token-other-secret";
     assert.equal(await verifyAssetToken(sample, token.get("exp"), token.get("sig"), now), false,
       "a token must not survive a signing-key change");
   } finally {

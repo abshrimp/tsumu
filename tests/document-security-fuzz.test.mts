@@ -10,7 +10,7 @@ import { safeNavigationUrl, safeResourceUrl, NAVIGATION_RUNTIME } from "../lib/u
 import { matchesValueCondition, setVarPath, withinScriptValueLimit } from "../lib/value-semantics";
 import type { SiteDoc } from "../lib/types";
 
-// AUD-J: All randomized cases are deterministic and report their reproduction seed.
+// All randomized cases are deterministic and report their reproduction seed.
 // Keep this file self-contained; the root npm test command picks up tests/*.test.mts.
 const SEED = 0x4a202611;
 function random(seed: number) {
@@ -27,7 +27,7 @@ function choose<T>(next: () => number, values: readonly T[]): T {
 }
 const utf8 = (value: unknown) => new TextEncoder().encode(JSON.stringify(value));
 
-test("AUD-J-001: navigation URL guard and exported browser runtime agree on mutated inputs", () => {
+test("navigation URL guard and exported browser runtime agree on mutated inputs", () => {
   const browserGuard = runInNewContext(NAVIGATION_RUNTIME + "\nsafeNavigationUrl") as (url: string) => string;
   const attacks = [
     "javascript:alert(1)", "JaVaScRiPt:alert(1)", "vbscript:msgbox(1)",
@@ -59,7 +59,7 @@ test("AUD-J-001: navigation URL guard and exported browser runtime agree on muta
   }
 });
 
-test("AUD-J-002: generated JS literals retain untrusted JSON without creating HTML script terminators", () => {
+test("generated JS literals retain untrusted JSON without creating HTML script terminators", () => {
   const next = random(SEED ^ 0x202);
   const parts = [
     "</script>", "<script>", "<style>", "&", "\u2028", "\u2029", "'", '"',
@@ -79,7 +79,7 @@ test("AUD-J-002: generated JS literals retain untrusted JSON without creating HT
   }
 });
 
-test("AUD-J-003: import, patch, reload and concurrent non-conflicting merge preserve meaning", async () => {
+test("import, patch, reload and concurrent non-conflicting merge preserve meaning", async () => {
   const next = random(SEED ^ 0x303);
   const original = JSON.parse(JSON.stringify(createInitialDoc())) as SiteDoc;
   const initial = (await parseSiteImport(utf8(original), "doc")).doc;
@@ -105,7 +105,7 @@ test("AUD-J-003: import, patch, reload and concurrent non-conflicting merge pres
   }
 });
 
-test("AUD-J-004: mutated SiteDocs reject prototype keys, dangling pages and cyclic node references", async () => {
+test("mutated SiteDocs reject prototype keys, dangling pages and cyclic node references", async () => {
   const source = JSON.parse(JSON.stringify(createInitialDoc())) as SiteDoc;
   const page = source.pages[source.pageOrder[0]];
   const root = page.children[0];
@@ -134,7 +134,7 @@ test("AUD-J-004: mutated SiteDocs reject prototype keys, dangling pages and cycl
   }
 });
 
-test("AUD-J-005: script expression comparisons are symmetric and bounded for generated JSON values", () => {
+test("script expression comparisons are symmetric and bounded for generated JSON values", () => {
   const next = random(SEED ^ 0x505);
   const primitives: unknown[] = [null, false, true, 0, 1, -1, 1.5, "", "0", "true", "false", "日本語"];
   const value = (depth: number): unknown => {
@@ -159,7 +159,7 @@ test("AUD-J-005: script expression comparisons are symmetric and bounded for gen
   assert.equal(withinScriptValueLimit(oversized), false);
 });
 
-test("AUD-J-006: variable writes cannot mutate inherited prototypes or their input", () => {
+test("variable writes cannot mutate inherited prototypes or their input", () => {
   const before = ({} as Record<string, unknown>).polluted;
   const next = random(SEED ^ 0x606);
   const names = [

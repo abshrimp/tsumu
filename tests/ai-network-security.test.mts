@@ -18,7 +18,7 @@ const config: AiConfig = {
 const turns = [{ role: "user" as const, text: "Change the heading" }];
 function fixture(): SiteDoc {
   return {
-    siteName: "Audit", assets: {}, pageOrder: ["p"],
+    siteName: "AI security fixture", assets: {}, pageOrder: ["p"],
     pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: ["a"] } },
     nodes: { a: { ...makeBox(), id: "a", name: "Heading", text: { content: "Original", heading: 0 } } },
   };
