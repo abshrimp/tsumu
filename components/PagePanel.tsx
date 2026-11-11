@@ -129,7 +129,7 @@ export default function PagePanel() {
         .filter((asset): asset is NonNullable<typeof asset> => !!asset);
       const { assets, source, zip, name } = await readHtmlZip(file, (message) => {
         if (request.current()) setZipMessage(message);
-      }, undefined, existing);
+      }, undefined, existing, true);
       await waitForGesture(request);
       if (!request.current()) {
         // アップロード済みの一式は残すが、Undo/Redoや手動編集を上書きしない。
