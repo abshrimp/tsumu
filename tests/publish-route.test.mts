@@ -127,7 +127,7 @@ test("a truncated snapshot is rejected before a destructive replacement can be p
   const response = await f.send({ action: "tree" });
   assert.equal(response.status, 502);
   const body = await response.json();
-  assert.match(body.error, /ファイル一覧/);
+  assert.match(body.error, /complete file list/i);
   assert.equal(body.blobs, undefined);
   assert.deepEqual(f.writes, []);
   assert.equal(f.recorded, false);
@@ -141,7 +141,7 @@ test("a truncated commit-time tree is rejected even when requested entries are p
     const f = fixture(true);
     const response = await f.send({ action: "commit", files: { "app/page.tsx": "page" }, ...retained });
     assert.equal(response.status, 502);
-    assert.match((await response.json()).error, /ファイル一覧/);
+    assert.match((await response.json()).error, /complete file list/i);
     assert.deepEqual(f.writes, []);
     assert.equal(f.recorded, false);
   }
@@ -296,7 +296,7 @@ test("commit blocks embedded fetch credentials even when a crafted API call bypa
     files: { "app/page.tsx": "page", [helpers.DOC_PATH]: document },
   });
   assert.equal(response.status, 400);
-  assert.match((await response.json()).error, /認証情報/);
+  assert.match((await response.json()).error, /credentials/i);
   assert.deepEqual(f.writes, []);
 });
 
@@ -311,7 +311,7 @@ test("commit checks credentials in a previously uploaded doc.json blob as well",
     assetShas: { [helpers.DOC_PATH]: "secret-doc" },
   });
   assert.equal(response.status, 400);
-  assert.match((await response.json()).error, /認証情報/);
+  assert.match((await response.json()).error, /credentials/i);
   assert.deepEqual(f.writes, []);
 });
 
@@ -345,7 +345,7 @@ test("editable document uploads reject credentials before sending any bytes to G
     const response = await f.send({ action: "upload", path: helpers.DOC_PATH, ...payload });
     assert.equal(response.status, 400);
     const text = await response.text();
-    assert.match(text, /認証情報/);
+    assert.match(text, /credentials/i);
     assert.ok(!text.includes(secret));
     assert.deepEqual(f.writes, []);
     assert.deepEqual(f.uploaded, []);
@@ -357,9 +357,9 @@ test("editable document uploads reject credentials before sending any bytes to G
 test("editable document uploads reject malformed JSON, invalid UTF-8 and oversized documents locally", async () => {
   const limit = 12 * 1024 * 1024;
   const cases = [
-    { bytes: Buffer.from("{broken"), error: /形式/ },
-    { bytes: Buffer.from([0x7b, 0x22, 0x78, 0x22, 0x3a, 0x22, 0xff, 0x22, 0x7d]), error: /形式/ },
-    { bytes: Buffer.from(JSON.stringify({ text: "あ".repeat(limit / 3) })), error: /大きすぎ/ },
+    { bytes: Buffer.from("{broken"), error: /editor data file|format|invalid/i },
+    { bytes: Buffer.from([0x7b, 0x22, 0x78, 0x22, 0x3a, 0x22, 0xff, 0x22, 0x7d]), error: /editor data file|format|invalid/i },
+    { bytes: Buffer.from(JSON.stringify({ text: "あ".repeat(limit / 3) })), error: /too large|size limit|too big/i },
   ];
   for (const { bytes, error } of cases) {
     for (const payload of [{ base64: bytes.toString("base64") }, { source: "assets/document.json" }]) {
@@ -432,7 +432,7 @@ test("publication rejects padded credential headers before any remote write", as
     const f = fixture(false, undefined, document);
     const response = await f.send(payload);
     assert.equal(response.status, 400);
-    assert.match((await response.json()).error, /認証情報/);
+    assert.match((await response.json()).error, /credentials/i);
     assert.deepEqual(f.writes, []);
     assert.deepEqual(f.uploaded, []);
   }
