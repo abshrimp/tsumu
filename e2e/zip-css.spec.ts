@@ -1,6 +1,5 @@
 import { expect, test, type Frame, type Page } from "@playwright/test";
 import { fixtureAsset, zipCssBrowser } from "../tests/helpers/zip-css-browser";
-import { assetSrc } from "../lib/assets";
 
 async function previewFrame(page: Page) {
   await expect(page.locator("#preview")).toHaveAttribute("sandbox", "allow-scripts allow-forms allow-popups");
@@ -77,10 +76,11 @@ async function expectLinkSemantics(page: Page, target: Page | Frame) {
 for (const storage of ["local", "remote"] as const) {
   test(`ZIP inline CSS ${storage}: quoted assets survive native import, preview and route export`, async ({ page }) => {
     const fixture = await zipCssBrowser(page, storage);
-    const source = assetSrc(fixtureAsset(fixture.doc, "site/images/background.svg"));
-    // The browser's own HTML serialization produces &quot;, which becomes the input to be corrected.
-    expect(fixture.doc.pages.p.rawHtml).toContain(`id="inline-double" style="background-image:url(&quot;${source}&quot;)"`);
-    expect(fixture.doc.pages.p.rawHtml).toContain(`id="inline-numeric" style="background-image:url(&quot;${source}&quot;)"`);
+    // The editor retains authored quotes, entities, asset paths and formatting.
+    expect(fixture.doc.pages.p.rawHtml).toContain('id="inline-double" style=\'background-image:url("images/background.svg")\'');
+    expect(fixture.doc.pages.p.rawHtml).toContain('id="inline-numeric" style="background-image:url(&#34;images/background.svg&#34;)"');
+    expect(fixture.doc.pages.p.rawHtml).toContain('href="css/main.css?version=3#sheet"');
+    expect(fixture.doc.pages.p.rawHtml).toContain('integrity="sha256-');
 
     async function checkImages(target: Page | Frame, exported: boolean) {
       for (const id of ["custom", "double", "single", "unquoted", "query", "fragment", "numeric", "image-set", "raw-query"]) {
