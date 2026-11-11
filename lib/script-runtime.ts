@@ -9,7 +9,7 @@ import { extractVars, hardNavPatterns } from "./vars";
 import { fieldVarNames } from "./fields";
 import { EMPTY_GIF, allScripts, pageNodeIds, walkSteps } from "./script";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
-import { parseValueLiteral, matchesValueCondition, setVarPath, withinScriptValueLimit } from "./value-semantics";
+import { parseValueLiteral, matchesValueCondition, removeListItem, setVarPath, withinScriptValueLimit } from "./value-semantics";
 import { codeLiteral } from "./generator/code-literal";
 import { formatValueText } from "./value-text";
 
@@ -35,6 +35,7 @@ export const SCRIPT_RUNTIME = `function (env) {
   var __name = function (fn) { return fn; };
   /*#setvar*/
   var evalRecipe = (${evaluateValueRecipe.toString()});
+  var removeItem = (${removeListItem.toString()});
   /*/setvar*/
   /*#env*/
   env = env || {};
@@ -1379,6 +1380,14 @@ export const SCRIPT_RUNTIME = `function (env) {
             }
             break;
           }
+          case "remove-list-item": {
+            if (!st.list || typeof st.list !== "string" ||
+                typeof st.value !== "string" || !st.value.trim()) break;
+            var selected = readInput(st.value, self, sc);
+            var remaining = removeItem(getVar(st.list), st.mode, selected, matchValueCondition);
+            if (remaining !== undefined) setVar(st.list, remaining);
+            break;
+          }
           case "set-var": {
             /*#clist*/
             if (st.rawRef) {
@@ -1896,6 +1905,7 @@ const STEP_FEATURE: Record<
   "store-load": "store",
   "set-var": "setvar",
   "set-list-item": "setvar",
+  "remove-list-item": "setvar",
   "break-loop": "repeat",
   transform: "setvar",
   copy: "copy",
