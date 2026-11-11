@@ -485,7 +485,7 @@ interface PathOption {
 function childOptions(value: unknown): PathOption[] {
   if (Array.isArray(value)) {
     const out: PathOption[] = value
-      .slice(0, 20)
+      .slice(0, 1)
       .map((v, i) => ({ key: String(i), label: tr("#{p1}", { p1: i + 1 }), value: v }));
     if (value.length > 1) {
       out.push({ key: "-1", label: tr("Last"), value: value[value.length - 1] });
@@ -500,7 +500,7 @@ function childOptions(value: unknown): PathOption[] {
 
 /** 中身の分からないリスト（画面を開いてから値が決まるもの）の位置の選択肢 */
 const UNKNOWN_ITEMS: PathOption[] = [
-  ...[0, 1, 2, 3, 4].map((i) => ({ key: String(i), label: tr("#{p1}", { p1: i + 1 }), value: undefined })),
+  { key: "0", label: tr("#{p1}", { p1: 1 }), value: undefined },
   { key: "-1", label: tr("Last"), value: undefined },
 ];
 
