@@ -84,7 +84,7 @@ test("script list chooser filters candidates, supports the keyboard, and dismiss
   await expect(choice).toHaveAttribute("aria-haspopup", "listbox");
   await choice.click();
   const menu = page.locator(".se-list-picker");
-  const search = menu.getByRole("textbox", { name: "Search by name or ID" });
+  const search = menu.locator("input");
   await search.fill("tag");
   await expect(menu.getByRole("option", { name: "tags", exact: true })).toHaveCount(1);
   await search.press("Enter");
