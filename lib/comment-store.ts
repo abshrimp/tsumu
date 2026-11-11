@@ -56,7 +56,7 @@ interface CommentsState {
 }
 
 class LocalSiteDeletedError extends Error {
-  constructor() { super(tr("サイトが見つかりません")); }
+  constructor() { super(tr("Site not found")); }
 }
 function assertLocalSiteAvailable(id: string) {
   if (isLocalSiteDeleted(id)) throw new LocalSiteDeletedError();
@@ -191,13 +191,13 @@ export const useComments = create<CommentsState>((set, get) => ({
       }
       const data = await res.json().catch(() => null);
       if (request !== readRequest) return;
-      if (!res.ok || !isCommentPage(data)) throw new Error(data?.error ?? tr("読み込めませんでした"));
+      if (!res.ok || !isCommentPage(data)) throw new Error(data?.error ?? tr("Couldn't load"));
       const state = get();
       set({ ...serverSnapshot(data), cursor, previousCursors,
         ...(state.openId === openId ? focusSnapshot(data, openId, focusOf(state)) : {}) });
     } catch (e) {
       if (request === readRequest) set({ ...(e instanceof LocalSiteDeletedError ? localSnapshot([], get()) : {}),
-        error: userMessage(e, tr("コメントを読み込めませんでした")) });
+        error: userMessage(e, tr("Couldn't load comments")) });
     } finally {
       if (pageRequest === request) pageRequest = null;
       if (request === readRequest) set({ loading: false });
@@ -206,7 +206,7 @@ export const useComments = create<CommentsState>((set, get) => ({
   run: (a) => {
     // ローカル保存でもサーバーと同じ上限を守り、失敗時は入力・保存済み一覧を残す。
     if ("body" in a && a.body.trim().length > MAX_COMMENT_LENGTH) {
-      set({ error: tr("コメントは{max}文字以内で入力してください", { max: MAX_COMMENT_LENGTH }) });
+      set({ error: tr("Comments must be {max} characters or fewer.", { max: MAX_COMMENT_LENGTH }) });
       return Promise.resolve(false);
     }
     ++readRequest;
@@ -219,14 +219,14 @@ export const useComments = create<CommentsState>((set, get) => ({
         const existing = readLocal(id);
         if (a.action === "reply" && !existing.some(t => t.id === a.threadId)) {
           set(localSnapshot(existing, get()));
-          throw new Error(tr("返信先のスレッドは削除されています"));
+          throw new Error(tr("The discussion you are replying to has been deleted."));
         }
         if (a.action === "edit" && !existing.some(t => t.messages.some(m => m.id === a.messageId))) {
           // 古い表示は入力のコピー用に残し、削除された本文への編集を成功としない。
-          throw new Error(tr("編集するコメントは削除されています"));
+          throw new Error(tr("The comment you are editing has been deleted."));
         }
         if (hasCommentIdConflict(existing, a, null)) {
-          throw new Error(tr("コメントのIDが重複しています。もう一度送信してください"));
+          throw new Error(tr("This comment ID is already in use. Please send again."));
         }
         const next = applyCommentAction(existing, a, null);
         writeLocal(id, next);
@@ -255,7 +255,7 @@ export const useComments = create<CommentsState>((set, get) => ({
             ...(state.openId === a.threadId ? { focusedThread: focusOf(state), threadUnavailable: true } : {}),
           });
         }
-        if (!res.ok || !isCommentPage(data)) throw new Error(data?.error ?? tr("保存できませんでした"));
+        if (!res.ok || !isCommentPage(data)) throw new Error(data?.error ?? tr("Couldn't save"));
         const state = get();
         set({ ...serverSnapshot(data),
           ...(a.action === "create" ? { cursor: null, previousCursors: [] } : {}),
@@ -264,7 +264,7 @@ export const useComments = create<CommentsState>((set, get) => ({
         return true;
       } catch (e) {
         set({ ...(e instanceof LocalSiteDeletedError ? localSnapshot([], get()) : {}),
-          error: userMessage(e, tr("コメントを保存できませんでした")) });
+          error: userMessage(e, tr("Couldn't save the comment")) });
         return false;
       } finally {
         --pendingWrites;
