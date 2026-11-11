@@ -67,7 +67,9 @@ jobs:
           exit 1
 
   e2e-shard:
-    runs-on: ubuntu-latest
+    # Playwright browser/dependency installation is validated on the stable LTS image.
+    # ubuntu-latest is migrating to 26.04; keep browser jobs deterministic.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -96,7 +98,7 @@ jobs:
           retention-days: 7
 
   generated-formats:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 35
     strategy:
       fail-fast: false
