@@ -127,7 +127,7 @@ test("mutated SiteDocs reject prototype keys, dangling pages and cyclic node ref
     mutations[i](doc);
     await assert.rejects(
       parseSiteImport(utf8(doc), "doc"),
-      /(?:page|element|property|reference)/i,
+      /(?:page|element|property|node|folder)/i,
       "seed=" + SEED + " mutation=" + i,
     );
     assert.equal(({} as Record<string, unknown>).polluted, undefined);

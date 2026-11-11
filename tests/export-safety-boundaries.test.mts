@@ -186,8 +186,8 @@ test("native formats refuse authored HTML they would otherwise omit", () => {
     setup();
     for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
       assert.ok(exportLimitations(site, framework).some((reason) =>
-        /custom HTML/i.test(reason)), framework);
-      assert.throws(() => generateExportProject(site, framework), /custom HTML/i);
+        reason.includes("カスタムHTML")), framework);
+      assert.throws(() => generateExportProject(site, framework), /カスタムHTML/);
     }
   }
   assert.equal(exportLimitations(site, "html").length, 0,
@@ -203,11 +203,11 @@ test("React refuses executable page scripts on data-driven DOM pages", () => {
   }];
   page.customTopHtml = '<script>window.__pageStarted = true;</script>';
   assert.ok(exportLimitations(site, "react").some((reason) =>
-    /custom script/i.test(reason)));
-  assert.throws(() => generateExportProject(site, "react"), /custom script/i);
+    reason.includes("カスタムスクリプト")));
+  assert.throws(() => generateExportProject(site, "react"), /カスタムスクリプト/);
   page.customTopHtml = '<script type="application/json">{"safe":true}</script>';
   assert.ok(!exportLimitations(site, "react").some((reason) =>
-    /custom script/i.test(reason)));
+    reason.includes("カスタムスクリプト")));
 });
 
 test("exporting a selected unpublished page includes it without publishing it in the source", () => {
@@ -358,12 +358,12 @@ test("Next.js refuses imported HTML route collisions before generating files", (
   site.pages.private.slug = "";
   site.pages.private.query = "tab=2";
   assert.ok(exportLimitations(site, "nextjs").some((reason) =>
-    /share a path|same path/i.test(reason)));
-  assert.throws(() => generateExportProject(site, "nextjs"), /share a path|same path/i);
+    reason.includes("share a path")));
+  assert.throws(() => generateExportProject(site, "nextjs"), /share a path/);
 
   // Two imported pages with different queries still compile to one route.ts.
   site.pages.private.rawHtml = "<!doctype html><html><body>Other</body></html>";
-  assert.throws(() => generateExportProject(site, "nextjs"), /share a path|same path/i);
+  assert.throws(() => generateExportProject(site, "nextjs"), /share a path/);
 
   // Different URLs are independent routes and remain supported.
   site.pages.private.slug = "other";
@@ -379,17 +379,17 @@ test("browser exports use decoded, deep credential scanning like GitHub Push", (
   }];
   for (const framework of ["react", "vue", "nuxt", "sveltekit", "html", "single-html"] as const) {
     assert.ok(exportLimitations(site, framework).some((reason) =>
-      /credentials|secret API key/i.test(reason)), framework + ": encoded query must be rejected");
+      reason.includes("secret API key")), framework + ": encoded query must be rejected");
   }
   const step = site.pages.public.pageScripts[0].steps[0];
   if (step.kind !== "fetch") throw new Error("Expected fetch fixture");
   step.url = "https://public.example/data";
   step.method = "POST";
   step.body = '{"nested":{"password":"literal"}}';
-  assert.ok(exportLimitations(site, "html").some((reason) => /credentials|secret API key/i.test(reason)),
+  assert.ok(exportLimitations(site, "html").some((reason) => reason.includes("secret API key")),
     "nested JSON must be rejected");
   step.body = "mode=public&client%5Fsecret=literal";
-  assert.ok(exportLimitations(site, "react").some((reason) => /credentials|secret API key/i.test(reason)),
+  assert.ok(exportLimitations(site, "react").some((reason) => reason.includes("secret API key")),
     "URL-encoded body fields must be rejected");
   step.body = undefined;
   step.headers = [{ name: "Authorization", value: "Bearer {private}" }];
@@ -417,7 +417,7 @@ test("every export, including Next.js SSR, rejects credentials before source gen
   }];
   assert.equal(hasPublishCredentials(site), true);
   for (const framework of ["nextjs", "react", "vue", "nuxt", "sveltekit", "html", "single-html"] as const) {
-    assert.ok(exportLimitations(site, framework).some(reason => /editable ZIP|generated source/i.test(reason)),
+    assert.ok(exportLimitations(site, framework).some(reason => reason.includes("editable ZIP")),
       framework + ": a server-only fetch still exposes hardcoded credentials in source or archives");
     assert.throws(() => generateExportProject(site, framework),
       /credentials|API key/i, framework);
