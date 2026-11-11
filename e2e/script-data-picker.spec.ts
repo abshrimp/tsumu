@@ -132,6 +132,174 @@ test("mixed templates and generated code survive exploring, cancelling and save/
   expect(await page.evaluate(() => (window as any).dataPickerProject())).toEqual(original);
 });
 
+test("filter field dropdown marks nested Japanese category arrays as lists", async ({ page }) => {
+  const filter = block(page, "category-filter");
+  await filter.locator(".se-pm-btn").click();
+  const menu = page.locator(".se-pm");
+  const title = menu.locator(".se-pm-row").filter({
+    has: menu.locator(".se-pm-key").filter({ hasText: /^title$/ }),
+  });
+  await expect(title.locator(".vx-kind")).toHaveCount(0);
+  const categories = menu.locator(".se-pm-row").filter({
+    has: menu.locator(".se-pm-key").filter({ hasText: /^categories$/ }),
+  });
+  await expect(categories.locator(".vx-kind")).toHaveText("リスト");
+  await categories.locator(".se-pm-enter").click();
+
+  for (const [name, value] of [
+    ["出展カテゴリ", "物販"], ["投票カテゴリ", "物販"], ["大分類", "かう"],
+  ]) {
+    const option = menu.locator(".se-pm-row").filter({
+      has: menu.locator(".se-pm-key").filter({ hasText: new RegExp(`^${name}import { expect, test, type Page } from "@playwright/test";
+import { readFileSync } from "node:fs";
+import { expectVariableMenuLayout } from "./helpers/variable-menu-layout";
+import { scriptDataPickerBundle } from "../tests/helpers/script-data-picker";
+let bundle: string;
+test.beforeAll(async () => { bundle = await scriptDataPickerBundle(); });
+test.beforeEach(async ({ page }) => {
+  await page.setContent('<html><body><div id="app"></div></body></html>');
+  await page.addStyleTag({ content: readFileSync("app/globals.css", "utf8") });
+  await page.addScriptTag({ content: bundle });
+  await expect(page.getByRole("dialog", { name: "スクリプト", exact: true })).toBeVisible();
+});
+const block = (page: Page, id: string) => page.locator(`[data-sel-key="step:${id}"]`);
+const picker = (page: Page) => page.getByRole("dialog", { name: "変数を探す", exact: true });
+const row = (page: Page, token: string) => picker(page).locator(".vx-row").filter({ has: page.locator(".vx-tok").filter({ hasText: new RegExp(`^${token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`) }) });
+async function snapshot(page: Page) {
+  return page.evaluate(() => JSON.parse(JSON.stringify((window as any).dataPickerStore.getState().doc)));
+}
+async function selected(page: Page) { return (await snapshot(page)).pages.p.pageScripts[0].steps.find((s: any) => s.id === "value").value; }
+async function openPicker(page: Page, id = "value", selectAll = true) {
+  const input = block(page, id).locator("input").first();
+  await input.focus(); if (selectAll) await input.selectText();
+  await input.press("Control+/");
+  await expect(picker(page)).toBeVisible();
+}
+async function pick(page: Page, name: string, id = "value") {
+  await picker(page).getByPlaceholder("変数名・値で検索").fill(name);
+  await row(page, `{${name}}`).click();
+  await block(page, id).locator("input").first().blur();
+}
+
+test("Script value and variable-name suggestions close on outside click", async ({ page }) => {
+  const input = block(page, "value").locator("input").first();
+  await input.focus();
+  await expect(page.locator(".var-comp")).toBeVisible();
+  await page.locator(".se-header").click({ position: { x: 70, y: 12 } });
+  await expect(page.locator(".var-comp")).toHaveCount(0);
+
+  const name = block(page, "value").getByPlaceholder("名前", { exact: true });
+  await name.focus();
+  await name.fill("");
+  await expect(page.locator(".var-comp")).toBeVisible();
+  await page.locator(".se-header").click({ position: { x: 70, y: 12 } });
+  await expect(page.locator(".var-comp")).toHaveCount(0);
+});
+
+test("value input supports raw lists, serialization and undo", async ({ page }) => {
+  const b = block(page, "value"); const before = await snapshot(page);
+  await openPicker(page); await pick(page, "data");
+  expect(await selected(page)).toBe("{data}");
+  await expect(b.locator(".se-value-info")).toContainText("リスト");
+  const changed = await snapshot(page);
+  await page.getByRole("button", { name: "取り消す", exact: true }).click(); expect(await snapshot(page)).toEqual(before);
+  await page.getByRole("button", { name: "やり直す", exact: true }).click(); expect(await snapshot(page)).toEqual(changed);
+  await page.evaluate((doc) => (window as any).dataPickerStore.getState().replaceDoc(JSON.parse(JSON.stringify(doc))), changed);
+  expect(await snapshot(page)).toEqual(changed);
+});
+
+test("value references share one type label and concise previews", async ({ page }) => {
+  for (const [reference, kind] of [["data.price", "値"], ["data.available", "値"]] as const) {
+    await openPicker(page); await pick(page, reference);
+    const info = block(page, "value").locator(".se-value-info");
+    await expect(info.locator(".vx-kind")).toHaveText(kind);
+    await expect(info.locator(":scope > *")).toHaveCount(1);
+  }
+});
+
+test("string value hints and card hover remain inside rounded borders", async ({ page }) => {
+  await openPicker(page); await pick(page, "data.name");
+  await expect(block(page, "value").locator(".se-value-info .vx-kind")).toHaveText("値");
+  await expect(block(page, "value").locator(".se-value-info > *")).toHaveCount(1);
+  const valueBlock = block(page, "value");
+  await valueBlock.hover();
+  const style = await valueBlock.evaluate(el => {
+    const stack = el.closest(".se-stack")!;
+    const computed = getComputedStyle(stack);
+    return { overflow: computed.overflow, radius: computed.borderTopLeftRadius, borderWidth: computed.borderTopWidth };
+  });
+  expect(style).toEqual({ overflow: "clip", radius: "10px", borderWidth: "1px" });
+});
+
+test("Variable explorer row corners do not overlap the help footer divider", async ({ page }) => {
+  const input = block(page, "value").locator("input").first();
+  await input.focus();
+  const explore = page.locator(".var-comp-explore");
+  const footer = page.locator(".var-comp-foot");
+  await expect(explore).toBeVisible();
+  await expect(footer).toBeVisible();
+  const corners = await explore.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return [style.borderBottomLeftRadius, style.borderBottomRightRadius];
+  });
+  expect(corners).toEqual(["0px", "0px"]);
+  await expect(footer).toHaveCSS("border-top-width", "1px");
+});
+
+test("focus suggestions offer a touch/click route to nested data and Cmd+/ opens unfiltered exploration", async ({ page }) => {
+  const input = block(page, "value").locator("input").first();
+  await input.focus();
+  await expect(page.locator(".var-comp-explore")).toBeVisible();
+  await expect(page.locator(".var-comp-foot")).toContainText("変数を探す");
+  await page.locator(".var-comp-explore").click();
+  await expect(picker(page)).toBeVisible();
+  await picker(page).getByPlaceholder("変数名・値で検索").press("Escape");
+  await input.fill("data.name"); await input.press("Control+/");
+  await expect(picker(page).getByPlaceholder("変数名・値で検索")).toHaveValue("");
+  await expect(row(page, "{data}")).toBeVisible();
+});
+
+test("text picker expands object rows and keyboard chooses a scalar leaf without inserting the object", async ({ page }) => {
+  const b = block(page, "copy"); await openPicker(page, "copy");
+  const data = row(page, "{data}"); await data.focus(); await data.press("Enter");
+  await expect(picker(page)).toBeVisible();
+  const title = row(page, "{data.name}");
+  await expect(title.locator(".vx-kind")).toHaveText("値");
+  await title.focus(); await title.press("Enter");
+  await expect(picker(page)).toHaveCount(0);
+  await expect(b.locator("input").first()).toHaveValue("{data.name}");
+  await b.locator("input").first().blur();
+  expect((await snapshot(page)).pages.p.pageScripts[0].steps.find((s: any) => s.id === "copy").value).toBe("{data.name}");
+});
+
+test("mixed templates and generated code survive exploring, cancelling and save/load unchanged", async ({ page }) => {
+  const before = await snapshot(page);
+  const original = await page.evaluate(() => (window as any).dataPickerProject());
+  await openPicker(page);
+  await picker(page).getByPlaceholder("変数名・値で検索").press("Escape");
+  await expect(block(page, "value").locator("input").first()).toHaveValue("Value {data.name}");
+  await block(page, "value").locator("input").first().blur();
+  expect(await snapshot(page)).toEqual(before);
+  await page.evaluate(() => { const store = (window as any).dataPickerStore; store.getState().replaceDoc(JSON.parse(JSON.stringify(store.getState().doc))); });
+  expect(await page.evaluate(() => (window as any).dataPickerProject())).toEqual(original);
+});
+
+) }),
+    });
+    await expect(option.locator(".vx-kind")).toHaveText("リスト");
+    await expect(option.locator(".se-pm-val")).toContainText(value);
+  }
+
+  await menu.locator(".se-pm-row").filter({
+    has: menu.locator(".se-pm-key").filter({ hasText: /^出展カテゴリ$/ }),
+  }).locator(".dd-item").click();
+  await expect(filter.locator(".se-pm-btn")).toHaveText("categories › 出展カテゴリ");
+  const doc = await snapshot(page);
+  const savedFilter = doc.pages.p.pageScripts[0].steps.find((s: any) => s.id === "category-filter");
+  expect(savedFilter.field).toBe("categories.出展カテゴリ");
+  expect(doc.pages.p.pageScripts[0].steps[0].preview.sample.rows[0].categories["出展カテゴリ"]).toEqual(["物販"]);
+});
+
 test("typed references preserve arrays, false, null and runtime-unknown choices", async ({ page }) => {
   for (const name of ["data.tags", "data.available", "data.empty", "later"]) {
     await openPicker(page); await pick(page, name);
