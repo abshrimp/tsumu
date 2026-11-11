@@ -12,6 +12,7 @@ import type {
   DocChangeMessage,
 } from "../lib/collab";
 import { applyDocPatchAtRevision } from "../lib/doc-patch";
+import { shareUnchangedDoc } from "../lib/doc-share";
 import { errorOf, scheduleCloudSave, sendCloudDoc, type CollabRequestInput, type DeferredCloudConflict } from "../lib/cloud-save";
 import { mergeDocs } from "../lib/merge";
 import { css2FamilyToken } from "../lib/style";
@@ -845,7 +846,10 @@ export default function Editor({ onReady }: EditorProps = {}) {
         return false;
       }
       const baseDoc = lastSyncedDoc.current;
-      const incomingDoc = message.type === "doc-updated" ? message.doc
+      // 全体で届いた版は、どの要素も新しい参照になる。履歴があるときは、手元と同じ内容の要素を
+      // 手元の参照にそろえ、履歴（最大100件）の付け替えが変わった要素だけを比べれば済むようにする
+      const incomingDoc = message.type === "doc-updated"
+        ? (state.past.length || state.future.length ? shareUnchangedDoc(state.doc, message.doc) : message.doc)
         : applyDocPatchAtRevision(baseDoc, lastSyncedRev.current, message.base, message.patch);
       if (!incomingDoc) {
         if (!pendingRemote || Number(pendingRemote.rev) < incomingRev) pendingRemote = message;

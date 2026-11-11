@@ -43,6 +43,7 @@ import {
 import { storageKey } from "./storage-keys";
 import { withPageScripts, type PageScript } from "./script";
 import { MAX_NODE_DEPTH, maxSubtreeDepth, validSiteDoc } from "./doc-tree";
+import { sameDocContent, shareUnchangedDoc } from "./doc-share";
 
 const PUBLISHED_KEY = siteKey(storageKey("published-v1"));
 const PUBLISHED_HASH_KEY = siteKey(storageKey("published-hash-v1"));
@@ -639,10 +640,6 @@ function retargetPageUrls(
   }
 }
 
-function sameDoc(a: SiteDoc, b: SiteDoc): boolean {
-  return a === b || JSON.stringify(a) === JSON.stringify(b);
-}
-
 /** テキスト編集中なら確定（blur）させ、入力内容を履歴に載せてから undo / redo する */
 function commitActiveTextEdit() {
   if (typeof document === "undefined") return;
@@ -948,7 +945,7 @@ export const useEditor = create<EditorStore>((set, get) => {
 
     restoreDoc: (doc) => {
       const current = get().doc;
-      if (sameDoc(current, doc)) return;
+      if (sameDocContent(current, doc)) return;
       get().endGesture();
       const selectedIds = validSelectedIds(doc, get().selectedIds);
       set({
@@ -1363,7 +1360,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       let prev: SiteDoc | undefined;
       while (past.length) {
         const cand = past.pop()!;
-        if (!sameDoc(cand, doc)) {
+        if (!sameDocContent(cand, doc)) {
           prev = cand;
           break;
         }
@@ -1406,7 +1403,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       let next: SiteDoc | undefined;
       while (future.length) {
         const cand = future.shift()!;
-        if (!sameDoc(cand, doc)) {
+        if (!sameDocContent(cand, doc)) {
           next = cand;
           break;
         }
@@ -1446,10 +1443,12 @@ export const useEditor = create<EditorStore>((set, get) => {
 
     updateDoc: (fn, opts) => {
       const current = get().doc;
-      const next = structuredClone(current);
-      fn(next);
-      // No-ops must also retain references and pending checkpoints during drags.
-      if (sameDoc(next, current)) return;
+      const draft = structuredClone(current);
+      fn(draft);
+      // 変わっていないページ・要素は編集前の参照のまま残す（履歴・差分保存・マージが変わった分だけを扱う）。
+      // 内容が同じなら current そのものが返るので、ドラッグ中の参照と履歴の起点もそのまま残る
+      const next = shareUnchangedDoc(current, draft);
+      if (next === current) return;
       commitDoc(next, opts);
     },
 
