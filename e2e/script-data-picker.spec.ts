@@ -245,6 +245,7 @@ test("if conditions allow nested list variables and choose meaningful operators"
   await input.press("Control+/");
   await expect(picker(page)).toBeVisible();
   await pick(page, "data.rows.0.categories.投票カテゴリ", "if-categories");
+  await input.blur();
   cond = (await snapshot(page)).pages.p.pageScripts[0].steps.find((s: any) => s.id === "if-categories").cond;
   expect(cond.op).toBe("eq");
   expect(cond.value).toBe("{data.rows.0.categories.投票カテゴリ}");
