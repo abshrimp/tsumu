@@ -27,7 +27,7 @@ function fixture(doc = assetConfirmationDoc()) {
       if (!single) tree.find((e) => e.props?.className === "asset-clean").props.onClick();
       else {
         const card = tree.find((e) => e.props?.["data-asset-id"] === candidate.id);
-        card.props.children.find((e: any) => e?.props?.["data-tip"] === "削除").props.onClick();
+        card.props.children.find((e: any) => e?.props?.["data-tip"] === "Delete").props.onClick();
       }
       assert.ok(useDialogs.getState().queue.length);
     },
