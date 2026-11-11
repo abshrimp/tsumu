@@ -22,7 +22,7 @@ function measure(src: string): Promise<{ width: number; height: number }> {
     const img = new Image();
     img.onload = () =>
       resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    img.onerror = () => reject(new Error(tr("画像を読み込めませんでした")));
+    img.onerror = () => reject(new Error(tr("Couldn't load the image")));
     img.src = src;
   });
 }
@@ -31,7 +31,7 @@ function readAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error(tr("ファイルを読み込めませんでした")));
+    reader.onerror = () => reject(new Error(tr("Couldn't read the file")));
     reader.readAsDataURL(file);
   });
 }
@@ -42,7 +42,7 @@ function readAsDataUrl(file: File): Promise<string> {
  */
 export async function uploadAsset(file: File): Promise<Asset> {
   if (!/^(image|video|audio)\//.test(file.type)) {
-    throw new Error(tr("追加できるのは画像・動画・音声のファイルだけです"));
+    throw new Error(tr("Only image, video and audio files can be added"));
   }
   return uploadStaticAsset(file);
 }
@@ -75,7 +75,7 @@ export async function uploadStaticAsset(file: File): Promise<Asset> {
     if (res.ok) {
       const data = await res.json();
       if (typeof data?.path !== "string" || !data.path.startsWith("assets/") || data.path.length === "assets/".length) {
-        throw new Error(tr("アップロード結果を確認できませんでした。"));
+        throw new Error(tr("Could not confirm the uploaded file location."));
       }
       return {
         id: genId("asset"),
@@ -90,7 +90,7 @@ export async function uploadStaticAsset(file: File): Promise<Asset> {
     // 503 = サーバー保存未設定 → dataURLへフォールバック。それ以外はエラー表示
     if (res.status !== 503) {
       const data = await res.json().catch(() => ({}));
-      throw new Error(data.error ?? tr("アップロードできませんでした（{status}）", { status: res.status }));
+      throw new Error(data.error ?? tr("Couldn't upload ({status})", { status: res.status }));
     }
   } catch (e) {
     if (!(e instanceof TypeError)) throw e;
@@ -99,7 +99,7 @@ export async function uploadStaticAsset(file: File): Promise<Asset> {
 
   if (file.size > MAX_LOCAL_ASSET_BYTES) {
     throw new Error(
-      tr("サーバーに保存できないため追加できません。このブラウザに保存できるのは1ファイル2MBまでです。")
+      tr("Can't add it because server storage isn't available. Files saved in this browser are limited to 2MB each.")
     );
   }
   const dataUrl = await readAsDataUrl(file);
@@ -359,8 +359,8 @@ export async function withSignedAssetUrls(
     try { return !!base && new URL(prefix, base).origin === new URL(base).origin; }
     catch { return false; }
   };
-  if (roots.some((id) => !zipStylesheet(assets[id]))) throw new Error(tr("ZIPのCSSデータを読み込めません。ZIPを再読み込みしてください。"));
-  if (roots.length && html.length > ZIP_CSS_LIMITS.output) throw new Error(tr("ZIPのCSSプレビューが大きすぎます。CSSの依存関係を減らしてZIPを再読み込みしてください。"));
+  if (roots.some((id) => !zipStylesheet(assets[id]))) throw new Error(tr("The ZIP stylesheet data could not be read. Reimport the ZIP."));
+  if (roots.length && html.length > ZIP_CSS_LIMITS.output) throw new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and reimport the ZIP."));
   const reachable = zipAssetClosure(assets, roots);
   const paths = new Set<string>();
   for (const m of html.matchAll(ASSET_URL_RE)) {
@@ -378,7 +378,7 @@ export async function withSignedAssetUrls(
       body: JSON.stringify({ paths: list.slice(i, i + 500) }), signal: options.signal,
     });
     if (!res.ok) {
-      if (roots.length) throw new Error(tr("HTMLプレビューのアセットを読み込めませんでした"));
+      if (roots.length) throw new Error(tr("The HTML preview assets could not be loaded."));
       return html;
     }
     const { urls } = (await res.json()) as { urls: Record<string, string> };
@@ -395,7 +395,7 @@ export async function withSignedAssetUrls(
   const cssUrls = zipCssPreviewUrls(assets, roots, (asset) => {
     if (!asset.path) return assetSrc(asset);
     const url = signed[asset.path];
-    if (!url) throw new Error(tr("HTMLプレビューのアセットを読み込めませんでした"));
+    if (!url) throw new Error(tr("The HTML preview assets could not be loaded."));
     return absolute(url);
   }, { baseUrl: base });
   let output = html.replace(ASSET_URL_RE, (m, prefix: string | undefined, enc: string) => {
@@ -410,7 +410,7 @@ export async function withSignedAssetUrls(
     const match = /^tsumu-zip-css:([^?#]+)([?#][\s\S]*)?$/.exec(url);
     if (match) {
       const target = cssUrls.get(decodeURIComponent(match[1]));
-      if (!target) throw new Error(tr("HTMLプレビューのアセットを読み込めませんでした"));
+      if (!target) throw new Error(tr("The HTML preview assets could not be loaded."));
       return appendAssetSuffix(target, match[2] ?? "");
     }
     for (const asset of Object.values(assets)) {
@@ -425,7 +425,7 @@ export async function withSignedAssetUrls(
   const bounded = (url: string) => {
     const target = resolve(url);
     inserted += target?.length ?? 0;
-    if (inserted > ZIP_CSS_LIMITS.output) throw new Error(tr("ZIPのCSSプレビューが大きすぎます。CSSの依存関係を減らしてZIPを再読み込みしてください。"));
+    if (inserted > ZIP_CSS_LIMITS.output) throw new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and reimport the ZIP."));
     return target;
   };
   for (const el of Array.from(parsed.querySelectorAll("[href],[src],[poster]"))) {
@@ -447,7 +447,7 @@ export async function withSignedAssetUrls(
     el.textContent = rewriteCssAssetUrls(el.textContent ?? "", bounded, ZIP_CSS_LIMITS.output);
   }
   output = `<!DOCTYPE html>\n${parsed.documentElement.outerHTML}`;
-  if (output.length > ZIP_CSS_LIMITS.output) throw new Error(tr("ZIPのCSSプレビューが大きすぎます。CSSの依存関係を減らしてZIPを再読み込みしてください。"));
+  if (output.length > ZIP_CSS_LIMITS.output) throw new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and reimport the ZIP."));
   if (Number.isFinite(expiresAt)) options.onExpiresAt?.(expiresAt);
   return output;
 }
@@ -465,7 +465,7 @@ export async function downloadAsset(asset: Asset): Promise<void> {
     return;
   }
   // エラー本文を元のファイルとして保存したり、失敗を別タブで隠したりしない。
-  if (!response.ok) throw new Error(tr("アセットをダウンロードできませんでした"));
+  if (!response.ok) throw new Error(tr("Could not download the asset."));
   const blob = await response.blob();
   const objectUrl = URL.createObjectURL(blob);
   try {
