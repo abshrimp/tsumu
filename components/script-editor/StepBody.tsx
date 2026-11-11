@@ -248,6 +248,23 @@ export function StepBody({ step }: { step: ScriptStep }) {
             onCommit={(value) => set((s) => s.kind === "set-list-item" ? { ...s, value } : s)} />,
         }} />
       );
+    case "remove-list-item":
+      return (
+        <Phrase text="Remove {target} from list {list}" parts={{
+          list: <AnyArraySelect value={step.list} onChange={(list) =>
+            set((s) => s.kind === "remove-list-item" ? { ...s, list } : s)} />,
+          target: <>
+            <select className="se-in" aria-label={tr("Removal method")} value={step.mode}
+              onChange={(event) => set((s) => s.kind === "remove-list-item"
+                ? { ...s, mode: event.target.value as "value" | "key" } : s)}>
+              <option value="value">{tr("matching value")}</option>
+              <option value="key">{tr("item at position/key")}</option>
+            </select>
+            <ValueIn value={step.value} width={150}
+              onCommit={(value) => set((s) => s.kind === "remove-list-item" ? { ...s, value } : s)} />
+          </>,
+        }} />
+      );
     case "break-loop":
       return <span>{tr("Break out of loop")}</span>;
     case "store-save":
