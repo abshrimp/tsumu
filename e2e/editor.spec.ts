@@ -231,7 +231,7 @@ test("MCP connection opens its own modal dialog from the editor menu", async ({ 
   await expect(menuItems.filter({ hasText: "AIと接続（MCP）" })).toBeVisible();
   await menuItems.filter({ hasText: "AIと接続（MCP）" }).click();
 
-  await expect(page.locator(".modal-backdrop .modal > h2")).toHaveText("AIと接続（MCP）");
+  await expect(page.getByRole("dialog", { name: "AIと接続（MCP）" }).getByRole("heading", { level: 2 })).toHaveText("AIと接続（MCP）");
   await expect(page.locator(".mcp-modal .mcp-panel h3")).toHaveText("AIと接続");
   await expect(page.locator(".mcp-modal .mcp-plugins h3")).toHaveText("AIアプリにTsumuを追加");
   await expect(page.locator(".mcp-modal .mcp-guide-link")).toBeVisible();

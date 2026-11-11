@@ -411,9 +411,10 @@ function SiteDialog({
 
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
-      <form className="modal home-dialog" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h2>{site ? tr("Site settings (menu)") : copyOf ? tr("Duplicate site") : tr("New site")}</h2>
-        <p className="modal-desc">
+      <form className="modal home-dialog modal-refined" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+        <div className="modal-refined-header">
+          <h2>{site ? tr("Site settings (menu)") : copyOf ? tr("Duplicate site") : tr("New site")}</h2>
+          <p className="modal-desc">
           {site
             ? provider === "github"
               ? tr("Change the site name and the Git repository it publishes to.")
@@ -423,9 +424,10 @@ function SiteDialog({
             : copyOf
               ? tr("Creates a new site with the same pages, elements and settings as “{name}”. The publishing destination isn't copied, so set one if you need it.", { name: copyOf.name })
               : tr("Creates an empty site and opens it in the editor.")}
-        </p>
-
-        <Field label={tr("Site name")}>
+          </p>
+        </div>
+        <div className="modal-refined-body">
+          <Field label={tr("Site name")}>
           <input className="input" value={form.name} onChange={set("name")} autoFocus maxLength={100} required />
         </Field>
 
@@ -502,8 +504,9 @@ function SiteDialog({
             {error}
           </p>
         )}
+        </div>
 
-        <div className="modal-actions">
+        <div className="modal-actions modal-refined-actions">
           <button type="button" className="btn" onClick={onClose} disabled={busy}>
             {tr("Cancel")}
           </button>
@@ -524,10 +527,12 @@ function AppSettings({ auth, onClose }: { auth: boolean; onClose: () => void }) 
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal home-dialog" onClick={(e) => e.stopPropagation()}>
-        <h2>{tr("Settings")}</h2>
-        <p className="modal-desc">{tr("These settings apply to all sites.")}</p>
-
+      <div className="modal home-dialog modal-refined app-settings-modal" role="dialog" aria-modal="true" aria-labelledby="app-settings-title" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-refined-header">
+          <h2 id="app-settings-title">{tr("Settings")}</h2>
+          <p className="modal-desc">{tr("These settings apply to all sites.")}</p>
+        </div>
+        <div className="modal-refined-body">
         <section className="home-set-sec">
           <h3>{tr("Language (display)")}</h3>
           <LanguageSelector />
@@ -549,8 +554,9 @@ function AppSettings({ auth, onClose }: { auth: boolean; onClose: () => void }) 
             </Suspense>
           </section>
         )}
+        </div>
 
-        <div className="modal-actions">
+        <div className="modal-actions modal-refined-actions">
           <button type="button" className="btn" onClick={onClose}>
             {tr("Close")}
           </button>

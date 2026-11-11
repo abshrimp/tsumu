@@ -87,9 +87,11 @@ function SettingsModal({ onClose, onOpenMembers, canManageMembers, permissionsAv
   useEscapeToClose(onClose);
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{tr("Settings")}</h2>
-
+      <div className="modal modal-refined editor-settings-modal" role="dialog" aria-modal="true" aria-labelledby="editor-settings-title" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-refined-header">
+          <h2 id="editor-settings-title">{tr("Settings")}</h2>
+        </div>
+        <div className="modal-refined-body">
         <section className="settings-sec">
           <h3>{tr("Language (display)")}</h3>
           <LanguageSelector />
@@ -135,8 +137,9 @@ function SettingsModal({ onClose, onOpenMembers, canManageMembers, permissionsAv
           </button>
           <p className="hint">{tr("Removes all pages, elements and settings and returns the site to how it was when it was created. The published site doesn't change until you publish again.")}</p>
         </section>
+        </div>
 
-        <div className="modal-actions" style={{ marginTop: 16 }}>
+        <div className="modal-actions modal-refined-actions">
           <button className="btn" onClick={onClose}>
             {tr("Close")}
           </button>
@@ -151,12 +154,16 @@ function McpConnectionModal({ onClose }: { onClose: () => void }) {
   useEscapeToClose(onClose);
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal mcp-modal" role="dialog" aria-modal="true" aria-labelledby="mcp-modal-title" onClick={(e) => e.stopPropagation()}>
-        <h2 id="mcp-modal-title">{tr("MCP connection")}</h2>
-        <Suspense fallback={<p className="hint" role="status">{tr("Loading…")}</p>}>
-          <ExternalEditConnection />
-        </Suspense>
-        <div className="modal-actions">
+      <div className="modal mcp-modal modal-refined" role="dialog" aria-modal="true" aria-labelledby="mcp-modal-title" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-refined-header">
+          <h2 id="mcp-modal-title">{tr("MCP connection")}</h2>
+        </div>
+        <div className="modal-refined-body">
+          <Suspense fallback={<p className="hint" role="status">{tr("Loading…")}</p>}>
+            <ExternalEditConnection />
+          </Suspense>
+        </div>
+        <div className="modal-actions modal-refined-actions">
           <button type="button" className="btn" onClick={onClose}>{tr("Close")}</button>
         </div>
       </div>
@@ -172,11 +179,14 @@ function LogoutModal({ onClose }: { onClose: () => void }) {
   useEscapeToClose(onClose, !busy);
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
-      <div className="modal" style={{ width: 400 }} onClick={(e) => e.stopPropagation()}>
-        <h2>{tr("Sign out?")}</h2>
-        <p className="modal-desc">
-          {tr("You'll need to sign in with Google again to continue.")}
-        </p>
+      <div className="modal modal-refined logout-modal" role="dialog" aria-modal="true" aria-labelledby="logout-modal-title" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-refined-header">
+          <h2 id="logout-modal-title">{tr("Sign out?")}</h2>
+          <p className="modal-desc">
+            {tr("You'll need to sign in with Google again to continue.")}
+          </p>
+        </div>
+        <div className="modal-refined-body">
         {unsaved && (
           <ul className="check-list">
             <li className="is-error">
@@ -187,7 +197,8 @@ function LogoutModal({ onClose }: { onClose: () => void }) {
             </li>
           </ul>
         )}
-        <div className="modal-actions">
+        </div>
+        <div className="modal-actions modal-refined-actions">
           <button className="btn" onClick={onClose} disabled={busy} autoFocus>
             {tr("Cancel")}
           </button>

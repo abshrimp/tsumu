@@ -1762,3 +1762,121 @@ a.btn {
     padding: 12px 16px;
   }
 }
+
+/* Shared layout for long-form site, app and editor settings dialogs.
+   Keep the heading and actions fixed while only the form content scrolls. */
+.modal.modal-refined {
+  display: flex;
+  flex-direction: column;
+  width: 520px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  overflow: hidden;
+}
+.modal.home-dialog.modal-refined {
+  width: 520px;
+}
+.modal.app-settings-modal {
+  width: 560px;
+}
+.modal.mcp-modal.modal-refined {
+  width: 540px;
+}
+.modal.logout-modal.modal-refined {
+  width: 420px;
+}
+.modal-refined-header {
+  flex: none;
+  min-width: 0;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-refined-header h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+.modal-refined-header .modal-desc {
+  margin: 8px 0 0;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.modal-refined-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px 24px 24px;
+}
+.modal-refined-body > :first-child {
+  margin-top: 0;
+}
+.modal-refined-body > .settings-sec:first-child,
+.modal-refined-body > .home-set-sec:first-child {
+  margin-top: 0;
+}
+.modal-refined-body > .settings-sec + .settings-sec,
+.modal-refined-body > .home-set-sec + .home-set-sec {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+.modal-refined-body .settings-sec h3,
+.modal-refined-body .home-set-sec h3 {
+  color: var(--text);
+  font-size: 12.5px;
+}
+.modal-refined-actions,
+.home-dialog .modal-actions.modal-refined-actions,
+.mcp-modal .modal-actions.modal-refined-actions {
+  display: flex;
+  flex: none;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 14px 24px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+.modal-refined-actions .btn {
+  min-height: 32px;
+}
+.modal-refined .home-field .input {
+  min-width: 0;
+}
+.modal-refined .home-dest {
+  padding-top: 12px;
+}
+.modal-refined .home-dest-body {
+  padding-bottom: 2px;
+}
+.modal-refined-body .acct-list {
+  margin-top: 12px;
+}
+@media (max-width: 560px) {
+  .modal-refined-header {
+    padding: 18px 16px 14px;
+  }
+  .modal-refined-body {
+    padding: 16px;
+  }
+  .modal-refined-actions,
+  .home-dialog .modal-actions.modal-refined-actions,
+  .mcp-modal .modal-actions.modal-refined-actions {
+    padding: 12px 16px;
+  }
+  .modal-refined-actions > .btn {
+    min-width: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .modal-refined {
+    animation: none;
+  }
+}
