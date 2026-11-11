@@ -156,7 +156,7 @@ for (const method of ["save", "patch"] as const) {
       close() { assert.fail("unexpected generation or auth rejection"); },
     });
     const sender = socket(); const peer = socket();
-    const room = new CollaborationRoom({ getWebSockets: () => [sender, peer] }, { DB: {}, DOC_STORE: {
+    const room = new CollaborationRoom({ getWebSockets: () => [sender, peer] }, { ALLOW_ANONYMOUS: "true", DB: {}, DOC_STORE: {
       idFromName: (key: string) => key,
       get: (key: string) => ({
         getSnapshot: async () => f.room(key).snapshot(),

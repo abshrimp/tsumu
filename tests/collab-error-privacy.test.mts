@@ -42,7 +42,7 @@ async function fixture(t: TestContext) {
     close() { assert.fail("unexpected socket close"); },
   });
   const sender = socket(), peer = socket();
-  const env: any = { DB: {}, DOC_STORE: { idFromName: (key: string) => key, get: () => remote } };
+  const env: any = { ALLOW_ANONYMOUS: "true", DB: {}, DOC_STORE: { idFromName: (key: string) => key, get: () => remote } };
   const room = new CollaborationRoom({ getWebSockets: () => [sender, peer] }, env);
   const send = async (input: Record<string, unknown>) => {
     const before = sender.messages.length;

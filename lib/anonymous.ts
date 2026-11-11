@@ -6,6 +6,14 @@ import { envVar } from "./env";
  * ALLOW_ANONYMOUS=true で明示したときだけ許す（デモや、手元だけで動かすとき）。
  * middleware（Edge）からも呼ぶので、Node.js 専用のモジュールは読み込まない
  */
-export function anonymousAllowed(): boolean {
-  return process.env.NODE_ENV === "development" || envVar("ALLOW_ANONYMOUS") === "true";
+export function anonymousAllowed(bindings?: { ALLOW_ANONYMOUS?: string }): boolean {
+  return process.env.NODE_ENV === "development" ||
+    (bindings ? bindings.ALLOW_ANONYMOUS : envVar("ALLOW_ANONYMOUS")) === "true";
+}
+
+/** 接続時の本人確認方法が、現在のログイン設定でも有効か。 */
+export function collaborationIdentityAllowed(
+  hasUser: boolean, signInConfigured: boolean, bindings?: { ALLOW_ANONYMOUS?: string },
+): boolean {
+  return signInConfigured ? hasUser : !hasUser && anonymousAllowed(bindings);
 }
