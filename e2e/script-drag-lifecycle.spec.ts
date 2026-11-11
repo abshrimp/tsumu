@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { makeBox } from "../lib/presets";
 import { scriptDragBundle } from "../tests/helpers/script-drag";
 
 let bundle: string;
@@ -287,6 +288,72 @@ test("copying a whole script creates independent script and nested step IDs", as
   expect(scripts[0].id).not.toBe(scripts[1].id);
   expect(scripts[0].steps[0].id).not.toBe(scripts[1].steps[0].id);
 });
+
+for (const hasTrailingBlock of [false, true]) {
+  test(`dragging a condition with a selected element keeps its original controls and layout${hasTrailingBlock ? " across chained blocks" : ""}`, async ({ page }) => {
+    // Script condition targets store the HTML ID attribute, not the node ID.
+    const selected = { ...makeBox("選択済みの要素（長い名前）"), id: "chosen-node", attrId: "chosen-element" };
+    await page.evaluate(({ selected, hasTrailingBlock }) => {
+      (window as any).scriptDragEditor.getState().updateDoc((doc: any) => {
+        doc.nodes[selected.id] = selected;
+        doc.pages.p.children = [selected.id];
+        doc.pages.p.pageScripts[0].steps = [{
+          id: "condition", kind: "if",
+          cond: { subject: "value", target: selected.attrId, op: "eq", value: "first" },
+          conditions: [{
+            subject: "value", target: selected.attrId, op: "eq", value: "second", and: true,
+          }],
+          then: [{ id: "inside-condition", kind: "wait", seconds: 2 }],
+          else: [],
+        }, ...(hasTrailingBlock ? [{ id: "after-condition", kind: "wait", seconds: 3 }] : [])];
+      });
+    }, { selected, hasTrailingBlock });
+
+    const source = page.locator('.se-ws [data-sel-key="step:condition"]');
+    const appearance = (selector: string) => page.locator(selector).evaluate((element) => ({
+      width: (element as HTMLElement).offsetWidth,
+      height: (element as HTMLElement).offsetHeight,
+      lineWidths: Array.from(element.querySelectorAll<HTMLElement>(".se-if-condition-line"),
+        (line) => line.offsetWidth),
+      lineHeights: Array.from(element.querySelectorAll<HTMLElement>(".se-if-condition-line"),
+        (line) => line.offsetHeight),
+      pickers: Array.from(element.querySelectorAll(".np-btn"), (button) => button.textContent?.trim()),
+      controls: Array.from(element.querySelectorAll("input, select, button"), (control) => ({
+        tag: control.tagName,
+        className: control.className,
+        value: control instanceof HTMLSelectElement || control instanceof HTMLInputElement
+          ? control.value : control.textContent?.trim(),
+      })),
+    }));
+    await expect(source.locator(".np-btn")).toHaveCount(2);
+    await expect(source.locator(".np-btn").first()).toContainText("選択済みの要素");
+    const before = await appearance('.se-ws [data-sel-key="step:condition"]');
+    expect(before.controls.some((control) => control.className.includes("se-mini"))).toBe(true);
+
+    const origin = (await source.boundingBox())!;
+    await source.dispatchEvent("pointerdown", {
+      pointerId: 1, pointerType: "touch", button: 0, buttons: 1,
+      clientX: origin.x + 5, clientY: origin.y + 5,
+    });
+    const p = await point(page);
+    await pointer(page, "pointermove", { x: p.x - 40, y: p.y - 40 });
+    const ghost = page.locator('.se-ghost [data-sel-key="step:condition"]');
+    await expect(ghost).toBeVisible();
+    if (hasTrailingBlock) {
+      await expect(page.locator('.se-ghost [data-sel-key="step:after-condition"]')).toBeVisible();
+    }
+    const after = await appearance('.se-ghost [data-sel-key="step:condition"]');
+    expect(after.controls).toEqual(before.controls);
+    expect(after.pickers).toEqual(before.pickers);
+    expect(after.lineWidths).toEqual(before.lineWidths);
+    expect(after.lineHeights).toEqual(before.lineHeights);
+    expect(Math.abs(after.width - before.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(after.height - before.height)).toBeLessThanOrEqual(1);
+    await pointer(page, "pointercancel", { buttons: 0 });
+    await expect(transient(page)).toHaveCount(0);
+    await expect(source.locator(".np-btn").first()).toContainText("選択済みの要素");
+  });
+}
 
 test("nested step drag keeps the original indentation, border and width", async ({ page }) => {
   await page.evaluate(() => (window as any).scriptDragEditor.getState().updateDoc((doc: any) => {
