@@ -125,6 +125,13 @@ function VarTextIn({
   );
   const nodeId = useContext(ScriptNodeCtx);
   const loops = useContext(LoopCtx);
+  const localNames = useMemo(() =>
+    localVariableNames([...(itemFields ?? []), ...loops.flatMap((l) => [...l.fields, ...(l.roots ?? [])])]),
+  [itemFields, loops]);
+  const localSamples = useMemo(
+    () => Object.assign({}, ...[...loops].reverse().map((l) => l.rawSamples ?? {})) as Record<string, unknown>,
+    [loops],
+  );
   // 候補: 配列の要素の項目 + くり返し中の要素の項目 + その位置で使える変数 + スクリプトで作る変数
   const { names, samples, extra } = useMemo(() => {
     if (!doc) return { names: [], samples: {}, extra: [] };
@@ -132,7 +139,7 @@ function VarTextIn({
     const made = [...dataVarNames(doc, pageId)].filter(
       (n) => n !== ITEM_VALUE && n !== "slug" && !at.includes(n)
     );
-    const item = localVariableNames([...(itemFields ?? []), ...loops.flatMap((l) => [...l.fields, ...(l.roots ?? [])])]);
+    const item = localNames;
     const raw = variableChoiceSamples(varGroupsAt(doc, pageId, nodeId), item);
     // 取得したデータの項目と親のまとまりも、同じスコープの見本から選べるようにする。
     const nested = localVariableNames(flattenFields(raw, 4).map((field) => field.field));
@@ -146,7 +153,7 @@ function VarTextIn({
       },
       extra: made.filter((n) => !item.includes(n)),
     };
-  }, [doc, pageId, nodeId, itemFields, itemSamples, loops, valueContext]);
+  }, [doc, pageId, nodeId, itemFields, itemSamples, loops, valueContext, localNames]);
   if (readOnly) {
     return (
       <span className={`se-in se-in-fake${value ? "" : " is-empty"}`} style={{ width }}>
@@ -168,7 +175,8 @@ function VarTextIn({
       nodeId={nodeId}
       sourceStepId={stepId}
       extraNames={extra}
-      localNames={localVariableNames([...(itemFields ?? []), ...loops.flatMap((l) => [...l.fields, ...(l.roots ?? [])])])}
+      localNames={localNames}
+      localSamples={localSamples}
       valueContext={valueContext}
       eager
       onCommit={(v) => {
@@ -194,11 +202,13 @@ export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 
     produced?.has(name) && !variableIndex?.hasOther(name, stepId));
   const sourceRoot = source?.split(".")[0];
   const sameRoot = (name: string) => name.split(".")[0] === sourceRoot;
-  const locallyShadowed = !!sourceRoot &&
-    ((itemFields?.some(sameRoot) ?? false) || loops.some((loop) =>
-      loop.fields.some(sameRoot) || (loop.roots?.some(sameRoot) ?? false)));
-  const sample = source && !exclusiveOwnOutput && !locallyShadowed
-    ? lookupVar(samples, source) : undefined;
+  const localLoop = sourceRoot && loops.find((loop) =>
+    loop.fields.some(sameRoot) || (loop.roots?.some(sameRoot) ?? false));
+  // Loop items shadow page variables of the same name, but their raw sample
+  // still tells us whether a nested field is a list.
+  const sample = source && !exclusiveOwnOutput && !(itemFields?.some(sameRoot) ?? false)
+    ? localLoop ? lookupVar(localLoop.rawSamples ?? {}, source) : lookupVar(samples, source)
+    : undefined;
   const kind = sample === undefined ? null : sample !== null && typeof sample === "object" ? tr("List", "list_variant_1") : tr("Value");
   if (readOnly) return <span className="se-in se-in-fake">{source ? fieldLabel(source) : value}</span>;
   return <span className="se-value-choice">
