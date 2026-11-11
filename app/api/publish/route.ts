@@ -332,7 +332,7 @@ export async function POST(req: Request) {
     // Never advance the GitHub branch if the format to persist is invalid.
     const exportOptions = parsePublishedExportOptions(body.exportOptions);
     if (!exportOptions) {
-      return NextResponse.json({ error: trc("invalid_request_variant_1", "Invalid request") }, { status: 400 });
+      return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
     }
 
     const assetShas = body.assetShas ?? {};

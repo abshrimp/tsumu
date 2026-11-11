@@ -546,7 +546,7 @@ function ActiveCommentLayer({ frameRef, innerRef }: CommentLayerProps) {
 
 function BackButton({ onClick }: { onClick: () => void }) {
   return (
-    <button type="button" className="icon-btn sm" aria-label={trc("back_to_list_variant_1", "Back to list")} data-tip={tr("Back to list (Esc)")} onClick={onClick}>
+    <button type="button" className="icon-btn sm" aria-label={tr("Back to list", "back_to_list_variant_1")} data-tip={tr("Back to list (Esc)")} onClick={onClick}>
       <ArrowLeft size={14} />
     </button>
   );

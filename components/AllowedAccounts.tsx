@@ -149,7 +149,7 @@ export default function AllowedAccounts() {
     return (
       <div className="acct-loading">
         <LoaderCircle size={16} className="spin" />
-        {trc("loading_variant_1", "Loading…")}
+        {tr("Loading…", "loading_variant_1")}
       </div>
     );
   }

@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     parsed = parseAiRequest(await readAiRequest(req));
   } catch (error) {
     return NextResponse.json({ error: error instanceof RangeError
-      ? tr("This page is too large to send to AI") : trc("invalid_request_variant_1", "Invalid request") },
+      ? tr("This page is too large to send to AI") : tr("Invalid request", "invalid_request_variant_1") },
       { status: error instanceof RangeError ? 413 : 400 });
   }
   const { turns, context } = parsed;

@@ -73,7 +73,7 @@ export async function POST(req: Request) {
     }
     email = input.email.trim().toLowerCase();
   } catch (error) {
-    return NextResponse.json({ error: trc("invalid_request_variant_1", "Invalid request") }, {
+    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, {
       status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
     });
   }

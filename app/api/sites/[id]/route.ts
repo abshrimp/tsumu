@@ -58,12 +58,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
     try {
       input = await readJsonLimited(req, 64 * 1024) as SiteInput | null;
     } catch (error) {
-      return NextResponse.json({ error: r.trc("invalid_request_variant_1", "Invalid request") }, {
+      return NextResponse.json({ error: r.tr("Invalid request", "invalid_request_variant_1") }, {
         status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
       });
     }
     if (!input || typeof input !== "object" || Array.isArray(input)) {
-      return NextResponse.json({ error: r.trc("invalid_request_variant_1", "Invalid request") }, { status: 400 });
+      return NextResponse.json({ error: r.tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
     }
     let current = r.site;
     for (let attempt = 0; attempt < 4; attempt++) {
