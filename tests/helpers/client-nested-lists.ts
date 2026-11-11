@@ -58,11 +58,16 @@ export async function clientNestedBundle(component = false, source?: SiteDoc) {
   return (await build({ stdin: { contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import SettingsPanel from "./components/SettingsPanel";
-import ScriptEditor from "./components/ScriptEditor";
-import Canvas from "./components/Canvas";
+
+
+
 import { useEditor } from "./lib/store";
 import css from "./app/globals.css";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: SettingsPanel } = await import("./components/SettingsPanel");
+  const { default: ScriptEditor } = await import("./components/ScriptEditor");
+  const { default: Canvas } = await import("./components/Canvas");
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 useEditor.getState().replaceDoc(${JSON.stringify(doc)});
 useEditor.getState().setActivePage("p"); useEditor.getState().select("tags");
@@ -80,6 +85,8 @@ function Example() {
   </>;
 }
 createRoot(document.getElementById("app")).render(<Example />);
+
+});
 `, resolveDir: resolve("."), sourcefile: "client-nested-lists-browser.tsx", loader: "tsx" },
     loader: { ".css": "text" }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },

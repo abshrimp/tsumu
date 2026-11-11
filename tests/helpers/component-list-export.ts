@@ -27,10 +27,14 @@ export async function componentListBundle(doc = componentListDoc(), selectedNode
   return (await build({ stdin: { contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import SettingsPanel from "./components/SettingsPanel";
-import Canvas from "./components/Canvas";
+
+
 import { useEditor } from "./lib/store";
 import css from "./app/globals.css";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: SettingsPanel } = await import("./components/SettingsPanel");
+  const { default: Canvas } = await import("./components/Canvas");
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 useEditor.getState().replaceDoc(${JSON.stringify(doc)});
 useEditor.getState().setActivePage("p"); useEditor.getState().select(${JSON.stringify(selectedNode)});
@@ -45,6 +49,8 @@ function Example() {
   </>;
 }
 createRoot(document.getElementById("app")).render(<Example />);
+
+});
 `, resolveDir: resolve("."), sourcefile: "component-list-export-browser.tsx", loader: "tsx" },
     loader: { ".css": "text" }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },

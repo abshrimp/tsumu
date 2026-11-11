@@ -39,10 +39,14 @@ export async function scriptInputValueBundle(doc: SiteDoc) {
     stdin: { contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import ScriptEditor from "./components/ScriptEditor";
-import Canvas from "./components/Canvas";
+
+
 import { useEditor } from "./lib/store";
 import css from "./app/globals.css";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: ScriptEditor } = await import("./components/ScriptEditor");
+  const { default: Canvas } = await import("./components/Canvas");
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 useEditor.getState().replaceDoc(${JSON.stringify(doc)});
 window.inputScriptEditor = useEditor;
@@ -57,6 +61,8 @@ function Example() {
   </>;
 }
 createRoot(document.getElementById("app")).render(<Example />);
+
+});
 `, resolveDir: resolve("."), loader: "tsx", sourcefile: "script-input-value-browser.tsx" },
     loader: { ".css": "text" }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },
