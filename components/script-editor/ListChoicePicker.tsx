@@ -38,9 +38,11 @@ export function ListChoicePicker({
   const listRef = useRef<HTMLDivElement>(null);
 
   const selected = options.find((option) => option.value === value);
-  const selectedLabel = selected?.label ?? (value ? value + tr("(not found)") : "");
+  // A manually entered reference can be valid at runtime even without a sample.
+  const selectedLabel = selected?.label ?? value;
   const placeholder = options.length ? tr("Select a list", "select_a_list_variant_1") : tr("No lists");
-  const filter = query.trim().toLocaleLowerCase();
+  const entered = query.trim();
+  const filter = entered.toLocaleLowerCase();
   const visible = open
     ? options.filter((option) => (option.value + " " + option.label).toLocaleLowerCase().includes(filter))
     : [];
@@ -109,6 +111,12 @@ export function ListChoicePicker({
     setOpen(false);
     buttonRef.current?.focus();
   };
+  const chooseEntered = () => {
+    if (!entered) return;
+    setOpen(false);
+    if (entered !== value) onChange(entered);
+    buttonRef.current?.focus();
+  };
 
   return (
     <>
@@ -117,7 +125,7 @@ export function ListChoicePicker({
         type="button"
         className={"se-in se-pm-btn se-list-choice se-in-strong" + (value ? "" : " is-empty") + (open ? " is-open" : "")}
         style={{ width: triggerWidth }}
-        disabled={readOnly || !options.length}
+        disabled={readOnly}
         aria-label={tr("Select a list", "select_a_list_variant_1")}
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -151,8 +159,8 @@ export function ListChoicePicker({
             <Search size={12} />
             <input
               autoFocus
-              aria-label={tr("Search by name or ID")}
-              placeholder={tr("Search by name or ID")}
+              aria-label={tr("Search or enter a list path")}
+              placeholder={tr("Search or enter a list path")}
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value);
@@ -167,7 +175,8 @@ export function ListChoicePicker({
                 } else if (event.key === "Enter") {
                   event.preventDefault();
                   event.stopPropagation();
-                  choose(visible[Math.min(active, visible.length - 1)]);
+                  if (visible.length) choose(visible[Math.min(active, visible.length - 1)]);
+                  else chooseEntered();
                 }
               }}
             />
@@ -195,6 +204,11 @@ export function ListChoicePicker({
             ))}
             {!visible.length && <div className="se-pm-none">{tr("No lists")}</div>}
           </div>
+          {!!entered && !options.some((option) => option.value === entered) && (
+            <button type="button" className="dd-item se-list-custom" onClick={chooseEntered}>
+              {tr("Use entered path: {path}", { path: entered })}
+            </button>
+          )}
         </div>,
         document.body
       )}
