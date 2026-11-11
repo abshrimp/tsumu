@@ -353,12 +353,12 @@ export function NegationSelect({ not, onChange, operation }: {
 }) {
   // Contextual translations let each language choose the appropriate auxiliary verb.
   const context = operation === "contains" || operation === "starts-with" || operation === "ends-with"
-    ? "条件の判定・動詞" : "条件の判定";
+    ? "condition_check_verb" : "condition_check";
   return (
     <select className="se-in se-fixed-select" aria-label={tr("Condition polarity")}
       value={not ? "not" : "is"} onChange={(e) => onChange(e.target.value === "not")}>
-      <option value="is">{trc(context, "である")}</option>
-      <option value="not">{trc(context, "でない")}</option>
+      <option value="is">{trc(context, context === "condition_check_verb" ? "does" : "is")}</option>
+      <option value="not">{trc(context, context === "condition_check_verb" ? "does not" : "is not")}</option>
     </select>
   );
 }

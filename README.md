@@ -556,7 +556,7 @@ lib/
   activity.ts         Edit and publish activity log
   aiOps.ts            AI edit operations (applied on the server and in the browser)
   manualTopics.ts     Help articles
-  locales/            English translations
+  locales/            Japanese translations
 custom-worker.ts      Cloudflare Worker entry, including the collaboration Durable Object
 document-room.ts      The per-site document Durable Object (DocumentRoom)
 scripts/cloudflare.mjs  Writes the deploy wrangler config and runs OpenNext
@@ -565,7 +565,7 @@ scripts/cloudflare.mjs  Writes the deploy wrangler config and runs OpenNext
 ```bash
 npm run typecheck      # tsc --noEmit
 npm test               # regression tests for collaboration, undo, scripts, publishing and more
-npm run i18n:check     # missing English translations (other languages: npm run i18n:check -- <code>)
+npm run i18n:check     # missing Japanese translations (other languages: npm run i18n:check -- <code>)
 npm run build && npm run test:e2e   # end-to-end tests in real browsers (Playwright; first run: npx playwright install chromium firefox webkit)
 ```
 

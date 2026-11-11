@@ -61,7 +61,7 @@ export function setLang(lang: Lang) {
 
 /** 言語の辞書を、予備の言語の分も含めて読み込む */
 export async function loadDicts(lang: Lang): Promise<Dict[]> {
-  // 原文の言語（日本語）は辞書を使わない（予備の言語の訳まで読み込むと、原文が訳に置き換わってしまう）
+  // English is the source language and needs no lookup table.
   if (lang === SOURCE_LANG) return [];
   const chain = [lang, FALLBACK_LANG].filter(
     (l, i, a) => l !== SOURCE_LANG && a.indexOf(l) === i
@@ -118,26 +118,33 @@ export function format(s: string, vars?: Record<string, string | number>): strin
   return s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
 }
 
-/** 画面の文言を今の言語にする */
-export function tr(key: string, vars?: Record<string, string | number>): string {
-  const out = format(lookup(dicts, key) ?? key, vars);
-  return remember(out);
+/** Translate English source text, optionally distinguishing a context. */
+type Vars = Record<string, string | number>;
+
+export function tr(key: string, varsOrContext?: Vars | string, contextVars?: Vars): string {
+  const context = typeof varsOrContext === "string" ? varsOrContext : undefined;
+  const vars = typeof varsOrContext === "string" ? contextVars : varsOrContext;
+  const value = (context ? lookup(dicts, `${context}\\u0004${key}`) : undefined) ?? lookup(dicts, key) ?? key;
+  return remember(format(value, vars));
 }
 
-/** サーバー側: 指定した言語・辞書（loadDicts で読み込んだもの）で訳す */
+/** Use the same lookup rules for server rendering and API responses. */
 export function translate(
   lang: Lang,
   list: Dict[],
   key: string,
-  vars?: Record<string, string | number>
+  varsOrContext?: Vars | string,
+  contextVars?: Vars
 ): string {
-  const out = format(lookup(list, key) ?? key, vars);
-  return remember(out);
+  const context = typeof varsOrContext === "string" ? varsOrContext : undefined;
+  const vars = typeof varsOrContext === "string" ? contextVars : varsOrContext;
+  const value = (context ? lookup(list, `${context}\\u0004${key}`) : undefined) ?? lookup(list, key) ?? key;
+  return remember(format(value, vars));
 }
 
 /** Insert React nodes into translated text: trNodes("Run {cmd}", { cmd: <code>…</code> }) */
-export function trNodes(key: string, nodes: Record<string, ReactNode>): ReactNode[] {
-  return tr(key)
+export function trNodes(key: string, nodes: Record<string, ReactNode>, context?: string): ReactNode[] {
+  return (context ? tr(key, context) : tr(key))
     .split(/\{(\w+)\}/)
     // 配列で返すので、差し込んだ要素にも key を付ける（React の警告が出ないように）
     .map((part, i) => (i % 2 ? createElement(Fragment, { key: i }, nodes[part] ?? `{${part}}`) : part));
@@ -145,6 +152,5 @@ export function trNodes(key: string, nodes: Record<string, ReactNode>): ReactNod
 
 /** Different translations of the same English source in different contexts. */
 export function trc(context: string, key: string, vars?: Record<string, string | number>): string {
-  const out = format(lookup(dicts, `${context}\u0004${key}`) ?? lookup(dicts, key) ?? key, vars);
-  return current === SOURCE_LANG ? out : remember(out);
+  return tr(key, context, vars);
 }
