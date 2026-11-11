@@ -520,6 +520,42 @@ test("three ordinary blocks compose a value in preview and server generated outp
 });
 
 
+test("generated recipe evaluator narrows its discriminated result under strict TypeScript", () => {
+  const doc = scriptDataPickerDoc();
+  doc.pages.p.pageScripts![0].steps.push({
+    id: "typecheck-recipe", kind: "transform", source: "data", into: "result",
+    transform: { kind: "length" },
+  });
+  const generated = generateProject(doc).files["lib/value-recipe.ts"];
+  assert.ok(generated);
+  const folder = mkdtempSync(join(tmpdir(), "tsumu-generated-recipe-"));
+  try {
+    const recipeFile = join(folder, "value-recipe.ts");
+    const consumerFile = join(folder, "consumer.ts");
+    writeFileSync(recipeFile, generated, "utf8");
+    writeFileSync(consumerFile, `import { evaluateValueRecipe } from "./value-recipe";
+const vars: Record<string, unknown> = {};
+const result = evaluateValueRecipe([1, 2], [{ kind: "length" }], vars);
+if (result.kind === "value") vars.count = result.value;
+else if (result.kind === "missing") vars.count = undefined;
+else vars.error = result.code;
+`, "utf8");
+    try {
+      execFileSync(resolve(process.cwd(), "node_modules/.bin/tsc"), [
+        "--ignoreConfig", "--noEmit", "--strict", "--skipLibCheck", "--target", "es2022",
+        "--module", "esnext", "--moduleResolution", "bundler", "--lib", "es2022",
+        consumerFile,
+      ], { cwd: process.cwd(), encoding: "utf8" });
+    } catch (cause) {
+      const error = cause as { stdout?: string; stderr?: string; message?: string };
+      assert.fail("Generated evaluator failed TypeScript checking:\\n" +
+        (error.stdout ?? "") + (error.stderr ?? "") + (error.message ?? ""));
+    }
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
+});
+
 test("holiday dictionary rows are built using keyed writes and a list loop", () => {
   const doc = scriptDataPickerDoc();
   const steps = doc.pages.p.pageScripts![0].steps;
