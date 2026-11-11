@@ -67,9 +67,12 @@ jobs:
           exit 1
 
   e2e-shard:
-    # Playwright browser/dependency installation is validated on the stable LTS image.
-    # ubuntu-latest is migrating to 26.04; keep browser jobs deterministic.
     runs-on: ubuntu-24.04
+    # Match package-lock.json's Playwright release and avoid apt DNS failures
+    # during GitHub's ubuntu-latest transition to 26.04.
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      options: --user 1001
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -83,9 +86,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm install --global npm@12.2.1
       - run: npm ci
-      - run: npx --no-install playwright install --with-deps chromium firefox webkit
       - run: npm run build
       - run: node scripts/run-e2e-shard.mjs ${{ matrix.shard }}/4
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -99,6 +100,9 @@ jobs:
 
   generated-formats:
     runs-on: ubuntu-24.04
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      options: --user 1001
     timeout-minutes: 35
     strategy:
       fail-fast: false
@@ -112,11 +116,7 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm install --global npm@12.2.1
       - run: npm ci
-      - name: Install Chromium for framework browser checks
-        if: matrix.framework != 'nextjs'
-        run: npx --no-install playwright install --with-deps chromium
       - name: Verify TypeScript and JavaScript exports
         shell: bash
         run: |
