@@ -159,7 +159,7 @@ test("filter field dropdown marks nested Japanese category arrays as lists", asy
   await menu.locator(".se-pm-row").filter({
     has: page.locator(".se-pm-key").filter({ hasText: /^出展カテゴリ$/ }),
   }).locator(".dd-item").click();
-  await expect(filter.locator(".se-pm-btn")).toHaveText("categories › 出展カテゴリ");
+  await expect(filter.getByRole("button", { name: "categories › 出展カテゴリ" })).toBeVisible();
   const doc = await snapshot(page);
   const savedFilter = doc.pages.p.pageScripts[0].steps.find((s: any) => s.id === "category-filter");
   expect(savedFilter.field).toBe("categories.出展カテゴリ");
