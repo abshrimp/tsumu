@@ -44,11 +44,13 @@ test(`component-contained lists: select script arrays, sort, filter, clear and r
   await page.addScriptTag({ content: await nestedOperationsBundle(true) });
   for (const action of listActions) {
     await page.getByRole("button", { name: `Edit ${action}`, exact: true }).click();
-    const choice = page.locator(`.se-ws [data-sel-key="step:${action}-step"] select.se-in-strong`);
-    // Select named arrays through the real array selector rather than writing a loop variable directly.
-    await expect(choice.locator('option[value="tags"]')).toHaveText("tags");
-    await choice.selectOption("tags");
-    await expect(choice).toHaveValue("tags");
+    const choice = page.locator(`.se-ws [data-sel-key="step:${action}-step"] button.se-list-choice`);
+    // Choose through the actual popover, not by mutating the saved script.
+    await choice.click();
+    const option = page.locator(".se-list-picker").getByRole("option", { name: "tags", exact: true });
+    await expect(option).toBeVisible();
+    await option.click();
+    await expect(choice).toHaveText("tags");
     await page.getByRole("button", { name: "閉じる", exact: true }).click();
   }
   const before = await snapshot(page);
@@ -71,4 +73,51 @@ test(`component-contained lists: select script arrays, sort, filter, clear and r
   await page.addScriptTag({ content: scriptsFile(before.doc) });
   expect(await runOperations(page)).toEqual(previewResults);
   expect(errors).toEqual([]);
+});
+
+test("script list chooser filters candidates, supports the keyboard, and dismisses without changing the list", async ({ page }) => {
+  const errors: string[] = []; page.on("pageerror", (error) => errors.push(error.message));
+  await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
+  await page.addScriptTag({ content: await nestedOperationsBundle(true) });
+  await page.getByRole("button", { name: "Edit descending", exact: true }).click();
+  const choice = page.locator('.se-ws [data-sel-key="step:descending-step"] button.se-list-choice');
+  await expect(choice).toHaveAttribute("aria-haspopup", "listbox");
+  await choice.click();
+  const menu = page.locator(".se-list-picker");
+  const search = menu.locator("input");
+  await search.fill("tag");
+  await expect(menu.getByRole("option", { name: "tags", exact: true })).toHaveCount(1);
+  await search.press("Enter");
+  await expect(menu).toBeHidden();
+  await expect(choice).toHaveText("tags");
+  const before = await snapshot(page);
+
+  await choice.click();
+  await search.fill("no-such-list");
+  await expect(menu.getByRole("option")).toHaveCount(0);
+  await search.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(choice).toHaveText("tags");
+
+  await choice.click();
+  await page.locator(".se-ws").click({ position: { x: 5, y: 5 } });
+  await expect(menu).toBeHidden();
+  expect(await snapshot(page)).toEqual(before);
+  expect(errors).toEqual([]);
+});
+
+test("custom list picker accepts a path absent from the sample choices", async ({ page }) => {
+  await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
+  await page.addScriptTag({ content: await nestedOperationsBundle(true) });
+  await page.getByRole("button", { name: "Edit descending", exact: true }).click();
+  const choice = page.locator('.se-ws [data-sel-key="step:descending-step"] button.se-list-choice');
+  await choice.click();
+  const menu = page.locator(".se-list-picker");
+  await menu.locator("input").fill("tags.3");
+  await expect(menu.getByRole("option")).toHaveCount(0);
+  await menu.locator("input").press("Enter");
+  await expect(menu).toBeHidden();
+  await expect(choice).toHaveText("tags.3");
+  const saved = await snapshot(page);
+  expect(saved.doc.nodes.descending.scripts[0].steps[0].array).toBe("tags.3");
 });

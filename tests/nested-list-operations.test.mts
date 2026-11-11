@@ -93,7 +93,8 @@ test("the nested source is a real named page array offered by ScriptEditor's Arr
   const doc = nestedOperationsDoc();
   const html = renderToStaticMarkup(createElement(Ctx.Provider, { value: { arrays: pageArrays(doc, "p") } as EdCtx },
     createElement(ArraySelect, { value: "", onChange() {} })));
-  assert.match(html, /<option value="tags">tags<\/option>/);
+  assert.match(html, /class="[^"]*se-list-choice/);
+  assert.match(html, /aria-haspopup="listbox"/);
   assert.doesNotMatch(html, /見つかりません/);
 });
 

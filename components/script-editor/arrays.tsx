@@ -18,29 +18,13 @@ import { filterNumbersOf } from "./step-tree";
 import { Ctx } from "./context";
 import { PathMenu } from "./fetch";
 import { OpEditor, Phrase } from "./inputs";
+import { ListChoicePicker, type ListChoice } from "./ListChoicePicker";
 
 /** リストを選ぶ */
 export function ArraySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  // 分解したリスト・一覧を入れた変数（リスト要素で選べるものとそろえる）
-  const { arrays } = useContext(Ctx);
-  const known = !value || arrays.some((a) => a.name === value);
-  return (
-    <select
-      className={`se-in se-in-strong${value ? "" : " is-empty"}`}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      <option value="" disabled>
-        {arrays.length ? tr("Select a list", "select_a_list_variant_1") : tr("No lists")}
-      </option>
-      {arrays.map((a) => (
-        <option key={a.name} value={a.name}>
-          {a.name}
-        </option>
-      ))}
-      {!known && <option value={value}>{value}{tr("(not found)")}</option>}
-    </select>
-  );
+  const { arrays, readOnly } = useContext(Ctx);
+  const options: ListChoice[] = arrays.map((array) => ({ value: array.name, label: array.name }));
+  return <ListChoicePicker value={value} options={options} onChange={onChange} readOnly={readOnly} />;
 }
 
 /** Reuse paths across all selectors in the same document preview. */
@@ -56,7 +40,7 @@ function arrayPathsIn(samples: Record<string, unknown>): string[] {
     out.push(path);
     if (depth === 3) return;
     let visited = 0;
-    for (const k in v) {
+    for (const k of Array.isArray(v) ? ["0"] : Object.keys(v)) {
       if (!Object.hasOwn(v, k)) continue;
       if (visited++ >= 50 || out.length >= 100) break;
       const c = (v as Record<string, unknown>)[k];
@@ -72,36 +56,18 @@ function arrayPathsIn(samples: Record<string, unknown>): string[] {
 }
 
 export function AnyArraySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const { arrays, samples } = useContext(Ctx);
-  const named = arrays.map((a) => a.name);
-  const nested = arrayPathsIn(samples).filter((p) => !named.includes(p));
-  const all = [...named, ...nested];
-  return (
-    <select
-      className={`se-in se-in-strong${value ? "" : " is-empty"}`}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      <option value="" disabled>
-        {all.length ? tr("Select a list", "select_a_list_variant_1") : tr("No lists")}
-      </option>
-      {named.map((n) => (
-        <option key={n} value={n}>
-          {n}
-        </option>
-      ))}
-      {nested.length > 0 && (
-        <optgroup label={tr("Lists inside variables")}>
-          {nested.map((n) => (
-            <option key={n} value={n}>
-              {fieldLabel(n)}
-            </option>
-          ))}
-        </optgroup>
-      )}
-      {value && !all.includes(value) && <option value={value}>{value}{tr("(not found)")}</option>}
-    </select>
-  );
+  const { arrays, samples, readOnly } = useContext(Ctx);
+  const named = arrays.map((array) => array.name);
+  const nested = arrayPathsIn(samples).filter((path) => !named.includes(path));
+  const options: ListChoice[] = [
+    ...named.map((name) => ({ value: name, label: name })),
+    ...nested.map((path) => ({
+      value: path,
+      label: fieldLabel(path),
+      group: tr("Lists inside variables"),
+    })),
+  ];
+  return <ListChoicePicker value={value} options={options} onChange={onChange} readOnly={readOnly} />;
 }
 
 /** リストの要素の項目（入れ子は「category.name」のような位置）を、見本から並べる */

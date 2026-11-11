@@ -485,7 +485,7 @@ interface PathOption {
 function childOptions(value: unknown): PathOption[] {
   if (Array.isArray(value)) {
     const out: PathOption[] = value
-      .slice(0, 20)
+      .slice(0, 1)
       .map((v, i) => ({ key: String(i), label: tr("#{p1}", { p1: i + 1 }), value: v }));
     if (value.length > 1) {
       out.push({ key: "-1", label: tr("Last"), value: value[value.length - 1] });
@@ -500,11 +500,21 @@ function childOptions(value: unknown): PathOption[] {
 
 /** 中身の分からないリスト（画面を開いてから値が決まるもの）の位置の選択肢 */
 const UNKNOWN_ITEMS: PathOption[] = [
-  ...[0, 1, 2, 3, 4].map((i) => ({ key: String(i), label: tr("#{p1}", { p1: i + 1 }), value: undefined })),
+  { key: "0", label: tr("#{p1}", { p1: 1 }), value: undefined },
   { key: "-1", label: tr("Last"), value: undefined },
 ];
 
 export const isNested = (v: unknown) => v != null && typeof v === "object";
+
+/** A list containing one string must not look like that string's scalar value. */
+function PathValuePreview({ value }: { value: unknown }) {
+  return (
+    <span className="se-pm-val">
+      {isNested(value) && <span className="vx-kind">{tr("List", "list_variant_1")}</span>}
+      {isNested(value) && " "}{readableValue(value)}
+    </span>
+  );
+}
 
 /**
  * 「取得したデータの［…］」「リストの［…］」の位置を選ぶメニュー。
@@ -539,6 +549,7 @@ export function PathMenu({
   const [open, setOpen] = useState(false);
   /** 開いている階層の位置 */
   const [at, setAt] = useState("");
+  const [manual, setManual] = useState("");
   const [pos, setPos] = useState<CSSProperties>({});
   const btnRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -622,11 +633,21 @@ export function PathMenu({
     // 選んである位置の階層から開く
     const segs = path ? path.split(".") : [];
     setAt(known ? segs.slice(0, -1).join(".") : "");
+    setManual("");
     setOpen(true);
   };
   const pick = (p: string) => {
     setOpen(false);
     if (p !== path) onChange(p);
+  };
+  const chooseManual = () => {
+    const entered = manual.trim();
+    if (!entered) return;
+    // When browsing an array, a bare zero-based number selects that index.
+    // Full paths remain available for unresolved or dynamic data.
+    const direct = Array.isArray(levelValue) && /^(0|[1-9][0-9]*)$/.test(entered)
+      ? join(entered) : entered;
+    pick(direct);
   };
 
   return (
@@ -652,6 +673,19 @@ export function PathMenu({
               if (e.key === "Escape") { e.stopPropagation(); setOpen(false); }
             }}
           >
+            <form className="se-path-direct" onSubmit={(event) => {
+              event.preventDefault();
+              chooseManual();
+            }}>
+              <input
+                aria-label={tr("Enter a path or index")}
+                placeholder={Array.isArray(levelValue)
+                  ? tr("Index (0-based) or full path") : tr("Enter a path")}
+                value={manual}
+                onChange={(event) => setManual(event.target.value)}
+              />
+              <button type="submit" disabled={!manual.trim()}>{tr("Use path")}</button>
+            </form>
             {at && (
               <div className="se-pm-head">
                 <button
@@ -673,7 +707,7 @@ export function PathMenu({
                 onClick={() => pick(at)}
               >
                 <span className="se-pm-key">{at ? tr("All of this") : tr("Everything")}</span>
-                <span className="se-pm-val">{readableValue(levelValue)}</span>
+                <PathValuePreview value={levelValue} />
               </button>
             )}
             {rows.map((o) => {
@@ -689,7 +723,7 @@ export function PathMenu({
                     onClick={() => (pickable ? pick(full) : enter && setAt(full))}
                   >
                     <span className="se-pm-key">{o.label}</span>
-                    {known && <span className="se-pm-val">{readableValue(o.value)}</span>}
+                    {known && <PathValuePreview value={o.value} />}
                   </button>
                   {enter && (
                     <button
