@@ -968,7 +968,6 @@ export function VarInput({
   eager,
   extraNames,
   localNames,
-  localSamples,
   sourceStepId,
   valueContext,
   className,
@@ -992,8 +991,6 @@ export function VarInput({
   /** 「変数を探す」に足す、見本の無い変数（スクリプトで作る変数など） */
   extraNames?: string[];
   localNames?: string[];
-  /** Raw local values for the explorer's Value/List kind labels. */
-  localSamples?: Record<string, unknown>;
   sourceStepId?: string;
   valueContext?: ValueContext;
   className?: string;
@@ -1198,7 +1195,6 @@ export function VarInput({
           nodeId={nodeId}
           extraNames={extraNames}
           localNames={localNames}
-          localSamples={localSamples}
           sourceStepId={sourceStepId}
           context={valueContext}
           onPick={(name) => {
