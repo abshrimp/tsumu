@@ -84,7 +84,7 @@ export const zipCssBrowserBundle = buildSync({
       import { HTML_PREVIEW_REFRESH_MS } from "./components/canvas/useHtmlPreview";
       let root;
       function Preview({ doc }) {
-        const { html, error, needsRefresh, refreshing, refresh } = useHtmlPreview(doc.pages.p.rawHtml, doc.assets);
+        const { html, error, needsRefresh, refreshing, refresh } = useHtmlPreview(doc.pages.p.rawHtml, doc.assets, doc.pages.p.htmlZip);
         return createElement("div", null,
           createElement("output", { id: "preview-error" }, error || ""),
           (needsRefresh || error) && createElement("button", {
@@ -108,7 +108,7 @@ export const zipCssBrowserBundle = buildSync({
           return {
             siteName: "ZIP CSS", nodes: {}, pageOrder: ["p"],
             assets: Object.fromEntries(imported.assets.map((asset) => [asset.id, asset])),
-            pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: [], rawHtml: imported.html } },
+            pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "", children: [], rawHtml: imported.source, htmlZip: imported.zip } },
           };
         },
         mount(doc) {
