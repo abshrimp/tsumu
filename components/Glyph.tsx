@@ -25,10 +25,10 @@ const GLYPHS: Record<string, { Icon: LucideIcon; label: string }> = {
   "⇧": { Icon: ArrowBigUp, label: "Shift" },
   "⌘": { Icon: Command, label: "Command" },
   "⌥": { Icon: Option, label: "Option" },
-  "↑": { Icon: ArrowUp, label: tr("上") },
-  "↓": { Icon: ArrowDown, label: tr("下") },
-  "←": { Icon: ArrowLeft, label: tr("左") },
-  "→": { Icon: ArrowRight, label: tr("右") },
+  "↑": { Icon: ArrowUp, label: tr("Top") },
+  "↓": { Icon: ArrowDown, label: tr("Bottom") },
+  "←": { Icon: ArrowLeft, label: tr("Left") },
+  "→": { Icon: ArrowRight, label: tr("Right") },
 };
 
 const RE = /([⇧⌘⌥↑↓←→])/;

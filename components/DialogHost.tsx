@@ -85,7 +85,7 @@ function Dialog({ req }: { req: DialogRequest }) {
 
   const Icon = danger ? TriangleAlert : req.kind === "alert" ? Info : CircleAlert;
   const title =
-    opts.title ?? (req.kind === "alert" ? tr("お知らせ") : req.kind === "prompt" ? tr("入力してください") : tr("確認"));
+    opts.title ?? (req.kind === "alert" ? tr("News") : req.kind === "prompt" ? tr("Enter a value") : tr("Confirm"));
 
   return (
     <div
@@ -134,7 +134,7 @@ function Dialog({ req }: { req: DialogRequest }) {
         <div className="modal-actions">
           {req.kind !== "alert" && (
             <button ref={cancelRef} className="btn" onClick={() => finish(false)}>
-              {opts.cancelLabel ?? tr("キャンセル")}
+              {opts.cancelLabel ?? tr("Cancel")}
             </button>
           )}
           <button

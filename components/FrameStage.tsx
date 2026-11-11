@@ -120,7 +120,7 @@ export default function FrameStage({
     >
       <div
         className="frame-grip"
-        data-tip={drag ? undefined : tr("ドラッグで画面幅を変更（⌥を押しながらで吸着しない・ダブルクリックで元の幅に戻す）")}
+        data-tip={drag ? undefined : tr("Drag to change the screen width (hold ⌥ to disable snapping, double-click to reset)")}
       >
         <span className="frame-grip-bar" />
         {drag?.side === side && (
