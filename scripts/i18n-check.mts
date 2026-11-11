@@ -48,7 +48,7 @@ for (const f of files) {
       const first = literal(node.arguments[0]);
       if ((name === "tr" || name === "trNodes") && first !== undefined) {
         const context = name === "tr" ? literal(node.arguments[1]) : literal(node.arguments[2]);
-        const key = context === undefined ? first : `${context}\\u0004${first}`;
+        const key = context === undefined ? first : `${context}\u0004${first}`;
         if (!translated(key)) add(f, key);
       } else if (name === "trc" && first !== undefined) {
         const second = literal(node.arguments[1]);

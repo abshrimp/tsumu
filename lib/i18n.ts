@@ -124,7 +124,7 @@ type Vars = Record<string, string | number>;
 export function tr(key: string, varsOrContext?: Vars | string, contextVars?: Vars): string {
   const context = typeof varsOrContext === "string" ? varsOrContext : undefined;
   const vars = typeof varsOrContext === "string" ? contextVars : varsOrContext;
-  const value = (context ? lookup(dicts, `${context}\\u0004${key}`) : undefined) ?? lookup(dicts, key) ?? key;
+  const value = (context ? lookup(dicts, `${context}\u0004${key}`) : undefined) ?? lookup(dicts, key) ?? key;
   return remember(format(value, vars));
 }
 
@@ -138,7 +138,7 @@ export function translate(
 ): string {
   const context = typeof varsOrContext === "string" ? varsOrContext : undefined;
   const vars = typeof varsOrContext === "string" ? contextVars : varsOrContext;
-  const value = (context ? lookup(list, `${context}\\u0004${key}`) : undefined) ?? lookup(list, key) ?? key;
+  const value = (context ? lookup(list, `${context}\u0004${key}`) : undefined) ?? lookup(list, key) ?? key;
   return remember(format(value, vars));
 }
 
