@@ -177,7 +177,7 @@ test("filter can target the categories record and suggest key and list membershi
   await categories.locator(".dd-item").click();
 
   const op = filter.locator("select.se-in").filter({
-    has: page.locator('option[value="has-key"]'),
+    has: page.locator('option[value="eq"]'),
   });
   await expect(op).toHaveValue("has-key");
   await expect(op.locator('option[value="starts-with"]')).toHaveCount(0);
