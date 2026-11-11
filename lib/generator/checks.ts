@@ -136,6 +136,17 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
     });
   }
 
+  // An empty HTML-mode source would otherwise silently generate a blank Next.js page.
+  for (const pid of published) {
+    const page = doc.pages[pid];
+    if (page.rawHtml !== undefined && page.rawHtml !== null && !page.rawHtml.trim()) {
+      results.push({
+        level: "error",
+        message: tr('HTML page "{name}" is empty. Load its HTML source before publishing.', { name: page.name }),
+      });
+    }
+  }
+
   // 自動で付いたままの URL・タイトルは、検索結果やシェアで内容が伝わらない
   if (!doc.siteName?.trim() || doc.siteName.trim() === DEFAULT_SITE_NAME) {
     results.push({

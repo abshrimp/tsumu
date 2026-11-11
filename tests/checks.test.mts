@@ -111,3 +111,17 @@ test("editing the title first stops it from following the name", async () => {
   st().updatePage(id, { name: "Drinks", title: "Drinks list" });
   assert.equal(page(id).title, "Drinks list");
 });
+
+test("empty raw HTML blocks publishing instead of generating a blank page", () => {
+  const doc = withPage("tokimeki-dreamworld", "Dream World", "Dream World");
+  doc.pages.x.rawHtml = "";
+  const errors = runChecks(doc).filter(result => result.level === "error" && result.message.includes("Dream World"));
+  assert.ok(errors.some(result => result.message.includes("empty")), JSON.stringify(errors));
+  doc.pages.x.rawHtml = "<!doctype html><body>Story</body>";
+  assert.ok(!runChecks(doc).some(result => result.level === "error" && result.message.includes("empty")));
+  doc.pages.x.rawHtml = undefined;
+  assert.ok(!runChecks(doc).some(result => result.level === "error" && result.message.includes("empty")));
+  doc.pages.x.rawHtml = " ";
+  doc.pages.x.unpublished = true;
+  assert.ok(!runChecks(doc).some(result => result.level === "error" && result.message.includes("empty")));
+});
