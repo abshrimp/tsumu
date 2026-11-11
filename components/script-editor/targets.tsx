@@ -80,6 +80,58 @@ export function buildTree(doc: SiteDoc, nodeIds: string[]): TreeRow[] {
   });
 }
 
+/** A search retains the ancestor path to each match without automatically
+ * opening a parent whose own name or ID matched the query.
+ * Expanding that parent reveals all of its immediate children, including
+ * children which do not contain the search term. */
+export function searchNodePickerRows(
+  rows: readonly TreeRow[],
+  query: string,
+  manuallyOpen: ReadonlySet<string>,
+  manuallyClosed: ReadonlySet<string>,
+): { rows: TreeRow[]; autoOpen: Set<string> } {
+  const term = query.trim().toLocaleLowerCase();
+  if (!term) return { rows: [...rows], autoOpen: new Set() };
+  const matched = new Set(rows.filter((row) =>
+    row.name.toLocaleLowerCase().includes(term) ||
+    (row.attrId ?? "").toLocaleLowerCase().includes(term)
+  ).map((row) => row.id));
+  if (!matched.size) return { rows: [], autoOpen: new Set() };
+
+  // Input rows are preorder with depth; keep all ancestors of each result.
+  const relevant = new Set(matched);
+  const ancestors = new Set<string>();
+  const parents: TreeRow[] = [];
+  for (const row of rows) {
+    while (parents.length && parents[parents.length - 1].depth >= row.depth) parents.pop();
+    if (matched.has(row.id)) {
+      for (const parent of parents) {
+        relevant.add(parent.id);
+        ancestors.add(parent.id);
+      }
+    }
+    parents.push(row);
+  }
+  // A non-matching ancestor must open to make its matched descendants visible.
+  // A matching parent starts collapsed even if some descendant also matches.
+  const autoOpen = new Set([...ancestors].filter((id) =>
+    !matched.has(id) && !manuallyClosed.has(id)
+  ));
+  const shown: TreeRow[] = [];
+  const stack: { depth: number; visible: boolean; expanded: boolean; allChildren: boolean }[] = [];
+  for (const row of rows) {
+    while (stack.length && stack[stack.length - 1].depth >= row.depth) stack.pop();
+    const parent = stack[stack.length - 1];
+    const visible = parent
+      ? parent.visible && parent.expanded && (relevant.has(row.id) || parent.allChildren)
+      : relevant.has(row.id);
+    const expanded = manuallyOpen.has(row.id) || autoOpen.has(row.id);
+    stack.push({ depth: row.depth, visible, expanded, allChildren: manuallyOpen.has(row.id) });
+    if (visible) shown.push(row);
+  }
+  return { rows: shown, autoOpen };
+}
+
 export type MenuTarget =
   | { type: "step"; loc: Loc }
   | { type: "script"; scriptId: string };
@@ -195,6 +247,10 @@ export function NodePicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [closed, setClosed] = useState<Set<string>>(new Set());
+  // Search has its own expansion state. A fresh query always starts with
+  // directly matching parents collapsed, unlike a previously browsed tree.
+  const [searchOpen, setSearchOpen] = useState<Set<string>>(new Set());
+  const [searchClosed, setSearchClosed] = useState<Set<string>>(new Set());
   const [key, setKey] = useState(0);
   const [pos, setPos] = useState<CSSProperties>({});
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -203,9 +259,17 @@ export function NodePicker({
 
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (!menuRef.current?.contains(t) && !btnRef.current?.contains(t)) setOpen(false);
+    const outside = (target: EventTarget | null) =>
+      target instanceof Node &&
+      !menuRef.current?.contains(target) && !btnRef.current?.contains(target);
+    const onDown = (e: PointerEvent) => {
+      // Capture before script rows (or other React portals) stop propagation.
+      // Unlike mousedown, this also covers pen and touch interactions.
+      if (outside(e.target)) setOpen(false);
+    };
+    const onFocus = (e: FocusEvent) => {
+      // Tab to another control should dismiss the popup as well.
+      if (outside(e.target)) setOpen(false);
     };
     // A click can trigger programmatic scrolling of the canvas or focused
     // block. Only close for user scrolling outside the menu, not scroll
@@ -213,11 +277,13 @@ export function NodePicker({
     const onUserScroll = (e: Event) => {
       if (!menuRef.current?.contains(e.target as Node)) setOpen(false);
     };
-    window.addEventListener("mousedown", onDown);
+    document.addEventListener("pointerdown", onDown, true);
+    document.addEventListener("focusin", onFocus, true);
     window.addEventListener("wheel", onUserScroll, { capture: true, passive: true });
     window.addEventListener("touchmove", onUserScroll, { capture: true, passive: true });
     return () => {
-      window.removeEventListener("mousedown", onDown);
+      document.removeEventListener("pointerdown", onDown, true);
+      document.removeEventListener("focusin", onFocus, true);
       window.removeEventListener("wheel", onUserScroll, true);
       window.removeEventListener("touchmove", onUserScroll, true);
     };
@@ -239,16 +305,13 @@ export function NodePicker({
     return rows.filter((r) => keep.has(r.id));
   }, [open, rows, pickable]);
 
-  const q = query.trim().toLowerCase();
+  const q = query.trim().toLocaleLowerCase();
+  const searchView = useMemo(() => open && q
+    ? searchNodePickerRows(visible, q, searchOpen, searchClosed)
+    : null, [open, visible, q, searchOpen, searchClosed]);
   const shown = useMemo(() => {
     if (!open) return [];
-    if (q) {
-      return visible.filter(
-        (r) =>
-          pickable(r) &&
-          (r.name.toLowerCase().includes(q) || (r.attrId ?? "").toLowerCase().includes(q))
-      );
-    }
+    if (q) return searchView?.rows ?? [];
     // 閉じた枝の中は出さない
     const out: TreeRow[] = [];
     let hideBelow = Infinity;
@@ -259,11 +322,13 @@ export function NodePicker({
       if (closed.has(r.id)) hideBelow = r.depth;
     }
     return out;
-  }, [open, visible, q, closed, pickable]);
+  }, [open, visible, q, closed, searchView]);
 
+  // Search includes structural ancestors in keyboard navigation so the
+  // user can expand an otherwise non-pickable branch.
   const choices = useMemo(() => open ? [
     ...(q ? [] : special.map((sp) => ({ kind: "special" as const, sp }))),
-    ...shown.filter(pickable).map((r) => ({ kind: "row" as const, r })),
+    ...(q ? shown : shown.filter(pickable)).map((r) => ({ kind: "row" as const, r })),
   ] : [], [open, q, special, shown, pickable]);
   const keyByRowId = useMemo(() => {
     const index = new Map<string, number>();
@@ -304,12 +369,45 @@ export function NodePicker({
     if (!r) return;
     setPos(anchoredMenuPos(r, 300, 360));
     setQuery("");
+    setSearchOpen(new Set());
+    setSearchClosed(new Set());
     setKey(0);
     setOpen(true);
+  };
+  const isExpanded = (row: TreeRow) => q
+    ? searchOpen.has(row.id) || !!searchView?.autoOpen.has(row.id)
+    : !closed.has(row.id);
+  const toggleRow = (row: TreeRow) => {
+    if (q) {
+      const wasOpen = isExpanded(row);
+      setSearchOpen((previous) => {
+        const next = new Set(previous);
+        if (wasOpen) next.delete(row.id);
+        else next.add(row.id);
+        return next;
+      });
+      setSearchClosed((previous) => {
+        const next = new Set(previous);
+        if (wasOpen) next.add(row.id);
+        else next.delete(row.id);
+        return next;
+      });
+    } else {
+      setClosed((previous) => {
+        const next = new Set(previous);
+        if (next.has(row.id)) next.delete(row.id);
+        else next.add(row.id);
+        return next;
+      });
+    }
   };
   const choose = (i: number) => {
     const c = choices[i];
     if (!c) return;
+    if (c.kind === "row" && !pickable(c.r)) {
+      if (c.r.hasChildren) toggleRow(c.r);
+      return;
+    }
     setOpen(false);
     if (c.kind === "special") onSpecial(c.sp.value);
     else onPick(c.r);
@@ -344,6 +442,8 @@ export function NodePicker({
                 placeholder={tr("要素名・IDで検索")}
                 onChange={(e) => {
                   setQuery(e.target.value);
+                  setSearchOpen(new Set());
+                  setSearchClosed(new Set());
                   setKey(0);
                 }}
                 onKeyDown={(e) => {
@@ -354,7 +454,14 @@ export function NodePicker({
                     if (n) setKey((k) => (k + (e.key === "ArrowDown" ? 1 : -1) + n) % n);
                   } else if (isEnterKey(e)) {
                     e.preventDefault();
-                    choose(key);
+                    choose(Math.min(key, choices.length - 1));
+                  } else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+                    const choice = choices[Math.min(key, choices.length - 1)];
+                    if (choice?.kind === "row" && choice.r.hasChildren &&
+                        isExpanded(choice.r) !== (e.key === "ArrowRight")) {
+                      e.preventDefault();
+                      toggleRow(choice.r);
+                    }
                   } else if (e.key === "Escape") {
                     e.preventDefault();
                     e.stopPropagation();
@@ -381,29 +488,25 @@ export function NodePicker({
               {shown.map((r) => {
                 const ok = pickable(r);
                 const k = keyOf(r);
-                const isClosed = closed.has(r.id);
+                const expanded = isExpanded(r);
                 return (
                   <div
                     key={r.id}
-                    className={`np-row${ok ? "" : " is-struct"}${r.id === selectedId ? " is-sel" : ""}${ok && k === key ? " is-key" : ""}`}
-                    style={{ paddingLeft: q ? 6 : 6 + r.depth * 14 }}
-                    onMouseEnter={() => ok && setKey(k)}
-                    onClick={() => ok && choose(k)}
+                    className={`np-row${ok ? "" : " is-struct"}${r.id === selectedId ? " is-sel" : ""}${k >= 0 && k === key ? " is-key" : ""}`}
+                    style={{ paddingLeft: 6 + r.depth * 14 }}
+                    onMouseEnter={() => k >= 0 && setKey(k)}
+                    onClick={() => k >= 0 ? choose(k) : r.hasChildren && toggleRow(r)}
                     data-tip={ok ? (r.attrId ? undefined : hint) : undefined}
                   >
-                    {!q && r.hasChildren ? (
+                    {r.hasChildren ? (
                       <button
                         type="button"
-                        className={`np-chev${isClosed ? "" : " is-open"}`}
-                        aria-label={isClosed ? tr("開く") : tr("閉じる")}
+                        className={`np-chev${expanded ? " is-open" : ""}`}
+                        aria-label={expanded ? tr("閉じる") : tr("開く")}
+                        aria-expanded={expanded}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setClosed((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(r.id)) next.delete(r.id);
-                            else next.add(r.id);
-                            return next;
-                          });
+                          toggleRow(r);
                         }}
                       >
                         <ChevronRight size={11} />
