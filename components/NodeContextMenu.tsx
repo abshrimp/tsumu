@@ -95,13 +95,13 @@ export default function NodeContextMenu({
       items.push(
         {
           key: "edit-comp",
-          label: tr("コンポーネントを編集"),
+          label: tr("Edit component"),
           icon: <Pencil size={14} />,
           onClick: run(() => s().setEditingComponent(cid)),
         },
         {
           key: "detach",
-          label: tr("インスタンスを解除"),
+          label: tr("Detach instance"),
           icon: <PackageOpen size={14} />,
           onClick: run(() => s().detachInstance(node.id)),
         },
@@ -111,13 +111,13 @@ export default function NodeContextMenu({
       items.push(
         {
           key: "make-comp",
-          label: tr("コンポーネント化"),
+          label: tr("Create component"),
           icon: <Component size={14} />,
           onClick: run(() => s().createComponent(node.id)),
         },
         {
           key: "make-list",
-          label: tr("リスト表示にする"),
+          label: tr("Turn into list display"),
           icon: <LayoutList size={14} />,
           onClick: run(() => s().createList(node.id)),
         },
@@ -129,7 +129,7 @@ export default function NodeContextMenu({
       items.push(
         {
           key: "reveal-asset",
-          label: tr("アセットを表示"),
+          label: tr("Show in assets"),
           icon: <FolderSearch size={14} />,
           onClick: run(() => s().revealAsset(assetId)),
         },
@@ -140,7 +140,7 @@ export default function NodeContextMenu({
       items.push(
         {
           key: "edit",
-          label: tr("テキストを編集"),
+          label: tr("Edit text"),
           icon: <TextCursorInput size={14} />,
           kbd: "Enter",
           onClick: run(() => s().setEditingText(node.id)),
@@ -151,14 +151,14 @@ export default function NodeContextMenu({
     items.push(
       {
         key: "copy",
-        label: tr("コピー"),
+        label: tr("Copy"),
         icon: <Copy size={14} />,
         kbd: "⌘C",
         onClick: run(() => s().copyNode(node.id)),
       },
       {
         key: "cut",
-        label: tr("切り取り"),
+        label: tr("Cut"),
         icon: <Scissors size={14} />,
         kbd: "⌘X",
         // ロック中の要素は消せない（コピーだけされて残るのを防ぐ）
@@ -173,7 +173,7 @@ export default function NodeContextMenu({
       },
       {
         key: "dup",
-        label: tr("複製"),
+        label: tr("Duplicate"),
         icon: <CopyPlus size={14} />,
         kbd: "⌘D",
         onClick: run(() => {
@@ -189,7 +189,7 @@ export default function NodeContextMenu({
   if (clipboard || copied) {
     items.push({
       key: "paste",
-      label: tr("貼り付け"),
+      label: tr("Paste"),
       icon: <ClipboardPaste size={14} />,
       kbd: "⌘V",
       onClick: run(() => s().pasteClipboard(copied ?? undefined)),
@@ -209,14 +209,14 @@ export default function NodeContextMenu({
       items.push(
         {
           key: "up",
-          label: tr("前へ移動"),
+          label: trc("move_up_variant_1", "Move up"),
           icon: <ArrowUp size={14} />,
           disabled: !!node.locked || idx <= 0,
           onClick: run(() => s().moveNode(node.id, parent, idx - 1)),
         },
         {
           key: "down",
-          label: tr("後ろへ移動"),
+          label: trc("move_down_variant_1", "Move down"),
           icon: <ArrowDown size={14} />,
           disabled: !!node.locked || idx < 0 || idx >= siblings.length - 1,
           // moveNode の index は移動前の並びでの位置
@@ -227,7 +227,7 @@ export default function NodeContextMenu({
     if (parent?.kind === "node") {
       items.push({
         key: "parent",
-        label: tr("親を選択"),
+        label: tr("Select parent"),
         icon: <ArrowUpLeft size={14} />,
         kbd: "⇧Enter",
         onClick: run(() => s().select(parent.id)),
@@ -243,14 +243,14 @@ export default function NodeContextMenu({
       },
       {
         key: "lock",
-        label: node.locked ? tr("ロック解除") : tr("ロック"),
+        label: node.locked ? tr("Unlock") : tr("Lock"),
         icon: node.locked ? <LockOpen size={14} /> : <Lock size={14} />,
         onClick: run(() => s().updateNode(node.id, { locked: !node.locked })),
       },
       "sep",
       {
         key: "del",
-        label: node.locked ? tr("削除（ロック中）") : tr("削除"),
+        label: node.locked ? tr("Delete (locked)") : tr("Delete"),
         icon: <Trash2 size={14} />,
         kbd: "Del",
         danger: true,

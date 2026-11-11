@@ -75,7 +75,7 @@ export function CheckList({ checks, onClose }: { checks: CheckResult[]; onClose:
     return (
       <div className="check-ok">
         <Check size={14} />
-        {tr("公開前チェックをすべて通過しました。")}
+        {tr("All pre-publish checks passed.")}
       </div>
     );
   }
@@ -138,10 +138,10 @@ const OVERWRITE_LIST_LIMIT = 8;
 function confirmOverwrite(paths: string[]): Promise<boolean> {
   const listed = paths.slice(0, OVERWRITE_LIST_LIMIT).join("\n");
   const rest = paths.length - OVERWRITE_LIST_LIMIT;
-  const list = rest > 0 ? `${listed}\n${tr("ほか{count}件", { count: rest })}` : listed;
+  const list = rest > 0 ? `${listed}\n${tr("and {count} more", { count: rest })}` : listed;
   return showConfirm(
-    tr("次のファイルは、前回の公開のあとにGitHub上で編集されたか、手で追加したファイルと同じ名前です。公開するとエディタの内容で上書きされます（上書き前の内容はGitの履歴に残ります）。\n\n{list}", { list }),
-    { title: tr("GitHub上の変更を上書きしますか？"), okLabel: tr("上書きして公開"), danger: true }
+    tr("These files were edited on GitHub after the last publish, or were added by hand with the same name as a generated file. Publishing replaces them with the editor's version (the previous content stays in the Git history).\n\n{list}", { list }),
+    { title: tr("Overwrite changes made on GitHub?"), okLabel: tr("Overwrite and publish"), danger: true }
   );
 }
 
@@ -183,7 +183,7 @@ async function postPublish<T>(conf: PublishConfig, target: PublishTarget, body: 
     throw new MissingAssetError(data.error ?? fallback);
   }
   if (!res.ok || !data) {
-    throw new Error(data?.error ?? tr("{fallback}（{status}）", { fallback, status: res.status }));
+    throw new Error(data?.error ?? tr("{fallback} ({status})", { fallback, status: res.status }));
   }
   return data;
 }
@@ -234,15 +234,15 @@ function usePublishConfig(): PublishConfig | null | "error" {
 
 const SITE = {
   test: {
-    label: () => tr("テストサイト"),
-    desc: () => tr("確認用。検索エンジンに載らないように公開します"),
-    action: () => tr("テストに公開"),
+    label: () => tr("Test site"),
+    desc: () => tr("For checking. Published so that search engines skip it"),
+    action: () => tr("Publish to test"),
     icon: FlaskConical,
   },
   production: {
-    label: () => tr("本番サイト"),
-    desc: () => tr("公開ドメインに反映します"),
-    action: () => tr("本番に公開"),
+    label: () => tr("Live site"),
+    desc: () => tr("Goes live on your domain"),
+    action: () => tr("Publish to live"),
     icon: Globe,
   },
 } as const;
@@ -318,8 +318,8 @@ export default function PublishModal({
     // Hosting build and output settings must match the selected project format.
     if (site === "production" && format !== "nextjs") {
       const accepted = await showConfirm(
-        tr("選択した形式でGitHubへPushすると、公開先のファイル構成が変わります。ホスティングのビルド・公開ディレクトリが選択した形式に対応しているか確認してください。続行しますか？"),
-        { title: tr("公開先の設定を確認してください"), okLabel: tr("この形式でPushする"), danger: true }
+        tr("Pushing this format to GitHub changes the published file structure. Check that the hosting build and output-directory settings match the selected format. Continue?"),
+        { title: tr("Check the hosting settings"), okLabel: tr("Push this format"), danger: true }
       );
       if (!accepted) return;
     }
@@ -331,7 +331,7 @@ export default function PublishModal({
     try {
       target = await docWithSvgFilters();
       if (hasPublishCredentials(target)) {
-        throw new Error(tr("認証情報を含む編集データはGitHubへPushできません。APIキーやパスワードを削除し、サーバーの環境変数などで管理してください。"));
+        throw new Error(tr("Cannot push editable data containing credentials to GitHub. Remove API keys or passwords and manage them with server environment variables instead."));
       }
       const { files, binaries, remoteAssets } = await prepareExportProject(target, options, site);
       // 編集データも同梱（バックアップ兼、履歴から編集内容を戻すときに使う）
@@ -363,13 +363,13 @@ export default function PublishModal({
 
       // 公開済みの内容と同じアセットは送り直さない（blob SHAは内容で決まるため再利用できる）。
       // 手で追加したファイルを残すためにも使うので、取得できなければ公開しない
-      setProgress(tr("公開済みの内容を確認しています…"));
+      setProgress(tr("Checking what's already published…"));
       const existing = await postPublish<{
         head: string | null;
         blobs: Record<string, string>;
         manifest: Record<string, string>;
         generated: Record<string, string> | null;
-      }>(targets, site, { action: "tree", target: site }, tr("公開済みの内容を取得できませんでした"));
+      }>(targets, site, { action: "tree", target: site }, tr("Couldn't load the published content"));
       if (!(existing.head === null || (typeof existing.head === "string" && existing.head.length > 0))) {
         throw new PublishConflictError(tr(publishConflictMessage));
       }
@@ -377,7 +377,7 @@ export default function PublishModal({
       const plan = planPublish(existing.blobs, existing.generated, outputPaths);
       const incompatiblePaths = conflictingCommitPaths([...outputPaths, ...Object.keys(plan.kept)]);
       if (incompatiblePaths) {
-        throw new Error(`${tr("公開できないファイルの場所が含まれています")}: ${incompatiblePaths.join(" / ")}`);
+        throw new Error(`${tr("The publish includes a file path that isn't allowed")}: ${incompatiblePaths.join(" / ")}`);
       }
       const overwritten = [...plan.edited, ...plan.clashing];
       if (overwritten.length && !(await confirmOverwrite(overwritten))) {
@@ -405,7 +405,7 @@ export default function PublishModal({
       let uploadedAssets = 0;
       let failed = false;
       if (pending.length) {
-        setProgress(tr("アセットを送信中… 0/{length}", { length: pending.length }));
+        setProgress(tr("Uploading assets… 0/{length}", { length: pending.length }));
       }
       const uploaders = Array.from({ length: Math.min(4, pending.length) }, async () => {
         // 1件でも失敗したら残りは送らない
@@ -414,7 +414,7 @@ export default function PublishModal({
           try {
             const uploaded = await postPublish<{ sha: string }>(targets, site,
               { action: "upload", target: site, ...asset },
-              tr("アセット（{path}）をアップロードできませんでした", { path: asset.path })
+              tr("Couldn't upload the asset ({path})", { path: asset.path })
             );
             assetShas[asset.path] = uploaded.sha;
             if (asset.source !== undefined) manifest[asset.source] = uploaded.sha;
@@ -428,7 +428,7 @@ export default function PublishModal({
           }
           uploadedAssets += 1;
           setProgress(
-            tr("アセットを送信中… {uploadedAssets}/{length}", { uploadedAssets, length: pending.length })
+            tr("Uploading assets… {uploadedAssets}/{length}", { uploadedAssets, length: pending.length })
           );
         }
       });
@@ -440,7 +440,7 @@ export default function PublishModal({
         generated[path] = await gitBlobShaOf(new TextEncoder().encode(content));
       }
       files[GENERATED_MANIFEST_PATH] = serializeGeneratedManifest(generated);
-      setProgress(tr("GitHubへコミットしています…"));
+      setProgress(tr("Committing to GitHub…"));
 
       const data = await postPublish<{ commitUrl?: string; optionsSaved?: boolean }>(targets, site,
         {
@@ -453,14 +453,14 @@ export default function PublishModal({
           keptPaths: Object.keys(plan.kept),
           message: `${site === "test" ? "Test publish" : "Publish"}: ${target.siteName} (${new Date().toLocaleString(getLang())})`,
         },
-        tr("公開できませんでした")
+        tr("Couldn't publish")
       );
       // フッターの「公開済み」表示は本番サイトの状態を表す
       if (site === "production") markPublished(docFingerprint(target));
       setResult({ commitUrl: data.commitUrl, warnings, format, optionsSaved: data.optionsSaved });
       setPhase("done");
     } catch (e) {
-      setResult({ error: userMessage(e, tr("公開できませんでした")), conflict: e instanceof PublishConflictError });
+      setResult({ error: userMessage(e, tr("Couldn't publish")), conflict: e instanceof PublishConflictError });
       setPhase("error");
     }
   };
@@ -470,7 +470,7 @@ export default function PublishModal({
   return (
     <div className="modal-backdrop" onClick={phase === "busy" ? undefined : onClose}>
       <div className="modal pub-modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{site && phase !== "check" ? tr("{site}に公開", { site: SITE[site].label() }) : tr("サイトを公開")}</h2>
+        <h2>{site && phase !== "check" ? tr("Publish to {site}", { site: SITE[site].label() }) : tr("Publish site")}</h2>
 
         {phase === "check" && targets && !targets.configured && (
           <>
@@ -480,27 +480,27 @@ export default function PublishModal({
               </span>
               {targets.unset === "token" ? (
                 <>
-                  <strong>{tr("GitHubへの公開が設定されていません")}</strong>
+                  <strong>{tr("Publishing to GitHub isn't configured")}</strong>
                   <p>
-                    {tr("公開するには、サーバー側の設定が必要です。管理者に確認してください。")}
+                    {tr("Publishing needs to be set up on the server. Contact your administrator.")}
                   </p>
                 </>
               ) : (
                 <>
-                  <strong>{tr("公開先が設定されていません")}</strong>
-                  <p>{tr("ホーム画面のサイトの設定で、公開先のGitHubリポジトリ（例: owner/site-repo）を指定してください。")}</p>
+                  <strong>{tr("No publishing destination is set up")}</strong>
+                  <p>{tr("Set the GitHub repository to publish to (e.g. owner/site-repo) in the site settings on the home screen.")}</p>
                 </>
               )}
-              <p>{tr("設定するまでは、メニューの「zipでエクスポート」でサイトを書き出せます。編集内容はこのまま保存されます。")}</p>
+              <p>{tr("Until then, you can download the site with \"Export as zip\" in the menu. Your edits are still saved.")}</p>
             </div>
             <div className="modal-actions">
               {targets.unset === "repo" && (
                 <a className="btn btn-primary" href={`/?settings=${encodeURIComponent(currentSiteId())}`}>
-                  {tr("サイトの設定を開く")}
+                  {tr("Open site settings")}
                 </a>
               )}
               <button className="btn" onClick={onClose}>
-                {tr("閉じる")}
+                {tr("Close")}
               </button>
             </div>
           </>
@@ -509,14 +509,14 @@ export default function PublishModal({
         {phase === "check" && conf === null && (
           <div className="pub-loading is-large" role="status">
             <LoaderCircle size={16} className="spin" />
-            {tr("公開先を確認しています…")}
+            {tr("Checking publish targets…")}
           </div>
         )}
         {phase === "check" && conf === "error" && (
           <ul className="check-list">
             <li className="is-error">
               <TriangleAlert size={14} style={{ flex: "none", marginTop: 1 }} />
-              {tr("公開先の設定を読み込めませんでした")}
+              {tr("Couldn't load the publish settings")}
             </li>
           </ul>
         )}
@@ -525,21 +525,21 @@ export default function PublishModal({
             <p className="modal-desc">
               {format === "html" || format === "single-html"
                 ? format === "single-html"
-                  ? tr("1つのHTMLファイルにCSS・JavaScript・画像などを埋め込んでGitHubへPushします。静的ホスティングではリポジトリのルートを配信してください。")
-                  : tr("HTML・CSS・JavaScript・画像を、ビルド不要のファイルとしてGitHubへPushします。静的サイトとして公開する場合は、リポジトリのルートを配信するようホスティングを設定してください。")
+                  ? tr("Push one HTML file with embedded CSS, JavaScript and images to GitHub. Configure static hosting to serve the repository root.")
+                  : tr("Push ready-to-deploy HTML, CSS, JavaScript, and images to GitHub, without a build step. To host a static site, configure your provider to serve the repository root.")
                 : format === "react"
-                  ? tr("{framework}のソースをGitHubへPushします。ホスティング側でビルドし、distフォルダを配信してください。", { framework: EXPORT_FRAMEWORK_OPTIONS.find((x) => x.value === format)?.label ?? format })
+                  ? tr("Push {framework} source to GitHub. Configure hosting to build the project and serve the dist directory.", { framework: EXPORT_FRAMEWORK_OPTIONS.find((x) => x.value === format)?.label ?? format })
                   : format === "vue"
-                    ? tr("Vue 3 + ViteのプロジェクトをGitHubへPushします。サーバー側で描画するため、ホスティング側でビルドした後、npm start でNode.jsサーバーを起動してください。")
+                    ? tr("Push the Vue 3 + Vite project to GitHub. It renders on the server, so configure hosting to build it and then start the Node.js server with npm start.")
                   : format === "sveltekit"
-                    ? tr("SvelteKitプロジェクトをGitHubへPushします。ビルド後の公開ディレクトリはbuildです。")
+                    ? tr("Push the SvelteKit project to GitHub. Its build output is in the build directory.")
                     : format === "nuxt"
-                      ? tr("NuxtプロジェクトをGitHubへPushします。ホスティング側でNuxt用のビルド設定が必要です。")
-                      : tr("Next.jsプロジェクトをGitHubへPushします。ホスティング側のビルドが完了すると公開サイトに反映されます。")}
+                      ? tr("Push the Nuxt project to GitHub. Nuxt-specific build settings are required for hosting.")
+                      : tr("Push a Next.js project to GitHub. Changes appear on the live site once your hosting provider finishes its build.")}
             </p>
             <fieldset className="export-options pub-export-options" disabled={!targets}>
               <div className="export-option">
-                <div className="export-option-label">{tr("フレームワーク")}</div>
+                <div className="export-option-label">{tr("Framework")}</div>
                 <Dropdown
                   value={format}
                   options={EXPORT_FRAMEWORK_OPTIONS.map((option) => ({ ...option, label: tr(option.label) }))}
@@ -550,13 +550,13 @@ export default function PublishModal({
                       setStyle("css");
                     }
                   }}
-                  title={tr("フレームワーク")}
+                  title={tr("Framework")}
                   style={{ width: "100%" }}
                 />
               </div>
               <div className="export-option-grid">
                 <div className="export-option">
-                  <div className="export-option-label">{tr("言語")}</div>
+                  <div className="export-option-label">{tr("Language")}</div>
                   <Dropdown
                     value={language}
                     options={format === "html" || format === "single-html"
@@ -566,12 +566,12 @@ export default function PublishModal({
                           { value: "javascript", label: "JavaScript" },
                         ]}
                     onChange={(value) => setLanguage(value as ExportLanguage)}
-                    title={tr("言語")}
+                    title={tr("Language")}
                     style={{ width: "100%" }}
                   />
                 </div>
                 <div className="export-option">
-                  <div className="export-option-label">{tr("スタイル")}</div>
+                  <div className="export-option-label">{tr("Style")}</div>
                   <Dropdown
                     value={style}
                     options={format === "html" || format === "single-html"
@@ -582,7 +582,7 @@ export default function PublishModal({
                           { value: "tailwind", label: "Tailwind CSS" },
                         ]}
                     onChange={(value) => setStyle(value as ExportStyle)}
-                    title={tr("スタイル")}
+                    title={tr("Style")}
                     style={{ width: "100%" }}
                   />
                 </div>
@@ -590,11 +590,11 @@ export default function PublishModal({
             </fieldset>
             <p className="hint export-note">
               {format === "html" || format === "single-html"
-                ? tr("HTML形式はJavaScriptとCSSで出力します。データ取得にはAPIのCORS許可が必要です。")
-                : tr("GitHubへのPushはソースの送信です。形式によってホスティングのビルド設定が異なり、コミットだけでは公開成功を保証できません。")}
-              {tr(" 公開対象はプロジェクト全体です。")}
+                ? tr("HTML output uses JavaScript and CSS. Fetching external data requires the API to allow CORS.")
+                : tr("GitHub Push sends source files. Hosting build settings depend on the format; a commit alone does not guarantee a successful deployment.")}
+              {tr(" The entire project will be published.")}
             </p>
-            <p className="hint export-note">{tr("GitHubへPushすると、編集データには非公開ページや設定も含まれ、公開リポジトリでは第三者が閲覧できます。公開前に内容を確認してください。")}</p>
+            <p className="hint export-note">{tr("Pushing to GitHub also includes editable data, unpublished pages and settings. Anyone can view them in a public repository. Review the content before publishing.")}</p>
             <CheckList checks={checks} onClose={onClose} />
             <div className="pub-cards">
               {SITE_ORDER.filter((t) => t === "production" || configuredTargets.previewEnabled).map((t) => {
@@ -632,10 +632,10 @@ export default function PublishModal({
                 onClick={onOpenHistory}
               >
                 <History size={13} />
-                {tr("公開履歴・ロールバック")}
+                {tr("Publish history & rollback")}
               </button>
               <button className="btn" onClick={onClose}>
-                {tr("閉じる")}
+                {tr("Close")}
               </button>
             </div>
           </>
@@ -644,7 +644,7 @@ export default function PublishModal({
         {phase === "busy" && (
           <div className="pub-loading is-large">
             <LoaderCircle size={16} className="spin" />
-            {progress || tr("公開データを準備しています…")}
+            {progress || tr("Preparing files to publish…")}
           </div>
         )}
 
@@ -653,18 +653,18 @@ export default function PublishModal({
             <div className="check-ok">
               <Check size={14} />
               {result.format === "html" || result.format === "single-html"
-                ? tr("GitHubへPushしました。HTML一式はそのまま配信できる形式です。")
-                : tr("GitHubへPushしました。ホスティング側のビルド・公開設定をご確認ください。")}
+                ? tr("Pushed to GitHub. The HTML files can be served directly.")
+                : tr("Pushed to GitHub. Verify your hosting provider's build and publish settings.")}
             </div>
             {result.optionsSaved === false && (
-              <p className="hint export-note">{tr("GitHubへの公開は完了しましたが、出力形式の設定をDBに保存できませんでした。")}</p>
+              <p className="hint export-note">{tr("Published to GitHub, but the output format preferences could not be saved to the database.")}</p>
             )}
             {!!result.warnings?.length && (
               <ul className="check-list">
                 {result.warnings.map((w) => (
                   <li key={w}>
                     <TriangleAlert size={14} style={{ flex: "none", marginTop: 1 }} />
-                    {tr("{w}（このファイルは含めずに公開しました）", { w })}
+                    {tr("{w} (published without this file)", { w })}
                   </li>
                 ))}
               </ul>
@@ -673,17 +673,17 @@ export default function PublishModal({
               {result.commitUrl && (
                 <a className="btn" href={result.commitUrl} target="_blank" rel="noopener noreferrer">
                   <GitCommitHorizontal size={13} />
-                  {tr("コミットを見る")}
+                  {tr("View commit")}
                 </a>
               )}
               {siteUrl && (
                 <a className="btn" href={siteUrl} target="_blank" rel="noopener noreferrer">
                   <ExternalLink size={13} />
-                  {tr("サイトを開く")}
+                  {tr("Open site")}
                 </a>
               )}
               <button className="btn btn-primary" onClick={onClose}>
-                {tr("閉じる")}
+                {tr("Close")}
               </button>
             </div>
           </>
@@ -699,10 +699,10 @@ export default function PublishModal({
             </ul>
             <div className="modal-actions">
               <button className="btn" onClick={() => result.conflict ? onClose() : setPhase("check")}>
-                {result.conflict ? tr("閉じる") : tr("戻る")}
+                {result.conflict ? tr("Close") : tr("Back")}
               </button>
               <button className="btn btn-primary" disabled={result.conflict} onClick={() => site && publish(site)}>
-                {tr("再試行")}
+                {tr("Retry")}
               </button>
             </div>
           </>
@@ -745,14 +745,14 @@ async function restoreFrom(url: string, label: string, current: () => boolean): 
   if (!current()) return false;
   const error = untrusted && typeof untrusted === "object" && "error" in untrusted
     ? (untrusted as { error?: unknown }).error : undefined;
-  if (!res.ok) throw new Error(typeof error === "string" ? error : tr("編集データを読み込めませんでした"));
+  if (!res.ok) throw new Error(typeof error === "string" ? error : tr("Couldn't load editor data"));
   // A GitHub commit can be edited independently of Tsumu. The basic shape
   // check is insufficient: reject cycles, prototype keys and invalid links
   // using the same validator as an explicit doc.json import.
   const data = sanitizeImportedInlineIcons(validateImportedDoc(untrusted));
   const ok = await showConfirm(
-    tr("いまの編集内容が「{label}」の内容に置き換わります。サーバーにも保存されますが、「元に戻す」（⌘Z）で今の内容に戻せます。", { label }),
-    { title: tr("この版の編集内容に戻しますか？"), okLabel: tr("この版に戻す") }
+    tr("Your current edits will be replaced with the content from \"{label}\". It's saved to the server too, but Undo (⌘Z) brings back what you have now.", { label }),
+    { title: tr("Restore the edits from this version?"), okLabel: tr("Restore this version") }
   );
   if (!ok || !current()) return false;
   useEditor.getState().restoreDoc(data);
@@ -798,10 +798,10 @@ function TargetHistory({ conf, target, onDone, busy, setBusy, busyRequest }: {
     try {
       const res = await fetch(historyUrl(conf, target));
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? tr("履歴を読み込めませんでした"));
+      if (!res.ok) throw new Error(data.error ?? tr("Couldn't load the history"));
       setState(data);
     } catch (e) {
-      setError(userMessage(e, tr("履歴を読み込めませんでした")));
+      setError(userMessage(e, tr("Couldn't load the history")));
     }
   }, [conf, target]);
 
@@ -811,22 +811,22 @@ function TargetHistory({ conf, target, onDone, busy, setBusy, busyRequest }: {
 
   const rollback = async (c: PublishCommit) => {
     const ok = await showConfirm(
-      tr("{site}を {date} に公開した内容に戻します。新しいコミットとして積むので、あとからこの操作も取り消せます。", {
+      tr("The {site} returns to what was published on {date}. It's added as a new commit, so you can undo this later too.", {
         site: SITE[target].label(),
         date: formatDate(c.date),
       }),
-      { title: tr("公開サイトをこの版に戻しますか？"), okLabel: tr("この版に戻す"), danger: target === "production" }
+      { title: tr("Return the published site to this version?"), okLabel: tr("Restore this version"), danger: target === "production" }
     );
     if (!ok) return;
     const request = ++busyRequest.current;
     setBusy(c.sha);
     try {
-      await postPublish(conf, target, { target, sha: c.sha, expectedHead: state?.head }, tr("ロールバックできませんでした"), "/api/publish/history");
+      await postPublish(conf, target, { target, sha: c.sha, expectedHead: state?.head }, tr("Couldn't roll back"), "/api/publish/history");
       await load();
-      void showAlert(tr("ホスティング側でビルドが終わると反映されます。"), { title: tr("ロールバックしました") });
+      void showAlert(tr("It goes live once your hosting service finishes building."), { title: tr("Rolled back") });
     } catch (e) {
       if (e instanceof PublishConflictError) { setState(null); setError(e.message); }
-      void showAlert(userMessage(e, tr("ロールバックできませんでした")), { title: tr("ロールバックできませんでした") });
+      void showAlert(userMessage(e, tr("Couldn't roll back")), { title: tr("Couldn't roll back") });
     } finally {
       if (busyRequest.current === request) setBusy(null);
     }
@@ -839,7 +839,7 @@ function TargetHistory({ conf, target, onDone, busy, setBusy, busyRequest }: {
     try {
       if (await restoreFrom(historyUrl(conf, target, c.sha), formatDate(c.date), operation.current)) onDone();
     } catch (e) {
-      if (operation.current()) void showAlert(userMessage(e, tr("編集データを読み込めませんでした")), { title: tr("編集データを読み込めませんでした") });
+      if (operation.current()) void showAlert(userMessage(e, tr("Couldn't load editor data")), { title: tr("Couldn't load editor data") });
     } finally {
       operation.finish();
       if (busyRequest.current === request) setBusy(null);
@@ -859,10 +859,10 @@ function TargetHistory({ conf, target, onDone, busy, setBusy, busyRequest }: {
       ) : !state ? (
         <div className="pub-loading">
           <LoaderCircle size={14} className="spin" />
-          {tr("読み込んでいます…")}
+          {trc("loading_variant_1", "Loading…")}
         </div>
       ) : !state.commits.length ? (
-        <p className="hint">{tr("まだ公開されていません。")}</p>
+        <p className="hint">{tr("Not published yet.")}</p>
       ) : (
         <ol className="hist-list">
           {state.commits.map((c) => {
@@ -872,7 +872,7 @@ function TargetHistory({ conf, target, onDone, busy, setBusy, busyRequest }: {
                 <div className="hist-main">
                   <span className="hist-date">
                     {formatDate(c.date)}
-                    {current && <em>{tr("公開中")}</em>}
+                    {current && <em>{tr("Live")}</em>}
                   </span>
                   <a className="hist-msg" href={c.url} target="_blank" rel="noopener noreferrer" title={c.message}>
                     <span className="mono">{c.sha.slice(0, 7)}</span>
@@ -883,16 +883,16 @@ function TargetHistory({ conf, target, onDone, busy, setBusy, busyRequest }: {
                   <button
                     className="btn btn-sm btn-ghost"
                     disabled={!!busy}
-                    data-tip={tr("この版で公開した時点の編集内容をエディタに読み込みます")}
+                    data-tip={tr("Loads the editor content as it was when this version was published")}
                     onClick={() => void restore(c)}
                   >
                     {busy === `doc:${c.sha}` ? <LoaderCircle size={12} className="spin" /> : null}
-                    {tr("編集内容を復元")}
+                    {tr("Restore edits")}
                   </button>
                   {!current && (
                     <button className="btn btn-sm" disabled={!!busy} onClick={() => void rollback(c)}>
                       {busy === c.sha ? <LoaderCircle size={12} className="spin" /> : <RotateCcw size={12} />}
-                      {tr("サイトを戻す")}
+                      {tr("Restore site")}
                     </button>
                   )}
                 </div>
@@ -918,10 +918,10 @@ function BackupHistory({ onDone }: { onDone: () => void }) {
       try {
         const res = await fetch(siteApi("/api/doc/backups"));
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? tr("読み込めませんでした"));
+        if (!res.ok) throw new Error(data.error ?? tr("Couldn't load"));
         if (!cancelled) setList(data.backups);
       } catch (e) {
-        if (!cancelled) setError(userMessage(e, tr("読み込めませんでした")));
+        if (!cancelled) setError(userMessage(e, tr("Couldn't load")));
       }
     })();
     return () => {
@@ -936,7 +936,7 @@ function BackupHistory({ onDone }: { onDone: () => void }) {
     try {
       if (await restoreFrom(siteApi("/api/doc/backups", { day: b.day }), formatDate(b.savedAt), operation.current)) onDone();
     } catch (e) {
-      if (operation.current()) void showAlert(userMessage(e, tr("編集データを読み込めませんでした")), { title: tr("編集データを読み込めませんでした") });
+      if (operation.current()) void showAlert(userMessage(e, tr("Couldn't load editor data")), { title: tr("Couldn't load editor data") });
     } finally {
       operation.finish();
       if (busyRequest.current === request) setBusy(null);
@@ -946,7 +946,7 @@ function BackupHistory({ onDone }: { onDone: () => void }) {
   return (
     <>
       <p className="hint" style={{ margin: "0 0 10px" }}>
-        {tr("サーバーは編集した日ごとに、その日の最後の内容を自動で残します（曜日ごとに7日分。日付が変わって最初に保存したときに残ります）。")}
+        {tr("For each day you edit, the server automatically keeps that day's final content (seven days, one per weekday; it is kept at the first save after the date changes).")}
       </p>
       {error ? (
         <ul className="check-list">
@@ -958,10 +958,10 @@ function BackupHistory({ onDone }: { onDone: () => void }) {
       ) : !list ? (
         <div className="pub-loading">
           <LoaderCircle size={14} className="spin" />
-          {tr("読み込んでいます…")}
+          {trc("loading_variant_1", "Loading…")}
         </div>
       ) : !list.length ? (
-        <p className="hint">{tr("まだバックアップがありません。")}</p>
+        <p className="hint">{tr("No backups yet.")}</p>
       ) : (
         <ol className="hist-list">
           {list.map((b) => (
@@ -973,7 +973,7 @@ function BackupHistory({ onDone }: { onDone: () => void }) {
               <div className="hist-acts">
                 <button className="btn btn-sm" disabled={busy !== null} onClick={() => void restore(b)}>
                   {busy === b.day ? <LoaderCircle size={12} className="spin" /> : <RotateCcw size={12} />}
-                  {tr("この内容に戻す")}
+                  {tr("Restore this")}
                 </button>
               </div>
             </li>
@@ -998,18 +998,18 @@ export function HistoryModal({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal hist-modal" onClick={(e) => e.stopPropagation()}>
-        <h2>{tr("履歴")}</h2>
+        <h2>{tr("History")}</h2>
         <p className="modal-desc">
-          {tr("公開したサイトを前の版に戻したり、編集内容を以前の状態に戻したりできます。")}
+          {tr("Return the published site to an earlier version, or bring your edits back to an earlier state.")}
         </p>
         <div className="hist-tabs" role="tablist">
           <button role="tab" aria-selected={tab === "site"} className={tab === "site" ? "is-on" : ""} onClick={() => setTab("site")}>
             <Globe size={13} />
-            {tr("公開サイト")}
+            {tr("Published site")}
           </button>
           <button role="tab" aria-selected={tab === "doc"} className={tab === "doc" ? "is-on" : ""} onClick={() => setTab("doc")}>
             <History size={13} />
-            {tr("編集データの自動バックアップ")}
+            {tr("Automatic backups of edits")}
           </button>
         </div>
         <div className="hist-body">
@@ -1018,17 +1018,17 @@ export function HistoryModal({
           ) : conf === null ? (
             <div className="pub-loading">
               <LoaderCircle size={14} className="spin" />
-              {tr("読み込んでいます…")}
+              {trc("loading_variant_1", "Loading…")}
             </div>
           ) : conf === "error" ? (
-            <p className="hint">{tr("公開先の設定を読み込めませんでした")}</p>
+            <p className="hint">{tr("Couldn't load the publish settings")}</p>
           ) : (
             <PublishHistory conf={conf} onDone={onClose} />
           )}
         </div>
         <div className="modal-actions">
           <button className="btn" onClick={onClose}>
-            {tr("閉じる")}
+            {tr("Close")}
           </button>
         </div>
       </div>

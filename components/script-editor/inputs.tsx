@@ -86,7 +86,7 @@ export function NumericVariableIn({
   width?: number;
 }) {
   return <TextIn vars value={String(value)} width={Math.max(width, 100)}
-    placeholder={tr("数値 / {変数}")} valueContext="value"
+    placeholder={tr("Number / {variable}")} valueContext="value"
     onCommit={(input) => {
       const text = input.trim();
       if (/^\{[^{}\s"'<>]+\}$/.test(text)) { onCommit(text); return; }
@@ -200,11 +200,11 @@ export function ValueIn({ value, onCommit, itemFields, itemSamples, width = 150 
       loop.fields.some(sameRoot) || (loop.roots?.some(sameRoot) ?? false)));
   const sample = source && !exclusiveOwnOutput && !locallyShadowed
     ? lookupVar(samples, source) : undefined;
-  const kind = sample === undefined ? null : sample !== null && typeof sample === "object" ? tr("リスト") : tr("値");
+  const kind = sample === undefined ? null : sample !== null && typeof sample === "object" ? trc("list_variant_1", "List") : tr("Value");
   if (readOnly) return <span className="se-in se-in-fake">{source ? fieldLabel(source) : value}</span>;
   return <span className="se-value-choice">
     <TextIn value={value} onCommit={onCommit} vars valueContext="value" width={width}
-      itemFields={itemFields} itemSamples={itemSamples} placeholder={tr("値 / {変数}")} />
+      itemFields={itemFields} itemSamples={itemSamples} placeholder={tr("value / {variable}")} />
     {source && kind && (
       <span className="se-value-info">
         <span className="vx-kind">{kind}</span>
@@ -268,12 +268,12 @@ export function FieldValueIn({
   const choices = bool
     ? field?.kind === "radio"
       ? [
-          { value: "true", label: tr("選んでいる（true）") },
-          { value: "false", label: tr("選んでいない（false）") },
+          { value: "true", label: tr("Selected (true)") },
+          { value: "false", label: tr("Not selected (false)") },
         ]
       : [
-          { value: "true", label: tr("オン（チェックあり・true）") },
-          { value: "false", label: tr("オフ（チェックなし・false）") },
+          { value: "true", label: tr("On (checked, true)") },
+          { value: "false", label: tr("Off (unchecked, false)") },
         ]
       : field && (field.kind === "select" || field.kind === "radio") && field.choices.length
         ? field.choices.map((c) => ({ value: c, label: c }))
@@ -282,7 +282,7 @@ export function FieldValueIn({
   const known = boolValue !== null || !!choices?.some((c) => c.value === value);
   if (!choices || free || (value && !known)) {
     return (
-      <TextIn value={value} placeholder={placeholder ?? tr("値 / {変数}")} vars width={width} onCommit={onCommit} />
+      <TextIn value={value} placeholder={placeholder ?? tr("value / {variable}")} vars width={width} onCommit={onCommit} />
     );
   }
   return (
@@ -294,13 +294,13 @@ export function FieldValueIn({
         else onCommit(e.target.value);
       }}
     >
-      {!value && <option value="">{tr("選択…")}</option>}
+      {!value && <option value="">{tr("Choose…")}</option>}
       {choices.map((c) => (
         <option key={c.value} value={c.value}>
           {c.label}
         </option>
       ))}
-      <option value={OTHER_VALUE}>{tr("その他（変数・文字列）…")}</option>
+      <option value={OTHER_VALUE}>{tr("Other (variable or text)…")}</option>
     </select>
   );
 }
@@ -319,30 +319,30 @@ export function NewTabCheck({
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
       />
-      {tr("新しいタブ")}
+      {tr("New tab")}
     </label>
   );
 }
 
 const COND_SUBJECTS: { value: string; label: string }[] = [
-  { value: "value", label: tr("の値が") },
-  { value: "checked", label: tr("がチェックされている") },
-  { value: "visible", label: tr("が表示されている") },
-  { value: "hovered", label: tr("にホバーしている") },
+  { value: "value", label: tr("'s value") },
+  { value: "checked", label: tr("is checked") },
+  { value: "visible", label: tr("is visible") },
+  { value: "hovered", label: tr("is hovered") },
 ];
 
 export const CONDITION_OPERATORS: readonly { value: ScriptOp; label: string }[] = [
-  { value: "eq", label: trc("条件比較", "と同じ") },
-  { value: "contains", label: trc("条件比較", "を含む") },
-  { value: "starts-with", label: trc("条件比較", "で始まる") },
-  { value: "ends-with", label: trc("条件比較", "で終わる") },
-  { value: "gt", label: trc("条件比較", "より大きい") },
-  { value: "gte", label: trc("条件比較", "以上") },
-  { value: "lt", label: trc("条件比較", "より小さい") },
-  { value: "lte", label: trc("条件比較", "以下") },
-  { value: "in", label: trc("条件比較", "のいずれかと同じ") },
-  { value: "empty", label: trc("条件比較", "空") },
-  { value: "has-key", label: tr("項目が存在する") },
+  { value: "eq", label: trc("condition_comparison", "equal to") },
+  { value: "contains", label: trc("condition_comparison", "contain") },
+  { value: "starts-with", label: trc("condition_comparison", "start with") },
+  { value: "ends-with", label: trc("condition_comparison", "end with") },
+  { value: "gt", label: trc("condition_comparison", "greater than") },
+  { value: "gte", label: trc("condition_comparison", "at least") },
+  { value: "lt", label: trc("condition_comparison", "less than") },
+  { value: "lte", label: trc("condition_comparison", "at most") },
+  { value: "in", label: trc("condition_comparison", "one of") },
+  { value: "empty", label: trc("condition_comparison", "empty") },
+  { value: "has-key", label: tr("Has a key") },
 ];
 
 /** "である / でない" is shared by if conditions and every list filter clause. */
@@ -355,7 +355,7 @@ export function NegationSelect({ not, onChange, operation }: {
   const context = operation === "contains" || operation === "starts-with" || operation === "ends-with"
     ? "条件の判定・動詞" : "条件の判定";
   return (
-    <select className="se-in se-fixed-select" aria-label={tr("条件の判定")}
+    <select className="se-in se-fixed-select" aria-label={tr("Condition polarity")}
       value={not ? "not" : "is"} onChange={(e) => onChange(e.target.value === "not")}>
       <option value="is">{trc(context, "である")}</option>
       <option value="not">{trc(context, "でない")}</option>
@@ -368,7 +368,7 @@ export function OpEditor({
   op,
   value,
   onChange,
-  placeholder = tr("値"),
+  placeholder = tr("Value"),
   target,
   not,
   onNotChange,
@@ -442,8 +442,8 @@ export function CondEditor({
         )
       }
     >
-      <option value="el">{tr("要素")}</option>
-      <option value="var">{tr("変数")}</option>
+      <option value="el">{tr("Element")}</option>
+      <option value="var">{tr("Variables")}</option>
     </select>
   );
   if (isVar) {
@@ -456,7 +456,7 @@ export function CondEditor({
             left: (
               <TextIn
                 value={cond.left ?? ""}
-                placeholder={tr("{変数}")}
+                placeholder={tr("{variable}")}
                 width={96}
                 vars
                 onCommit={(v) => onChange({ ...cond, left: v })}
@@ -466,7 +466,7 @@ export function CondEditor({
               <OpEditor
                 op={op}
                 value={cond.value ?? ""}
-                placeholder={tr("値 / {変数}")}
+                placeholder={tr("value / {variable}")}
                 onChange={(o, v) => onChange({ ...cond, op: o, value: v })}
                 not={cond.not} onNotChange={(not) => onChange({ ...cond, not })}
               />
