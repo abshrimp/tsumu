@@ -93,14 +93,10 @@ textarea {
 /* ============ ヘッダー / フッター ============ */
 
 .hdr {
-  height: 46px;
   flex: none;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 12px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
 }
 
 .hdr-group {
@@ -135,14 +131,10 @@ textarea {
 }
 
 .ftr {
-  height: 32px;
   flex: none;
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 12px;
-  background: var(--panel);
-  border-top: 1px solid var(--border);
   color: var(--text-2);
 }
 
@@ -156,34 +148,13 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 28px;
-  padding: 0 12px;
-  border-radius: var(--radius-s);
   border: 1px solid var(--border-strong);
-  background: var(--panel);
-  font-weight: 500;
   transition: background 120ms ease, border-color 120ms ease;
 }
 
-.btn:hover {
-  background: var(--field);
-}
 
-.btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
 
-.btn-primary:hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
-}
 
-.btn-sm {
-  height: 24px;
-  padding: 0 9px;
-}
 
 .icon-btn {
   display: inline-flex;
@@ -192,13 +163,10 @@ textarea {
   width: 28px;
   height: 28px;
   flex: none;
-  border-radius: var(--radius-s);
   color: var(--text-2);
-  transition: background 120ms ease, color 120ms ease;
 }
 
 .icon-btn:hover {
-  background: var(--field);
   color: var(--text);
 }
 
@@ -207,10 +175,6 @@ textarea {
   pointer-events: none;
 }
 
-.icon-btn.is-on {
-  color: var(--accent);
-  background: var(--accent-soft);
-}
 
 .icon-btn.sm {
   width: 22px;
@@ -219,10 +183,7 @@ textarea {
 
 .seg {
   display: inline-flex;
-  padding: 2px;
   background: var(--field);
-  border-radius: var(--radius);
-  gap: 2px;
 }
 
 .seg > button {
@@ -232,7 +193,6 @@ textarea {
   gap: 5px;
   height: 26px;
   padding: 0 10px;
-  border-radius: var(--radius-s);
   color: var(--text-2);
   font-weight: 500;
   white-space: nowrap;
@@ -243,11 +203,6 @@ textarea {
   color: var(--text);
 }
 
-.seg > button.is-on {
-  background: var(--panel);
-  color: var(--text);
-  box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.1);
-}
 
 /* デバイス切替：狭い画面では選択中のもの以外ラベルを省く */
 @media (max-width: 1440px) {
@@ -380,10 +335,6 @@ textarea {
   max-height: 320px;
   overflow-y: auto;
   background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: var(--shadow-pop);
-  padding: 4px;
   display: flex;
   flex-direction: column;
 }
@@ -391,10 +342,6 @@ textarea {
 .dd-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  min-height: 28px;
-  padding: 0 8px 0 4px;
-  border-radius: var(--radius-s);
   text-align: left;
   color: var(--text);
 }
@@ -405,10 +352,6 @@ textarea {
   padding-bottom: 5px;
 }
 
-.dd-item:hover {
-  background: var(--accent);
-  color: #fff;
-}
 
 .dd-item:hover .dd-icon,
 .dd-item:hover .dd-desc {
@@ -455,21 +398,15 @@ textarea {
 }
 
 /* 右クリックメニュー（dd-menuを流用） */
-.ctx-menu {
-  padding: 4px;
-}
 
 .ctx-sep {
   height: 1px;
-  margin: 4px 6px;
   background: var(--border);
 }
 
 .ctx-kbd {
   flex: none;
-  font-size: 10px;
   color: var(--text-3);
-  font-family: ui-monospace, Menlo, monospace;
 }
 
 .dd-item:hover .ctx-kbd {
@@ -480,10 +417,6 @@ textarea {
   color: var(--danger);
 }
 
-.dd-item.is-danger:hover {
-  background: var(--danger);
-  color: #fff;
-}
 
 /* ============ インスペクタ（Figma風フィールド） ============ */
 
@@ -824,8 +757,6 @@ textarea {
 
 .panel-resizer {
   flex: none;
-  width: 5px;
-  margin: 0 -2px;
   cursor: col-resize;
   z-index: 5;
   position: relative;
@@ -834,9 +765,7 @@ textarea {
 .panel-resizer::after {
   content: "";
   position: absolute;
-  inset: 0 2px;
   background: transparent;
-  transition: background 120ms ease;
 }
 
 .panel-resizer:hover::after,
@@ -852,7 +781,6 @@ textarea {
   gap: 10px;
   padding: 7px 8px 7px 12px;
   border-bottom: 1px solid var(--border);
-  background: #fbfbfc;
   color: var(--text-2);
   font-size: 11px;
   font-weight: 500;
@@ -870,16 +798,11 @@ textarea {
   flex: none;
   display: flex;
   border-bottom: 1px solid var(--border);
-  padding: 0 4px;
-  gap: 0;
 }
 
 .tab {
-  padding: 9px 8px;
   color: var(--text-2);
   font-weight: 500;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
   white-space: nowrap;
 }
 
@@ -888,7 +811,6 @@ textarea {
 }
 
 .tab.is-on {
-  color: var(--text);
   border-bottom-color: var(--text);
 }
 
@@ -916,7 +838,6 @@ textarea {
 
 .sec {
   border-bottom: 1px solid var(--border);
-  padding: 12px 14px 14px;
 }
 
 /* デバイス別の表示切替 */
@@ -936,7 +857,6 @@ textarea {
   gap: 2px;
   padding: 2px;
   background: var(--field);
-  border-radius: var(--radius);
 }
 
 .vis-btn {
@@ -946,7 +866,6 @@ textarea {
   justify-content: center;
   width: 30px;
   height: 24px;
-  border-radius: var(--radius-s);
   color: var(--text-3);
   transition: background 120ms ease, color 120ms ease;
 }
@@ -993,8 +912,6 @@ textarea {
   width: 100%;
   gap: 6px;
   padding: 2px 0;
-  font-weight: 600;
-  font-size: 12px;
   color: var(--text);
 }
 
@@ -1009,7 +926,6 @@ textarea {
 
 .sec-head .chev {
   color: var(--text-3);
-  transition: transform 120ms ease;
 }
 
 .sec-head.is-open .chev {
@@ -1356,10 +1272,6 @@ textarea {
   gap: 3px;
 }
 
-.data-more {
-  color: var(--text-3);
-  font-size: 10.5px;
-}
 
 /* 1件分の中身（配列・入れ子も展開） */
 .data-detail {
@@ -1670,17 +1582,11 @@ textarea {
   flex: none;
   padding: 2px 7px;
   border-radius: 999px;
-  background: var(--field);
-  color: var(--text-2);
   font-size: 10.5px;
   font-weight: 500;
   white-space: nowrap;
 }
 
-.bp-chip.is-override {
-  background: var(--accent-soft);
-  color: var(--accent-hover);
-}
 
 .state-bar .select {
   height: 26px;
@@ -1706,10 +1612,6 @@ textarea {
   background: var(--accent-soft);
 }
 
-.layer-row.is-sel .layer-name {
-  color: var(--accent);
-  font-weight: 600;
-}
 
 .layer-caret {
   flex: none;
@@ -1736,9 +1638,6 @@ textarea {
 
 .layer-name input {
   width: 100%;
-  border: 1px solid var(--accent);
-  border-radius: 3px;
-  padding: 1px 4px;
   font-size: 12px;
 }
 
@@ -1752,8 +1651,6 @@ textarea {
   font-family: ui-monospace, Menlo, monospace;
   color: var(--text-3);
   background: var(--field);
-  border-radius: 3px;
-  padding: 1px 4px;
   transition: opacity 100ms ease;
 }
 
@@ -1763,10 +1660,6 @@ textarea {
   opacity: 0;
 }
 
-.layer-row.is-sel .layer-tag {
-  background: #d3eafc;
-  color: var(--accent);
-}
 
 .layer-act {
   flex: none;
@@ -1850,7 +1743,6 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
   color: var(--text-3);
   visibility: hidden;
   pointer-events: auto;
@@ -1978,16 +1870,10 @@ textarea {
   gap: 6px;
   padding: 12px 4px 10px;
   border: 1px solid var(--border);
-  border-radius: 10px;
   color: var(--text-2);
   transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
 }
 
-.add-item:hover {
-  border-color: var(--accent-border);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
 
 .add-item span {
   font-size: 11px;
@@ -2105,8 +1991,6 @@ textarea {
   height: 28px;
   display: inline-flex;
   align-items: center;
-  padding: 0 10px;
-  border-radius: var(--radius);
   background: var(--field);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2115,7 +1999,6 @@ textarea {
 
 .img-pick-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
   padding: 8px;
   border-radius: var(--radius);
@@ -2157,9 +2040,6 @@ textarea {
   white-space: nowrap;
 }
 
-.img-pick-cell:hover {
-  border-color: var(--accent);
-}
 
 .img-pick-cell.is-sel {
   border-color: var(--accent);
@@ -2241,7 +2121,6 @@ textarea {
 
 .asset-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 10px;
   padding: 0 12px 12px;
 }
@@ -2415,7 +2294,6 @@ textarea {
 .canvas-area {
   flex: 1;
   min-width: 0;
-  overflow: auto;
   /* スクロールバーの出没で幅が変わると、フィット計算が振動して
      キャンバスがガタつくため、常にガター分を確保しておく */
   scrollbar-gutter: stable;
@@ -2444,26 +2322,15 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  padding: 7px 16px;
-  background: var(--accent-soft);
   border-bottom: 1px solid var(--accent-border);
   color: var(--text);
 }
 
-.bp-bar-name {
-  font-weight: 600;
-  color: var(--accent-hover);
-}
 
 .bp-bar-scope {
   color: var(--text-2);
 }
 
-.bp-bar .btn {
-  background: var(--panel);
-}
 
 .comp-edit-bar {
   display: flex;
@@ -2549,7 +2416,6 @@ textarea {
   position: relative;
   margin: 28px auto 80px;
   background: #fff;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 8px 32px rgba(0, 0, 0, 0.06);
   transform-origin: top center;
   /* position: fixed の基準をエディタ画面ではなくページフレームにする */
   transform: translateZ(0);
@@ -2914,7 +2780,6 @@ textarea {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(24, 24, 27, 0.4);
   display: grid;
   place-items: center;
   z-index: 100;
@@ -2926,14 +2791,10 @@ textarea {
   max-height: 80vh;
   overflow-y: auto;
   background: var(--panel);
-  border-radius: 14px;
-  box-shadow: var(--shadow-pop);
-  padding: 20px;
 }
 
 .modal h2 {
   margin: 0 0 4px;
-  font-size: 15px;
 }
 
 .settings-sec {
@@ -3164,11 +3025,9 @@ textarea {
 
 .tutorial-card {
   position: fixed;
-  width: 380px;
   max-width: calc(100vw - 24px);
   padding: 20px;
   border: 1px solid rgba(255, 255, 255, 0.7);
-  border-radius: 14px;
   background: var(--panel);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28), 0 3px 10px rgba(0, 0, 0, 0.12);
   pointer-events: auto;
@@ -3915,17 +3774,8 @@ textarea {
   position: fixed;
   z-index: 500;
   pointer-events: none;
-  background: #1b1b1f;
-  color: #f4f4f5;
-  font-size: 11px;
-  line-height: 1.4;
-  padding: 5px 9px;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  max-width: 240px;
   white-space: pre-line;
   /* transform はインラインの位置指定と競合するため opacity のみアニメーション */
-  animation: tip-in 100ms ease;
 }
 
 .tooltip .tip-kbd {
@@ -4064,7 +3914,6 @@ textarea {
   z-index: 100;
   display: grid;
   place-items: center;
-  background: rgba(24, 24, 27, 0.4);
 }
 
 .se {
@@ -4074,7 +3923,6 @@ textarea {
   width: min(1180px, calc(100vw - 48px));
   height: min(760px, calc(100vh - 48px));
   overflow: hidden;
-  border-radius: 12px;
   background: var(--panel);
   box-shadow: var(--shadow-pop);
 }
@@ -4087,7 +3935,6 @@ textarea {
 .se-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   padding: 12px 14px 12px 18px;
   border-bottom: 1px solid var(--border);
 }
@@ -4126,7 +3973,6 @@ textarea {
   place-items: center;
   width: 28px;
   height: 28px;
-  border-radius: var(--radius-s);
   color: var(--text-2);
 }
 
@@ -4142,12 +3988,10 @@ textarea {
 
 .se-main {
   display: grid;
-  grid-template-columns: 248px 1fr;
   min-height: 0;
 }
 
 .se-footer {
-  padding: 9px 18px;
   border-top: 1px solid var(--border);
   color: var(--text-3);
   line-height: 1.5;
@@ -4839,7 +4683,6 @@ input.se-in {
   max-height: calc(100% - 48px);
   overflow-y: auto;
   padding: 16px;
-  border-radius: 12px;
   background: var(--panel);
   box-shadow: var(--shadow-pop);
 }
@@ -5361,8 +5204,6 @@ input.se-in {
 /* 追加パネルの挿入先 */
 .insert-target {
   display: flex;
-  align-items: center;
-  gap: 6px;
   margin: 0;
   min-width: 0;
   font-size: 11px;
@@ -5379,7 +5220,6 @@ input.se-in {
   padding: 6px 10px;
   border-radius: 6px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
-  max-width: 300px;
   animation: tip-pop 140ms var(--ease);
 }
 
@@ -5434,13 +5274,6 @@ input.se-in {
   border-radius: 999px;
 }
 
-.layer-name input {
-  border: none;
-  border-radius: 6px;
-  padding: 2px 6px;
-  box-shadow: 0 0 0 2px var(--accent);
-  background: var(--panel);
-}
 
 /* ---------- モーダル ---------- */
 
@@ -5517,7 +5350,6 @@ input.se-in {
 }
 
 .bp-bar-name {
-  color: var(--accent);
   font-weight: 500;
 }
 
@@ -6189,7 +6021,6 @@ body {
 /* 値を変更したグループは、ラベルだけでなく入力欄そのものも青くする */
 .grp.is-set {
   --field: var(--field-set);
-  --field-hover: #c6d9fb;
 }
 
 /* 操作ボタンはカードにホバーしたときだけ出す（.layer-act.is-active の常時表示を打ち消す） */
@@ -6206,9 +6037,6 @@ body {
   pointer-events: auto;
 }
 
-a.btn {
-  text-decoration: none;
-}
 
 /* ---------- デザイン画面の {変数}（値はプレビューで表示） ---------- */
 
@@ -6915,15 +6743,12 @@ button.np-chev:hover {
 
 .bp-edit-row {
   display: grid;
-  grid-template-columns: 1fr auto 96px;
   align-items: center;
-  gap: 8px;
 }
 
 .bp-edit-name {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   min-width: 0;
   color: var(--text-2);
 }
@@ -6952,7 +6777,6 @@ button.np-chev:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
   padding: 10px 12px 6px 16px;
 }
 
@@ -6986,9 +6810,6 @@ button.np-chev:hover {
   font-size: 10.5px;
 }
 
-.bp-edit-row {
-  grid-template-columns: minmax(0, 1fr) auto 88px 22px;
-}
 
 .bp-edit-fixed {
   padding-left: 6px;
@@ -7215,9 +7036,6 @@ body.is-scrubbing * {
 }
 
 /* キャンバス上部の「〜を編集中」も同じ色にそろえる */
-.bp-bar-name {
-  color: var(--bp-color);
-}
 
 /* レイヤー名の変更中：枠が切れず、操作ボタンのフェードにも隠れないようにする */
 .layer-name:has(> input) {
@@ -7270,15 +7088,11 @@ body.is-scrubbing * {
 }
 
 .bp-bar-name {
-  flex: 0 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.bp-bar-scope {
-  flex: 0 100 auto;
-}
 
 @container canvas (max-width: 720px) {
   .bp-bar-scope {
@@ -9460,12 +9274,7 @@ body.is-scrubbing * {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: var(--panel);
   box-shadow: inset 0 0 0 1px var(--hf-line);
-  color: var(--text);
-  font-size: 12px;
   font-weight: 600;
 }
 
