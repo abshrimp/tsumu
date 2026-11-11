@@ -48,7 +48,7 @@ test("each HTML page resolves only its own ZIP asset ID list", () => {
 });
 
 test("srcset and inline styles are rewritten without touching HTML comments", () => {
-  const source = '<picture><!-- images/logo.svg --><source srcset="images/logo.svg 1x, /images/logo.svg 2x"><img style=\'background:url(images/logo.svg)\' src="data:image/png;base64,AAAA"></picture>';
+  const source = '<picture><!-- images/logo.svg --><source srcset="images/logo.svg 1x, /site/images/logo.svg 2x"><img style=\'background:url(images/logo.svg)\' src="data:image/png;base64,AAAA"></picture>';
   const output = rewriteHtmlZipSource(source, "site/index.html", urls);
   assert.ok(output.includes("<!-- images/logo.svg -->"));
   assert.ok(output.includes('srcset="/api/assets/file?path=assets%2Flogo 1x, /api/assets/file?path=assets%2Flogo 2x"'));
