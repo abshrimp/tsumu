@@ -34,7 +34,7 @@ function base(styles: StyleMap): NodeStyles {
   return { base: { default: styles } };
 }
 
-export function makeBox(name = tr("ボックス"), styles: StyleMap = {}): DocNode {
+export function makeBox(name = tr("Box"), styles: StyleMap = {}): DocNode {
   return {
     id: genId("node"),
     type: "box",
@@ -53,11 +53,11 @@ export function makeBox(name = tr("ボックス"), styles: StyleMap = {}): DocNo
   };
 }
 
-export function makeText(content = tr("テキスト"), styles: StyleMap = {}): DocNode {
+export function makeText(content = trc("text_variant_1", "Text"), styles: StyleMap = {}): DocNode {
   return {
     id: genId("node"),
     type: "box",
-    name: tr("テキスト"),
+    name: trc("text_variant_1", "Text"),
     semantic: "auto",
     text: { content, heading: 0 },
     link: null,
@@ -67,10 +67,10 @@ export function makeText(content = tr("テキスト"), styles: StyleMap = {}): D
 }
 
 /** リンク（押すとURL・ページを開く文字。行き先は要素の設定で決める） */
-export function makeLink(label = tr("リンク")): DocNode {
+export function makeLink(label = tr("Link")): DocNode {
   return {
     ...makeText(label, { color: "#0b57d0", textDecoration: "underline", textUnderlineOffset: "3px" }),
-    name: tr("リンク"),
+    name: tr("Link"),
     link: { kind: "url", url: "" },
   };
 }
@@ -98,8 +98,8 @@ export function makeSwitch(): PresetResult {
     borderRadius: "999px",
   };
 
-  const offThumb = makeBox(tr("つまみ"), thumbStyles);
-  const offTrack = makeBox(tr("オフ"), {
+  const offThumb = makeBox(tr("Thumb"), thumbStyles);
+  const offTrack = makeBox(tr("Off"), {
     ...trackStyles,
     justifyContent: "flex-start",
     backgroundColor: "#d4d4d8",
@@ -107,8 +107,8 @@ export function makeSwitch(): PresetResult {
   offTrack.attrId = "switch-off";
   offTrack.children = [offThumb.id];
 
-  const onThumb = makeBox(tr("つまみ"), thumbStyles);
-  const onTrack = makeBox(tr("オン"), {
+  const onThumb = makeBox(tr("Thumb"), thumbStyles);
+  const onTrack = makeBox(tr("On"), {
     ...trackStyles,
     justifyContent: "flex-end",
     backgroundColor: "#0b57d0",
@@ -117,9 +117,9 @@ export function makeSwitch(): PresetResult {
   onTrack.hiddenOn = [...BP_ORDER];
   onTrack.children = [onThumb.id];
 
-  const label = makeText(tr("通知を受け取る"), { fontSize: "14px", lineHeight: "1.4" });
+  const label = makeText(tr("Get notifications"), { fontSize: "14px", lineHeight: "1.4" });
 
-  const root = makeBox(tr("スイッチ"), {
+  const root = makeBox(tr("Switch"), {
     flexDirection: "row",
     alignItems: "center",
     gap: "8px",
@@ -157,7 +157,7 @@ export function makeSwitch(): PresetResult {
 }
 
 export function makeHeading(
-  content = tr("見出し"),
+  content = tr("Heading"),
   level = 2,
   styles: StyleMap = {}
 ): DocNode {
@@ -172,7 +172,7 @@ export function makeHeading(
   return {
     id: genId("node"),
     type: "box",
-    name: content.slice(0, 12) || tr("見出し"),
+    name: content.slice(0, 12) || tr("Heading"),
     semantic: "auto",
     text: { content, heading: level },
     link: null,
@@ -186,11 +186,11 @@ export function makeHeading(
   };
 }
 
-export function makeButton(label = tr("ボタン")): DocNode {
+export function makeButton(label = tr("Button")): DocNode {
   return {
     id: genId("node"),
     type: "box",
-    name: tr("ボタン"),
+    name: tr("Button"),
     // <button> で出力する（リンクを付けると <a> になる）
     semantic: "button",
     text: { content: label, heading: 0 },
@@ -223,7 +223,7 @@ export function makeImage(): DocNode {
   return {
     id: genId("node"),
     type: "image",
-    name: tr("画像"),
+    name: tr("Image"),
     semantic: "auto",
     text: null,
     link: null,
@@ -242,7 +242,7 @@ export function makeDivider(): DocNode {
   return {
     id: genId("node"),
     type: "divider",
-    name: tr("区切り線"),
+    name: tr("Divider"),
     semantic: "auto",
     text: null,
     link: null,
@@ -264,7 +264,7 @@ export function makeIcon(): DocNode {
   return {
     id: genId("node"),
     type: "icon",
-    name: tr("アイコン"),
+    name: tr("Icon"),
     semantic: "auto",
     text: null,
     link: null,
@@ -285,8 +285,8 @@ export function makeField(kind: FieldKind): DocNode {
     { name: string; field: Partial<FieldContent>; attrId?: string; styles: StyleMap }
   > = {
     input: {
-      name: tr("インプット"),
-      field: { inputType: "text", placeholder: tr("入力してください") },
+      name: trc("input_variant_1", "Input"),
+      field: { inputType: "text", placeholder: tr("Enter a value") },
       attrId: "field",
       styles: {
         width: "100%",
@@ -300,8 +300,8 @@ export function makeField(kind: FieldKind): DocNode {
       },
     },
     textarea: {
-      name: tr("テキストエリア"),
-      field: { placeholder: tr("ご自由にお書きください") },
+      name: tr("Text area"),
+      field: { placeholder: tr("Write anything you like") },
       attrId: "message",
       styles: {
         width: "100%",
@@ -315,9 +315,9 @@ export function makeField(kind: FieldKind): DocNode {
       },
     },
     select: {
-      name: tr("選択肢"),
+      name: trc("select_variant_1", "Select"),
       field: {
-        options: [tr("選択してください"), tr("選択肢A"), tr("選択肢B")]
+        options: [tr("Select…"), tr("Option A"), tr("Option B")]
           .map((value) => ({ label: value, value })),
       },
       attrId: "choice",
@@ -332,8 +332,8 @@ export function makeField(kind: FieldKind): DocNode {
       },
     },
     checkbox: {
-      name: tr("チェックボックス"),
-      field: { label: tr("同意する") },
+      name: trc("checkbox_variant_1", "Checkbox"),
+      field: { label: tr("I agree") },
       attrId: "agree",
       styles: {
         display: "inline-flex",
@@ -344,9 +344,9 @@ export function makeField(kind: FieldKind): DocNode {
       },
     },
     radio: {
-      name: tr("ラジオボタン"),
+      name: tr("Radio button"),
       // 同じグループ名のラジオボタンから1つだけ選べる（グループ名が値の変数名になる）
-      field: { label: tr("選択肢A"), group: "radio" },
+      field: { label: tr("Option A"), group: "radio" },
       attrId: "radio-1",
       styles: {
         display: "inline-flex",
@@ -357,14 +357,14 @@ export function makeField(kind: FieldKind): DocNode {
       },
     },
     file: {
-      name: tr("ファイル選択"),
+      name: tr("File picker"),
       field: {},
       attrId: "file",
       styles: { fontSize: "14px" },
     },
     submit: {
-      name: tr("送信ボタン"),
-      field: { label: tr("検索") },
+      name: tr("Submit button"),
+      field: { label: tr("Search") },
       styles: {
         display: "inline-flex",
         alignItems: "center",
@@ -402,7 +402,7 @@ export function makeMedia(kind: "video" | "audio"): DocNode {
   return {
     id: genId("node"),
     type: "media",
-    name: kind === "video" ? tr("動画") : tr("音声"),
+    name: kind === "video" ? tr("Video") : tr("Audio"),
     semantic: "auto",
     text: null,
     link: null,
@@ -419,8 +419,8 @@ export function makeMedia(kind: "video" | "audio"): DocNode {
 export function makeEmbed(kind: EmbedContent["kind"]): DocNode {
   const names = {
     youtube: "YouTube",
-    map: tr("Googleマップ"),
-    url: tr("URL埋め込み"),
+    map: tr("Google Maps"),
+    url: tr("Embed URL"),
   };
   return {
     id: genId("node"),
@@ -441,9 +441,9 @@ export function makeEmbed(kind: EmbedContent["kind"]): DocNode {
 
 /** リスト要素（テンプレートの項目カード付き） */
 export function makeList(from?: string): PresetResult {
-  const title = makeHeading(tr("タイトル"), 3, { fontSize: "18px" });
-  const desc = makeText(tr("説明文"), { fontSize: "14px", color: "#71717a" });
-  const item = makeBox(tr("項目"), {
+  const title = makeHeading(tr("Title"), 3, { fontSize: "18px" });
+  const desc = makeText(tr("Description"), { fontSize: "14px", color: "#71717a" });
+  const item = makeBox(tr("Item"), {
     padding: "20px",
     gap: "8px",
     backgroundColor: "#ffffff",
@@ -454,7 +454,7 @@ export function makeList(from?: string): PresetResult {
   const root: DocNode = {
     id: genId("node"),
     type: "list",
-    name: tr("リスト表示"),
+    name: tr("List display"),
     semantic: "auto",
     text: null,
     link: null,
@@ -474,11 +474,11 @@ export function makeCode(): DocNode {
   return {
     id: genId("node"),
     type: "code",
-    name: tr("カスタムコード"),
+    name: tr("Custom code"),
     semantic: "auto",
     text: null,
     link: null,
-    code: { html: tr("<p>ここにHTMLを書きます</p>") },
+    code: { html: tr("<p>Write your HTML here</p>") },
     children: [],
     styles: base({}),
   };
@@ -506,11 +506,11 @@ const MENU_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" heig
 
 function presetNavbar(): PresetResult {
   const logo = makeHeading("Site", 6, { fontSize: "18px", fontWeight: "700" });
-  logo.name = tr("ロゴ");
-  const l1 = link(makeText(tr("ホーム"), { fontSize: "14px" }), "#");
-  const l2 = link(makeText(tr("ブログ"), { fontSize: "14px" }), "#");
-  const l3 = link(makeText(tr("お問い合わせ"), { fontSize: "14px" }), "#");
-  const links = makeBox(tr("ナビリンク"), {
+  logo.name = tr("Logo");
+  const l1 = link(makeText(tr("Home"), { fontSize: "14px" }), "#");
+  const l2 = link(makeText(tr("Blog"), { fontSize: "14px" }), "#");
+  const l3 = link(makeText(tr("Contact"), { fontSize: "14px" }), "#");
+  const links = makeBox(tr("Nav links"), {
     flexDirection: "row",
     gap: "28px",
     padding: "0px",
@@ -543,7 +543,7 @@ function presetNavbar(): PresetResult {
   const toggle: DocNode = {
     id: genId("node"),
     type: "icon",
-    name: tr("メニュー開閉"),
+    name: tr("Menu toggle"),
     semantic: "auto",
     text: null,
     link: null,
@@ -571,7 +571,7 @@ function presetNavbar(): PresetResult {
     },
   };
 
-  const root = makeBox(tr("ナビバー"), {
+  const root = makeBox(tr("Navbar"), {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -587,16 +587,16 @@ function presetNavbar(): PresetResult {
 }
 
 function presetHero(): PresetResult {
-  const h = makeHeading(tr("見出しをここに、\n2行で入れられます。"), 1, {
+  const h = makeHeading(tr("Your headline here,\nacross two lines."), 1, {
     textAlign: "center",
     letterSpacing: "-0.02em",
   });
   const p = makeText(
-    tr("サイトの紹介文を入れます。何ができるのか、誰のためのものかを短く伝えましょう。"),
+    tr("A short introduction to your site. Say what it does and who it's for."),
     { fontSize: "17px", color: "#71717a", textAlign: "center", maxWidth: "560px" }
   );
-  const btn = makeButton(tr("はじめる"));
-  const root = makeBox(tr("ヒーロー"), {
+  const btn = makeButton(tr("Get started"));
+  const root = makeBox(tr("Hero"), {
     alignItems: "center",
     justifyContent: "center",
     padding: "110px 40px",
@@ -611,12 +611,12 @@ function presetCards(): PresetResult {
   const nodes: DocNode[] = [];
   const cardIds: string[] = [];
   for (let i = 1; i <= 3; i++) {
-    const t = makeHeading(tr("カード {i}", { i }), 2, { fontSize: "18px" });
-    const d = makeText(tr("説明文をここに入力します。"), {
+    const t = makeHeading(tr("Card {i}", { i }), 2, { fontSize: "18px" });
+    const d = makeText(tr("Add a description here."), {
       fontSize: "14px",
       color: "#71717a",
     });
-    const card = makeBox(tr("カード {i}", { i }), {
+    const card = makeBox(tr("Card {i}", { i }), {
       padding: "28px",
       gap: "10px",
       backgroundColor: "#ffffff",
@@ -627,7 +627,7 @@ function presetCards(): PresetResult {
     nodes.push(card, t, d);
     cardIds.push(card.id);
   }
-  const root = makeBox(tr("カードグリッド"), {
+  const root = makeBox(tr("Card grid"), {
     display: "grid",
     gridTemplateColumns: "repeat(3, 1fr)",
     gap: "20px",
@@ -643,7 +643,7 @@ function presetFooter(): PresetResult {
     fontSize: "13px",
     color: "#71717a",
   });
-  const root = makeBox(tr("フッター"), {
+  const root = makeBox(tr("Footer"), {
     alignItems: "center",
     padding: "40px",
     backgroundColor: "#fafafa",
@@ -716,7 +716,7 @@ function loadScript(url: string, sample: unknown, then: ScriptStep[]): Script {
     trigger: "load",
     pos: { x: 32, y: 32 },
     steps: [
-      { id: genId("st"), kind: "fetch", url, as: trc("変数名", "データ"),
+      { id: genId("st"), kind: "fetch", url, as: trc("variable_name", "data"),
         preview: { sample, fetchedAt: Date.now() } },
       ...then,
     ],
@@ -734,35 +734,35 @@ function buildDemoProducts(nodes: Record<string, DocNode>): {
   };
   /* --- 詳細ページ（動的） --- */
   const dImg = add(makeImage());
-  dImg.name = tr("商品画像");
+  dImg.name = tr("Product image");
   dImg.image = {
     src: String(DEMO_PRODUCTS_SAMPLE[0].thumbnail),
-    alt: tr("商品画像"),
+    alt: tr("Product image"),
     width: 400,
     height: 400,
   };
-  dImg.image.src = tr("{商品.thumbnail}");
+  dImg.image.src = tr("{product.thumbnail}");
   dImg.styles.base!.default = {
     width: "320px",
     borderRadius: "16px",
     backgroundColor: "#fafafa",
   };
-  const dTitle = add(makeHeading(tr("{商品.title}"), 1, { fontSize: "34px" }));
-  dTitle.name = tr("商品名");
+  const dTitle = add(makeHeading(tr("{product.title}"), 1, { fontSize: "34px" }));
+  dTitle.name = tr("Product name");
   const dBrand = add(
-    makeText(tr("{商品.brand}"), { fontSize: "13px", color: "#a1a1aa" })
+    makeText(tr("{product.brand}"), { fontSize: "13px", color: "#a1a1aa" })
   );
-  dBrand.name = tr("ブランド");
+  dBrand.name = tr("Brand");
   const dDesc = add(
-    makeText(tr("{商品.description}"), { fontSize: "15px", color: "#52525b" })
+    makeText(tr("{product.description}"), { fontSize: "15px", color: "#52525b" })
   );
-  dDesc.name = tr("説明文");
+  dDesc.name = tr("Description");
   const dPrice = add(
-    makeHeading(tr("¥{商品.price}"), 2, { fontSize: "26px", color: "#0d99ff" })
+    makeHeading(tr("${product.price}"), 2, { fontSize: "26px", color: "#0d99ff" })
   );
-  dPrice.name = tr("価格");
+  dPrice.name = tr("Price");
   const dInfo = add(
-    makeBox(tr("商品情報"), {
+    makeBox(tr("Product info"), {
       padding: "0px",
       gap: "12px",
       alignItems: "flex-start",
@@ -771,7 +771,7 @@ function buildDemoProducts(nodes: Record<string, DocNode>): {
   dInfo.styles.base!.default!.flex = "1";
   dInfo.children = [dBrand.id, dTitle.id, dPrice.id, dDesc.id];
   const dWrap = add(
-    makeBox(tr("詳細レイアウト"), {
+    makeBox(tr("Detail layout"), {
       flexDirection: "row",
       gap: "40px",
       padding: "64px 40px",
@@ -785,34 +785,34 @@ function buildDemoProducts(nodes: Record<string, DocNode>): {
 
   const detailPage: Page = {
     id: genId("page"),
-    name: tr("商品詳細（デモ）"),
+    name: tr("Product detail (demo)"),
     slug: "products/[slug]",
-    title: tr("商品詳細"),
+    title: tr("Product detail"),
     description: "",
     children: [dWrap.id],
     pageScripts: [
       loadScript("https://dummyjson.com/products/{slug}", DEMO_PRODUCTS_SAMPLE[0], [
-        { id: genId("st"), kind: "set-var", value: tr("{データ}"), into: trc("変数名", "商品") },
+        { id: genId("st"), kind: "set-var", value: tr("{data}"), into: trc("variable_name", "product") },
       ]),
     ],
   };
 
   /* --- 一覧ページ --- */
-  const lHead = add(makeHeading(tr("商品カタログ"), 1, { textAlign: "center" }));
+  const lHead = add(makeHeading(tr("Product catalog"), 1, { textAlign: "center" }));
   const lLede = add(
     makeText(
-      tr("dummyjson.com のデータで動く一覧・検索・詳細ページのサンプルです。"),
+      tr("A sample list, search and detail page powered by data from dummyjson.com."),
       { fontSize: "14px", color: "#71717a", textAlign: "center" }
     )
   );
   const sInput = add(makeField("input"));
-  sInput.field = { kind: "input", placeholder: tr("商品を検索…") };
+  sInput.field = { kind: "input", placeholder: tr("Search products…") };
   sInput.attrId = "q";
-  const sBtn = add(makeButton(tr("検索")));
+  const sBtn = add(makeButton(tr("Search")));
   // 幅いっぱいの入力欄と横に並べても押しつぶされず、文字が1字ずつ折り返されないように
   Object.assign(sBtn.styles.base.default!, { flexShrink: "0", whiteSpace: "nowrap", padding: "10px 24px", fontSize: "14px" });
   const sForm = add(
-    makeBox(tr("検索フォーム"), {
+    makeBox(tr("Search form"), {
       flexDirection: "row",
       gap: "10px",
       padding: "0px",
@@ -824,10 +824,10 @@ function buildDemoProducts(nodes: Record<string, DocNode>): {
   sForm.children = [sInput.id, sBtn.id];
 
   const cImg = add(makeImage());
-  cImg.name = tr("サムネイル");
+  cImg.name = tr("Thumbnail");
   cImg.image = {
     src: String(DEMO_PRODUCTS_SAMPLE[0].thumbnail),
-    alt: tr("商品サムネイル"),
+    alt: tr("Product thumbnail"),
     width: 400,
     height: 400,
   };
@@ -840,7 +840,7 @@ function buildDemoProducts(nodes: Record<string, DocNode>): {
     backgroundColor: "#fafafa",
   };
   const cTitle = add(makeHeading("{title}", 2, { fontSize: "15px" }));
-  cTitle.name = tr("商品名");
+  cTitle.name = tr("Product name");
   const cPrice = add(
     makeText("\u00a5{price}", {
       fontSize: "14px",
@@ -848,9 +848,9 @@ function buildDemoProducts(nodes: Record<string, DocNode>): {
       color: "#0d99ff",
     })
   );
-  cPrice.name = tr("価格");
+  cPrice.name = tr("Price");
   const card = add(
-    makeBox(tr("商品カード"), {
+    makeBox(tr("Product card"), {
       padding: "0px",
       gap: "10px",
       cursor: "pointer",
@@ -862,13 +862,13 @@ function buildDemoProducts(nodes: Record<string, DocNode>): {
   const list = add({
     id: genId("node"),
     type: "list",
-    name: tr("商品リスト"),
+    name: tr("Product list"),
     attrId: "product-list",
     semantic: "auto",
     text: null,
     link: null,
     list: {
-      from: trc("変数名", "商品一覧"),
+      from: trc("variable_name", "products"),
       limit: 12,
     },
     children: [card.id],
@@ -887,7 +887,7 @@ function buildDemoProducts(nodes: Record<string, DocNode>): {
   } satisfies DocNode);
 
   const lWrap = add(
-    makeBox(tr("商品一覧セクション"), {
+    makeBox(tr("Product list section"), {
       padding: "64px 40px",
       gap: "28px",
       alignItems: "center",
@@ -900,16 +900,16 @@ function buildDemoProducts(nodes: Record<string, DocNode>): {
 
   const listPage: Page = {
     id: genId("page"),
-    name: tr("商品一覧（デモ）"),
+    name: tr("Products (demo)"),
     slug: "catalog",
-    title: tr("商品一覧"),
-    description: tr("dummyjson.comのデータで動くサンプルページ"),
+    title: tr("Products"),
+    description: tr("A sample page powered by dummyjson.com data"),
     children: [lWrap.id],
     pageScripts: [
       loadScript(
         "https://dummyjson.com/products/search?q={q}",
         { products: DEMO_PRODUCTS_SAMPLE },
-        [{ id: genId("st"), kind: "set-var", value: tr("{データ.products}"), into: trc("変数名", "商品一覧") }]
+        [{ id: genId("st"), kind: "set-var", value: tr("{data.products}"), into: trc("variable_name", "products") }]
       ),
     ],
   };
@@ -930,9 +930,9 @@ export function createInitialDoc(): SiteDoc {
 
   const home: Page = {
     id: genId("page"),
-    name: tr("ホーム"),
+    name: tr("Home"),
     slug: "",
-    title: tr("ホーム"),
+    title: tr("Home"),
     description: "",
     children: [nav, hero, cards, footer],
   };
@@ -943,15 +943,15 @@ export function createInitialDoc(): SiteDoc {
     letterSpacing: "0.04em",
     textAlign: "center",
   });
-  nfH.name = tr("404見出し");
-  const nfT = makeText(tr("お探しのページは見つかりませんでした。"), {
+  nfH.name = tr("404 heading");
+  const nfT = makeText(tr("We couldn't find the page you're looking for."), {
     fontSize: "15px",
     color: "#71717a",
     textAlign: "center",
   });
-  const nfBtn = makeButton(tr("ホームへ戻る"));
+  const nfBtn = makeButton(tr("Back to home"));
   nfBtn.link = { kind: "page", pageId: home.id };
-  const nfWrap = makeBox(tr("404セクション"), {
+  const nfWrap = makeBox(tr("404 section"), {
     alignItems: "center",
     justifyContent: "center",
     padding: "140px 40px",
@@ -962,9 +962,9 @@ export function createInitialDoc(): SiteDoc {
 
   const notFoundPage: Page = {
     id: genId("page"),
-    name: tr("404（見つからないとき）"),
+    name: tr("404 (not found)"),
     slug: "404",
-    title: tr("ページが見つかりません"),
+    title: tr("Page not found"),
     description: "",
     children: [nfWrap.id],
   };
