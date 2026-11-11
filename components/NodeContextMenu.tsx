@@ -209,14 +209,14 @@ export default function NodeContextMenu({
       items.push(
         {
           key: "up",
-          label: trc("move_up_variant_1", "Move up"),
+          label: tr("Move up", "move_up_variant_1"),
           icon: <ArrowUp size={14} />,
           disabled: !!node.locked || idx <= 0,
           onClick: run(() => s().moveNode(node.id, parent, idx - 1)),
         },
         {
           key: "down",
-          label: trc("move_down_variant_1", "Move down"),
+          label: tr("Move down", "move_down_variant_1"),
           icon: <ArrowDown size={14} />,
           disabled: !!node.locked || idx < 0 || idx >= siblings.length - 1,
           // moveNode の index は移動前の並びでの位置

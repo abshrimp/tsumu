@@ -238,7 +238,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
         <h2>{tr("Settings")}</h2>
 
         <section className="settings-sec">
-          <h3>{trc("language_variant_1", "Language")}</h3>
+          <h3>{tr("Language", "language_variant_1")}</h3>
           <Seg
             value={getLang()}
             options={LANGS}
@@ -603,7 +603,7 @@ export default function Header({
         <button
           className={`icon-btn${helpOpen ? " is-on" : ""}`}
           data-tutorial="help"
-          data-tip={trc("help_variant_1", "Help")}
+          data-tip={tr("Help", "help_variant_1")}
           data-tip-kbd="?"
           aria-label={tr("Help")}
           aria-pressed={helpOpen}

@@ -305,7 +305,7 @@ function SiteDialog({
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
       <form className="modal home-dialog" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h2>{site ? trc("site_settings_variant_1", "Site settings") : copyOf ? tr("Duplicate site") : tr("New site")}</h2>
+        <h2>{site ? tr("Site settings", "site_settings_variant_1") : copyOf ? tr("Duplicate site") : tr("New site")}</h2>
         <p className="modal-desc">
           {site
             ? tr("Change the site name and the GitHub repository it publishes to.")
@@ -411,8 +411,8 @@ function AppSettings({ auth, onClose }: { auth: boolean; onClose: () => void }) 
         <p className="modal-desc">{tr("These settings apply to all sites.")}</p>
 
         <section className="home-set-sec">
-          <h3>{trc("language_variant_1", "Language")}</h3>
-          <div className="home-seg" role="radiogroup" aria-label={trc("language_variant_1", "Language")}>
+          <h3>{tr("Language", "language_variant_1")}</h3>
+          <div className="home-seg" role="radiogroup" aria-label={tr("Language", "language_variant_1")}>
             {LANGS.map((l) => (
               <button
                 key={l.value}

@@ -415,7 +415,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
           tr("The elements you're pasting contain content that runs as HTML ({names}), and they weren't copied in this editor. Only paste data you copied from a source you trust.", {
             names: active.slice(0, 3).join(tr(", ")) + (active.length > 3 ? tr("and {count} more", { count: active.length - 3 }) : ""),
           }),
-          { title: tr("Paste this content?"), okLabel: trc("paste_variant_1", "Paste"), danger: true }
+          { title: tr("Paste this content?"), okLabel: tr("Paste", "paste_variant_1"), danger: true }
         ).then((ok) => {
           const now = useEditor.getState();
           if (ok && mounted && own === latestPaste &&
@@ -1240,7 +1240,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       >
         {mode === "design" && (
           <>
-            <SafeBoundary label={trc("left_panel_variant_1", "Left panel")} resetKey={activePageId}>
+            <SafeBoundary label={tr("Left panel", "left_panel_variant_1")} resetKey={activePageId}>
               <LeftPanel />
             </SafeBoundary>
             {!closedL && (
@@ -1266,7 +1266,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
                 onResize={setPanelR}
               />
             )}
-            <SafeBoundary label={trc("right_panel_variant_1", "Right panel")} resetKey={activePageId}>
+            <SafeBoundary label={tr("Right panel", "right_panel_variant_1")} resetKey={activePageId}>
               <RightPanel />
             </SafeBoundary>
           </>

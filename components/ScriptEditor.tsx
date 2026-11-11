@@ -893,7 +893,7 @@ function ScriptEditorInner({
           </div>
           <div className="se-tools">
             {selectedList.length > 1 && (
-              <span className="se-sel-count">{trc("n_selected_variant_1", "{n} selected", { n: selectedList.length })}</span>
+              <span className="se-sel-count">{tr("{n} selected", "n_selected_variant_1", { n: selectedList.length })}</span>
             )}
             <div className="se-zoom" role="group" aria-label={tr("Zoom")}>
               <button

@@ -64,7 +64,7 @@ const SEMANTIC_ICONS: Record<Semantic, React.ReactNode> = {
 };
 
 const INPUT_TYPE_OPTIONS: { value: InputType; label: string }[] = [
-  { value: "text", label: trc("text_variant_1", "text") },
+  { value: "text", label: tr("text", "text_variant_1") },
   { value: "email", label: tr("email (email address)") },
   { value: "password", label: tr("password") },
   { value: "number", label: tr("number") },
@@ -76,7 +76,7 @@ const INPUT_TYPE_OPTIONS: { value: InputType; label: string }[] = [
   { value: "datetime-local", label: tr("datetime-local (date and time)") },
   { value: "month", label: tr("month") },
   { value: "week", label: tr("week") },
-  { value: "color", label: trc("color_variant_1", "color") },
+  { value: "color", label: tr("color", "color_variant_1") },
   { value: "range", label: tr("range (slider)") },
 ];
 
@@ -322,7 +322,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                       ? tr("List · set after the page opens")
                       : Array.isArray(v)
                         ? tr("List · {length} sample items", { length: v.length })
-                        : trc("list_variant_1", "List"),
+                        : tr("List", "list_variant_1"),
                   };
                 }),
                 ...nested.map((c) => ({
@@ -975,7 +975,7 @@ function FieldSettings({
         )}
         {f.kind === "textarea" && (
           <div className="row">
-            <label htmlFor={`field-${nodeId}-rows`}>{trc("rows_variant_1", "Rows")}</label>
+            <label htmlFor={`field-${nodeId}-rows`}>{tr("Rows", "rows_variant_1")}</label>
             {num("rows", "2")}
           </div>
         )}

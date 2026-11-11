@@ -66,9 +66,9 @@ const CONTEXT_LABEL: Record<string, string> = {
   none: tr("The whole page"),
   text: tr("Selected text"),
   image: tr("Selected image"),
-  box: trc("selected_box_variant_1", "Selected box"),
+  box: tr("Selected box", "selected_box_variant_1"),
   list: tr("Selected list display"),
-  instance: trc("selected_component_variant_1", "Selected component"),
+  instance: tr("Selected component", "selected_component_variant_1"),
   field: tr("Selected form field"),
   media: tr("Selected video or embed"),
   body: "body",
@@ -282,7 +282,7 @@ function Article({ topic, onStartTutorial }: { topic: Topic; onStartTutorial: ()
         <details className="help-sec help-steps-sec" key={topic.id}>
           <summary>
             <ChevronRight size={13} />
-            {trc("steps_variant_1", "Steps")}
+            {tr("Steps", "steps_variant_1")}
             <span className="help-sec-sub">{tr("{n} steps", { n: topic.guide.length })}</span>
           </summary>
           <ol className="help-steps">

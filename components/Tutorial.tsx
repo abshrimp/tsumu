@@ -139,7 +139,7 @@ const ALL_STEPS: TutorialStep[] = [
     target: "tutorial-page-slug",
     placement: "left",
     chapter: tr("Set up a page"),
-    title: trc("set_the_url_to_slug_variant_1", "Set the URL to \"{slug}\""),
+    title: tr("Set the URL to \"{slug}\"", "set_the_url_to_slug_variant_1"),
     body: tr("Type \"{slug}\" in the URL field and press Enter. Once published, this page opens at /{slug}."),
     why: tr("The URL is the address visitors go to. A short word describing the content is easy to share and helps search engines understand the page."),
     task: "slug-page",
@@ -216,7 +216,7 @@ const ALL_STEPS: TutorialStep[] = [
   {
     placement: "center",
     chapter: tr("How layout works"),
-    title: trc("the_parent_decides_the_layout_variant_1", "The parent decides the layout"),
+    title: tr("The parent decides the layout", "the_parent_decides_the_layout_variant_1"),
     body: tr("To place elements side by side or center them, put them in a box (the parent) and set the layout on the parent. It holds up better across screen widths than moving each child by numbers."),
     bullets: [
       tr("Flow … which direction children are arranged (vertical or horizontal)"),
@@ -228,7 +228,7 @@ const ALL_STEPS: TutorialStep[] = [
     target: "add-element-box",
     placement: "right",
     chapter: tr("Layout"),
-    title: trc("add_a_box_variant_1", "Add a box"),
+    title: tr("Add a box", "add_a_box_variant_1"),
     body: tr("An empty box is added after the body text."),
     why: tr("A box is a container that groups content. It's the base for arranging its elements or giving them a background."),
     task: "add-box",
@@ -239,7 +239,7 @@ const ALL_STEPS: TutorialStep[] = [
     target: "add-element-button",
     placement: "right",
     chapter: tr("Layout"),
-    title: trc("add_a_button_inside_the_box_variant_1", "Add a button inside the box"),
+    title: tr("Add a button inside the box", "add_a_button_inside_the_box_variant_1"),
     body: tr("With the box selected, click \"Button\". \"Insert into\" at the top now says inside the box."),
     why: tr("Adding with a parent selected puts the new element inside it (as a child). In the Layers panel, you'll see the button nested one level inside the box."),
     task: "add-first-child",
@@ -294,7 +294,7 @@ const ALL_STEPS: TutorialStep[] = [
     target: "style-spacing",
     placement: "left",
     chapter: tr("Layout"),
-    title: trc("set_the_margin_to_16px_left_ri_variant_1", "Set the margin to 16px left/right"),
+    title: tr("Set the margin to 16px left/right", "set_the_margin_to_16px_left_ri_variant_1"),
     body: tr("Enter 16 for the left/right margin."),
     why: tr("Margin is the space outside an element, between it and its neighbors. The button stays the same size; only the gap between the buttons grows. Use padding to grow the inside and margin to add space between."),
     task: "margin-button",
@@ -329,7 +329,7 @@ const ALL_STEPS: TutorialStep[] = [
     target: "style-position",
     placement: "left",
     chapter: tr("Free positioning"),
-    title: trc("set_position_back_to_auto_variant_1", "Set position back to Auto"),
+    title: tr("Set position back to Auto", "set_position_back_to_auto_variant_1"),
     body: tr("Click Auto and the button returns to the row."),
     why: tr("Keeping things on Auto and letting the parent's flow handle layout is the most robust approach. Use Custom only when you really need to overlap."),
     task: "reset-button-position",
@@ -366,7 +366,7 @@ const ALL_STEPS: TutorialStep[] = [
     target: "right-tab-settings",
     placement: "left",
     chapter: tr("Add interaction"),
-    title: trc("open_settings_in_the_right_pan_variant_1", "Open Settings in the right panel"),
+    title: tr("Open Settings in the right panel", "open_settings_in_the_right_pan_variant_1"),
     body: tr("Now set what happens when the button is clicked."),
     why: tr("The right panel is split into Style (looks) and Settings (content and behavior). What happens on click isn't about looks, so it's under Settings."),
     task: "open-settings",
@@ -511,7 +511,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
     .find((node) => !!node.text && node.text.heading > 0);
   const paragraph = tutorialNodeIds
     .map((id) => doc.nodes[id])
-    .find((node) => node.name === trc("text_variant_1", "Text") && node.text?.heading === 0);
+    .find((node) => node.name === tr("Text", "text_variant_1") && node.text?.heading === 0);
   const tutorialBox = tutorialNodeIds
     .map((id) => doc.nodes[id])
     .find((node) => node.name === tr("Box") && !node.text);
@@ -913,7 +913,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
           className="tutorial-close"
           onClick={onClose}
           aria-label={tr("End tutorial")}
-          data-tip={trc("end_variant_1", "End")}
+          data-tip={tr("End", "end_variant_1")}
         >
           <X size={15} />
         </button>
@@ -941,7 +941,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
             {taskDone ? <CheckCircle2 size={15} /> : <Circle size={15} />}
             <span>
               {taskDone
-                ? trc("done_variant_2", "Done")
+                ? tr("Done", "done_variant_2")
                 : step.taskLabel
                   ? formatStepText(step.taskLabel)
                   : tr("Your turn")}
