@@ -20,11 +20,11 @@ export default function LeftPanel() {
       <div className="tabs" data-tutorial="left-tabs">
         {(
           [
-            ["pages", tr("ページ"), FileStack],
-            ["layers", tr("レイヤー"), Layers],
-            ["add", tr("追加"), SquarePlus],
-            ["assets", tr("アセット"), Images],
-            ["site", tr("サイト"), Globe],
+            ["pages", tr("Pages"), FileStack],
+            ["layers", tr("Layers"), Layers],
+            ["add", tr("Add"), SquarePlus],
+            ["assets", tr("Assets"), Images],
+            ["site", tr("Site"), Globe],
           ] as const
         ).map(([key, label, TabIcon]) => (
           <button

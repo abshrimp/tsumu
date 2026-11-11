@@ -63,18 +63,18 @@ const CAT_ICON: Record<CategoryId, LucideIcon> = {
 
 /** 選んでいるものの呼び名（「いまの作業に関係する質問」の見出しに使う） */
 const CONTEXT_LABEL: Record<string, string> = {
-  none: tr("ページ全体"),
-  text: tr("選んでいる文字"),
-  image: tr("選んでいる画像"),
-  box: tr("選んでいるボックス"),
-  list: tr("選んでいるリスト表示"),
-  instance: tr("選んでいるコンポーネント"),
-  field: tr("選んでいるフォーム部品"),
-  media: tr("選んでいる動画・埋め込み"),
+  none: tr("The whole page"),
+  text: tr("Selected text"),
+  image: tr("Selected image"),
+  box: trc("selected_box_variant_1", "Selected box"),
+  list: tr("Selected list display"),
+  instance: trc("selected_component_variant_1", "Selected component"),
+  field: tr("Selected form field"),
+  media: tr("Selected video or embed"),
   body: "body",
-  mobile: tr("スマホなどの表示"),
-  component: tr("コンポーネントの編集"),
-  site: tr("サイト設定"),
+  mobile: tr("Phone and tablet views"),
+  component: tr("Editing components"),
+  site: tr("Site settings"),
 };
 
 /** ヘルプを閉じても、選んだ難易度・カテゴリは覚えておく */
@@ -144,7 +144,7 @@ function TopicRow({
       </span>
       <span className="help-row-meta">
         {topic.guide && (
-          <span className="help-row-guide" data-tip={tr("画面で場所を示しながら案内します")}>
+          <span className="help-row-guide" data-tip={tr("Shows you where things are on screen")}>
             <Route size={12} />
           </span>
         )}
@@ -182,7 +182,7 @@ function BlockView({ block, onStartTutorial }: { block: Block; onStartTutorial: 
       <div className="help-rule">
         <div className="help-rule-head">
           <Lightbulb size={13} />
-          {block.title ?? tr("Webデザインのコツ")}
+          {block.title ?? tr("Design tip")}
         </div>
         <p>
           <Inline text={block.rule} />
@@ -239,7 +239,7 @@ function BlockView({ block, onStartTutorial }: { block: Block; onStartTutorial: 
     return (
       <button type="button" className="btn btn-primary help-cta" onClick={onStartTutorial}>
         <Play size={13} />
-        {tr("チュートリアルを始める（約10分）")}
+        {tr("Start the tutorial (about 10 min)")}
       </button>
     );
   }
@@ -258,7 +258,7 @@ function Article({ topic, onStartTutorial }: { topic: Topic; onStartTutorial: ()
         {topic.guide && (
           <span className="help-article-guide">
             <Route size={12} />
-            {tr("画面で案内できます")}
+            {tr("Guided walkthrough available")}
           </span>
         )}
       </div>
@@ -270,7 +270,7 @@ function Article({ topic, onStartTutorial }: { topic: Topic; onStartTutorial: ()
       {topic.guide && (
         <button type="button" className="btn btn-primary help-cta" onClick={() => startGuide(topic.id)}>
           <Route size={13} />
-          {tr("画面で場所を示しながら案内する")}
+          {tr("Show me on screen")}
         </button>
       )}
       <div className="help-blocks">
@@ -282,8 +282,8 @@ function Article({ topic, onStartTutorial }: { topic: Topic; onStartTutorial: ()
         <details className="help-sec help-steps-sec" key={topic.id}>
           <summary>
             <ChevronRight size={13} />
-            {tr("操作の手順")}
-            <span className="help-sec-sub">{tr("{n}ステップ", { n: topic.guide.length })}</span>
+            {trc("steps_variant_1", "Steps")}
+            <span className="help-sec-sub">{tr("{n} steps", { n: topic.guide.length })}</span>
           </summary>
           <ol className="help-steps">
             {topic.guide.map((st, i) => (
@@ -292,7 +292,7 @@ function Article({ topic, onStartTutorial }: { topic: Topic; onStartTutorial: ()
                   type="button"
                   className="help-step"
                   onClick={() => startGuide(topic.id, i)}
-                  data-tip={tr("この手順から画面で案内する")}
+                  data-tip={tr("Show me from this step")}
                 >
                   <span className="help-step-no">{i + 1}</span>
                   <span>{glyphs(st.text)}</span>
@@ -304,7 +304,7 @@ function Article({ topic, onStartTutorial }: { topic: Topic; onStartTutorial: ()
       )}
       {related.length > 0 && (
         <section className="help-sec">
-          <h3>{tr("関連する質問")}</h3>
+          <h3>{tr("Related questions")}</h3>
           <div className="help-rows">
             {related.map((t) => (
               <TopicRow key={t.id} topic={t} />
@@ -320,7 +320,7 @@ function Article({ topic, onStartTutorial }: { topic: Topic; onStartTutorial: ()
 
 function LevelFilter({ value, onChange }: { value: Level | 0; onChange: (v: Level | 0) => void }) {
   return (
-    <div className="help-levels" role="radiogroup" aria-label={tr("難易度")}>
+    <div className="help-levels" role="radiogroup" aria-label={tr("Level")}>
       {([0, 1, 2, 3, 4] as const).map((lv) => (
         <button
           key={lv}
@@ -331,7 +331,7 @@ function LevelFilter({ value, onChange }: { value: Level | 0; onChange: (v: Leve
           data-tip={lv ? LEVELS[lv].desc : undefined}
           onClick={() => onChange(lv)}
         >
-          {lv ? LEVELS[lv].label : tr("すべて")}
+          {lv ? LEVELS[lv].label : tr("All")}
         </button>
       ))}
     </div>
@@ -365,18 +365,18 @@ function Home({
             <Play size={16} />
           </div>
           <div className="help-hero-text">
-            <strong>{tr("はじめての方は、チュートリアルから")}</strong>
-            <p>{tr("練習ページを作りながら、基本の操作と考え方を約10分で学べます。")}</p>
+            <strong>{tr("New here? Start with the tutorial")}</strong>
+            <p>{tr("Learn the basics in about 10 minutes by building a practice page.")}</p>
           </div>
           <button type="button" className="btn btn-sm btn-primary" onClick={onStartTutorial}>
-            {tr("始める")}
+            {tr("Start")}
           </button>
         </div>
       )}
 
       {suggestions.length > 0 && level === 0 && (
         <section className="help-sec">
-          <h3>{tr("{ctx}についてよくある質問", { ctx: ctxLabel })}</h3>
+          <h3>{tr("Common questions about {ctx}", { ctx: ctxLabel })}</h3>
           <div className="help-rows">
             {suggestions.map((t) => (
               <TopicRow key={t.id} topic={t} />
@@ -386,7 +386,7 @@ function Home({
       )}
 
       <section className="help-sec">
-        <h3>{tr("カテゴリから探す")}</h3>
+        <h3>{tr("Browse by category")}</h3>
         <div className="help-cats">
           {CATEGORIES.map((c) => {
             const Icon = CAT_ICON[c.id];
@@ -447,7 +447,7 @@ function CategoryView({ id, level }: { id: CategoryId; level: Level | 0 }) {
           </div>
         </section>
       ))}
-      {!groups.length && <p className="help-empty">{tr("この難易度の質問はありません。")}</p>}
+      {!groups.length && <p className="help-empty">{tr("No questions at this level.")}</p>}
     </div>
   );
 }
@@ -518,7 +518,7 @@ export default function HelpCenter({ onStartTutorial }: { onStartTutorial: () =>
     <aside
       className="help"
       role="dialog"
-      aria-label={tr("ヘルプ")}
+      aria-label={tr("Help")}
       onKeyDown={(e) => {
         if (e.key !== "Escape") return;
         // 入力中の検索語があれば先に消す。エディタの Esc（選択を外す）までは届かせない
@@ -532,8 +532,8 @@ export default function HelpCenter({ onStartTutorial }: { onStartTutorial: () =>
           <button
             type="button"
             className="icon-btn"
-            aria-label={tr("戻る")}
-            data-tip={topic && canGoBack ? tr("前の記事へ") : tr("一覧へ")}
+            aria-label={tr("Back")}
+            data-tip={topic && canGoBack ? tr("Previous article") : tr("Back to list")}
             onClick={back}
           >
             <ChevronLeft size={16} />
@@ -543,9 +543,9 @@ export default function HelpCenter({ onStartTutorial }: { onStartTutorial: () =>
             <CircleHelp size={16} />
           </span>
         )}
-        <nav className="help-crumbs" aria-label={tr("現在地")}>
+        <nav className="help-crumbs" aria-label={tr("You are here")}>
           <button type="button" className="help-crumb-btn" disabled={atHome} onClick={() => openList(null)}>
-            {tr("ヘルプ")}
+            {tr("Help")}
           </button>
           {crumbCat && crumbLabel && (
             <>
@@ -561,7 +561,7 @@ export default function HelpCenter({ onStartTutorial }: { onStartTutorial: () =>
             </>
           )}
         </nav>
-        <button type="button" className="icon-btn" aria-label={tr("ヘルプを閉じる")} data-tip={tr("閉じる（Esc）")} onClick={closeHelp}>
+        <button type="button" className="icon-btn" aria-label={tr("Close Help")} data-tip={tr("Close (Esc)")} onClick={closeHelp}>
           <X size={16} />
         </button>
       </div>
@@ -574,11 +574,11 @@ export default function HelpCenter({ onStartTutorial }: { onStartTutorial: () =>
               ref={searchRef}
               type="search"
               value={query}
-              placeholder={tr("やりたいことで探す（例: 横に並べる・スマホ）")}
+              placeholder={tr("Search by task (e.g. side by side, mobile)")}
               onChange={(e) => setQuery(e.target.value)}
             />
             {query && (
-              <button type="button" aria-label={tr("検索をクリア")} onClick={() => setQuery("")}>
+              <button type="button" aria-label={tr("Clear search")} onClick={() => setQuery("")}>
                 <X size={12} />
               </button>
             )}
@@ -594,7 +594,7 @@ export default function HelpCenter({ onStartTutorial }: { onStartTutorial: () =>
           ) : query.trim() ? (
             results.length ? (
               <section className="help-sec">
-                <h3>{tr("「{q}」の検索結果（{n}件）", { q: query.trim(), n: results.length })}</h3>
+                <h3>{tr("Results for \"{q}\" ({n})", { q: query.trim(), n: results.length })}</h3>
                 <div className="help-rows">
                   {results.map((t) => (
                     <TopicRow key={t.id} topic={t} showCat query={query} />
@@ -606,11 +606,11 @@ export default function HelpCenter({ onStartTutorial }: { onStartTutorial: () =>
                 <span className="help-empty-icon">
                   <Search size={18} />
                 </span>
-                <p className="help-empty-title">{tr("「{q}」に当てはまる質問が見つかりませんでした。", { q: query.trim() })}</p>
-                <p>{tr("短い言葉（「画像」「色」「スマホ」など）や、別の言い方で探してみてください。")}</p>
+                <p className="help-empty-title">{tr("No questions match \"{q}\".", { q: query.trim() })}</p>
+                <p>{tr("Try a shorter word (like \"image\", \"color\" or \"mobile\") or different wording.")}</p>
                 {level !== 0 && (
                   <button type="button" className="btn btn-sm" onClick={() => setLevel(0)}>
-                    {tr("すべての難易度で探す")}
+                    {tr("Search all levels")}
                   </button>
                 )}
               </div>
@@ -626,13 +626,13 @@ export default function HelpCenter({ onStartTutorial }: { onStartTutorial: () =>
       <div className="help-foot">
         <button type="button" onClick={() => showTopic("start-shortcuts")}>
           <Keyboard size={13} />
-          {tr("ショートカット")}
+          {tr("Shortcuts")}
         </button>
         <button type="button" onClick={startTutorial}>
           <Play size={13} />
-          {tr("チュートリアル")}
+          {tr("Tutorial")}
         </button>
-        <span className="help-foot-hint">{trNodes("{key} で開閉", { key: <kbd key="k">?</kbd> })}</span>
+        <span className="help-foot-hint">{trNodes("{key} to toggle", { key: <kbd key="k">?</kbd> })}</span>
       </div>
     </aside>
   );
@@ -661,7 +661,7 @@ export function HelpLink({
         useHelp.setState({ open: true, topicId, back: [], guide: null });
       }}
     >
-      {children ?? label ?? tr("解説")}
+      {children ?? label ?? tr("Learn more")}
     </button>
   );
 }

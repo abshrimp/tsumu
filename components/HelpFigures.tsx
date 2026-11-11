@@ -105,17 +105,17 @@ function EditorMap() {
   return (
     <div className="hf-editor">
       <div className="hf-ed-top">
-        <b>{tr("上のバー")}</b>{tr("画面幅・プレビュー・公開")}
+        <b>{tr("Top bar")}</b>{tr("Screen width, preview, publish")}
       </div>
       <div className="hf-ed-main">
         <div className="hf-ed-side">
-          <b>{tr("左パネル")}</b>
-          <span>{tr("置く・選ぶ")}</span>
+          <b>{tr("Left panel")}</b>
+          <span>{tr("Add and select")}</span>
           <Lines n={4} w="80%" />
         </div>
         <div className="hf-ed-canvas">
-          <b>{tr("キャンバス")}</b>
-          <span>{tr("見る・クリックで選ぶ")}</span>
+          <b>{tr("Canvas")}</b>
+          <span>{tr("View, click to select")}</span>
           <div className="hf-ed-page">
             <I h={6} w="40%" />
             <I h={18} w="70%" accent />
@@ -123,8 +123,8 @@ function EditorMap() {
           </div>
         </div>
         <div className="hf-ed-side">
-          <b>{tr("右パネル")}</b>
-          <span>{tr("選んだものを変える")}</span>
+          <b>{tr("Right panel")}</b>
+          <span>{tr("Change the selection")}</span>
           <Lines n={4} />
         </div>
       </div>
@@ -135,10 +135,10 @@ function EditorMap() {
 /** フローの4種類 */
 function FlowModes() {
   const modes: [string, string][] = [
-    [tr("自動"), "block"],
-    [tr("垂直フロー"), "col"],
-    [tr("水平フロー"), "row"],
-    [tr("グリッド"), "grid"],
+    [tr("automatic"), "block"],
+    [tr("Vertical flow"), "col"],
+    [tr("Horizontal flow"), "row"],
+    [tr("Grid"), "grid"],
   ];
   return (
     <div className="hf-row hf-wrap">
@@ -167,7 +167,7 @@ function ParentRow() {
           <i />
           <i />
         </div>
-        <Label>{tr("垂直フロー（↓）")}</Label>
+        <Label>{tr("Vertical (↓)")}</Label>
       </div>
       <Arrow />
       <div className="hf-col">
@@ -176,7 +176,7 @@ function ParentRow() {
           <i />
           <i />
         </div>
-        <Label>{tr("水平フロー（→）")}</Label>
+        <Label>{tr("Horizontal (→)")}</Label>
       </div>
     </div>
   );
@@ -216,8 +216,8 @@ function GapVsMargin() {
   );
   return (
     <Compare
-      badLabel={tr("子ごとに外側余白")}
-      goodLabel={tr("親の「間隔」でまとめて")}
+      badLabel={tr("A margin on each child")}
+      goodLabel={tr("One Gap on the parent")}
       bad={row([6, 24])}
       good={row([16, 16], true)}
     />
@@ -229,20 +229,20 @@ function BoxModel() {
   return (
     <div className="hf-row">
       <div className="hf-bm">
-        <span className="hf-bm-name">{tr("外側余白")}</span>
+        <span className="hf-bm-name">{tr("Margin")}</span>
         <div className="hf-bm-border">
-          <span className="hf-bm-name is-in">{tr("内側余白")}</span>
-          <div className="hf-bm-content">{tr("中身")}</div>
+          <span className="hf-bm-name is-in">{tr("Padding")}</span>
+          <div className="hf-bm-content">{tr("Content")}</div>
         </div>
       </div>
       <div className="hf-col" style={{ alignItems: "flex-start", gap: 8 }}>
         <span className="hf-key">
           <i className="is-in" />
-          {tr("内側余白：枠の内側。背景色が付く")}
+          {tr("Padding: inside the border. Gets the background color")}
         </span>
         <span className="hf-key">
           <i className="is-out" />
-          {tr("外側余白：枠の外側。背景色は付かない")}
+          {tr("Margin: outside the border. No background color")}
         </span>
       </div>
     </div>
@@ -257,14 +257,14 @@ function WidthPercent() {
         <I w="50%" h={20} accent />
       </div>
       <div className="hf-row" style={{ justifyContent: "space-between", width: "100%" }}>
-        <Label tone="accent">{tr("幅 50% = 親の半分")}</Label>
-        <Label>{tr("親の幅が変わっても半分のまま")}</Label>
+        <Label tone="accent">{tr("Width 50% = half the parent")}</Label>
+        <Label>{tr("Stays half when the parent resizes")}</Label>
       </div>
       <div className="hf-box" style={{ padding: 6, width: "100%", display: "flex", gap: 6 }}>
         <I w={28} h={20} />
         <I h={20} accent style={{ flex: 1 }} />
       </div>
-      <Label tone="accent">{tr("「残りを埋める」= 隣の要素の残りすべて")}</Label>
+      <Label tone="accent">{tr("\"Fill remaining space\" = all space left by its neighbors")}</Label>
     </div>
   );
 }
@@ -281,8 +281,8 @@ function MaxWidth() {
         </div>
       </div>
       <div className="hf-row" style={{ gap: 6 }}>
-        <Label>{tr("背景の帯：画面いっぱい")}</Label>
-        <Label tone="accent">{tr("中身：最大幅を付けて中央")}</Label>
+        <Label>{tr("Background band: full width")}</Label>
+        <Label tone="accent">{tr("Content: max width, centered")}</Label>
       </div>
     </div>
   );
@@ -292,7 +292,7 @@ function MaxWidth() {
 function GridResponsive() {
   return (
     <div className="hf-row" style={{ alignItems: "flex-end" }}>
-      <Screen kind="pc" label={tr("パソコン：3列")}>
+      <Screen kind="pc" label={tr("Desktop: 3 columns")}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 5 }}>
           <I h={34} />
           <I h={34} />
@@ -300,7 +300,7 @@ function GridResponsive() {
         </div>
       </Screen>
       <Arrow />
-      <Screen kind="phone" label={<span className="is-warn-text">{tr("スマホ：1列")}</span>}>
+      <Screen kind="phone" label={<span className="is-warn-text">{tr("Phone: 1 column")}</span>}>
         <div style={{ display: "grid", gap: 5 }}>
           <I h={22} />
           <I h={22} />
@@ -315,7 +315,7 @@ function GridResponsive() {
 function StackOnMobile() {
   return (
     <div className="hf-row" style={{ alignItems: "flex-end" }}>
-      <Screen kind="pc" label={tr("パソコン：水平フロー")}>
+      <Screen kind="pc" label={tr("Desktop: horizontal flow")}>
         <div className="hf-box is-sel" style={{ display: "flex", gap: 5, padding: 5 }}>
           <I h={30} style={{ flex: 1 }} />
           <I h={30} style={{ flex: 1 }} />
@@ -323,7 +323,7 @@ function StackOnMobile() {
         </div>
       </Screen>
       <Arrow />
-      <Screen kind="phone" label={<span className="is-warn-text">{tr("スマホだけ垂直フロー")}</span>}>
+      <Screen kind="phone" label={<span className="is-warn-text">{tr("Vertical flow on phones only")}</span>}>
         <div className="hf-box is-sel is-bp" style={{ display: "flex", flexDirection: "column", gap: 4, padding: 4 }}>
           <I h={16} />
           <I h={16} />
@@ -344,7 +344,7 @@ function Wrap() {
       ))}
     </div>
   );
-  return <Compare badLabel={tr("折り返さない（はみ出す）")} goodLabel={tr("折り返す")} bad={<div className="hf-clipx">{box(false)}</div>} good={box(true)} />;
+  return <Compare badLabel={tr("No wrap (overflows)")} goodLabel={trc("wrap_variant_1", "Wrap")} bad={<div className="hf-clipx">{box(false)}</div>} good={box(true)} />;
 }
 
 /** 自由な位置（カスタム）は親が基準 */
@@ -362,9 +362,9 @@ function PositionCustom() {
       </div>
       <div className="hf-col" style={{ alignItems: "flex-start", gap: 6, maxWidth: 150 }}>
         <Label tone="accent" wrap>
-          {tr("X・Y は親（青い枠）からの距離")}
+          {tr("X and Y are distances from the parent (blue frame)")}
         </Label>
-        <Label wrap>{tr("ほかの要素は、バッジが無いものとして並ぶ")}</Label>
+        <Label wrap>{tr("Other elements are laid out as if the badge weren't there")}</Label>
       </div>
     </div>
   );
@@ -391,15 +391,15 @@ function Sticky() {
     <div className="hf-row">
       <div className="hf-col">
         {page(false)}
-        <Label>{tr("ページの上")}</Label>
+        <Label>{tr("Top of the page")}</Label>
       </div>
       <div className="hf-col">
         <Arrow down />
-        <Label>{tr("スクロール")}</Label>
+        <Label>{tr("Scroll")}</Label>
       </div>
       <div className="hf-col">
         {page(true)}
-        <Label tone="accent">{tr("ヘッダーは上に残る")}</Label>
+        <Label tone="accent">{tr("The header stays at the top")}</Label>
       </div>
     </div>
   );
@@ -419,9 +419,9 @@ function MinHeightVh() {
         <span>100vh</span>
       </div>
       <div className="hf-col" style={{ alignItems: "flex-start", justifyContent: "center" }}>
-        <Label tone="accent">{tr("最小高さ 100vh")}</Label>
-        <Label>{tr("= 画面の高さちょうど")}</Label>
-        <Label>{tr("中身が多ければ伸びる")}</Label>
+        <Label tone="accent">{tr("Min height 100vh")}</Label>
+        <Label>{tr("= exactly the screen height")}</Label>
+        <Label>{tr("Grows if there's more content")}</Label>
       </div>
     </div>
   );
@@ -435,25 +435,25 @@ function UnitsCompare() {
         <div className="hf-screen is-pc" style={{ width: 72 }}>
           <I h={16} w="80%" accent={!fixed} style={{ margin: "0 auto" }} />
         </div>
-        <Label>{tr("パソコン")}</Label>
+        <Label>{tr("Desktop")}</Label>
       </div>
       <div className="hf-col">
         <div className="hf-screen is-phone" style={{ width: 40, overflow: "visible" }}>
           {fixed ? <I h={16} w={58} style={{ background: "var(--hf-bad)", opacity: 0.8 }} /> : <I h={16} w="100%" accent />}
         </div>
-        <Label tone={fixed ? "bad" : "good"}>{tr("スマホ")}</Label>
+        <Label tone={fixed ? "bad" : "good"}>{tr("Phone")}</Label>
       </div>
     </div>
   );
-  return <Compare badLabel={tr("幅 800px")} goodLabel={tr("幅 100% ＋ 最大幅 800px")} bad={pair(true)} good={pair(false)} />;
+  return <Compare badLabel={tr("Width 800px")} goodLabel={tr("Width 100% + max width 800px")} bad={pair(true)} good={pair(false)} />;
 }
 
 /** 高さを固定すると、文字があふれる */
 function FixedHeight() {
   return (
     <Compare
-      badLabel={tr("高さ 60px に固定")}
-      goodLabel={tr("高さは空欄（中身に合わせる）")}
+      badLabel={tr("Height fixed at 60px")}
+      goodLabel={tr("Height empty (fits content)")}
       bad={
         <div className="hf-box is-bad" style={{ height: 44, padding: 6, marginBottom: 28 }}>
           <Lines n={7} dark />
@@ -472,8 +472,8 @@ function FixedHeight() {
 function FlowVsAbsolute() {
   return (
     <Compare
-      badLabel={tr("X・Y で配置（スマホ）")}
-      goodLabel={tr("フローで並べる（スマホ）")}
+      badLabel={tr("Placed by X/Y (phone)")}
+      goodLabel={tr("Arranged by flow (phone)")}
       bad={
         <div className="hf-screen is-phone" style={{ position: "relative", height: 96, margin: "0 auto" }}>
           <I w={50} h={30} style={{ position: "absolute", top: 8, left: 6 }} />
@@ -495,10 +495,10 @@ function FlowVsAbsolute() {
 /** ブレークポイントの効く範囲 */
 function BreakpointCascade() {
   const zones: [string, string, number][] = [
-    [tr("スマホ"), "〜478", 20],
-    [tr("スマホ横"), "〜767", 22],
-    [tr("タブレット"), "〜1024", 24],
-    [tr("パソコン"), "1025〜", 34],
+    [tr("Phone"), "〜478", 20],
+    [tr("Phone (landscape)"), "〜767", 22],
+    [tr("Tablet"), "〜1024", 24],
+    [tr("Desktop"), "1025〜", 34],
   ];
   return (
     <div className="hf-stack">
@@ -510,11 +510,11 @@ function BreakpointCascade() {
           </div>
         ))}
       </div>
-      <div className="hf-bp-bar is-base">{tr("パソコンで決めた設定 → すべての画面に効く")}</div>
+      <div className="hf-bp-bar is-base">{tr("Desktop settings → apply to every screen")}</div>
       <div className="hf-bp-bar is-bp" style={{ width: "21%" }}>
-        {tr("スマホで上書き")}
+        {tr("Overridden on phone")}
       </div>
-      <Label>{tr("小さい画面の設定ほど優先。変えた所だけ上書きする")}</Label>
+      <Label>{tr("Smaller screens take priority, overriding only what changed")}</Label>
     </div>
   );
 }
@@ -530,14 +530,14 @@ function DeviceVisibility() {
           <span className="is-on"><Smartphone size={13} style={{ rotate: "90deg" }} /></span>
           <span><Smartphone size={13} /></span>
         </div>
-        <Label>{tr("スマホだけオフ")}</Label>
+        <Label>{tr("Off on phones only")}</Label>
       </div>
       <Arrow />
-      <Screen kind="pc" label={tr("表示")} style={{ width: 92 }}>
+      <Screen kind="pc" label={tr("Show")} style={{ width: 92 }}>
         <I h={10} w="60%" />
         <I h={20} accent style={{ marginTop: 5 }} />
       </Screen>
-      <Screen kind="phone" label={<span className="is-warn-text">{tr("表示しない")}</span>}>
+      <Screen kind="phone" label={<span className="is-warn-text">{tr("Don't show")}</span>}>
         <I h={10} w="70%" />
         <i className="hf-ghost" />
       </Screen>
@@ -549,20 +549,20 @@ function DeviceVisibility() {
 function HeadingOutline() {
   const row = (lv: number, label: string, desc: string, bad?: boolean) => (
     <div className={`hf-h${bad ? " is-bad" : ""}`} style={{ paddingLeft: (lv - 1) * 18 }}>
-      <span className="hf-h-tag">{tr("見出し{n}", { n: lv })}</span>
+      <span className="hf-h-tag">{tr("Heading {n}", { n: lv })}</span>
       <span className="hf-h-name">{label}</span>
       <span className="hf-h-desc">{desc}</span>
     </div>
   );
   return (
     <div className="hf-stack" style={{ alignItems: "stretch" }}>
-      {row(1, tr("ひだまりカフェ"), tr("ページの題名・1つだけ"))}
-      {row(2, tr("お店について"), tr("区切り"))}
-      {row(3, tr("アクセス"), tr("さらに細かく"))}
-      {row(2, tr("メニュー"), tr("区切り"))}
+      {row(1, tr("Sunny Café"), tr("Page title, only one"))}
+      {row(2, trc("about_us_variant_1", "About us"), tr("threshold"))}
+      {row(3, tr("Directions"), tr("More detail"))}
+      {row(2, tr("Menu"), tr("threshold"))}
       <div className="hf-h-note">
         <X size={12} strokeWidth={2.6} />
-        {tr("見出し2 の次に いきなり見出し4（段を飛ばす）")}
+        {tr("Heading 2 jumping straight to Heading 4 (skipping a level)")}
       </div>
     </div>
   );
@@ -571,11 +571,11 @@ function HeadingOutline() {
 /** 文字サイズの段階 */
 function TypeScale() {
   const rows: [string, number][] = [
-    [tr("見出し1"), 44],
-    [tr("見出し2"), 30],
-    [tr("見出し3"), 22],
-    [tr("本文"), 16],
-    [tr("注釈"), 12],
+    [tr("Heading 1"), 44],
+    [tr("Heading 2"), 30],
+    [tr("Heading 3"), 22],
+    [tr("Body"), 16],
+    [tr("Note"), 12],
   ];
   return (
     <div className="hf-stack" style={{ alignItems: "stretch", gap: 2 }}>
@@ -583,7 +583,7 @@ function TypeScale() {
         <div key={name} className="hf-type">
           <span className="hf-type-name">{name}</span>
           <span className="hf-type-sample" style={{ fontSize: Math.round(px * 0.6), fontWeight: px >= 22 ? 700 : 400 }}>
-            {tr("カフェへようこそ")}
+            {tr("Welcome in")}
           </span>
           <span className="hf-type-px">{px}px</span>
         </div>
@@ -603,7 +603,7 @@ function SpacingScale() {
             <span>{n}</span>
           </div>
         ))}
-        <Label>{tr("使う数を決めておく")}</Label>
+        <Label>{tr("Decide how many you'll use")}</Label>
       </div>
       <div className="hf-col" style={{ alignItems: "stretch", gap: 0, width: 120 }}>
         <I h={9} w="70%" style={{ background: "var(--hf-ink)" }} />
@@ -619,7 +619,7 @@ function SpacingScale() {
           <em>8</em>
         </span>
         <Lines n={2} />
-        <Label>{tr("まとまりの中は狭く、外は広く")}</Label>
+        <Label>{tr("Tight within groups, wide between them")}</Label>
       </div>
     </div>
   );
@@ -628,9 +628,9 @@ function SpacingScale() {
 /** 色の割合とコントラスト */
 function ColorRatio() {
   const roles: [string, string, number, string][] = [
-    [tr("ベース"), "#ffffff", 70, tr("背景・広い面")],
-    [tr("メイン"), "#3b6fd8", 25, tr("見出し・帯・ロゴ")],
-    [tr("アクセント"), "#f08c2b", 5, tr("ボタンなど押してほしいもの")],
+    [tr("Base"), "#ffffff", 70, tr("Backgrounds, large areas")],
+    [tr("Main"), "#3b6fd8", 25, tr("Headings, bands, logo")],
+    [tr("Accent"), "#f08c2b", 5, tr("Buttons and other things to click")],
   ];
   return (
     <div className="hf-stack" style={{ alignItems: "stretch" }}>
@@ -654,11 +654,11 @@ function ColorRatio() {
         <div className="hf-col" style={{ gap: 4 }}>
           <span className="hf-contrast" style={{ color: "#1f1f1f" }}>
             <Check size={12} strokeWidth={2.6} className="is-good" />
-            {tr("読みやすい")}
+            {tr("Easy to read")}
           </span>
           <span className="hf-contrast" style={{ color: "#c4c8ce" }}>
             <X size={12} strokeWidth={2.6} className="is-bad" />
-            {tr("読みにくい")}
+            {tr("Hard to read")}
           </span>
         </div>
       </div>
@@ -671,8 +671,8 @@ function LineLength() {
   return (
     <Compare
       stack
-      badLabel={tr("画面いっぱいに広がる")}
-      goodLabel={tr("最大幅で1行を35〜45文字に")}
+      badLabel={tr("Spans the whole screen")}
+      goodLabel={tr("Max width keeps lines comfortable")}
       bad={
         <div className="hf-box" style={{ padding: 8 }}>
           <Lines n={3} dark />
@@ -693,8 +693,8 @@ function LineLength() {
 function Hierarchy() {
   return (
     <Compare
-      badLabel={tr("全部が同じ強さ")}
-      goodLabel={tr("主役が1つ")}
+      badLabel={tr("Everything equally loud")}
+      goodLabel={tr("One clear focus")}
       bad={
         <div className="hf-box" style={{ padding: 8, display: "flex", flexDirection: "column", gap: 6 }}>
           <I h={10} w="80%" style={{ background: "var(--hf-ink)" }} />
@@ -723,9 +723,9 @@ function Hierarchy() {
 /** 画像の切り抜き方 */
 function ObjectFit() {
   const fits: [string, CSSProperties["objectFit"]][] = [
-    [tr("枠を埋める"), "cover"],
-    [tr("全体を表示"), "contain"],
-    [tr("引き伸ばす"), "fill"],
+    [tr("Fill frame"), "cover"],
+    [trc("show_all_variant_1", "Show all"), "contain"],
+    [trc("stretch_variant_1", "Stretch"), "fill"],
   ];
   return (
     <div className="hf-row hf-wrap">
@@ -747,19 +747,19 @@ function States() {
   return (
     <div className="hf-row">
       <div className="hf-col">
-        <span className="hf-btn">{tr("申し込む")}</span>
-        <Label>{tr("既定")}</Label>
+        <span className="hf-btn">{tr("Sign up")}</span>
+        <Label>{tr("Default")}</Label>
       </div>
       <div className="hf-col">
         <span className="hf-btn is-hover">
-          {tr("申し込む")}
+          {tr("Sign up")}
           <MousePointer2 size={12} className="hf-cursor" />
         </span>
-        <Label tone="accent">{tr("ホバー")}</Label>
+        <Label tone="accent">{tr("Hover")}</Label>
       </div>
       <div className="hf-col">
-        <span className="hf-btn is-press">{tr("申し込む")}</span>
-        <Label>{tr("押したとき")}</Label>
+        <span className="hf-btn is-press">{tr("Sign up")}</span>
+        <Label>{tr("Pressed")}</Label>
       </div>
     </div>
   );
@@ -771,18 +771,18 @@ function ScriptBlocks() {
     <div className="hf-row">
       <div className="hf-script">
         <div className="hf-hat">
-          <span className="hf-chip-in">{tr("ボタン")}</span>
-          {tr("クリックしたとき")}
+          <span className="hf-chip-in">{tr("Button")}</span>
+          {tr("When clicked")}
         </div>
         <div className="hf-act">
-          <span className="hf-chip-in">{tr("お問い合わせ")}</span>
-          {tr("ページを開く")}
+          <span className="hf-chip-in">{tr("Contact")}</span>
+          {tr("Open page")}
         </div>
       </div>
       <div className="hf-col" style={{ alignItems: "flex-start", gap: 6 }}>
-        <Label tone="warn">{tr("きっかけ（いつ）")}</Label>
-        <Label tone="accent">{tr("動作（何をする）")}</Label>
-        <Label>{tr("下へドラッグしてつなげる")}</Label>
+        <Label tone="warn">{tr("Trigger (when)")}</Label>
+        <Label tone="accent">{tr("Action (what to do)")}</Label>
+        <Label>{tr("Drag below to attach")}</Label>
       </div>
     </div>
   );
@@ -812,15 +812,15 @@ function ToggleMenu() {
     <div className="hf-row">
       <div className="hf-col">
         {phone(false)}
-        <Label>{tr("最初は隠す")}</Label>
+        <Label>{tr("Hidden at first")}</Label>
       </div>
       <div className="hf-col">
         <Arrow />
-        <Label>{tr("押す")}</Label>
+        <Label>{tr("Click")}</Label>
       </div>
       <div className="hf-col">
         {phone(true)}
-        <Label tone="accent">{tr("表示を切り替える")}</Label>
+        <Label tone="accent">{tr("Toggle visibility")}</Label>
       </div>
     </div>
   );
@@ -832,9 +832,9 @@ function ListRepeat() {
     <div className="hf-row">
       <div className="hf-json">
         <span>[</span>
-        <span className="in">{tr("{ title: 新メニュー }")}</span>
-        <span className="in">{tr("{ title: 営業時間 }")}</span>
-        <span className="in">{tr("{ title: 夏季休業 }")}</span>
+        <span className="in">{tr("{ title: New menu }")}</span>
+        <span className="in">{tr("{ title: Opening hours }")}</span>
+        <span className="in">{tr("{ title: Summer break }")}</span>
         <span>]</span>
       </div>
       <Arrow />
@@ -845,16 +845,16 @@ function ListRepeat() {
         </div>
         <div className="hf-card is-ghost">
           <I h={20} />
-          <span>{tr("営業時間")}</span>
+          <span>{tr("Opening hours")}</span>
         </div>
         <div className="hf-card is-ghost">
           <I h={20} />
-          <span>{tr("夏季休業")}</span>
+          <span>{tr("Summer break")}</span>
         </div>
       </div>
       <div className="hf-col" style={{ alignItems: "flex-start" }}>
-        <Label tone="accent">{tr("1つ目がお手本")}</Label>
-        <Label>{tr("残りは自動で並ぶ")}</Label>
+        <Label tone="accent">{tr("The first is the template")}</Label>
+        <Label>{tr("The rest follow automatically")}</Label>
       </div>
     </div>
   );
@@ -879,7 +879,7 @@ function SlugPages() {
             {u}
           </span>
         ))}
-        <Label>{tr("データの1件ごとにページができる")}</Label>
+        <Label>{tr("A page for each data item")}</Label>
       </div>
     </div>
   );
@@ -901,14 +901,14 @@ function ComponentSync() {
       <div className="hf-col">
         <div className="hf-master">
           <Pencil size={11} />
-          {tr("ヘッダー")}
+          {tr("Header")}
         </div>
-        <Label tone="accent">{tr("マスターを直す")}</Label>
+        <Label tone="accent">{tr("Edit the main component")}</Label>
       </div>
       <Arrow />
-      {page(tr("ページA"))}
-      {page(tr("ページB"))}
-      <Label tone="accent">{tr("全部に反映")}</Label>
+      {page(tr("Page A"))}
+      {page(tr("Page B"))}
+      <Label tone="accent">{tr("Applies everywhere")}</Label>
     </div>
   );
 }
@@ -917,16 +917,16 @@ function ComponentSync() {
 function PublishFlow() {
   return (
     <div className="hf-row hf-wrap">
-      <div className="hf-node">{tr("エディタ")}</div>
+      <div className="hf-node">{tr("Editor")}</div>
       <Arrow />
       <div className="hf-col" style={{ gap: 2 }}>
-        <div className="hf-node is-test">{tr("テストサイト")}</div>
-        <Label>{tr("確認用・検索に出ない")}</Label>
+        <div className="hf-node is-test">{tr("Test site")}</div>
+        <Label>{tr("For checking, hidden from search")}</Label>
       </div>
       <Arrow />
       <div className="hf-col" style={{ gap: 2 }}>
-        <div className="hf-node is-prod">{tr("本番サイト")}</div>
-        <Label>{tr("訪問者が見る")}</Label>
+        <div className="hf-node is-prod">{tr("Live site")}</div>
+        <Label>{tr("What visitors see")}</Label>
       </div>
     </div>
   );
@@ -937,34 +937,34 @@ function FoldersVsUrl() {
   return (
     <div className="hf-row" style={{ alignItems: "stretch" }}>
       <div className="hf-col" style={{ alignItems: "stretch", gap: 4 }}>
-        <Label>{tr("エディタのページ一覧")}</Label>
+        <Label>{tr("Page list in the editor")}</Label>
         <div className="hf-tree">
           <span>
             <FileText size={11} />
-            {tr("ホーム")}
+            {tr("Home")}
           </span>
           <span>
             <Folder size={11} />
-            {tr("お知らせ")}
+            {tr("News")}
           </span>
           <span className="in">
             <FileText size={11} />
-            {tr("新メニュー")}
+            {tr("New menu")}
           </span>
           <span className="in">
             <FileText size={11} />
-            {tr("夏季休業")}
+            {tr("Summer break")}
           </span>
         </div>
       </div>
       <Arrow />
       <div className="hf-col" style={{ alignItems: "stretch", gap: 4 }}>
-        <Label>{tr("公開サイトのURL")}</Label>
+        <Label>{tr("URLs on the live site")}</Label>
         <div className="hf-tree">
           <span>/</span>
           <span>/new-menu</span>
           <span>/summer-break</span>
-          <span className="is-muted">{tr("フォルダ名は出ない")}</span>
+          <span className="is-muted">{tr("Folder names don't appear")}</span>
         </div>
       </div>
     </div>
@@ -975,12 +975,12 @@ function FoldersVsUrl() {
 function TapTarget() {
   return (
     <Compare
-      badLabel={tr("小さい（24px）")}
-      goodLabel={tr("44px 以上")}
+      badLabel={tr("Small (24px)")}
+      goodLabel={tr("44px or more")}
       bad={
         <div className="hf-tap">
           <span className="hf-btn" style={{ height: 24, fontSize: 10, padding: "0 8px" }}>
-            {tr("送信")}
+            {tr("Submit")}
           </span>
           <span className="hf-finger" />
         </div>
@@ -988,7 +988,7 @@ function TapTarget() {
       good={
         <div className="hf-tap">
           <span className="hf-btn" style={{ height: 44, padding: "0 22px" }}>
-            {tr("送信")}
+            {tr("Submit")}
           </span>
           <span className="hf-finger" />
         </div>
@@ -1001,8 +1001,8 @@ function TapTarget() {
 function Shadow() {
   return (
     <Compare
-      badLabel={tr("濃く・小さいぼかし")}
-      goodLabel={tr("薄く・大きいぼかし")}
+      badLabel={tr("Dark, small blur")}
+      goodLabel={tr("Light, large blur")}
       bad={
         <div className="hf-shadow-stage">
           <div className="hf-shadow" style={{ boxShadow: "3px 3px 2px rgba(0,0,0,0.55)" }} />
@@ -1026,17 +1026,17 @@ function FetchData() {
         <ArrowDown size={12} className="hf-arrow" />
         <div className="hf-json">
           <span>{"{"}</span>
-          <span className="in">{tr("title: 新メニュー")}</span>
+          <span className="in">{tr("title: New menu")}</span>
           <span>{"}"}</span>
         </div>
-        <Label>{tr("取得して「お知らせ」とする")}</Label>
+        <Label>{tr("Fetch as \"news\"")}</Label>
       </div>
       <Arrow />
       <div className="hf-col" style={{ gap: 4 }}>
-        <span className="hf-tok">{tr("{お知らせ.title}")}</span>
+        <span className="hf-tok">{tr("{news.title}")}</span>
         <ArrowDown size={12} className="hf-arrow" />
-        <strong className="hf-result">{tr("新メニュー")}</strong>
-        <Label>{tr("文字に書くと値になる")}</Label>
+        <strong className="hf-result">{tr("New menu")}</strong>
+        <Label>{tr("Written in text, it becomes the value")}</Label>
       </div>
     </div>
   );
@@ -1052,8 +1052,8 @@ function AltText() {
       </div>
       <Arrow />
       <div className="hf-bubble">
-        <span>{tr("読み上げ・画像が出ないとき")}</span>
-        {tr("「山と青空の写真」")}
+        <span>{tr("Read aloud, or shown if the image fails")}</span>
+        {tr("\"A photo of a mountain under a blue sky\"")}
       </div>
     </div>
   );
@@ -1078,11 +1078,11 @@ function SelectDepth() {
   );
   return (
     <div className="hf-row hf-wrap" style={{ alignItems: "flex-start" }}>
-      {step(0, tr("1回目"), tr("いちばん外側"))}
+      {step(0, tr("1st click"), tr("Outermost"))}
       <Arrow />
-      {step(1, tr("2回目"), tr("1つ内側"))}
+      {step(1, tr("2nd click"), tr("One level in"))}
       <Arrow />
-      {step(2, tr("3回目 / ⌘クリック"), tr("いちばん奥"))}
+      {step(2, tr("3rd click / ⌘-click"), tr("Innermost"))}
     </div>
   );
 }
@@ -1092,7 +1092,7 @@ function InsertMode() {
   const box = (inside: boolean) => (
     <div className="hf-col" style={{ alignItems: "stretch", gap: 4, width: 132 }}>
       <div className="hf-box is-sel" style={{ padding: 6, display: "flex", flexDirection: "column", gap: 4 }}>
-        <span className="hf-tag">{tr("選んだボックス")}</span>
+        <span className="hf-tag">{tr("Selected box")}</span>
         <I h={8} w="80%" />
         <I h={8} w="60%" />
         {inside && <I h={10} accent />}
@@ -1104,11 +1104,11 @@ function InsertMode() {
     <div className="hf-row hf-wrap" style={{ alignItems: "flex-start", gap: 20 }}>
       <div className="hf-col">
         {box(true)}
-        <Label tone="accent">{tr("中へ: ボックスの中の最後")}</Label>
+        <Label tone="accent">{tr("Inside: end of the box")}</Label>
       </div>
       <div className="hf-col">
         {box(false)}
-        <Label tone="accent">{tr("後ろへ: すぐ後ろ（同じ階層）")}</Label>
+        <Label tone="accent">{tr("After: right after (same level)")}</Label>
       </div>
     </div>
   );
@@ -1119,20 +1119,20 @@ function BranchPublish() {
   return (
     <div className="hf-col" style={{ alignItems: "stretch", gap: 8, width: "100%" }}>
       <div className="hf-row" style={{ justifyContent: "center", gap: 10 }}>
-        <div className="hf-node">{tr("エディタ")}</div>
+        <div className="hf-node">{tr("Editor")}</div>
         <Arrow />
         <div className="hf-box hf-repo">
-          <span className="hf-tag">{tr("GitHubリポジトリ")}</span>
+          <span className="hf-tag">{tr("GitHub repository")}</span>
           <span className="hf-branch is-test">preview</span>
           <span className="hf-branch is-prod">main</span>
         </div>
         <Arrow />
         <div className="hf-col" style={{ alignItems: "stretch", gap: 6 }}>
-          <div className="hf-node is-test">{tr("プレビューURL")}</div>
-          <div className="hf-node is-prod">{tr("公開ドメイン")}</div>
+          <div className="hf-node is-test">{tr("Preview URL")}</div>
+          <div className="hf-node is-prod">{tr("Your domain")}</div>
         </div>
       </div>
-      <Label wrap>{tr("Vercel・Cloudflare・Netlify は、本番以外のブランチを自動でプレビュー環境として公開します。")}</Label>
+      <Label wrap>{tr("Vercel, Cloudflare and Netlify automatically publish non-production branches as preview environments.")}</Label>
     </div>
   );
 }
@@ -1147,15 +1147,15 @@ function Rollback() {
   return (
     <div className="hf-col" style={{ gap: 6 }}>
       <div className="hf-row hf-commits">
-        {v(tr("版1"))}
+        {v(tr("v1"))}
         <i />
-        {v(tr("版2"))}
+        {v(tr("v2"))}
         <i />
-        {v(tr("版3"), { dim: true })}
+        {v(tr("v3"), { dim: true })}
         <i />
-        {v(tr("版2と同じ"), { current: true, copy: true })}
+        {v(tr("Same as v2"), { current: true, copy: true })}
       </div>
-      <Label wrap>{tr("「サイトを戻す」は履歴を消さずに、選んだ版と同じ内容を新しく公開します。戻したこと自体も、あとから戻せます。")}</Label>
+      <Label wrap>{tr("\"Restore site\" keeps the history and publishes the chosen version's content again as a new version. You can undo the restore itself later, too.")}</Label>
     </div>
   );
 }
@@ -1164,16 +1164,16 @@ function Rollback() {
 function AiFlow() {
   return (
     <div className="hf-row hf-wrap" style={{ gap: 10 }}>
-      <div className="hf-bubble">{tr("見出しを大きく、中央寄せにして")}</div>
+      <div className="hf-bubble">{tr("Make the heading bigger and center it")}</div>
       <Arrow />
       <div className="hf-col" style={{ gap: 3 }}>
-        <div className="hf-node">{tr("AIが編集")}</div>
-        <Label>{tr("文字の大きさ・そろえ方")}</Label>
+        <div className="hf-node">{tr("AI edits")}</div>
+        <Label>{tr("Text size and alignment")}</Label>
       </div>
       <Arrow />
       <div className="hf-col" style={{ gap: 3 }}>
         <div className="hf-node is-prod">⌘Z</div>
-        <Label>{tr("まとめて取り消せる")}</Label>
+        <Label>{tr("Undo it all at once")}</Label>
       </div>
     </div>
   );
@@ -1185,29 +1185,29 @@ function PageMulti() {
     <div className="hf-col" style={{ alignItems: "stretch", gap: 4, width: 220 }}>
       <div className="hf-bulk">
         <X size={10} />
-        <b>{tr("2件を選択")}</b>
+        <b>{tr("2 selected")}</b>
         <Folder size={11} />
         <Pencil size={11} style={{ opacity: 0 }} />
       </div>
       <div className="hf-tree">
         <span>
           <i className="hf-check" />
-          {tr("ホーム")}
+          {tr("Home")}
         </span>
         <span className="is-picked">
           <i className="hf-check is-on" />
-          {tr("夏季休業のお知らせ")}
+          {tr("Summer closure notice")}
         </span>
         <span className="is-picked">
           <i className="hf-check is-on" />
-          {tr("新メニュー")}
+          {tr("New menu")}
         </span>
         <span>
           <i className="hf-check" />
-          {tr("会社概要")}
+          {tr("About us")}
         </span>
       </div>
-      <Label>{tr("⌘クリックで1件ずつ、Shiftクリックで範囲を選ぶ")}</Label>
+      <Label>{tr("⌘-click picks one, Shift-click picks a range")}</Label>
     </div>
   );
 }

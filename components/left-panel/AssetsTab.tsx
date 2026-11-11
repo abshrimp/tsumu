@@ -82,14 +82,14 @@ function staticAssetLabel(kind: AssetDisplayKind): string {
   switch (kind) {
     case "css": return "CSS";
     case "javascript": return "JavaScript";
-    case "font": return tr("フォント");
+    case "font": return tr("Font");
     case "json": return "JSON";
-    case "document": return tr("文書");
-    case "archive": return tr("圧縮ファイル");
-    case "file": return tr("ファイル");
-    case "video": return tr("動画");
-    case "audio": return tr("音声");
-    default: return tr("画像");
+    case "document": return tr("Document");
+    case "archive": return tr("Archive");
+    case "file": return tr("File");
+    case "video": return tr("Video");
+    case "audio": return tr("Audio");
+    default: return tr("Image");
   }
 }
 
@@ -170,29 +170,29 @@ function StorageUsageMeter({ deletion }: { deletion: AssetDeletion | null }) {
   const pct = Math.min(100, (usage.bytes / limit) * 100);
   const lines = [
     usage.exact
-      ? tr("全サイトの合計: サーバーに保存したファイル {files}件{p2}", {
+      ? tr("All sites: {files} files stored on the server{p2}", {
           files: usage.files,
-          p2: usage.unknown ? tr("（うち{unknown}件はサイズ不明）", { unknown: usage.unknown }) : "",
+          p2: usage.unknown ? tr(" ({unknown} with unknown size)", { unknown: usage.unknown }) : "",
         })
-      : tr("全サイトの合計: サーバーに保存したアセット {length}件（このサイト {own}件）{p2}", {
+      : tr("All sites: {length} assets stored on the server ({own} in this site){p2}", {
           length: usage.files,
           own: own.length,
-          p2: usage.unknown ? tr("（うち{unknown}件はサイズ不明）", { unknown: usage.unknown }) : "",
+          p2: usage.unknown ? tr(" ({unknown} with unknown size)", { unknown: usage.unknown }) : "",
         }),
   ];
   if (usage.pendingCount && deletion?.mode === "scheduled") {
-    lines.push(tr("うち削除予定 {count}件（{size}）は、削除から{days}日後にサーバーから消えます。", {
+    lines.push(tr("{count} of them ({size}) are scheduled for deletion and leave the server {days} days after they were deleted.", {
       count: usage.pendingCount, size: formatBytes(usage.pendingBytes), days: deletion.days,
     }));
   } else if (usage.pendingCount && deletion?.mode === "kept") {
-    lines.push(tr("うち削除したアセット {count}件（{size}）が、サーバーに残っています。", {
+    lines.push(tr("{count} deleted assets ({size}) remain on the server.", {
       count: usage.pendingCount, size: formatBytes(usage.pendingBytes),
     }));
   }
   if (response?.ledger && !usage.exact) {
-    lines.push(tr("サーバー全体の確認（週1回）が終わるまでは、サイトで使っているファイルだけを数えています。"));
+    lines.push(tr("Until the weekly server-wide check finishes, only files used by sites are counted."));
   }
-  lines.push(tr("1GB は Workers KV の無料枠です。有料プランでは超えた分が従量課金になります。"));
+  lines.push(tr("1 GB is the Workers KV free allowance. On a paid plan, storage beyond it is billed by usage."));
   return (
     <div className="storage-usage" data-tip={lines.join("\n")}>
       <div className="storage-bar">
@@ -205,7 +205,7 @@ function StorageUsageMeter({ deletion }: { deletion: AssetDeletion | null }) {
         />
       </div>
       <span className="hint">
-        {tr("使用量（全サイト）")} {formatBytes(usage.bytes)} / {tr("無料枠 {size}", { size: formatBytes(limit) })}
+        {tr("Usage (all sites)")} {formatBytes(usage.bytes)} / {tr("{size} free", { size: formatBytes(limit) })}
       </span>
     </div>
   );
@@ -239,12 +239,12 @@ function sameAssetFile(current: Asset | undefined, approved: Asset): boolean {
  */
 function serverFileNotice(deletion: AssetDeletion | null | undefined, several: boolean): string {
   if (deletion?.mode === "scheduled") {
-    return tr("サーバーに保存したファイルは{days}日後に削除されます（それまでに元に戻すか、ほかのサイトで使っていれば残ります）。", { days: deletion.days });
+    return tr("The file stored on the server will be deleted in {days} days (it is kept if you undo before then or another site uses it).", { days: deletion.days });
   }
-  if (deletion?.mode === "kept") return tr("サーバーに保存したファイルは削除されずに残ります。");
+  if (deletion?.mode === "kept") return tr("The file stored on the server is kept and not deleted.");
   return several
-    ? tr("サーバーに保存したファイルも削除され、元に戻せません。")
-    : tr("サーバーに保存したファイルも削除されます。");
+    ? tr("Files on the server will also be deleted. This can't be undone.")
+    : tr("The file on the server will also be deleted.");
 }
 
 /** 別IDで残るアセットの保存先を守り、同じファイルを二重に削除しない。 */
@@ -367,7 +367,7 @@ export function AssetsTab() {
       const latest = useEditor.getState().doc.assets[asset.id];
       // 新しい操作、文書・ファイルの差し替え、パネルを閉じた後に古い失敗を表示しない。
       if (inScope() && errorRevision.current === revision && latest && assetSrc(latest) === src) {
-        setError(tr("アセットをダウンロードできませんでした"));
+        setError(tr("Could not download the asset."));
       }
     }
   };
@@ -431,8 +431,8 @@ export function AssetsTab() {
     const current = removalScope();
     if (
       !(await showConfirm(serverFileNotice(serverStatusSnapshot()?.assetDeletion, true), {
-        title: tr("使用していないアセット {length}件を削除しますか？", { length: unused.length }),
-        okLabel: tr("削除"),
+        title: tr("Delete {length} unused assets?", { length: unused.length }),
+        okLabel: tr("Delete"),
         danger: true,
       }))
     ) {
@@ -477,11 +477,11 @@ export function AssetsTab() {
       }
       if (fellBack && request.current()) {
         setError(
-          tr("サーバーに保存できないため、このブラウザ内に保存しました。画面下の保存状態を確認してください。")
+          tr("Couldn't save to the server, so it was saved in this browser. Check the save status at the bottom of the screen.")
         );
       }
     } catch (e) {
-      if (request.current()) setError(userMessage(e, tr("アップロードできませんでした")));
+      if (request.current()) setError(userMessage(e, tr("Couldn't upload")));
     } finally {
       request.finish();
     }
@@ -502,7 +502,7 @@ export function AssetsTab() {
       if (!path) {
         if (!request.current()) return;
         setError(
-          tr("まだサーバーに保存できません。画面下の保存状態を確認してください。")
+          tr("Can't save to the server yet. Check the save status at the bottom of the screen.")
         );
         return;
       }
@@ -511,7 +511,7 @@ export function AssetsTab() {
       // 使っている要素の src と、背景画像などのスタイルも差し替える
       updateDoc((d) => replaceEmbeddedAsset(d, asset.id, path));
     } catch (e) {
-      if (request.current()) setError(userMessage(e, tr("サーバーへ移せませんでした")));
+      if (request.current()) setError(userMessage(e, tr("Couldn't move it to the server")));
     } finally {
       request.finish();
     }
@@ -578,9 +578,9 @@ export function AssetsTab() {
     if (
       !(await showConfirm(
         used
-          ? tr("{used}箇所で使用中です。使っている要素からも外して削除します。", { used }) + notice
+          ? tr("Used in {used} places. It will also be removed from the elements that use it. ", { used }) + notice
           : notice,
-        { title: tr("「{name}」を削除しますか？", { name: asset.name }), okLabel: tr("削除"), danger: true }
+        { title: tr("Delete \"{name}\"?", { name: asset.name }), okLabel: tr("Delete"), danger: true }
       ))
     ) {
       return;
@@ -664,7 +664,7 @@ export function AssetsTab() {
             ) : (
               <ImagePlus size={16} />
             )}
-            {busy ? tr("アップロード中…") : tr("ファイルを追加（ドロップでも追加できます）")}
+            {busy ? tr("Uploading…") : tr("Add files (or drop them here)")}
           </button>
           <input
             ref={inputRef}
@@ -693,7 +693,7 @@ export function AssetsTab() {
               <Search size={13} />
               <input
                 type="search"
-                placeholder={tr("アセットを検索")}
+                placeholder={tr("Search assets")}
                 value={query}
                 onChange={(e) => changeQuery(e.target.value)}
                 onKeyDown={(e) => {
@@ -704,7 +704,7 @@ export function AssetsTab() {
                 <button
                   type="button"
                   className="asset-search-clear"
-                  aria-label={tr("検索をクリア")}
+                  aria-label={tr("Clear search")}
                   onClick={() => changeQuery("")}
                 >
                   <X size={12} />
@@ -713,18 +713,18 @@ export function AssetsTab() {
             </label>
             <div className="asset-count">
               <span>
-                {q ? tr("{length} / {length2}件", { length: shown.length, length2: assets.length }) : tr("{length}件", { length: assets.length })}
-                {unused.length > 0 && tr(" · 未使用 {length}件", { length: unused.length })}
+                {q ? tr("{length} / {length2}", { length: shown.length, length2: assets.length }) : tr("{length} items", { length: assets.length })}
+                {unused.length > 0 && tr(" · {length} unused", { length: unused.length })}
               </span>
               {unused.length > 0 && (
                 <button
                   type="button"
                   className="asset-clean"
                   onClick={removeUnused}
-                  data-tip={tr("ページ・サイト設定・スタイルのどこにも使われていないアセットを削除")}
+                  data-tip={tr("Delete assets not used in any page, site setting or style")}
                 >
                   <Trash2 size={12} />
-                  {tr("未使用を削除")}
+                  {tr("Delete unused")}
                 </button>
               )}
             </div>
@@ -743,16 +743,16 @@ export function AssetsTab() {
       >
         {assets.length === 0 ? (
           <div className="panel-empty">
-            {tr("アセットがありません。")}
+            {tr("No assets yet.")}
             <br />
-            {tr("ファイルをアップロードすると、ここに表示されます。")}
+            {tr("Uploaded files will appear here.")}
           </div>
         ) : (
           shown.length === 0 ? (
-            <div className="panel-empty">{tr("「{p1}」に一致するアセットはありません", { p1: query.trim() })}</div>
+            <div className="panel-empty">{tr("No assets match \"{p1}\"", { p1: query.trim() })}</div>
           ) : (
           <>
-          {windowed && <span className="asset-focus-edge" role="group" tabIndex={pinnedIndices[0] >= 0 ? -1 : 0} aria-label={tr("アセット")}
+          {windowed && <span className="asset-focus-edge" role="group" tabIndex={pinnedIndices[0] >= 0 ? -1 : 0} aria-label={tr("Assets")}
             onFocus={() => {
               focusRequest.current = { id: shown[0].id, last: false };
               setFocusedAsset(shown[0].id);
@@ -804,14 +804,14 @@ export function AssetsTab() {
                 >
                 <button
                   className={`asset-thumb${isVisualAsset(asset) ? "" : " is-static"}`}
-                  aria-label={!isVisualAsset(asset) ? tr("ファイルをダウンロード") + ": " + asset.name : undefined}
+                  aria-label={!isVisualAsset(asset) ? tr("Download file") + ": " + asset.name : undefined}
                   draggable={kind === "image"}
                   data-tip={
-                    !isVisualAsset(asset) ? tr("ファイルをダウンロード")
+                    !isVisualAsset(asset) ? tr("Download file")
                       : selection && doc.nodes[selection]?.type === "image" && kind === "image"
-                        ? tr("選択中の画像に適用")
-                        : kind === "image" ? tr("クリックで挿入・キャンバスへドラッグでも置けます")
-                        : tr("ページに挿入")
+                        ? tr("Apply to selected image")
+                        : kind === "image" ? tr("Click to insert, or drag onto the canvas")
+                        : tr("Insert into page")
                   }
                   onClick={() => useAsset(asset)}
                   onDragStart={(e) => {
@@ -864,7 +864,7 @@ export function AssetsTab() {
                   ) : (
                     <span
                       className="asset-name"
-                      title={tr("{name}（ダブルクリックで名前を変更）", { name: asset.name })}
+                      title={tr("{name} (double-click to rename)", { name: asset.name })}
                       onDoubleClick={() => setRenaming(asset.id)}
                     >
                       {asset.name}
@@ -872,19 +872,19 @@ export function AssetsTab() {
                   )}
                   <span className="asset-dim">
                     {kind === "image"
-                      ? (asset.width && asset.height ? `${asset.width}×${asset.height}` : tr("画像"))
+                      ? (asset.width && asset.height ? `${asset.width}×${asset.height}` : tr("Image"))
                       : staticAssetLabel(kind)}
                     {asset.bytes !== undefined && ` · ${formatBytes(asset.bytes)}`}
-                    {used > 0 && tr(" · {used}箇所", { used })}
-                    {!asset.path && tr(" · このブラウザのみ")}
+                    {used > 0 && tr(" · used in {used}", { used })}
+                    {!asset.path && tr(" · this browser only")}
                   </span>
                 </div>
                 {!asset.path && (
                   <button
                     className="layer-act is-active asset-del"
                     style={{ right: 56 }}
-                    data-tip={tr("サーバーへアップロード")}
-                    aria-label={tr("サーバーへアップロード")}
+                    data-tip={tr("Upload to server")}
+                    aria-label={tr("Upload to server")}
                     disabled={busy}
                     onClick={() => void migrateAsset(asset)}
                   >
@@ -894,8 +894,8 @@ export function AssetsTab() {
                 <button
                   className="layer-act is-active asset-del"
                   style={{ right: !asset.path ? 82 : 56 }}
-                  data-tip={tr("名前を変更")}
-                  aria-label={tr("名前を変更")}
+                  data-tip={tr("Rename")}
+                  aria-label={tr("Rename")}
                   onClick={() => setRenaming(asset.id)}
                 >
                   <Pencil size={12} />
@@ -903,16 +903,16 @@ export function AssetsTab() {
                 <button
                   className="layer-act is-active asset-del"
                   style={{ right: 30 }}
-                  data-tip={tr("ダウンロード")}
-                  aria-label={tr("ダウンロード")}
+                  data-tip={tr("Download")}
+                  aria-label={tr("Download")}
                   onClick={() => void download(asset)}
                 >
                   <Download size={12} />
                 </button>
                 <button
                   className="layer-act is-active asset-del"
-                  data-tip={tr("削除")}
-                  aria-label={tr("削除")}
+                  data-tip={tr("Delete")}
+                  aria-label={tr("Delete")}
                   onClick={() => removeAsset(asset)}
                 >
                   <Icon name="trash" size={12} />
@@ -921,7 +921,7 @@ export function AssetsTab() {
               );
             })}
           </div>
-          {windowed && <span className="asset-focus-edge" role="group" tabIndex={pinnedIndices[0] >= 0 ? -1 : 0} aria-label={tr("アセット")}
+          {windowed && <span className="asset-focus-edge" role="group" tabIndex={pinnedIndices[0] >= 0 ? -1 : 0} aria-label={tr("Assets")}
             onFocus={() => {
               const index = shown.length - 1;
               focusRequest.current = { id: shown[index].id, last: true };
