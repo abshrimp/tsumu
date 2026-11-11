@@ -277,6 +277,7 @@ export function renderLeafNode(
         {
           ...common,
           type: "button",
+          disabled,
           ...(opts.interactive
             ? {
                 onClick: (e: React.MouseEvent) => {
