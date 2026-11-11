@@ -119,6 +119,14 @@ export function stepText(st: ScriptStep, doc: SiteDoc): string {
       return tr("Set {value} at key {key} of list {list}", {
         list: arrayText(st.list), key: st.key || tr("End"), value: st.value,
       });
+    case "remove-list-item":
+      return st.mode === "key"
+        ? tr("Remove item at position/key {value} from list {list}", {
+          list: arrayText(st.list), value: st.value,
+        })
+        : tr("Remove items matching {value} from list {list}", {
+          list: arrayText(st.list), value: st.value,
+        });
     case "break-loop":
       return tr("Break out of loop");
     case "transform":

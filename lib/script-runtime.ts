@@ -9,7 +9,7 @@ import { extractVars, hardNavPatterns } from "./vars";
 import { fieldVarNames } from "./fields";
 import { EMPTY_GIF, allScripts, pageNodeIds, walkSteps } from "./script";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
-import { parseValueLiteral, matchesValueCondition, setVarPath, withinScriptValueLimit } from "./value-semantics";
+import { parseValueLiteral, matchesValueCondition, removeListItem, setVarPath, withinScriptValueLimit } from "./value-semantics";
 import { codeLiteral } from "./generator/code-literal";
 import { formatValueText } from "./value-text";
 
@@ -35,6 +35,7 @@ export const SCRIPT_RUNTIME = `function (env) {
   var __name = function (fn) { return fn; };
   /*#setvar*/
   var evalRecipe = (${evaluateValueRecipe.toString()});
+  var removeItem = (${removeListItem.toString()});
   /*/setvar*/
   /*#env*/
   env = env || {};
@@ -606,7 +607,19 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*/live*/
       function setVar(name, v) {
-        if (!name || !writeVar(name, v)) return;
+        if (!name || Object.is(getVar(name), v)) return;
+        // Variable-change scripts live on the page marker, not on an element.
+        // Snapshot the watched paths before writing so unchanged nested fields
+        // do not fire when their parent is reassigned.
+        var owner = root.querySelector("[data-page-body]");
+        var watching = [];
+        if (owner) parse(owner).forEach(function (s) {
+          if (s.trigger !== "change" || typeof s.changeVariable !== "string" || !s.changeVariable) return;
+          var watched = s.changeVariable;
+          if (name === watched || name.indexOf(watched + ".") === 0 || watched.indexOf(name + ".") === 0)
+            watching.push({ script: s, name: watched, before: getVar(watched) });
+        });
+        if (!writeVar(name, v)) return;
         /*#env*/
         if (env.setVar) env.setVar(name, v);
         /*/env*/
@@ -618,6 +631,17 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (a === name || a.indexOf(name + ".") === 0 || a === rk || a.indexOf(rk + ".") === 0) renderList(list);
         });
         /*/clist*/
+        watching.forEach(function (entry) {
+          if (Object.is(entry.before, getVar(entry.name)) ||
+              !alive || owner !== root.querySelector("[data-page-body]") ||
+              firingVariableScripts.has(entry.script)) return;
+          firingVariableScripts.add(entry.script);
+          try {
+            runSteps(entry.script.steps || [], owner, undefined, activeRun());
+          } finally {
+            firingVariableScripts.delete(entry.script);
+          }
+        });
       }
       // Inputs can contain a literal value, a list, one raw reference, or mixed text.
       function readInput(raw, self, scope) {
@@ -1379,6 +1403,14 @@ export const SCRIPT_RUNTIME = `function (env) {
             }
             break;
           }
+          case "remove-list-item": {
+            if (!st.list || typeof st.list !== "string" ||
+                typeof st.value !== "string" || !st.value.trim()) break;
+            var selected = readInput(st.value, self, sc);
+            var remaining = removeItem(getVar(st.list), st.mode, selected, matchValueCondition);
+            if (remaining !== undefined) setVar(st.list, remaining);
+            break;
+          }
           case "set-var": {
             /*#clist*/
             if (st.rawRef) {
@@ -1507,6 +1539,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       // same handler (e.g. two set-value blocks alternating between values).
       // Allow distinct triggers, but prevent a synchronous recursion cycle.
       var firingTriggers = new WeakMap();
+      var firingVariableScripts = new Set();
       function fire(el, trigger, keep) {
         var running = firingTriggers.get(el);
         if (!running) {
@@ -1517,7 +1550,8 @@ export const SCRIPT_RUNTIME = `function (env) {
         running.add(trigger);
         try {
           parse(el).forEach(function (s) {
-            if (s.trigger !== trigger) return;
+            if (s.trigger !== trigger ||
+                (trigger === "change" && typeof s.changeVariable === "string")) return;
             /*#keep*/
             if (keep !== undefined && !!s.keep !== keep) return;
             /*/keep*/
@@ -1896,6 +1930,7 @@ const STEP_FEATURE: Record<
   "store-load": "store",
   "set-var": "setvar",
   "set-list-item": "setvar",
+  "remove-list-item": "setvar",
   "break-loop": "repeat",
   transform: "setvar",
   copy: "copy",

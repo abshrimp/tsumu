@@ -67,6 +67,58 @@ export function matchesValueCondition(left: unknown, operator: string, right: un
   return false;
 }
 
+/**
+ * Remove list entries without mutating the input. Arrays close the gap after
+ * positional deletion; dictionaries retain their original keys.
+ * Returns undefined when the operation cannot change the list.
+ *
+ * Keep this function self-contained: browser and server exports embed its source.
+ */
+export function removeListItem(
+  source: unknown,
+  mode: "value" | "key",
+  selection: unknown,
+  matches: (left: unknown, operator: string, right: unknown) => boolean,
+): unknown | undefined {
+  if (!source || typeof source !== "object" || selection === undefined) return undefined;
+  if (Array.isArray(source) && source.length > 10000) return undefined;
+  const keys = Object.keys(source);
+  if (keys.length > 10000) return undefined;
+
+  if (mode === "key") {
+    if (typeof selection !== "string" && typeof selection !== "number") return undefined;
+    const key = String(selection);
+    if (Array.isArray(source)) {
+      // Only a genuine zero-based index is accepted, never a negative/sparse slot.
+      if (!/^(0|[1-9][0-9]*)$/.test(key)) return undefined;
+      const index = Number(key);
+      if (!Number.isSafeInteger(index) || index >= source.length) return undefined;
+      const result = source.slice();
+      result.splice(index, 1);
+      return result;
+    }
+    if (!Object.prototype.hasOwnProperty.call(source, key)) return undefined;
+    const result = Object.assign(Object.create(null), source) as Record<string, unknown>;
+    delete result[key];
+    return result;
+  }
+  if (mode !== "value") return undefined;
+
+  if (Array.isArray(source)) {
+    const result = source.filter((item) => !matches(item, "eq", selection));
+    return result.length === source.length ? undefined : result;
+  }
+  const result = Object.assign(Object.create(null), source) as Record<string, unknown>;
+  let removed = false;
+  for (const key of keys) {
+    if (matches(result[key], "eq", selection)) {
+      delete result[key];
+      removed = true;
+    }
+  }
+  return removed ? result : undefined;
+}
+
 /** Infer only unambiguous JSON literals. Other text remains text. */
 export function parseValueLiteral(text: string): unknown {
   const source = text.trim();

@@ -291,6 +291,8 @@ export type ScriptStep = { id: string } & (
       shared?: boolean;
     }
   | { kind: "set-list-item"; list: string; key: string; value: string }
+  /** Delete every matching value, or one entry by its array position / object key. */
+  | { kind: "remove-list-item"; list: string; mode: "value" | "key"; value: string }
   | { kind: "break-loop" }
   | {
       /**
@@ -377,6 +379,8 @@ export interface Script {
   id: string;
   /** 未設定 = きっかけの無いブロックの集まり（実行されない） */
   trigger?: ScriptTrigger;
+  /** When trigger is "change", an explicit variable path watches script-assigned values instead of an element. */
+  changeVariable?: string;
   /** hover-end: 「ホバーし始めたとき」に表示した要素の上にいる間は、外れたとしない */
   keepOnShown?: boolean;
   steps: ScriptStep[];

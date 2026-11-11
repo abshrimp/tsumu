@@ -70,6 +70,8 @@ function validSteps(value: unknown, depth: number, count: { value: number }): bo
         valid = str(step.key) && str(step.into) && optional(step.shared, bool); break;
       case "set-list-item":
         valid = str(step.list) && str(step.key) && str(step.value); break;
+      case "remove-list-item":
+        valid = str(step.list) && oneOf(step.mode, ["value", "key"]) && str(step.value); break;
       case "break-loop":
         valid = true; break;
       case "set-var":
@@ -112,7 +114,8 @@ export function validDocumentScripts(value: unknown): boolean {
         !record(script.pos) || !finite(script.pos.x) || !finite(script.pos.y) ||
         !optional(script.trigger, x => oneOf(x, [
           "click", "hover-start", "hover-end", "change", "load", "in-view",
-        ])) || !optional(script.keepOnShown, bool) ||
+        ])) || !optional(script.changeVariable, str) ||
+        !optional(script.keepOnShown, bool) ||
         !validSteps(script.steps, 0, count)) return false;
   }
   return true;

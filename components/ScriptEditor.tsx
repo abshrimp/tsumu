@@ -80,7 +80,9 @@ export function ScriptSummary({
             >
               <span className="ss-when">
                 <Ico icon={TrigIcon} cat="event" />
-                {element && <span className="ss-el">{element}</span>}
+                {s.trigger === "change" && s.changeVariable !== undefined
+                  ? <span className="ss-el">{s.changeVariable || tr("Select a variable")}</span>
+                  : element && <span className="ss-el">{element}</span>}
                 <span className="ss-trig">
                   {s.trigger ? TRIGGER_LABELS[s.trigger] : tr("No trigger (won't run)")}
                 </span>

@@ -532,6 +532,7 @@ export function PathMenu({
   allowRoot = true,
   portalZIndex,
   excludeRootKey,
+  allowContainers = false,
 }: {
   /** 選べる値の見本（undefined = 見本が無い） */
   root: unknown;
@@ -545,6 +546,8 @@ export function PathMenu({
   portalZIndex?: number;
   /** Hide the current transform block\'s unpublished output at the root. */
   excludeRootKey?: string;
+  /** Filter predicates can inspect complete JSON objects without changing other pickers. */
+  allowContainers?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   /** 開いている階層の位置 */
@@ -610,7 +613,7 @@ export function PathMenu({
   const primitiveList = (v: unknown) =>
     Array.isArray(v) && v.every((x) => x == null || typeof x !== "object");
   const canPick = (v: unknown) =>
-    mode === "list" ? Array.isArray(v) : mode === "field" ? !isNested(v) || primitiveList(v) : true;
+    mode === "list" ? Array.isArray(v) : mode === "field" ? allowContainers || !isNested(v) || primitiveList(v) : true;
   const canEnter = (v: unknown) =>
     isNested(v) &&
     !(mode === "list" && Array.isArray(v)) &&

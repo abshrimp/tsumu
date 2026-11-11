@@ -10,7 +10,9 @@ import {
   fieldLabel,
   flattenFields,
   firstListItem,
+  keyOfItem,
 } from "../../lib/data";
+import { filterFieldOperators, filterFieldSelection } from "../../lib/filter-field-options";
 import { lookupVar } from "../../lib/vars";
 import { type FilterCond, type ScriptStep } from "../../lib/types";
 import { tr } from "../../lib/i18n";
@@ -87,14 +89,17 @@ function ArrayFieldSelect({
   array,
   value,
   onChange,
+  allowContainers = false,
 }: {
   array: string;
   value: string;
   onChange: (v: string) => void;
+  allowContainers?: boolean;
 }) {
   const { samples } = useContext(Ctx);
   const first = array ? firstListItem(lookupVar(samples, array)) : undefined;
-  return <PathMenu root={first} path={value} mode="field" onChange={onChange} />;
+  return <PathMenu root={first} path={value} mode="field"
+    allowContainers={allowContainers} onChange={onChange} />;
 }
 
 export function SortArrayBody({ step }: { step: Extract<ScriptStep, { kind: "list-display" }> }) {
@@ -119,7 +124,11 @@ export function SortArrayBody({ step }: { step: Extract<ScriptStep, { kind: "lis
 }
 
 export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "list-display" }> }) {
-  const { updateStep, readOnly, scripts } = useContext(Ctx);
+  const { updateStep, readOnly, scripts, samples } = useContext(Ctx);
+  const first = step.array ? firstListItem(lookupVar(samples, step.array)) : undefined;
+  const sampleAt = (field: string) => first && field ? keyOfItem(first, field) : undefined;
+  const chooseField = (condition: { field: string; op: FilterCond["op"]; value: string }, field: string) =>
+    filterFieldSelection(condition, field, sampleAt(condition.field), sampleAt(field));
   const others = filterNumbersOf(scripts, step.array).filter((n) => n !== step.no);
   const set = (patch: Record<string, unknown>) =>
     updateStep(step.id, (s) => ({ ...s, ...patch }) as ScriptStep);
@@ -154,11 +163,14 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
           text="リスト{array}を{field}が{cond}"
           parts={{
             array: <ArraySelect value={step.array} onChange={(array) => set({ array })} />,
-            field: <ArrayFieldSelect array={step.array} value={step.field} onChange={(field) => set({ field })} />,
+            field: <ArrayFieldSelect array={step.array} value={step.field} allowContainers
+              onChange={(field) => set(chooseField(step, field))} />,
             cond: (
               <OpEditor
                 op={step.op}
                 value={step.value}
+                valueContext="value"
+                operators={filterFieldOperators(sampleAt(step.field))}
                 not={step.not}
                 onNotChange={(not) => set({ not })}
                 placeholder={tr("value / {variable}")}
@@ -186,12 +198,15 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
                 </select>
               ),
               field: (
-                <ArrayFieldSelect array={step.array} value={c.field} onChange={(field) => setOr(i, { field })} />
+                <ArrayFieldSelect array={step.array} value={c.field} allowContainers
+                  onChange={(field) => setOr(i, chooseField(c, field))} />
               ),
               cond: (
                 <OpEditor
                   op={c.op}
                   value={c.value}
+                  valueContext="value"
+                  operators={filterFieldOperators(sampleAt(c.field))}
                   not={c.not}
                   onNotChange={(not) => setOr(i, { not })}
                   placeholder={tr("value / {variable}")}

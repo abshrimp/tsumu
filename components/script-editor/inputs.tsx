@@ -10,6 +10,7 @@ import { VarInput } from "../controls";
 import { dataVarNames, fieldLabel, flattenFields, ITEM_VALUE, scriptInputDoc, varGroupsAt, varNamesAt, varSamplesAt } from "../../lib/data";
 import { lookupVar } from "../../lib/vars";
 import { canPickVariable, localVariableNames, variableChoiceSamples, singleValueReference, type ValueContext } from "../../lib/variable-choice";
+import { changeIfVariableLeft, ifVariableOperators } from "../../lib/if-variable-conditions";
 import { fieldVarName, isRadioItem } from "../../lib/fields";
 import { SELF_TARGET, type FieldContent, type ScriptCond, type ScriptOp } from "../../lib/types";
 import { tr, trc, trNodes } from "../../lib/i18n";
@@ -371,6 +372,8 @@ export function OpEditor({
   target,
   not,
   onNotChange,
+  operators,
+  valueContext = "text",
 }: {
   op: ScriptOp;
   value: string;
@@ -380,8 +383,15 @@ export function OpEditor({
   target?: string;
   not?: boolean;
   onNotChange?: (not: boolean) => void;
+  /** Show predicates appropriate to a known list/record field while retaining saved predicates. */
+  operators?: readonly ScriptOp[];
+  /** Preserve the raw type of a variable when comparing whole lists. */
+  valueContext?: ValueContext;
 }) {
   const noValue = op === "empty";
+  const availableOperators = operators
+    ? CONDITION_OPERATORS.filter((entry) => operators.includes(entry.value) || entry.value === op)
+    : CONDITION_OPERATORS;
   const pick = target !== undefined && op === "eq";
   return (
     <Phrase
@@ -396,6 +406,7 @@ export function OpEditor({
               placeholder={placeholder}
               width={96}
               vars
+              valueContext={valueContext}
               onCommit={(v) => onChange(op, v)}
             />
           )),
@@ -405,7 +416,7 @@ export function OpEditor({
             value={op}
             onChange={(e) => onChange(e.target.value as ScriptOp, value)}
           >
-            {CONDITION_OPERATORS.map((o) => (
+            {availableOperators.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
@@ -425,6 +436,7 @@ export function CondEditor({
   cond: ScriptCond;
   onChange: (c: ScriptCond) => void;
 }) {
+  const { samples } = useContext(Ctx);
   const subject = cond.subject;
   const op = cond.op ?? "eq";
   const isVar = cond.subject === "var";
@@ -458,13 +470,16 @@ export function CondEditor({
                 placeholder={tr("{variable}")}
                 width={96}
                 vars
-                onCommit={(v) => onChange({ ...cond, left: v })}
+                valueContext="value"
+                onCommit={(v) => onChange({ ...cond, ...changeIfVariableLeft(cond, v, samples) })}
               />
             ),
             cond: (
               <OpEditor
                 op={op}
                 value={cond.value ?? ""}
+                operators={ifVariableOperators(cond.left ?? "", samples)}
+                valueContext={op === "has-key" ? "text" : "value"}
                 placeholder={tr("value / {variable}")}
                 onChange={(o, v) => onChange({ ...cond, op: o, value: v })}
                 not={cond.not} onNotChange={(not) => onChange({ ...cond, not })}

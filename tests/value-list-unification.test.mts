@@ -4,7 +4,9 @@ import { matchesValueCondition, parseValueLiteral } from "../lib/value-semantics
 import { PAGE_STEP_RUNNER_SOURCE, runPurePageSteps } from "../lib/page-load-steps";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
 import { lookupVar, interpolate } from "../lib/vars";
-import { obfuscateVarNames } from "../lib/data";
+import { obfuscateVarNames, pagePlan } from "../lib/data";
+import { generateProject } from "../lib/generator";
+import { validDocumentScripts } from "../lib/document-validation";
 import { createInitialDoc } from "../lib/presets";
 import type { ScriptStep } from "../lib/types";
 import { nativeDataModule } from "../lib/generator/native-data";
@@ -84,6 +86,81 @@ test("list loops process nested and null values", () => {
   ];
   assert.equal(run(steps, vars), true);
   assert.deepEqual(vars.result, [null, [1, 2], { ok: true }]);
+});
+
+test("removing by value deletes every equal entry and preserves the original list", () => {
+  const initial = [1, "1", true, null, { deep: [1, null] }, { deep: ["1", null] }, "keep"];
+  const vars: Record<string, unknown> = { items: initial };
+  assert.equal(run([
+    { id: "remove-one", kind: "remove-list-item", list: "items", mode: "value", value: "1" },
+    { id: "remove-object", kind: "remove-list-item", list: "items", mode: "value", value: '{"deep":[1,null]}' },
+    { id: "remove-null", kind: "remove-list-item", list: "items", mode: "value", value: "null" },
+  ], vars), true);
+  assert.deepEqual(vars.items, [true, "keep"]);
+  assert.deepEqual(initial, [1, "1", true, null, { deep: [1, null] }, { deep: ["1", null] }, "keep"]);
+});
+
+test("removing by position uses zero-based indices and closes array gaps", () => {
+  const original = ["a", "b", "c", "d"];
+  const vars: Record<string, unknown> = { source: { rows: original }, index: 1 };
+  assert.equal(run([
+    { id: "by-position", kind: "remove-list-item", list: "source.rows", mode: "key", value: "{index}" },
+  ], vars), true);
+  assert.deepEqual(vars.source, { rows: ["a", "c", "d"] });
+  assert.deepEqual(original, ["a", "b", "c", "d"]);
+  const saved = JSON.stringify(vars.source);
+  for (const key of ["-1", "10", "1.5", '"01"', "{missing}"]) {
+    assert.equal(run([{ id: "bad", kind: "remove-list-item", list: "source.rows", mode: "key", value: key }], vars), true);
+    assert.equal(JSON.stringify(vars.source), saved, "invalid positions must be no-ops");
+  }
+});
+
+test("dictionary removal accepts own keys or matching values without prototype traversal", () => {
+  const initial = JSON.parse('{"__proto__":7,"constructor":8,"a":2,"b":"2","c":null}');
+  const vars: Record<string, unknown> = { entries: initial };
+  assert.equal(run([
+    { id: "by-value", kind: "remove-list-item", list: "entries", mode: "value", value: "2" },
+    { id: "by-key", kind: "remove-list-item", list: "entries", mode: "key", value: "__proto__" },
+    { id: "by-null", kind: "remove-list-item", list: "entries", mode: "value", value: "null" },
+  ], vars), true);
+  assert.deepEqual(JSON.parse(JSON.stringify(vars.entries)), { constructor: 8 });
+  assert.equal(Object.getPrototypeOf(vars.entries), null);
+  assert.equal(Object.hasOwn(initial, "__proto__"), true);
+  assert.equal(({} as Record<string, unknown>).polluted, undefined);
+  assert.equal(run([{ id: "inherited", kind: "remove-list-item", list: "entries", mode: "key", value: "toString" }], vars), true);
+  assert.deepEqual(JSON.parse(JSON.stringify(vars.entries)), { constructor: 8 });
+});
+
+test("removal works in the serialized page runner and is allowed in page-load scripts", () => {
+  const steps: ScriptStep[] = [
+    { id: "seed", kind: "set-var", into: "items", value: '["x","y","x"]' },
+    { id: "remove", kind: "remove-list-item", list: "items", mode: "value", value: '"x"' },
+  ];
+  const emitted = new Function("const __name = fn => fn; return " + PAGE_STEP_RUNNER_SOURCE)() as typeof runPurePageSteps;
+  for (const runner of [runPurePageSteps, emitted]) {
+    const vars: Record<string, unknown> = {};
+    assert.equal(runner(steps, vars, lookupVar, interpolate, evaluateValueRecipe), true);
+    assert.deepEqual(vars.items, ["y"]);
+  }
+  const doc = createInitialDoc();
+  const pageId = doc.pageOrder[0];
+  doc.pages[pageId].pageScripts = [
+    { id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps },
+  ];
+  assert.ok(pagePlan(doc, pageId).serverIds.has("remove"));
+  const generated = generateProject(doc).files["app/page.tsx"];
+  assert.match(generated, /__runPurePageSteps/);
+  assert.match(generated, /remove-list-item/);
+});
+
+test("list removal validates its method instead of accepting unknown step shapes", () => {
+  const step = { id: "remove", kind: "remove-list-item", list: "items", mode: "value", value: "10" };
+  const asScripts = (item: object) => [
+    { id: "script", trigger: "click", pos: { x: 0, y: 0 }, steps: [item] },
+  ];
+  assert.equal(validDocumentScripts(asScripts(step)), true);
+  assert.equal(validDocumentScripts(asScripts({ ...step, mode: "unknown" })), false);
+  assert.equal(validDocumentScripts(asScripts({ ...step, value: 10 })), false);
 });
 
 test("break exits only the closest loop and continues subsequent steps", () => {

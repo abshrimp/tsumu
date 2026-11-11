@@ -280,6 +280,7 @@ export type ScriptStep = { id: string } & (
       shared?: boolean;
     }
   | { kind: "set-list-item"; list: string; key: string; value: string }
+  | { kind: "remove-list-item"; list: string; mode: "value" | "key"; value: string }
   | { kind: "break-loop" }
   | {
       
@@ -354,6 +355,7 @@ export interface Script {
   id: string;
   
   trigger?: ScriptTrigger;
+  changeVariable?: string;
   
   keepOnShown?: boolean;
   steps: ScriptStep[];
