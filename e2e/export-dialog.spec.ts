@@ -20,8 +20,15 @@ async function openExport(page: import("@playwright/test").Page) {
     if (/\[[^\]]+\]/.test(item.slug)) item.unpublished = true;
   }
   expect((await page.request.put("/api/doc?site=" + site.id, { data: doc })).ok()).toBeTruthy();
+  // Node-side preset generation may use the English source text; verify the
+  // document that was actually saved rather than assuming a locale in the fixture.
+  const heading = Object.values(doc.nodes).find((n) =>
+    n.text?.content.includes("見出しをここに") || n.text?.content.includes("Your headline here")
+  );
+  if (!heading?.text) throw new Error("Starter hero heading not found in export test document");
   await page.goto("/sites/" + site.id);
-  await expect(page.locator('[data-tutorial="canvas"]').getByText("見出しをここに").first()).toBeVisible();
+  await expect(page.locator('[data-tutorial="canvas"]')
+    .getByText(heading.text.content.split("\n")[0]).first()).toBeVisible();
   await page.getByRole("button", { name: "メニュー（書き出し・履歴・設定）" }).click();
   await page.getByRole("button", { name: "zipでエクスポート" }).click();
   const modal = page.locator(".export-modal");

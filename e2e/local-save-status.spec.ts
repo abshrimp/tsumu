@@ -28,9 +28,9 @@ async function localOnly(page: Page) {
 }
 
 async function removeHero(page: Page) {
-  await page.locator('[data-tutorial="layers-panel"]').getByText("ヒーロー", { exact: true }).click();
+  await page.locator('[data-tutorial="layers-panel"]').getByText(/^(ヒーロー|Hero)$/).click();
   await page.keyboard.press("Delete");
-  await expect(canvas(page).getByText("見出しをここに", { exact: false })).toHaveCount(0);
+  await expect(canvas(page).getByText(/見出しをここに|Your headline here/)).toHaveCount(0);
 }
 
 test("browser-only autosave stores changes in IndexedDB and restores them after reload", async ({ page }) => {
@@ -42,9 +42,9 @@ test("browser-only autosave stores changes in IndexedDB and restores them after 
   await expect.poll(async () => JSON.parse((await browserDoc(page, id))!).pageOrder.length).toBeGreaterThan(0);
   await expect(status(page)).toContainText("このブラウザにのみ保存");
   const saved = await browserDoc(page, id);
-  expect(Object.values(JSON.parse(saved!).nodes).some((n: any) => n.name === "ヒーロー")).toBe(false);
+  expect(Object.values(JSON.parse(saved!).nodes).some((n: any) => (n.name === "ヒーロー" || n.name === "Hero"))).toBe(false);
   await page.reload();
-  await expect(canvas(page).getByText("見出しをここに", { exact: false })).toHaveCount(0);
+  await expect(canvas(page).getByText(/見出しをここに|Your headline here/)).toHaveCount(0);
   await expect(status(page)).toContainText("このブラウザにのみ保存");
 });
 
@@ -69,10 +69,10 @@ test("a document larger than localStorage's quota saves and survives editing and
   }).toBeGreaterThan(6 * 1024 * 1024);
   await expect.poll(async () => {
     const value = await browserDoc(page, id);
-    return value && Object.values(JSON.parse(value).nodes).some((n: any) => n.name === "ヒーロー");
+    return value && Object.values(JSON.parse(value).nodes).some((n: any) => (n.name === "ヒーロー" || n.name === "Hero"));
   }).toBe(false);
   await page.reload();
-  await expect(canvas(page).getByText("見出しをここに", { exact: false })).toHaveCount(0);
+  await expect(canvas(page).getByText(/見出しをここに|Your headline here/)).toHaveCount(0);
   await expect(status(page)).toContainText("このブラウザにのみ保存");
 });
 
@@ -118,12 +118,12 @@ test("a stale tab cannot overwrite the newer document", async ({ page, context }
     await expect(status(other)).toContainText("このブラウザにのみ保存");
     await removeHero(page);
     await expect(status(page)).toContainText("このブラウザにのみ保存");
-    await other.locator('[data-tutorial="layers-panel"]').getByText("ナビバー", { exact: true }).click();
+    await other.locator('[data-tutorial="layers-panel"]').getByText(/^(ナビバー|Navbar)$/).click();
     await other.keyboard.press("Delete");
     await expect(status(other)).toContainText("このブラウザに保存できません");
     const stored = JSON.parse((await browserDoc(page, id))!);
-    expect(Object.values(stored.nodes).some((n: any) => n.name === "ヒーロー")).toBe(false);
-    expect(Object.values(stored.nodes).some((n: any) => n.name === "ナビバー")).toBe(true);
+    expect(Object.values(stored.nodes).some((n: any) => (n.name === "ヒーロー" || n.name === "Hero"))).toBe(false);
+    expect(Object.values(stored.nodes).some((n: any) => (n.name === "ナビバー" || n.name === "Navbar"))).toBe(true);
   } finally {
     await other.close();
   }
