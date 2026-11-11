@@ -394,13 +394,9 @@ export default function Editor({ onReady }: EditorProps = {}) {
         return;
       }
       // エディタでコピーした要素（ほかのサイト・タブでコピーしたものも）
-      const copied = clipboardPayload(data);
-      if (copied) {
-        const raw = data.getData("application/x-tsumu+json") || data.getData("web application/x-tsumu+json") ||
-          (() => {
-            const encoded = /\\bdata-tsumu-clipboard="([^"]+)"/i.exec(data.getData("text/html"))?.[1];
-            return encoded ? decodeURIComponent(encoded) : "";
-          })();
+      const clip = clipboardPayload(data);
+      if (clip) {
+        const { payload: copied, raw } = clip;
         event.preventDefault();
         const paste = () => {
           useEditor.getState().pasteClipboard(copied);

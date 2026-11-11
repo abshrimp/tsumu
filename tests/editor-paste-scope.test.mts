@@ -37,7 +37,7 @@ function mount(context: "design" | "preview" | "modal" | "script" | "leaving" = 
     setPasteNotice: (notice: unknown) => notices.push(notice),
     // Editor keeps this ref outside the paste effect; expose it to the extracted handler.
     internalClipboardOwned: { current: false },
-    CLIP_MIME: clips.CLIP_MIME, parseClipPayload: clips.parseClipPayload, isOwnClip: clips.isOwnClip, activeContentNames: clips.activeContentNames,
+    clipboardPayload: clips.clipboardPayload, isOwnClip: clips.isOwnClip, activeContentNames: clips.activeContentNames,
     currentSiteId: () => "default",
     hasClipboardArtwork: () => true,
     clipboardArtworkFile: async () => new File(["image"], "image.png", { type: "image/png" }),

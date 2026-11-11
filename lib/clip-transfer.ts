@@ -252,18 +252,21 @@ export function clipHtml(payload: ClipPayload): string {
 }
 
 /** Read the current Tsumu payload without interpreting arbitrary pasted HTML as code. */
-export function clipboardPayload(data: Pick<DataTransfer, "getData">): ClipPayload | null {
-  const direct = data.getData(CLIP_MIME) || data.getData(CLIP_WEB_MIME);
-  if (direct) return parseClipPayload(direct);
-  const html = data.getData("text/html");
-  if (!html || html.length > MAX_CLIP_HTML) return null;
-  const encoded = /\\bdata-tsumu-clipboard="([^"]+)"/i.exec(html)?.[1];
-  if (!encoded) return null;
-  try {
-    return parseClipPayload(decodeURIComponent(encoded));
-  } catch {
-    return null;
+export function clipboardPayload(data: Pick<DataTransfer, "getData">): { payload: ClipPayload; raw: string } | null {
+  let raw = data.getData(CLIP_MIME) || data.getData(CLIP_WEB_MIME);
+  if (!raw) {
+    const html = data.getData("text/html");
+    if (!html || html.length > MAX_CLIP_HTML) return null;
+    const encoded = /\bdata-tsumu-clipboard="([^"]+)"/i.exec(html)?.[1];
+    if (!encoded) return null;
+    try {
+      raw = decodeURIComponent(encoded);
+    } catch {
+      return null;
+    }
   }
+  const payload = parseClipPayload(raw);
+  return payload ? { payload, raw } : null;
 }
 
 /** Write rich editor content with the modern asynchronous Clipboard API. */

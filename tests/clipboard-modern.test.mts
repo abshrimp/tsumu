@@ -8,7 +8,7 @@ function fixture() {
   const doc: SiteDoc = {
     schemaVersion: 1, siteName: "コピー", pageOrder: ["p"], assets: {},
     pages: { p: { id: "p", name: "Home", title: "", slug: "", description: "", children: ["n"] } },
-    nodes: { n: { ...makeBox(), id: "n", text: { content: "利用者 <確認>", heading: 0 } } },
+    nodes: { n: { ...makeBox(), id: "n", text: { content: "利用者 & 確認", heading: 0 } } },
   };
   return buildClipPayload(doc, { nodes: [doc.nodes.n], rootIds: ["n"] });
 }
@@ -17,10 +17,11 @@ test("clipboard HTML round-trips structured content through a standard MIME type
   const payload = fixture();
   const html = clipHtml(payload);
   assert.match(html, /data-tsumu-clipboard=/);
-  assert.match(html, /利用者 &lt;確認&gt;/);
+  assert.match(html, /利用者 &amp; 確認/);
   const data = { getData: (type: string) => type === "text/html" ? "<html><body>" + html + "</body></html>" : "" };
-  assert.deepEqual(clipboardPayload(data), payload);
-  assert.equal(clipboardPayload({ getData: () => "<span data-tsumu-clipboard=\"%invalid\"></span>" }), null);
+  assert.deepEqual(clipboardPayload(data)?.payload, payload);
+  assert.equal(clipboardPayload(data)?.raw, JSON.stringify(payload));
+  assert.equal(clipboardPayload({ getData: (type: string) => type === "text/html" ? '<span data-tsumu-clipboard="%invalid"></span>' : "" }), null);
   assert.equal(clipboardPayload({ getData: () => "<span>Ordinary HTML</span>" }), null);
   assert.equal(clipboardPayload({ getData: () => "a".repeat(48 * 1024 * 1024 + 1) }), null);
 });
@@ -28,7 +29,7 @@ test("clipboard HTML round-trips structured content through a standard MIME type
 test("clipboard reads a valid explicitly supplied editor MIME payload", () => {
   const payload = fixture();
   assert.deepEqual(clipboardPayload({ getData: (type: string) =>
-    type === "application/x-tsumu+json" ? JSON.stringify(payload) : "" }), payload);
+    type === "application/x-tsumu+json" ? JSON.stringify(payload) : "" })?.payload, payload);
   assert.equal(parseClipPayload(JSON.stringify({ ...payload, breakpoints: undefined })), null);
 });
 
@@ -62,11 +63,11 @@ test("copy uses ClipboardItem without the deprecated DOM copy command", async ()
     assert.equal(legacyCalled, false);
     assert.deepEqual(JSON.parse(storage.get("tsumu-clipboard-v1")!), payload);
     assert.ok(formats);
-    assert.equal(await formats!["text/plain"].text(), "利用者 <確認>");
+    assert.equal(await formats!["text/plain"].text(), "利用者 & 確認");
     assert.deepEqual(clipboardPayload({ getData: (type: string) =>
       type === "text/html" ? "" : "" }), null);
     assert.deepEqual(clipboardPayload({ getData: (type: string) =>
-      type === "text/html" ? "<body>" + clipHtml(payload) + "</body>" : "" }), payload);
+      type === "text/html" ? "<body>" + clipHtml(payload) + "</body>" : "" })?.payload, payload);
     assert.equal(await formats!["text/html"].text(), clipHtml(payload));
   } finally {
     for (const [name, descriptor] of descriptors) {
