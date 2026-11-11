@@ -21,13 +21,14 @@ export async function scriptDragBundle(doc: SiteDoc = scriptDragDoc()) {
       contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import ScriptEditor from "./components/ScriptEditor";
+import { loadLocale } from "./lib/i18n";
 import { useEditor } from "./lib/store";
 import css from "./app/globals.css";
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 useEditor.getState().replaceDoc(${JSON.stringify(doc)});
 useEditor.getState().setActivePage("p");
 window.scriptDragEditor = useEditor;
+let ScriptEditor;
 function Fixture() {
   const [open, setOpen] = useState(true);
   return <>
@@ -35,7 +36,10 @@ function Fixture() {
     {open && <ScriptEditor onClose={() => setOpen(false)} />}
   </>;
 }
-createRoot(document.getElementById("app")).render(<React.StrictMode><Fixture /></React.StrictMode>);
+void loadLocale().then(async () => {
+  ({ default: ScriptEditor } = await import("./components/ScriptEditor"));
+  createRoot(document.getElementById("app")).render(<React.StrictMode><Fixture /></React.StrictMode>);
+});
 `, loader: "tsx", sourcefile: "script-drag-browser.tsx", resolveDir: resolve("."),
     },
     loader: { ".css": "text" }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",

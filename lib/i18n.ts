@@ -78,7 +78,13 @@ export async function loadDicts(lang: Lang): Promise<Dict[]> {
 export async function loadLocale(): Promise<void> {
   if (typeof document !== "undefined") {
     document.documentElement.lang = current;
-    document.cookie = `${LANG_COOKIE}=${current}; path=/; max-age=31536000; samesite=lax`;
+    // Opaque-origin browser fixtures (about:blank) do not allow cookies.
+    // The translations should still load even when persistence is unavailable.
+    try {
+      document.cookie = `${LANG_COOKIE}=${current}; path=/; max-age=31536000; samesite=lax`;
+    } catch {
+      // Ignore cookie access errors in embedded and isolated documents.
+    }
   }
   // 同時に何か所から呼ばれても読み込みは1回にする（失敗したら次の呼び出しで読み込み直す）
   loading ??= loadDicts(current).then(
