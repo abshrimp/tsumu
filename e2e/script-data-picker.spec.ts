@@ -132,6 +132,40 @@ test("mixed templates and generated code survive exploring, cancelling and save/
   expect(await page.evaluate(() => (window as any).dataPickerProject())).toEqual(original);
 });
 
+test("filter field dropdown marks nested Japanese category arrays as lists", async ({ page }) => {
+  const filter = block(page, "category-filter");
+  await filter.locator(".se-pm-btn:not(.se-list-choice)").click();
+  const menu = page.locator(".se-pm");
+  const title = menu.locator(".se-pm-row").filter({
+    has: page.locator(".se-pm-key").filter({ hasText: /^title$/ }),
+  });
+  await expect(title.locator(".vx-kind")).toHaveCount(0);
+  const categories = menu.locator(".se-pm-row").filter({
+    has: page.locator(".se-pm-key").filter({ hasText: /^categories$/ }),
+  });
+  await expect(categories.locator(".vx-kind")).toHaveText("リスト");
+  await categories.locator(".se-pm-enter").click();
+
+  for (const [name, value] of [
+    ["出展カテゴリ", "物販"], ["投票カテゴリ", "物販"], ["大分類", "かう"],
+  ]) {
+    const option = menu.locator(".se-pm-row").filter({
+      has: page.locator(".se-pm-key").filter({ hasText: new RegExp("^" + name + "$") }),
+    });
+    await expect(option.locator(".vx-kind")).toHaveText("リスト");
+    await expect(option.locator(".se-pm-val")).toContainText(value);
+  }
+
+  await menu.locator(".se-pm-row").filter({
+    has: page.locator(".se-pm-key").filter({ hasText: /^出展カテゴリ$/ }),
+  }).locator(".dd-item").click();
+  await expect(filter.locator(".se-pm-btn:not(.se-list-choice)")).toHaveText("categories › 出展カテゴリ");
+  const doc = await snapshot(page);
+  const savedFilter = doc.pages.p.pageScripts[0].steps.find((s: any) => s.id === "category-filter");
+  expect(savedFilter.field).toBe("categories.出展カテゴリ");
+  expect(doc.pages.p.pageScripts[0].steps[0].preview.sample.rows[0].categories["出展カテゴリ"]).toEqual(["物販"]);
+});
+
 test("typed references preserve arrays, false, null and runtime-unknown choices", async ({ page }) => {
   for (const name of ["data.tags", "data.available", "data.empty", "later"]) {
     await openPicker(page); await pick(page, name);
