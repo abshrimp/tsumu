@@ -33,7 +33,15 @@ export const DEFAULT_BREAKPOINTS: BreakpointDef[] = [
 export const DEFAULT_BASE_WIDTH = 1280;
 /** 追加できるブレークポイントの数 */
 export const MAX_BREAKPOINTS = 6;
-const SHORT_LABELS: Record<string, string> = { タブレット: tr("Tablet"), スマホ横向き: tr("Phone (landscape)"), スマホ: tr("Phone") };
+/** Default persisted breakpoint names are data, so translate their labels at display time. */
+function breakpointLabel(label: string): string {
+  switch (label) {
+    case "タブレット": return tr("Tablet");
+    case "スマホ横向き": return tr("Phone (landscape)");
+    case "スマホ": return tr("Phone");
+    default: return label;
+  }
+}
 
 /**
  * 表示中のブレークポイントの並び（"base" が先頭、あとは幅の大きい順）と、その情報。
@@ -116,13 +124,13 @@ export function applyBreakpoints(cfg: { breakpoints?: unknown; baseWidth?: unkno
   list.forEach((b, i) => {
     const smaller = list[i + 1];
     BP_INFO[b.id] = {
-      label: tr(b.label),
-      short: Object.hasOwn(SHORT_LABELS, b.label) ? SHORT_LABELS[b.label] : tr(b.label),
+      label: breakpointLabel(b.label),
+      short: breakpointLabel(b.label),
       // 区切りの幅ちょうどで見せる（その画面用のスタイルが効くいちばん広い幅。崩れやすい幅を確かめられる）
       width: b.maxWidth,
       maxWidth: b.maxWidth,
       scope: smaller
-        ? tr("Changes apply to screens up to {maxWidth}px wide (including {p2})", { maxWidth: b.maxWidth, p2: list.slice(i + 1).map((x) => tr(x.label)).join(tr(", ")) })
+        ? tr("Changes apply to screens up to {maxWidth}px wide (including {p2})", { maxWidth: b.maxWidth, p2: list.slice(i + 1).map((x) => breakpointLabel(x.label)).join(tr(", ")) })
         : tr("Changes apply only to screens up to {maxWidth}px wide", { maxWidth: b.maxWidth }),
     };
   });

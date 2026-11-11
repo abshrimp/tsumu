@@ -20,7 +20,7 @@ export const EXPORT_FRAMEWORK_OPTIONS: { value: ExportFormat; label: string }[] 
   { value: "nuxt", label: "Nuxt" },
   { value: "sveltekit", label: "SvelteKit" },
   { value: "html", label: "HTML / CSS / JavaScript" },
-  { value: "single-html", label: "単一のHTML" },
+  { value: "single-html", label: "Single HTML" },
 ];
 
 export type ExportLanguage = "typescript" | "javascript";

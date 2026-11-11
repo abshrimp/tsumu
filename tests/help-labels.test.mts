@@ -2,12 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { LOCALES } from "../lib/locales";
 
-test("English help keywords do not replace labels used by the editor", async () => {
-  const en = await LOCALES.en!();
-  for (const [key, label, keyword] of [
-    ["リンク", "Link", "link"], ["データ取得", "Fetch data", "fetch data"], ["文章", "Paragraph", "text"],
+test("Japanese help search terms retain their contextual translations", async () => {
+  const ja = await LOCALES.ja!();
+  for (const [label, expected, term] of [
+    ["Link", "リンク", "link"],
+    ["Fetch data", "データ取得", "fetch data"],
+    ["Paragraph", "文章", "text"],
   ]) {
-    assert.equal(en[key], label);
-    assert.equal(en["ヘルプ検索\u0004" + key], keyword);
+    assert.equal(ja[label], expected);
+    assert.equal(ja["help_search\u0004" + term], expected);
   }
 });
