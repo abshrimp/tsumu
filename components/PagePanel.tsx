@@ -124,9 +124,12 @@ export default function PagePanel() {
     const request = beginImport("zip");
     setZipMessage(null);
     try {
-      const { assets, html: rewritten, name } = await readHtmlZip(file, (message) => {
+      const existing = (page.htmlZip?.assetIds ?? [])
+        .map(id => useEditor.getState().doc.assets[id])
+        .filter((asset): asset is NonNullable<typeof asset> => !!asset);
+      const { assets, source, zip, name } = await readHtmlZip(file, (message) => {
         if (request.current()) setZipMessage(message);
-      });
+      }, undefined, existing);
       await waitForGesture(request);
       if (!request.current()) {
         // アップロード済みの一式は残すが、Undo/Redoや手動編集を上書きしない。
@@ -136,7 +139,10 @@ export default function PagePanel() {
       updateDoc((draft) => {
         for (const asset of assets) draft.assets[asset.id] = asset;
         const target = draft.pages[page.id];
-        if (target) target.rawHtml = rewritten;
+        if (target) {
+          target.rawHtml = source;
+          target.htmlZip = zip;
+        }
       });
       setZipMessage(
         tr("Loaded {name} and {length} assets", { name, length: assets.length })
@@ -613,6 +619,7 @@ export default function PagePanel() {
                   await waitForGesture(request);
                   if (request.current()) updatePage(page.id, {
                     rawHtml: String(reader.result ?? ""),
+                    htmlZip: undefined,
                   });
                   request.finish();
                 };
