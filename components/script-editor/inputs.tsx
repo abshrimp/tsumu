@@ -371,6 +371,7 @@ export function OpEditor({
   target,
   not,
   onNotChange,
+  operators,
 }: {
   op: ScriptOp;
   value: string;
@@ -380,8 +381,13 @@ export function OpEditor({
   target?: string;
   not?: boolean;
   onNotChange?: (not: boolean) => void;
+  /** Show predicates appropriate to a known list/record field while retaining saved predicates. */
+  operators?: readonly ScriptOp[];
 }) {
   const noValue = op === "empty";
+  const availableOperators = operators
+    ? CONDITION_OPERATORS.filter((entry) => operators.includes(entry.value) || entry.value === op)
+    : CONDITION_OPERATORS;
   const pick = target !== undefined && op === "eq";
   return (
     <Phrase
@@ -405,7 +411,7 @@ export function OpEditor({
             value={op}
             onChange={(e) => onChange(e.target.value as ScriptOp, value)}
           >
-            {CONDITION_OPERATORS.map((o) => (
+            {availableOperators.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
