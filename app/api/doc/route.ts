@@ -51,7 +51,7 @@ export async function GET(req: Request) {
   try {
     const db = await getDb();
     if (!(await getSite(db, siteId))) {
-      return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
+      return NextResponse.json({ error: tr("Site not found") }, { status: 404 });
     }
     if (metaOnly) {
       const meta = await readSiteDocumentMeta(db, siteId);
@@ -71,7 +71,7 @@ export async function GET(req: Request) {
     // 例外には保存済みの本文や接続情報が含まれ得るため、ログにも応答にも渡さない。
     console.error("[api/doc GET] document read failed");
     return NextResponse.json(
-      { error: tr("読み込めませんでした") },
+      { error: tr("Couldn't load") },
       { status: 502 }
     );
   }
@@ -104,8 +104,8 @@ async function save(req: Request, partial: boolean) {
       : error instanceof JsonContentTypeError ? 415 : 400;
     return NextResponse.json({
       error: tr(status === 413
-        ? "ドキュメントが大きすぎて、保存先に入りきりません"
-        : partial ? "不正なリクエスト" : "JSONが壊れています"),
+        ? "The document is too large for the storage"
+        : partial ? "Invalid request" : "JSONが壊れています"),
     }, { status });
   }
   const patch = partial ? input : undefined;
@@ -120,14 +120,14 @@ async function save(req: Request, partial: boolean) {
   if (siteId instanceof NextResponse) return siteId;
   const base = params.get("base");
   if (partial && (!base || !/^[1-9]\d*$/.test(base) || !Number.isSafeInteger(Number(base)))) {
-    return NextResponse.json({ error: tr("不正なリクエスト") }, { status: 400 });
+    return NextResponse.json({ error: tr("Invalid request") }, { status: 400 });
   }
   // SQLite reads the first repeated JSON key; JSON.parse reads the last.
   // Store the same object that was validated and will be broadcast to editors.
   let raw = "";
   if (!partial) {
     try { raw = JSON.stringify(input); } catch {
-      return NextResponse.json({ error: tr("不正なリクエスト") }, { status: 400 });
+      return NextResponse.json({ error: tr("Invalid request") }, { status: 400 });
     }
   }
   const rawSenderId = req.headers.get("X-Collab-Client-Id") ?? "";
@@ -138,13 +138,13 @@ async function save(req: Request, partial: boolean) {
   try {
     const db = await getDb();
     if (!(await getSite(db, siteId))) {
-      return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
+      return NextResponse.json({ error: tr("Site not found") }, { status: 404 });
     }
     const { result, roomKey } = partial && isDocPatch(patch)
       ? await patchSiteDocumentWithTarget(db, siteId, patch, base!)
       : await saveSiteDocumentWithTarget(db, siteId, raw, base);
     if (result.kind === "missing") {
-      return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
+      return NextResponse.json({ error: tr("Site not found") }, { status: 404 });
     }
     if (result.kind === "conflict") {
       const cur = result.current;
@@ -178,17 +178,17 @@ async function save(req: Request, partial: boolean) {
   } catch (e) {
     if (e instanceof InvalidDocPatchError ||
       (e instanceof Error && /^(不正なリクエスト|JSONが壊れています)$/.test(e.message))) {
-      return NextResponse.json({ error: tr("不正なリクエスト") }, { status: 400 });
+      return NextResponse.json({ error: tr("Invalid request") }, { status: 400 });
     }
     // 大きさの上限は決め打ちせず、保存先が拒んだときに返す
     if (e instanceof DocTooLargeError ||
       (e instanceof Error && /too big|大きすぎ|SQLITE_TOOBIG/i.test(e.message))) {
-      return NextResponse.json({ error: tr("ドキュメントが大きすぎて、保存先に入りきりません") }, { status: 413 });
+      return NextResponse.json({ error: tr("The document is too large for the storage") }, { status: 413 });
     }
     // 例外には保存済みの本文や接続情報が含まれ得るため、ログにも応答にも渡さない。
     console.error("[api/doc] document save failed");
     return NextResponse.json(
-      { error: tr("保存できませんでした") },
+      { error: tr("Couldn't save") },
       { status: 502 }
     );
   }

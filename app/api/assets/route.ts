@@ -48,12 +48,12 @@ export async function POST(req: Request) {
     form = await readAssetForm(req, MAX_ASSET_BYTES + 1024 * 1024);
   } catch (error) {
     if (!(error instanceof RangeError)) throw error;
-    return NextResponse.json({ error: tr("ファイルが大きすぎます（25MBまで）") }, { status: 413 });
+    return NextResponse.json({ error: tr("The file is too large (max 25MB)") }, { status: 413 });
   }
   const file = form?.get("file");
   if (!(file instanceof File)) {
     return NextResponse.json(
-      { error: tr("ファイルがありません") },
+      { error: tr("No file was provided") },
       { status: 400 }
     );
   }
@@ -63,13 +63,13 @@ export async function POST(req: Request) {
     /\.(?:x?html?|mhtml|shtml|xml)$/i.test(file.name.trim())
   ) {
     return NextResponse.json(
-      { error: tr("この種類のファイルはアップロードできません") },
+      { error: tr("This file type can't be uploaded") },
       { status: 400 }
     );
   }
   if (file.size > MAX_ASSET_BYTES) {
     return NextResponse.json(
-      { error: tr("ファイルが大きすぎます（25MBまで）") },
+      { error: tr("The file is too large (max 25MB)") },
       { status: 400 }
     );
   }
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, name: safeName, path });
   } catch (e) {
     return NextResponse.json(
-      { error: tr(userMessage(e, "アップロードできませんでした")) },
+      { error: tr(userMessage(e, "Couldn't upload")) },
       { status: 502 }
     );
   }
@@ -131,7 +131,7 @@ export async function GET(req: Request) {
       ...(refs ? { others: [...refs].map(([path, bytes]) => ({ path, bytes })) } : {}),
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (e) {
-    return NextResponse.json({ error: tr(userMessage(e, "読み込めませんでした")) }, { status: 502 });
+    return NextResponse.json({ error: tr(userMessage(e, "Couldn't load")) }, { status: 502 });
   }
 }
 
@@ -149,7 +149,7 @@ export async function DELETE(req: Request) {
   const params = new URL(req.url).searchParams;
   const path = params.get("path");
   if (!path?.startsWith("assets/")) {
-    return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
+    return NextResponse.json({ error: tr("Invalid parameters") }, { status: 400 });
   }
   const siteId = await siteIdOf(params.get("site"));
   if (siteId instanceof NextResponse) return siteId;
@@ -160,7 +160,7 @@ export async function DELETE(req: Request) {
       // rather than listing all KV objects every night. Other sites and
       // pending saves are rechecked after the seven-day grace period.
       const site = await db.execute({ sql: "SELECT 1 FROM sites WHERE id=? LIMIT 1", args: [siteId] });
-      if (!site.rows.length) return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
+      if (!site.rows.length) return NextResponse.json({ error: tr("Site not found") }, { status: 404 });
       const scheduled = await recordAssetGcCandidates(db, [path]);
       return NextResponse.json({ ok: true, kept: true, scheduled: scheduled > 0 });
     }
@@ -177,7 +177,7 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json(
-      { error: tr(userMessage(e, "削除できませんでした")) },
+      { error: tr(userMessage(e, "Couldn't delete")) },
       { status: 502 }
     );
   }
