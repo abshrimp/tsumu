@@ -129,7 +129,7 @@ function VarTextIn({
     localVariableNames([...(itemFields ?? []), ...loops.flatMap((l) => [...l.fields, ...(l.roots ?? [])])]),
   [itemFields, loops]);
   const localSamples = useMemo(
-    () => Object.assign({}, ...[...loops].reverse().map((l) => l.rawSamples ?? {})) as Record<string, unknown>,
+    () => Object.fromEntries([...loops].reverse().flatMap((l) => Object.entries(l.rawSamples ?? {}))),
     [loops],
   );
   // 候補: 配列の要素の項目 + くり返し中の要素の項目 + その位置で使える変数 + スクリプトで作る変数
