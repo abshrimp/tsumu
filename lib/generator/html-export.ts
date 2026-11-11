@@ -138,23 +138,22 @@ type Context = {
   form: boolean;
   template: boolean;
   instance?: { id?: string; hidden?: string };
-  spa?: boolean;
+  staticRoutes?: ReadonlyMap<string, Page[]>;
 };
 
 function resource(ctx: Context, assetId?: string): string {
   const name = ctx.assets.get(assetId || "");
-  return name ? (ctx.spa ? "/assets/" : ctx.prefix + "assets/") + name : "";
+  return name ? ctx.prefix + "assets/" + name : "";
 }
 
 function href(ctx: Context, value: string): string {
   const safe = safeNavigationUrl(value);
-  if (ctx.spa || !/^\/(?!\/)/.test(safe)) return safe;
+  if (!ctx.staticRoutes || !/^\/(?!\/)/.test(safe)) return safe;
   const match = /^([^?#]*)(.*)$/.exec(safe);
   const slug = (match?.[1] ?? safe).replace(/^\/+|\/+$/g, "");
-  const page = Object.values(ctx.doc.pages).find((p) =>
-    !p.unpublished && p.slug.replace(/^\/+|\/+$/g, "") === slug
-  );
-  if (page) return pageHref(ctx, page.id) + (match?.[2] ?? "");
+  const route = ctx.staticRoutes.get(slug);
+  // A URL link supplies its own query even when variants share the output file.
+  if (route) return ctx.prefix + pageFilename(route[0], ctx.single) + (match?.[2] ?? "");
   return ctx.prefix + safe.replace(/^\/+/, "");
 }
 
@@ -163,7 +162,7 @@ function sourceHref(ctx: Context, value: string): string {
   const safe = safeResourceUrl(value);
   // Media paths are file references, not page links. Never resolve a coincident
   // page slug to index.html when the source actually points to an asset.
-  return !ctx.spa && /^\/(?!\/)/.test(safe)
+  return /^\/(?!\/)/.test(safe)
     ? ctx.prefix + safe.replace(/^\/+/, "") : safe;
 }
 
@@ -172,7 +171,7 @@ function pageHref(ctx: Context, id: string): string {
   if (!p) return "#";
   const suffix = p.query?.trim().replace(/^\?/, "");
   const withQuery = (url: string) => suffix ? url + (url.includes("?") ? "&" : "?") + suffix : url;
-  if (ctx.spa) return withQuery("/" + p.slug.replace(/^\/+|\/+$/g, ""));
+  if (!ctx.staticRoutes) return withQuery("/" + p.slug.replace(/^\/+|\/+$/g, ""));
   if (ctx.single && p.id === ctx.page.id) return withQuery(ctx.prefix + "index.html");
   if (p.slug.replace(/^\/+|\/+$/g, "") === "404") return withQuery(ctx.prefix + "404.html");
   const slug = p.slug.replace(/^\/+|\/+$/g, "");
@@ -391,7 +390,6 @@ export function reactClientPageFragment(doc: SiteDoc, page: Page): string {
     page: normalized.pages[page.id],
     prefix: "/",
     single: false,
-    spa: true,
     classes: buildClassNames(normalized),
     assets: buildAssetNames(normalized),
     scriptSources: importedScriptSources(normalized),
@@ -495,7 +493,9 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
   const groups = new Map<string, Page[]>();
   for (const page of pages) {
     const key = page.slug.replace(/^\/+|\/+$/g, "");
-    groups.set(key, [...(groups.get(key) ?? []), page]);
+    const group = groups.get(key);
+    if (group) group.push(page);
+    else groups.set(key, [page]);
   }
   const outputPaths = new Set<string>();
   const toggles = new Set([
@@ -518,7 +518,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
       continue;
     }
     const ctx: Context = {
-      doc: normalized, page, prefix, single, classes, assets, scriptSources, toggles,
+      doc: normalized, page, prefix, single, staticRoutes: groups, classes, assets, scriptSources, toggles,
       seen: new Set(), form: false, template: false,
     };
     const body = group.length === 1
@@ -540,7 +540,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
             '<div data-variant-root style="display:contents"></div>';
         })();
     const icon = normalized.favicon?.assetId ? resource(ctx, normalized.favicon.assetId) :
-      normalized.favicon?.url ? href(ctx, normalized.favicon.url) : "";
+      normalized.favicon?.url ? sourceHref(ctx, normalized.favicon.url) : "";
     const head = [
       '<meta charset="utf-8">',
       '<meta name="viewport" content="width=device-width,initial-scale=1">',
