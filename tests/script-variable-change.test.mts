@@ -95,6 +95,10 @@ test("renaming and exported variable obfuscation update watched variable paths",
   ], [
     { id: "assign", kind: "set-var", into: "stats", value: "{}" },
   ]);
+  // The name-editing flow first renames the producer, then updates references.
+  const producer = doc.nodes.button.scripts![0].steps[0];
+  if (producer.kind !== "set-var") throw new Error("expected set-var producer");
+  producer.into = "renamed";
   renameVarInPage(doc, "p", "stats", "renamed");
   assert.equal(doc.pages.p.pageScripts?.[0].changeVariable, "renamed.total");
   const published = obfuscateVarNames(doc);
