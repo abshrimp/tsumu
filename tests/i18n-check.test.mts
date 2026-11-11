@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 // Exercise the production checker against an isolated source tree.
-function check(source: string, dict: Record<string, string> = {}) {
+function check(source: string, dict: Record<string, string> = {}, args = ["--strict", "ja"], extra: Record<string, Record<string, string>> = {}) {
   const root = mkdtempSync(join(tmpdir(), "tsumu-i18n-check-"));
   try {
     for (const dir of ["scripts", "app", "components", "lib/locales"]) mkdirSync(join(root, dir), { recursive: true });
@@ -18,7 +18,10 @@ function check(source: string, dict: Record<string, string> = {}) {
     writeFileSync(join(root, "auth.ts"), "");
     writeFileSync(join(root, "middleware.ts"), "");
     writeFileSync(join(root, "lib/locales/ja.ts"), `export default ${JSON.stringify(dict)};`);
-    const result = spawnSync(process.execPath, ["--import", "tsx", "scripts/i18n-check.mts"], {
+    for (const [lang, translations] of Object.entries(extra)) {
+      writeFileSync(join(root, `lib/locales/${lang}.ts`), `export default ${JSON.stringify(translations)};`);
+    }
+    const result = spawnSync(process.execPath, ["--import", "tsx", "scripts/i18n-check.mts", ...args], {
       cwd: root, encoding: "utf8", timeout: 15_000,
     });
     assert.ifError(result.error);
@@ -78,4 +81,21 @@ test("i18n checker accepts member calls, rejects empty translations, and de-dupl
 test("i18n checker skips dynamically computed keys", () => {
   const result = check('tr(dynamicKey); tr(`Save ${value}`); trc(context, "Back"); tr("Save");', { Save: "保存" });
   assert.equal(result.status, 0, result.output);
+});
+
+test("partial languages warn without failing, while strict mode fails", () => {
+  const source = 'tr("Save"); tr("Delete");';
+  const partial = check(source, { Save: "保存", Delete: "削除" }, ["fr"], { fr: { Save: "Enregistrer" } });
+  assert.equal(partial.status, 0, partial.output);
+  assert.match(partial.output, /WARNING: 1 untranslated strings for fr/);
+  assert.match(partial.output, /"Delete"/);
+
+  const strict = check(source, { Save: "保存", Delete: "削除" }, ["--strict", "fr"], { fr: { Save: "Enregistrer" } });
+  assert.equal(strict.status, 1, strict.output);
+  assert.match(strict.output, /ERROR: 1 untranslated strings for fr/);
+
+  const all = check(source, { Save: "保存", Delete: "削除" }, ["--all"], { fr: { Save: "Enregistrer" } });
+  assert.equal(all.status, 0, all.output);
+  assert.match(all.output, /WARNING: 1 untranslated strings for fr/);
+  assert.match(all.output, /All static strings are translated for ja/);
 });
