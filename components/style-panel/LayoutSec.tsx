@@ -82,9 +82,9 @@ export function LayoutSec() {
   const rowsMatch = rowsValue ? /repeat\((\d+),\s*1fr\)/.exec(rowsValue) : null;
 
   return (
-    <Sec title={tr("レイアウト")} tutorialTarget="style-layout" help="layout-row">
+    <Sec title={tr("Layout")} tutorialTarget="style-layout" help="layout-row">
       <Grp
-        label={tr("フロー")}
+        label={tr("Flow")}
         setHere={flowChanged}
         onReset={() => insp.set({ display: null, flexDirection: null })}
       >
@@ -94,22 +94,22 @@ export function LayoutSec() {
             {
               label: <SquareDashed size={13} />,
               value: "block",
-              title: tr("自動（block）"),
+              title: tr("Auto (block)"),
             },
             {
               label: <ArrowDown size={13} />,
               value: "v",
-              title: tr("垂直フロー（flex column）"),
+              title: tr("Vertical (flex column)"),
             },
             {
               label: <ArrowRight size={13} />,
               value: "h",
-              title: tr("水平フロー（flex row）"),
+              title: tr("Horizontal (flex row)"),
             },
             {
               label: <LayoutGrid size={13} />,
               value: "grid",
-              title: tr("グリッド"),
+              title: tr("Grid"),
             },
           ]}
           onChange={(v) => {
@@ -127,13 +127,13 @@ export function LayoutSec() {
         />
       </Grp>
 
-      <Grp label={tr("サイズ")} props={["width", "height", "flexGrow"]} onReset={() => insp.set({ width: null, height: null, flexGrow: null, flexShrink: null, flexBasis: null })}>
+      <Grp label={tr("Size")} props={["width", "height", "flexGrow"]} onReset={() => insp.set({ width: null, height: null, flexGrow: null, flexShrink: null, flexBasis: null })}>
         <div className="grid2t">
           <MainSizeField prop="width" pre="W" axis={parentDir === "row" ? "main" : "cross"} />
           <MainSizeField prop="height" pre="H" axis={parentDir === "column" ? "main" : "cross"} />
           <button
             className={`icon-btn${sizeDetail ? " is-on" : ""}${sizeLimitState}`}
-            data-tip={tr("最小・最大サイズと縦横比")}
+            data-tip={tr("Min/max size and aspect ratio")}
             onClick={() => setSizeDetail(!sizeDetail)}
           >
             <Maximize2 size={13} />
@@ -144,27 +144,27 @@ export function LayoutSec() {
       {sizeDetail && (
         <>
           <div className="grid2">
-            <Grp label={tr("最小幅")} props={["minWidth"]}>
+            <Grp label={tr("Min width")} props={["minWidth"]}>
               <PropNum prop="minWidth" pre="W" units={["px", "%"]} scrubFrom={() => selectedSize("w")} />
             </Grp>
-            <Grp label={tr("最大幅")} props={["maxWidth"]}>
+            <Grp label={tr("Max width")} props={["maxWidth"]}>
               <PropNum prop="maxWidth" pre="W" units={["px", "%"]} scrubFrom={() => selectedSize("w")} />
             </Grp>
-            <Grp label={tr("最小高さ")} props={["minHeight"]}>
+            <Grp label={tr("Min height")} props={["minHeight"]}>
               <PropNum prop="minHeight" pre="H" units={["px", "%"]} scrubFrom={() => selectedSize("h")} />
             </Grp>
-            <Grp label={tr("最大高さ")} props={["maxHeight"]}>
+            <Grp label={tr("Max height")} props={["maxHeight"]}>
               <PropNum prop="maxHeight" pre="H" units={["px", "%"]} scrubFrom={() => selectedSize("h")} />
             </Grp>
           </div>
           <Grp
-            label={tr("縦横比")}
+            label={tr("Aspect ratio")}
             setHere={insp.get("aspectRatio").changed}
             onReset={() => insp.set({ aspectRatio: null })}
           >
             <TextField
               value={insp.get("aspectRatio").value}
-              placeholder={tr("例: 16 / 9")}
+              placeholder={tr("e.g. 16 / 9")}
               onChange={(v) =>
                 // パソコン幅以外で消したときは、大きい画面の縦横比を受け継がず「なし」にする
                 insp.set({ aspectRatio: v || insp.cleared("aspectRatio") })
@@ -177,7 +177,7 @@ export function LayoutSec() {
       {isFlex && (
         <div className="grid2" style={{ alignItems: "start" }}>
           <Grp
-            label={tr("配置")}
+            label={tr("Alignment")}
             setHere={insp.get("alignItems").changed || (insp.get("justifyContent").changed && !spaceBetween)}
             onReset={() =>
               insp.set({ alignItems: null, ...(spaceBetween ? {} : { justifyContent: null }) })
@@ -187,7 +187,7 @@ export function LayoutSec() {
           </Grp>
           <div className="stack" style={{ gap: 10 }}>
             <Grp
-              label={tr("間隔")}
+              label={tr("Gap")}
               setHere={insp.get("gap").changed || (spaceBetween && insp.get("justifyContent").changed)}
               onReset={() =>
                 insp.set({
@@ -201,7 +201,7 @@ export function LayoutSec() {
                   value={spaceBetween ? undefined : insp.get("gap").value}
                   units={["px"]}
                   min={0}
-                  placeholder={spaceBetween ? tr("自動") : "0"}
+                  placeholder={spaceBetween ? tr("automatic") : "0"}
                   pre={
                     dir === "column" ? (
                       <UnfoldVertical size={I} />
@@ -218,7 +218,7 @@ export function LayoutSec() {
                 />
                 <button
                   className={`icon-btn${spaceBetween ? " is-on" : ""}`}
-                  data-tip={tr("自動（両端に寄せて均等に配置）")}
+                  data-tip={tr("Auto (space evenly between the ends)")}
                   onClick={() =>
                     insp.set(
                       spaceBetween
@@ -236,7 +236,7 @@ export function LayoutSec() {
               </div>
             </Grp>
             {dir === "row" && (
-              <StyleCheck prop="flexWrap" label={tr("折り返す")} on="wrap" off="nowrap" />
+              <StyleCheck prop="flexWrap" label={trc("wrap_variant_1", "Wrap")} on="wrap" off="nowrap" />
             )}
           </div>
         </div>
@@ -246,7 +246,7 @@ export function LayoutSec() {
         <>
           <div className="grid2">
             <Grp
-              label={tr("列")}
+              label={tr("Columns")}
               // グリッドを選んだときに入る2列とは比べない（上位が未設定なら2列と比べる）
               setHere={differsFrom(insp.get("gridTemplateColumns"), GRID_DEFAULT_COLUMNS)}
               onReset={() => insp.set({ gridTemplateColumns: null })}
@@ -267,13 +267,13 @@ export function LayoutSec() {
                 }}
               />
             </Grp>
-            <Grp label={tr("行")} props={["gridTemplateRows"]}>
+            <Grp label={tr("Rows")} props={["gridTemplateRows"]}>
               <NumField
                 value={rowsMatch ? rowsMatch[1] : undefined}
                 units={[""]}
                 min={1}
                 max={12}
-                placeholder={tr("自動")}
+                placeholder={tr("automatic")}
                 onChange={(v) => {
                   const n = v
                     ? Math.max(1, Math.round(parseNumeric(v)?.num ?? 1))
@@ -285,38 +285,38 @@ export function LayoutSec() {
           </div>
           <GridGap />
           <div className="grid2">
-            <Grp label={tr("セル内の横揃え")} props={["justifyItems"]}>
+            <Grp label={tr("Horizontal align in cell")} props={["justifyItems"]}>
               <PropSelect
                 prop="justifyItems"
-                unsetLabel={tr("伸ばす")}
+                unsetLabel={tr("Stretch")}
                 options={[
-                  { label: tr("左"), value: "start", icon: <AlignLeft size={13} /> },
+                  { label: tr("Left"), value: "start", icon: <AlignLeft size={13} /> },
                   {
-                    label: tr("中央"),
+                    label: tr("Center"),
                     value: "center",
                     icon: <AlignCenter size={13} />,
                   },
-                  { label: tr("右"), value: "end", icon: <AlignRight size={13} /> },
+                  { label: tr("Right"), value: "end", icon: <AlignRight size={13} /> },
                 ]}
               />
             </Grp>
-            <Grp label={tr("セル内の縦揃え")} props={["alignItems"]}>
+            <Grp label={tr("Vertical align in cell")} props={["alignItems"]}>
               <PropSelect
                 prop="alignItems"
-                unsetLabel={tr("伸ばす")}
+                unsetLabel={tr("Stretch")}
                 options={[
                   {
-                    label: tr("上"),
+                    label: tr("Top"),
                     value: "start",
                     icon: <AlignStartHorizontal size={13} />,
                   },
                   {
-                    label: tr("中央"),
+                    label: tr("Center"),
                     value: "center",
                     icon: <AlignCenterHorizontal size={13} />,
                   },
                   {
-                    label: tr("下"),
+                    label: tr("Bottom"),
                     value: "end",
                     icon: <AlignEndHorizontal size={13} />,
                   },
@@ -328,16 +328,16 @@ export function LayoutSec() {
       )}
 
       <Grp
-        label={tr("はみ出し")}
+        label={tr("Overflow")}
         setHere={overflowChanged}
         onReset={() => insp.set({ overflow: null })}
       >
         <PropSeg
           prop="overflow"
           options={[
-            { label: trc("はみ出し", "表示"), value: "visible" },
-            { label: trc("はみ出し", "隠す"), value: "hidden" },
-            { label: tr("スクロール"), value: "auto" },
+            { label: trc("overflow", "Visible"), value: "visible" },
+            { label: trc("overflow", "Hidden"), value: "hidden" },
+            { label: tr("Scroll"), value: "auto" },
           ]}
         />
       </Grp>
@@ -380,7 +380,7 @@ function GridGap() {
 
   return (
     <Grp
-      label={tr("間隔")}
+      label={tr("Gap")}
       setHere={gap.changed || col.changed || row.changed}
       onReset={() => insp.set({ gap: null, rowGap: null, columnGap: null })}
     >
@@ -390,7 +390,7 @@ function GridGap() {
             value={colValue}
             placeholder="0"
             pre={<UnfoldHorizontal size={I} />}
-            title={tr("列の間隔（横）")}
+            title={tr("Column gap")}
             units={["px"]}
             min={0}
             onChange={(v) => write({ columnGap: v })}
@@ -401,7 +401,7 @@ function GridGap() {
             value={rowValue}
             placeholder="0"
             pre={<UnfoldVertical size={I} />}
-            title={tr("行の間隔（縦）")}
+            title={tr("Row gap")}
             units={["px"]}
             min={0}
             onChange={(v) => write({ rowGap: v })}

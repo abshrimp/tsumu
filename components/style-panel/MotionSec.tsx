@@ -70,12 +70,12 @@ export function MotionSec({ node }: { node: DocNode }) {
   return (
     <Sec
       key={motions.length > 0 ? "has-motion" : "no-motion"}
-      title={tr("モーション")}
+      title={tr("Motion")}
       defaultOpen={motions.length > 0}
       tutorialTarget="style-motion"
       help="look-animation"
       tools={
-        <button className="icon-btn sm" data-tip={tr("モーションを追加")} onClick={add}>
+        <button className="icon-btn sm" data-tip={tr("Add motion")} onClick={add}>
           <Plus size={13} />
         </button>
       }
@@ -93,7 +93,7 @@ export function MotionSec({ node }: { node: DocNode }) {
             </span>
             <button
               className="icon-btn sm"
-              data-tip={tr("削除")}
+              data-tip={tr("Delete")}
               onClick={() => remove(i)}
             >
               <Trash2 size={12} />
@@ -101,12 +101,12 @@ export function MotionSec({ node }: { node: DocNode }) {
           </div>
 
           <Grp
-            label={tr("きっかけ")}
+            label={tr("Triggers")}
             info={
               m.trigger === "state"
-                ? tr("スタイルの変化をなめらかにします。パネル上部の「状態」を切り替えて、変化したあとのスタイルを設定してください。")
+                ? tr("Smooths out style changes. Switch the State at the top of the panel to set the style to change to.")
                 : m.trigger === "in-view"
-                  ? tr("スクロールして要素が画面に入ったときに1回再生されます（キャンバスではすぐに再生されます）。")
+                  ? tr("Plays once when the element scrolls into view (plays immediately on the canvas).")
                   : undefined
             }
           >
@@ -119,7 +119,7 @@ export function MotionSec({ node }: { node: DocNode }) {
 
           {m.trigger === "state" ? (
             <>
-              <Grp label={tr("どのスタイルが変わったとき？")}>
+              <Grp label={tr("Which style changes?")}>
                 <Dropdown
                   value={m.property ?? "all"}
                   options={TRANSITION_PROPS.map((p) => ({
@@ -132,7 +132,7 @@ export function MotionSec({ node }: { node: DocNode }) {
             </>
           ) : (
             <>
-              <Grp label={tr("動き")}>
+              <Grp label={tr("Animation")}>
                 <Dropdown
                   value={m.keyframes ?? "fade-up"}
                   options={[
@@ -140,7 +140,7 @@ export function MotionSec({ node }: { node: DocNode }) {
                       value: k.key,
                       label: k.label,
                     })),
-                    { value: "custom", label: tr("カスタム…") },
+                    { value: "custom", label: tr("Custom…") },
                   ]}
                   onChange={(v) => {
                     if (v !== "custom") {
@@ -155,11 +155,11 @@ export function MotionSec({ node }: { node: DocNode }) {
               {m.keyframes === "custom" && (
                 <button type="button" className="btn me-open" onClick={() => setKfEdit(m.id)}>
                   <Diamond size={13} />
-                  <span>{tr("キーフレームを編集")}</span>
+                  <span>{tr("Edit keyframes")}</span>
                   <span className="me-open-meta">
                     {(() => {
                       const n = parseKeyframes(m.customKeyframes ?? "")?.length;
-                      return n === undefined ? tr("CSS") : tr("{n}個", { n });
+                      return n === undefined ? tr("CSS") : tr("{n}", { n });
                     })()}
                   </span>
                 </button>
@@ -168,7 +168,7 @@ export function MotionSec({ node }: { node: DocNode }) {
           )}
 
           <div className="grid2">
-            <Grp label={tr("時間")}>
+            <Grp label={tr("Duration")}>
               <NumField
                 value={`${m.duration}s`}
                 units={["s"]}
@@ -181,7 +181,7 @@ export function MotionSec({ node }: { node: DocNode }) {
                 }
               />
             </Grp>
-            <Grp label={tr("遅延")}>
+            <Grp label={tr("Delay")}>
               <NumField
                 value={m.delay ? `${m.delay}s` : undefined}
                 units={["s"]}
@@ -196,7 +196,7 @@ export function MotionSec({ node }: { node: DocNode }) {
               />
             </Grp>
           </div>
-          <Grp label={tr("動きの緩急")}>
+          <Grp label={tr("Easing")}>
             {(() => {
               const isPreset = EASINGS.some((e) => e.value === m.easing);
               return (
@@ -213,7 +213,7 @@ export function MotionSec({ node }: { node: DocNode }) {
                           fontSize: 11,
                         } as const,
                       })),
-                      { value: "custom", label: tr("カスタム…") },
+                      { value: "custom", label: tr("Custom…") },
                     ]}
                     onChange={(v) => {
                       if (v === "custom") setEaseEdit(m.id);
@@ -223,8 +223,8 @@ export function MotionSec({ node }: { node: DocNode }) {
                   <button
                     type="button"
                     className="icon-btn me-ease-btn"
-                    data-tip={tr("イージングを編集")}
-                    aria-label={tr("イージングを編集")}
+                    data-tip={tr("Edit easing")}
+                    aria-label={tr("Edit easing")}
                     onClick={() => setEaseEdit(m.id)}
                   >
                     <EasingCurve value={m.easing} size={20} />
@@ -243,7 +243,7 @@ export function MotionSec({ node }: { node: DocNode }) {
           {m.trigger !== "state" && (
             <>
               <div className="grid2">
-                <Grp label={tr("くり返す回数")}>
+                <Grp label={tr("Repeat count")}>
                   <div style={{ display: "flex", gap: 4 }}>
                     <NumField
                       value={m.repeat === -1 ? undefined : String(m.repeat ?? 1)}
@@ -258,7 +258,7 @@ export function MotionSec({ node }: { node: DocNode }) {
                     />
                     <button
                       className={`icon-btn${m.repeat === -1 ? " is-on" : ""}`}
-                      data-tip={tr("ずっとくり返す")}
+                      data-tip={tr("forever")}
                       onClick={() =>
                         update(i, { repeat: m.repeat === -1 ? 1 : -1 })
                       }
@@ -267,7 +267,7 @@ export function MotionSec({ node }: { node: DocNode }) {
                     </button>
                   </div>
                 </Grp>
-                <Grp label={tr("向き")}>
+                <Grp label={tr("Direction")}>
                   <Dropdown
                     value={m.direction ?? "normal"}
                     options={DIRECTIONS.map((d) => ({
@@ -280,7 +280,7 @@ export function MotionSec({ node }: { node: DocNode }) {
                   />
                 </Grp>
               </div>
-              <Grp label={tr("再生前後のスタイル")}>
+              <Grp label={tr("Fill mode")}>
                 <Dropdown
                   value={m.fillMode ?? "both"}
                   options={FILL_MODES.map((f) => ({
@@ -299,7 +299,7 @@ export function MotionSec({ node }: { node: DocNode }) {
 
       {!motions.length && (
         <p className="hint" style={{ margin: 0 }}>
-          {tr("右上の + からモーションを追加できます。")}
+          {tr("Add motion with + at the top right.")}
         </p>
       )}
 

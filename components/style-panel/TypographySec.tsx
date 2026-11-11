@@ -100,7 +100,7 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
       if (!request.current()) return;
       if (!found) {
         setError(
-          tr("Google Fontsに見つかりませんでした。fonts.google.com の表記どおりに入力してください")
+          tr("Not found on Google Fonts. Enter the name exactly as shown on fonts.google.com")
         );
         return;
       }
@@ -115,7 +115,7 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
       setFamily("");
     } catch {
       if (!request.current()) return;
-      setError(tr("確認できませんでした。ネットワークを確認してください"));
+      setError(tr("Couldn't check. Check your network connection"));
     } finally {
       request.finish();
     }
@@ -127,7 +127,7 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <PropSelect
             prop="fontFamily"
-            unsetLabel={tr("継承（{inheritedValue}）", { inheritedValue })}
+            unsetLabel={tr("Inherited ({inheritedValue})", { inheritedValue })}
             options={fonts.map((f) => ({
               label: f.label,
               value: f.value,
@@ -137,7 +137,7 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
         </div>
         <button
           className={`icon-btn${adding ? " is-on" : ""}`}
-          data-tip={tr("Google Fontsから追加")}
+          data-tip={tr("Add from Google Fonts")}
           onClick={() => {
             pending.cancel();
             setAdding(!adding);
@@ -152,7 +152,7 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
             <input
               className="input"
               value={family}
-              placeholder={tr("fonts.google.com の名前（例: Shippori Mincho）")}
+              placeholder={tr("Name on fonts.google.com (e.g. Playfair Display)")}
               onChange={(e) => {
                 pending.cancel();
                 setFamily(e.target.value);
@@ -167,7 +167,7 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
               onClick={() => void addFont()}
               style={{ flex: "none" }}
             >
-              {busy ? tr("確認中…") : tr("追加")}
+              {busy ? tr("Checking…") : tr("Add")}
             </button>
           </div>
           {error && (
@@ -253,23 +253,23 @@ export function TypographySec({ node }: { node: DocNode }) {
 
   return (
     <Sec
-      title={tr("テキスト")}
+      title={trc("text_variant_1", "Text")}
       defaultOpen={!!node.text || node.type === "field"}
       tutorialTarget="style-typography"
       help="text-size"
     >
       {node.text && (
-        <Grp label={tr("見出しレベル")}>
+        <Grp label={tr("Heading level")}>
           <Dropdown
             value={String(node.text.heading)}
             options={[
-              { value: "0", label: tr("本文"), icon: <Pilcrow size={13} /> },
-              { value: "1", label: tr("見出し 1"), icon: <Heading1 size={14} /> },
-              { value: "2", label: tr("見出し 2"), icon: <Heading2 size={14} /> },
-              { value: "3", label: tr("見出し 3"), icon: <Heading3 size={14} /> },
-              { value: "4", label: tr("見出し 4"), icon: <Heading4 size={14} /> },
-              { value: "5", label: tr("見出し 5"), icon: <Heading5 size={14} /> },
-              { value: "6", label: tr("見出し 6"), icon: <Heading6 size={14} /> },
+              { value: "0", label: tr("Body"), icon: <Pilcrow size={13} /> },
+              { value: "1", label: trc("heading_1_variant_1", "Heading 1"), icon: <Heading1 size={14} /> },
+              { value: "2", label: trc("heading_2_variant_1", "Heading 2"), icon: <Heading2 size={14} /> },
+              { value: "3", label: trc("heading_3_variant_1", "Heading 3"), icon: <Heading3 size={14} /> },
+              { value: "4", label: tr("Heading 4"), icon: <Heading4 size={14} /> },
+              { value: "5", label: tr("Heading 5"), icon: <Heading5 size={14} /> },
+              { value: "6", label: tr("Heading 6"), icon: <Heading6 size={14} /> },
             ]}
             onChange={(v) =>
               // 複数選択中は、選択中のテキスト要素すべての見出しレベルを変える
@@ -282,7 +282,7 @@ export function TypographySec({ node }: { node: DocNode }) {
       )}
 
       <Grp
-        label={tr("フォント")}
+        label={tr("Font")}
         setHere={insp.get("fontFamily").changed}
         onReset={() => insp.set({ fontFamily: null })}
       >
@@ -290,83 +290,83 @@ export function TypographySec({ node }: { node: DocNode }) {
       </Grp>
 
       <div className="grid2">
-        <Grp label={tr("サイズ")} props={["fontSize"]}>
+        <Grp label={tr("Size")} props={["fontSize"]}>
           <PropNum prop="fontSize" pre="A" units={["px", "rem"]} />
         </Grp>
         <Grp
-          label={tr("太さ")}
+          label={tr("Weight")}
           setHere={insp.get("fontWeight").changed}
           onReset={() => insp.set({ fontWeight: null })}
         >
           <PropSelect
             prop="fontWeight"
-            unsetLabel={tr("継承（{inheritedFontWeight}）", { inheritedFontWeight })}
+            unsetLabel={tr("Inherited ({inheritedFontWeight})", { inheritedFontWeight })}
             options={[
-              { label: tr("細い 300"), value: "300", labelStyle: { fontWeight: 300 } },
-              { label: tr("標準 400"), value: "400", labelStyle: { fontWeight: 400 } },
-              { label: tr("中 500"), value: "500", labelStyle: { fontWeight: 500 } },
+              { label: tr("Light 300"), value: "300", labelStyle: { fontWeight: 300 } },
+              { label: tr("Regular 400"), value: "400", labelStyle: { fontWeight: 400 } },
+              { label: tr("Medium 500"), value: "500", labelStyle: { fontWeight: 500 } },
               {
-                label: tr("やや太い 600"),
+                label: tr("Semibold 600"),
                 value: "600",
                 labelStyle: { fontWeight: 600 },
               },
-              { label: tr("太い 700"), value: "700", labelStyle: { fontWeight: 700 } },
-              { label: tr("極太 900"), value: "900", labelStyle: { fontWeight: 900 } },
+              { label: tr("Bold 700"), value: "700", labelStyle: { fontWeight: 700 } },
+              { label: tr("Black 900"), value: "900", labelStyle: { fontWeight: 900 } },
             ]}
           />
         </Grp>
-        <Grp label={tr("行間")} props={["lineHeight"]}>
-          <PropNum prop="lineHeight" pre={trc("行間", "行")} units={["", "px"]} />
+        <Grp label={tr("Line height")} props={["lineHeight"]}>
+          <PropNum prop="lineHeight" pre={trc("line_height", "LH")} units={["", "px"]} />
         </Grp>
-        <Grp label={tr("字間")} props={["letterSpacing"]}>
-          <PropNum prop="letterSpacing" pre={trc("字間", "字")} units={["px", "em"]} />
+        <Grp label={tr("Letter spacing")} props={["letterSpacing"]}>
+          <PropNum prop="letterSpacing" pre={trc("letter_spacing", "LS")} units={["px", "em"]} />
         </Grp>
       </div>
 
-      <PropFill label={tr("色")} prop="color" />
+      <PropFill label={tr("Color")} prop="color" />
       {inLink(doc, node.id) && (
         <PropFill
-          label={tr("訪問済みの色")}
-          info={tr("一度開いたことのあるリンクの文字色です。リンクの中の要素にも設定できます。")}
+          label={tr("Visited color")}
+          info={tr("The text color of links that have already been opened. You can also set it on elements inside a link.")}
           prop="visitedColor"
         />
       )}
       {hasTextField(doc, node.id) && (
         <PropFill
-          label={tr("プレースホルダーの色")}
-          info={tr("入力欄が空のときに出る案内文の色です。ボックスやフォームに設定すると、中にある入力欄すべてに効きます。")}
+          label={tr("Placeholder color")}
+          info={tr("The color of the hint text shown in empty fields. Set it on a box or form to apply it to every field inside.")}
           prop="placeholderColor"
         />
       )}
 
       <div className="grid2" style={{ alignItems: "end" }}>
         <Grp
-          label={tr("揃え")}
+          label={tr("Align")}
           setHere={insp.get("textAlign").changed}
           onReset={() => insp.set({ textAlign: null })}
         >
           <PropSeg
             prop="textAlign"
             options={[
-              { label: <AlignLeft size={13} />, value: "left", title: tr("左揃え") },
+              { label: <AlignLeft size={13} />, value: "left", title: tr("Align left") },
               {
                 label: <AlignCenter size={13} />,
                 value: "center",
-                title: tr("中央揃え"),
+                title: tr("Align center"),
               },
               {
                 label: <AlignRight size={13} />,
                 value: "right",
-                title: tr("右揃え"),
+                title: tr("Align right"),
               },
             ]}
           />
         </Grp>
-        <Grp label={tr("装飾")} props={["fontStyle", "textDecoration"]}>
+        <Grp label={tr("Decoration")} props={["fontStyle", "textDecoration"]}>
           <div className="seg seg-full">
             <button
               className={italic ? "is-on" : ""}
-              data-tip={tr("斜体")}
+              data-tip={tr("Italic")}
               onClick={() =>
                 insp.set({ fontStyle: italic ? explicitDefault("fontStyle") : "italic" })
               }
@@ -375,7 +375,7 @@ export function TypographySec({ node }: { node: DocNode }) {
             </button>
             <button
               className={deco === "underline" ? "is-on" : ""}
-              data-tip={tr("下線")}
+              data-tip={tr("Underline")}
               onClick={() =>
                 insp.set({
                   textDecoration: deco === "underline" ? explicitDefault("textDecoration") : "underline",
@@ -386,7 +386,7 @@ export function TypographySec({ node }: { node: DocNode }) {
             </button>
             <button
               className={deco === "line-through" ? "is-on" : ""}
-              data-tip={tr("打ち消し線")}
+              data-tip={tr("Strikethrough")}
               onClick={() =>
                 insp.set({
                   textDecoration:
@@ -402,26 +402,26 @@ export function TypographySec({ node }: { node: DocNode }) {
 
       <div className="grid2">
         <Grp
-          label={tr("変換")}
+          label={tr("Transform")}
           setHere={insp.get("textTransform").changed}
           onReset={() => insp.set({ textTransform: null })}
         >
           <PropSelect
             prop="textTransform"
-            unsetLabel={tr("なし")}
+            unsetLabel={tr("None")}
             options={[
               {
-                label: tr("大文字"),
+                label: tr("Uppercase"),
                 value: "uppercase",
                 icon: <CaseUpper size={14} />,
               },
               {
-                label: tr("小文字"),
+                label: tr("Lowercase"),
                 value: "lowercase",
                 icon: <CaseLower size={14} />,
               },
               {
-                label: tr("頭文字を大文字"),
+                label: tr("Capitalize"),
                 value: "capitalize",
                 icon: <CaseSensitive size={14} />,
               },
@@ -429,7 +429,7 @@ export function TypographySec({ node }: { node: DocNode }) {
           />
         </Grp>
         <Grp
-          label={tr("折り返し")}
+          label={tr("Wrapping")}
           props={["whiteSpace", "WebkitLineClamp"]}
           onReset={() =>
             insp.set({
@@ -443,9 +443,9 @@ export function TypographySec({ node }: { node: DocNode }) {
           <Seg
             value={clamp ? "clamp" : nowrap ? "nowrap" : "wrap"}
             options={[
-              { label: tr("する"), value: "wrap" },
-              { label: tr("なし"), value: "nowrap" },
-              { label: tr("省略"), value: "clamp" },
+              { label: tr("Wrap"), value: "wrap" },
+              { label: tr("None"), value: "nowrap" },
+              { label: tr("Truncate"), value: "clamp" },
             ]}
             onChange={(v) => {
               if (v === "wrap") {
@@ -483,7 +483,7 @@ export function TypographySec({ node }: { node: DocNode }) {
       {clamp && (
         <div className="grid2">
           <Grp
-            label={tr("省略までの行数")}
+            label={tr("Lines before truncating")}
             setHere={differsFrom(insp.get("WebkitLineClamp"), "2")}
             onReset={() => insp.set({ WebkitLineClamp: "2" })}
           >

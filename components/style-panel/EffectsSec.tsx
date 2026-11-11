@@ -132,21 +132,21 @@ function ShadowCard({
       <div className="fx-head">
         <span className="fx-label">
           {kind === "text"
-            ? tr("テキストシャドウ")
+            ? tr("Text shadow")
             : shadow.inset
-              ? tr("内側シャドウ")
-              : tr("ドロップシャドウ")}
+              ? tr("Inner shadow")
+              : tr("Drop shadow")}
         </span>
         {kind === "drop" && (
           <button
             className="icon-btn sm"
-            data-tip={shadow.inset ? tr("外側にする") : tr("内側にする")}
+            data-tip={shadow.inset ? tr("Make outer") : tr("Make inner")}
             onClick={onToggleInset}
           >
             <Blend size={12} />
           </button>
         )}
-        <button className="icon-btn sm" data-tip={tr("削除")} onClick={onDelete}>
+        <button className="icon-btn sm" data-tip={tr("Delete")} onClick={onDelete}>
           <Trash2 size={12} />
         </button>
       </div>
@@ -157,7 +157,7 @@ function ShadowCard({
             value={shadowLength(shadow[key])}
             units={["px"]}
             pre={{ x: "X", y: "Y", blur: "B", spread: "S" }[key]}
-            title={{ x: "X", y: "Y", blur: tr("ぼかし"), spread: tr("広がり") }[key]}
+            title={{ x: "X", y: "Y", blur: tr("Blur"), spread: tr("Spread") }[key]}
             onChange={(value) =>
               onChange({ [key]: value ? (parseNumeric(value)?.unit === "px" ? parseNumeric(value)!.num : value) : 0 })
             }
@@ -184,36 +184,36 @@ const FILTER_FIELDS: {
   min?: number;
   max?: number;
 }[] = [
-  { key: "brightness", label: tr("明るさ"), unit: "%", def: 100, min: 0 },
-  { key: "contrast", label: tr("コントラスト"), unit: "%", def: 100, min: 0 },
-  { key: "saturate", label: tr("彩度"), unit: "%", def: 100, min: 0 },
-  { key: "grayscale", label: tr("グレースケール"), unit: "%", def: 0, min: 0, max: 100 },
-  { key: "sepia", label: tr("セピア"), unit: "%", def: 0, min: 0, max: 100 },
-  { key: "hueRotate", label: tr("色相回転"), unit: "deg", def: 0 },
+  { key: "brightness", label: tr("Brightness"), unit: "%", def: 100, min: 0 },
+  { key: "contrast", label: tr("Contrast"), unit: "%", def: 100, min: 0 },
+  { key: "saturate", label: tr("Saturation"), unit: "%", def: 100, min: 0 },
+  { key: "grayscale", label: tr("Grayscale"), unit: "%", def: 0, min: 0, max: 100 },
+  { key: "sepia", label: tr("Sepia"), unit: "%", def: 0, min: 0, max: 100 },
+  { key: "hueRotate", label: tr("Hue rotate"), unit: "deg", def: 0 },
 ];
 
 const BLEND_MODES: { value: string; label: string }[] = [
-  { value: "multiply", label: tr("乗算") },
-  { value: "screen", label: tr("スクリーン") },
-  { value: "overlay", label: tr("オーバーレイ") },
-  { value: "darken", label: tr("比較（暗）") },
-  { value: "lighten", label: tr("比較（明）") },
-  { value: "difference", label: tr("差の絶対値") },
-  { value: "exclusion", label: tr("除外") },
-  { value: "luminosity", label: tr("輝度") },
+  { value: "multiply", label: tr("Multiply") },
+  { value: "screen", label: tr("Screen") },
+  { value: "overlay", label: tr("Overlay") },
+  { value: "darken", label: tr("Darken") },
+  { value: "lighten", label: tr("Lighten") },
+  { value: "difference", label: tr("Difference") },
+  { value: "exclusion", label: tr("Exclusion") },
+  { value: "luminosity", label: tr("Luminosity") },
 ];
 
 /** 変形の基準点（transform-origin）。3×3 の位置（左上から右下へ） */
 const ORIGINS: { value: string; label: string }[] = [
-  { value: "top left", label: tr("左上") },
-  { value: "top", label: tr("上中央") },
-  { value: "top right", label: tr("右上") },
-  { value: "left", label: tr("左中央") },
-  { value: "center", label: tr("中央") },
-  { value: "right", label: tr("右中央") },
-  { value: "bottom left", label: tr("左下") },
-  { value: "bottom", label: tr("下中央") },
-  { value: "bottom right", label: tr("右下") },
+  { value: "top left", label: tr("Top left") },
+  { value: "top", label: tr("Top center") },
+  { value: "top right", label: tr("Top right") },
+  { value: "left", label: tr("Middle left") },
+  { value: "center", label: tr("Center") },
+  { value: "right", label: tr("Middle right") },
+  { value: "bottom left", label: tr("Bottom left") },
+  { value: "bottom", label: tr("Bottom center") },
+  { value: "bottom right", label: tr("Bottom right") },
 ];
 
 /** 「50% 0%」「center top」などの書き方を、3×3 のどこかにそろえる（当てはまらなければ null） */
@@ -244,7 +244,7 @@ function OriginGrid() {
   const insp = useInspector();
   const cur = originCell(insp.get("transformOrigin").value);
   return (
-    <div className="align-grid origin-grid" role="radiogroup" aria-label={tr("基準点")}>
+    <div className="align-grid origin-grid" role="radiogroup" aria-label={tr("Origin")}>
       {ORIGINS.map((o) => (
         <button
           key={o.value}
@@ -277,16 +277,16 @@ function TransformCard({ onDelete }: { onDelete: () => void }) {
   return (
     <div className="fx-card">
       <div className="fx-head">
-        <span className="fx-label">{tr("変形")}</span>
+        <span className="fx-label">{trc("transform_variant_1", "Transform")}</span>
         <InfoTip
-          text={tr("見た目だけを動かす・回す・拡大する・傾けます（まわりの要素の配置は変わりません）。ホバー時などの状態で変えて、モーションの「状態の変化」と組み合わせるとアニメーションになります。")}
+          text={tr("Moves, rotates, scales or skews only how the element looks (the layout around it doesn't change). Change it in a state such as Hover and combine it with a “state change” motion to animate it.")}
         />
-        <button className="icon-btn sm" data-tip={tr("削除")} onClick={onDelete}>
+        <button className="icon-btn sm" data-tip={tr("Delete")} onClick={onDelete}>
           <Trash2 size={12} />
         </button>
       </div>
       <div className="grid2">
-        <Grp label={tr("移動 X")} setHere={changed("x")} onReset={() => set({ x: ref.x })}>
+        <Grp label={trc("move_x_variant_1", "Move X")} setHere={changed("x")} onReset={() => set({ x: ref.x })}>
           <NumField
             value={len(tf.x)}
             units={["px", "%", "em"]}
@@ -295,7 +295,7 @@ function TransformCard({ onDelete }: { onDelete: () => void }) {
             onChange={(v) => set({ x: v || "0px" })}
           />
         </Grp>
-        <Grp label={tr("移動 Y")} setHere={changed("y")} onReset={() => set({ y: ref.y })}>
+        <Grp label={trc("move_y_variant_1", "Move Y")} setHere={changed("y")} onReset={() => set({ y: ref.y })}>
           <NumField
             value={len(tf.y)}
             units={["px", "%", "em"]}
@@ -304,7 +304,7 @@ function TransformCard({ onDelete }: { onDelete: () => void }) {
             onChange={(v) => set({ y: v || "0px" })}
           />
         </Grp>
-        <Grp label={tr("拡大 横")} setHere={changed("scaleX")} onReset={() => set({ scaleX: ref.scaleX })}>
+        <Grp label={tr("Scale X")} setHere={changed("scaleX")} onReset={() => set({ scaleX: ref.scaleX })}>
           <NumField
             value={pct(tf.scaleX)}
             units={["%"]}
@@ -313,7 +313,7 @@ function TransformCard({ onDelete }: { onDelete: () => void }) {
             onChange={(v) => set({ scaleX: num(v, 100) / 100 })}
           />
         </Grp>
-        <Grp label={tr("拡大 縦")} setHere={changed("scaleY")} onReset={() => set({ scaleY: ref.scaleY })}>
+        <Grp label={tr("Scale Y")} setHere={changed("scaleY")} onReset={() => set({ scaleY: ref.scaleY })}>
           <NumField
             value={pct(tf.scaleY)}
             units={["%"]}
@@ -322,7 +322,7 @@ function TransformCard({ onDelete }: { onDelete: () => void }) {
             onChange={(v) => set({ scaleY: num(v, 100) / 100 })}
           />
         </Grp>
-        <Grp label={tr("回転")} setHere={changed("rotate")} onReset={() => set({ rotate: ref.rotate })}>
+        <Grp label={tr("Rotation")} setHere={changed("rotate")} onReset={() => set({ rotate: ref.rotate })}>
           <NumField
             value={deg(tf.rotate)}
             units={["deg"]}
@@ -332,23 +332,23 @@ function TransformCard({ onDelete }: { onDelete: () => void }) {
           />
         </Grp>
         <Grp
-          label={tr("基準点")}
-          info={tr("回転・拡大・傾きの中心になる位置です。")}
+          label={tr("Origin")}
+          info={tr("The point that rotation, scaling and skewing happen around.")}
           setHere={insp.get("transformOrigin").changed}
           onReset={() => insp.set({ transformOrigin: null })}
         >
           <OriginGrid />
         </Grp>
-        <Grp label={tr("傾き 横")} setHere={changed("skewX")} onReset={() => set({ skewX: ref.skewX })}>
+        <Grp label={tr("Skew X")} setHere={changed("skewX")} onReset={() => set({ skewX: ref.skewX })}>
           <NumField value={deg(tf.skewX)} units={["deg"]} placeholder="0" pre="X" onChange={(v) => set({ skewX: num(v, 0) })} />
         </Grp>
-        <Grp label={tr("傾き 縦")} setHere={changed("skewY")} onReset={() => set({ skewY: ref.skewY })}>
+        <Grp label={tr("Skew Y")} setHere={changed("skewY")} onReset={() => set({ skewY: ref.skewY })}>
           <NumField value={deg(tf.skewY)} units={["deg"]} placeholder="0" pre="Y" onChange={(v) => set({ skewY: num(v, 0) })} />
         </Grp>
       </div>
       {tf.rest && (
         <p className="hint" style={{ margin: 0 }}>
-          {tr("ほかの変形（{rest}）もそのまま残ります。", { rest: tf.rest })}
+          {tr("Other transforms ({rest}) are kept as they are.", { rest: tf.rest })}
         </p>
       )}
     </div>
@@ -413,7 +413,7 @@ export function EffectsSec() {
 
   return (
     <Sec
-      title={tr("エフェクト")}
+      title={tr("Effects")}
       defaultOpen={anySet}
       tutorialTarget="style-effects"
       help="look-effects"
@@ -421,19 +421,19 @@ export function EffectsSec() {
         <Dropdown
           value={undefined}
           menuWidth={220}
-          title={tr("エフェクトを追加")}
+          title={tr("Add effect")}
           trigger={<Plus size={13} />}
           options={[
             {
               value: "drop",
-              label: tr("ドロップシャドウ"),
-              desc: tr("要素の形に沿って影を付けます"),
+              label: tr("Drop shadow"),
+              desc: tr("Adds a shadow around the element's shape"),
               icon: <SquareDashed size={13} />,
             },
             {
               value: "text",
-              label: tr("テキストシャドウ"),
-              desc: tr("文字の形に沿って影を付けます"),
+              label: tr("Text shadow"),
+              desc: tr("Adds a shadow along the letter shapes"),
               icon: <TextCursor size={13} />,
             },
             ...(tfSet || tfAdded
@@ -441,8 +441,8 @@ export function EffectsSec() {
               : [
                   {
                     value: "transform",
-                    label: tr("変形"),
-                    desc: tr("移動・拡大・回転・傾き（transform）"),
+                    label: trc("transform_variant_1", "Transform"),
+                    desc: tr("Move, scale, rotate, skew (transform)"),
                     icon: <Move size={13} />,
                   },
                 ]),
@@ -525,7 +525,7 @@ export function EffectsSec() {
 
       <div className="grid2">
         <Grp
-          label={tr("ぼかし")}
+          label={tr("Blur")}
           setHere={filterChanged("blur")}
           onReset={() => setFilter({ blur: fBase.blur })}
         >
@@ -541,7 +541,7 @@ export function EffectsSec() {
           />
         </Grp>
         <Grp
-          label={tr("背景ぼかし")}
+          label={tr("Background blur")}
           setHere={insp.get("backdropFilter").changed}
           onReset={() => insp.set({ backdropFilter: null })}
         >
@@ -585,12 +585,12 @@ export function EffectsSec() {
       </div>
 
       <Grp
-        label={tr("ブレンドモード")}
-        info={tr("後ろにある要素（背景色・画像など）と色を混ぜ合わせます。")}
+        label={tr("Blend mode")}
+        info={tr("Blends colors with what's behind the element (background colors, images and so on).")}
         setHere={insp.get("mixBlendMode").changed}
         onReset={() => insp.set({ mixBlendMode: null })}
       >
-        <PropSelect prop="mixBlendMode" unsetLabel={tr("通常")} options={BLEND_MODES} />
+        <PropSelect prop="mixBlendMode" unsetLabel={tr("Standard")} options={BLEND_MODES} />
       </Grp>
     </Sec>
   );
