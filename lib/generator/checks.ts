@@ -12,6 +12,7 @@ import { walkSteps } from "../script";
 import { SELF_TARGET } from "../types";
 import { normalizeQuery, routeDir } from "./page";
 import { pageQueryConditions } from "../page-query";
+import { missingHtmlZipScriptAssets } from "../html-zip-script-assets";
 
 /* ---------- 公開前チェック ---------- */
 
@@ -187,6 +188,20 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
       message:
         tr("Set the site URL in Site settings so share images work correctly"),
     });
+  }
+
+  for (const pageId of published) {
+    const page = doc.pages[pageId];
+    if (!page.htmlZip || !page.rawHtml) continue;
+    const missing = missingHtmlZipScriptAssets(page.rawHtml, page.htmlZip, doc.assets);
+    if (missing.length) {
+      results.push({
+        level: "warn",
+        message: tr('HTML page "{name}" refers to media files missing from its imported ZIP: {paths}', {
+          name: page.name, paths: missing.slice(0, 6).join(", ") + (missing.length > 6 ? ", …" : ""),
+        }),
+      });
+    }
   }
 
   const assetRefs: { id: string; label: string }[] = [];
