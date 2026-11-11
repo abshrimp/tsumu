@@ -244,10 +244,10 @@ test("standalone HTML uses form and query operands and clears missing transform 
     { subject: "var", left: "", and: false },
     { subject: "var", op: "eq", value: "31", and: true },
   ]);
-  // Export renames variables; the condition must still reference a valid token.
-  const secondCondition = grouped[0].conditions![1] as { left: string };
-  expect(secondCondition.left.startsWith("{") && secondCondition.left.endsWith("}")).toBe(true);
-  expect(secondCondition.left.slice(1, -1)).toMatch(/^[a-zA-Z0-9_]+$/);
+  // Both comparisons refer to the same typed, exported variable.
+  const secondCondition = grouped[0].conditions![1] as { left: { inputRef: string } };
+  expect(secondCondition.left.inputRef).toMatch(/^[a-zA-Z0-9_]+$/);
+  expect(grouped[0].cond).toMatchObject({ left: secondCondition.left });
   await page.getByRole("button", { name: "Calculate" }).click();
   const result = page.locator("#result");
   try {
