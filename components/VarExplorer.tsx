@@ -16,6 +16,7 @@ const isNested = (v: unknown) => v != null && typeof v === "object";
 /** The public type system has only Value and List. */
 function kindOf(v: unknown, note?: string): string {
   if (v === undefined) return note ? "" : tr("No sample");
+  if (Array.isArray(v)) return tr("List · {length} elements", { length: v.length });
   if (v && typeof v === "object") return tr("List · {length} items", "list_length_items_variant_1", { length: Object.keys(v).length });
   return tr("Value");
 }
