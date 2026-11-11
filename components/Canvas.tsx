@@ -142,7 +142,7 @@ export default function Canvas() {
    * アセットは期限付きの署名URLに置き換えて読ませる（Cookie が送られないので）
    */
   const rawHtmlSrc = !editingComp && mode === "preview" ? (page?.rawHtml ?? "") : "";
-  const { html: rawHtmlForPreview, error: rawHtmlError, needsRefresh, refreshing: refreshingHtml, refresh } = useHtmlPreview(rawHtmlSrc, doc.assets);
+  const { html: rawHtmlForPreview, error: rawHtmlError, needsRefresh, refreshing: refreshingHtml, refresh } = useHtmlPreview(rawHtmlSrc, doc.assets, page?.htmlZip);
 
   const {
     fieldValues,
