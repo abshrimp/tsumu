@@ -83,6 +83,9 @@ test.describe("Native paste event scope in the editor", () => {
 
 // Verify persisted data using the real Next.js editor copy operation and a browser-generated paste event.
 for (const context of ["preview", "settings"] as const) test(`Ctrl+V in the real editor ${context} does not change the saved document`, async ({ page }) => {
+  // Clipboard API writes are asynchronous. Grant the real Chromium clipboard
+  // permissions and wait for the HTML payload before issuing the native paste.
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
   const created = await page.request.post("/api/sites", { data: { name: "Native paste scope" } });
   expect(created.ok()).toBeTruthy(); const { site } = await created.json();
@@ -93,9 +96,30 @@ for (const context of ["preview", "settings"] as const) test(`Ctrl+V in the real
   await page.locator('[data-node="a"]').click();
   await page.keyboard.press("ControlOrMeta+c");
   await expect.poll(() => page.evaluate(() => !!localStorage.getItem("tsumu-clipboard-v1"))).toBe(true);
+  await expect.poll(async () => page.evaluate(async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        for (const type of item.types) {
+          if (type !== "text/html") continue;
+          const html = await (await item.getType(type)).text();
+          if (/data-tsumu-clipboard="[^"]+"/.test(html)) return true;
+        }
+      }
+    } catch {
+      // The assertion below reports a rejected or incomplete Clipboard API write.
+    }
+    return false;
+  })).toBe(true);
   await page.evaluate(() => {
     (window as any).nativePastes = [];
-    window.addEventListener("paste", event => (window as any).nativePastes.push({ trusted: event.isTrusted, data: event.clipboardData?.getData("application/x-tsumu+json"), prevented: event.defaultPrevented }));
+    window.addEventListener("paste", event => (window as any).nativePastes.push({
+      trusted: event.isTrusted,
+      data: event.clipboardData?.getData("application/x-tsumu+json") ||
+        event.clipboardData?.getData("web application/x-tsumu+json") ||
+        event.clipboardData?.getData("text/html"),
+      prevented: event.defaultPrevented,
+    }));
   });
   if (context === "preview") await page.getByRole("button", { name: "プレビュー", exact: true }).click();
   else {
@@ -106,7 +130,11 @@ for (const context of ["preview", "settings"] as const) test(`Ctrl+V in the real
   await page.keyboard.press("ControlOrMeta+v");
   await expect.poll(() => page.evaluate(() => (window as any).nativePastes.length)).toBe(1);
   const event = await page.evaluate(() => (window as any).nativePastes[0]);
-  expect(event.trusted).toBe(true); expect(JSON.parse(event.data).rootIds).toEqual(["a"]); expect(event.prevented).toBe(false);
+  expect(event.trusted).toBe(true);
+  const encoded = /data-tsumu-clipboard="([^"]+)"/i.exec(event.data)?.[1];
+  const payload = encoded ? JSON.parse(decodeURIComponent(encoded)) : JSON.parse(event.data);
+  expect(payload.rootIds).toEqual(["a"]);
+  expect(event.prevented).toBe(false);
   await page.waitForTimeout(1200);
   expect((await (await page.request.get(endpoint)).json()).doc).toEqual(doc);
   if (context === "settings") await page.locator(".modal").getByRole("button", { name: "閉じる", exact: true }).click();

@@ -21,7 +21,7 @@ import {
 } from "../lib/assets";
 import { startImageInsertion } from "../lib/image-drop";
 import { clipboardArtworkFile, hasClipboardArtwork } from "../lib/clipboard";
-import { activeContentNames, CLIP_MIME, isOwnClip, parseClipPayload } from "../lib/clip-transfer";
+import { activeContentNames, clipboardPayload, isOwnClip } from "../lib/clip-transfer";
 import { showAlert, showConfirm } from "../lib/dialog";
 import EditorLoading from "./EditorLoading";
 import Header from "./Header";
@@ -394,9 +394,9 @@ export default function Editor({ onReady }: EditorProps = {}) {
         return;
       }
       // エディタでコピーした要素（ほかのサイト・タブでコピーしたものも）
-      const raw = data.getData(CLIP_MIME);
-      const copied = parseClipPayload(raw);
-      if (copied) {
+      const clip = clipboardPayload(data);
+      if (clip) {
+        const { payload: copied, raw } = clip;
         event.preventDefault();
         const paste = () => {
           useEditor.getState().pasteClipboard(copied);
