@@ -29,7 +29,7 @@ export function useHtmlPreview(src: string, assets: Record<string, Asset>) {
         }, Math.max(0, Math.min(HTML_PREVIEW_REFRESH_MS, expiresAt - Date.now() - 5 * 60 * 1000)));
       } catch (error) {
         if (controller.signal.aborted) return;
-        setResult({ src, key, revision, html: "", error: error instanceof Error ? error.message : tr("HTMLプレビューのアセットを読み込めませんでした") });
+        setResult({ src, key, revision, html: "", error: error instanceof Error ? error.message : tr("The HTML preview assets could not be loaded.") });
         // Explicit retry avoids repeatedly expanding a graph that exceeded a permanent limit.
       }
     };

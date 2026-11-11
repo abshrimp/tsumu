@@ -787,10 +787,10 @@ export default function Canvas() {
           >
             <div className="cv-placeholder" style={{ minHeight: 320 }}>
               {page.redirectTo?.trim()
-                ? tr("このページは「{redirectTo}」へ301リダイレクトします", { redirectTo: page.redirectTo })
+                ? tr("This page redirects (301) to \"{redirectTo}\"", { redirectTo: page.redirectTo })
                 : page.rewriteTo?.trim()
-                  ? tr("このページは外部サイト「{rewriteTo}」の内容を中継して表示します", { rewriteTo: page.rewriteTo })
-                  : tr("右パネルで301リダイレクト先または表示する外部サイトを設定してください")}
+                  ? tr("This page shows content from the external site \"{rewriteTo}\"", { rewriteTo: page.rewriteTo })
+                  : tr("Set a 301 redirect target or an external site in the right panel")}
             </div>
           </div>
           </FrameStage>
@@ -812,18 +812,18 @@ export default function Canvas() {
             {mode === "design" ? (
               <div className="cv-placeholder" style={{ minHeight: 320 }}>
                 {page.rawHtml.trim()
-                  ? tr("このページはHTMLモードです。右パネルでHTMLコードを編集し、プレビューで動作を確認してください")
-                  : tr("右パネルにHTMLコードを入力するか、ファイルを読み込んでください")}
+                  ? tr("This is an HTML page. Edit its code in the right panel and test it in preview mode.")
+                  : tr("Enter HTML code in the right panel, or load a file")}
               </div>
             ) : (
               <>
                 {needsRefresh && <div role="status" className="cv-placeholder">
-                  {tr("プレビューのアセットURLの有効期限が近づいています。更新すると入力内容やページ内の状態がリセットされます。")}
-                  <button type="button" disabled={refreshingHtml} onClick={refresh}>{tr("プレビューを更新")}</button>
+                  {tr("The preview asset URLs will expire soon. Refreshing resets form entries and the page's current state.")}
+                  <button type="button" disabled={refreshingHtml} onClick={refresh}>{tr("Refresh preview")}</button>
                 </div>}
                 {rawHtmlError ? <div role="alert" className="cv-placeholder">
                   {rawHtmlError}
-                  <button type="button" disabled={refreshingHtml} onClick={refresh}>{tr("プレビューを更新")}</button>
+                  <button type="button" disabled={refreshingHtml} onClick={refresh}>{tr("Refresh preview")}</button>
                 </div> : page.rawHtml.trim() ? (
                   <iframe
                     className="rawhtml-frame"
@@ -839,7 +839,7 @@ export default function Canvas() {
                   />
                 ) : (
                   <div className="cv-placeholder" style={{ minHeight: 320 }}>
-                    {tr("右パネルにHTMLコードを入力するか、ファイルを読み込んでください")}
+                    {tr("Enter HTML code in the right panel, or load a file")}
                   </div>
                 )}
               </>
@@ -869,8 +869,8 @@ export default function Canvas() {
       {(uploading || dropState !== "none") && (
         <div className="canvas-drop-overlay">
           {uploading
-            ? tr("アップロード中…")
-            : tr("ドロップして画像を追加")}
+            ? tr("Uploading…")
+            : tr("Drop to add images")}
         </div>
       )}
       <div className="canvas-bars">
@@ -878,30 +878,30 @@ export default function Canvas() {
         <div className={`bp-bar${breakpoint === "base" ? "" : " is-bp"}`} data-tutorial="bp-bar">
           <span className="bp-bar-name">
             {customWidth !== null
-              ? tr("幅 {customWidth}px（{label}）を編集中", { customWidth, label: BP_INFO[breakpoint].label })
-              : tr("{label}（{width}px）を編集中", { label: BP_INFO[breakpoint].label, width: BP_INFO[breakpoint].width })}
+              ? tr("Editing at {customWidth}px ({label})", { customWidth, label: BP_INFO[breakpoint].label })
+              : tr("Editing {label} ({width}px)", { label: BP_INFO[breakpoint].label, width: BP_INFO[breakpoint].width })}
           </span>
           <span className="bp-bar-scope">
             {breakpoint !== "base"
-              ? tr("変更は{scope}。パソコンの見た目は変わりません", { scope: BP_INFO[breakpoint].scope })
-              : tr("変更は{scope}", { scope: BP_INFO[breakpoint].scope })}
+              ? tr("{scope}. The desktop layout won't change", { scope: BP_INFO[breakpoint].scope })
+              : tr("{scope}", { scope: BP_INFO[breakpoint].scope })}
           </span>
           <button className="btn btn-sm" onClick={() => setBreakpoint("base")}>
-            {tr("パソコン表示に戻る")}
+            {tr("Back to desktop")}
           </button>
         </div>
       )}
       {editingComp && (
         <div className="comp-edit-bar" data-tutorial="comp-edit-bar">
           <span>
-            {tr("コンポーネントを編集中:")} <strong>{editingComp.name}</strong>
-            {tr("（変更はすべてのインスタンスに反映されます）")}
+            {tr("Editing component:")} <strong>{editingComp.name}</strong>
+            {tr(" (changes apply to every instance)")}
           </span>
           <button
             className="btn btn-sm"
             onClick={() => setEditingComponent(null)}
           >
-            {tr("完了")}
+            {tr("Done")}
           </button>
         </div>
       )}
@@ -909,7 +909,7 @@ export default function Canvas() {
         <div className="dyn-bar">
           {primaryFindBy ? (
             <>
-              <label htmlFor="canvas-preview-data">{tr("表示中のデータ:")}</label>
+              <label htmlFor="canvas-preview-data">{tr("Showing data:")}</label>
               <select
                 id="canvas-preview-data"
                 className="select dyn-select"
@@ -919,10 +919,10 @@ export default function Canvas() {
                   setPreviewIndex(+e.target.value);
                 }}
               >
-                {slugNotFound && <option value="">{tr("（該当なし）")}</option>}
+                {slugNotFound && <option value="">{tr("(No match)")}</option>}
                 {primaryItems.map((item, i) => (
                   <option key={i} value={i}>
-                    {String(keyOfItem(item, primaryFindBy) ?? tr("項目 {p1}", { p1: i + 1 })).slice(0, 40)}
+                    {String(keyOfItem(item, primaryFindBy) ?? tr("Item {p1}", { p1: i + 1 })).slice(0, 40)}
                   </option>
                 ))}
               </select>
@@ -942,7 +942,7 @@ export default function Canvas() {
               />
               {slugNotFound && (
                 <span className="dyn-note">
-                  {tr("一致するデータがありません（公開サイトでは404）")}
+                  {tr("No matching data (shows 404 on the live site)")}
                 </span>
               )}
             </>
@@ -969,7 +969,7 @@ export default function Canvas() {
                     borderColor: "transparent",
                   }}
                 >
-                  {refreshing ? tr("読み込み中…") : tr("読み込み直す")}
+                  {refreshing ? tr("Loading…") : trc("reload_variant_1", "Reload")}
                 </button>
               )}
             </>
@@ -1114,7 +1114,7 @@ export default function Canvas() {
                   fontSize: 14,
                 }}
               >
-                {tr("左の「追加」タブから要素を置いてください")}
+                {tr("Add elements from the Add tab on the left")}
               </div>
             )}
           </div>
@@ -1137,8 +1137,8 @@ export default function Canvas() {
                   type="button"
                   className="sel-parent"
                   data-tutorial="sel-parent"
-                  aria-label={tr("親要素を選択")}
-                  data-tip={tr("親要素を選択（⇧Enter）")}
+                  aria-label={trc("select_parent_variant_1", "Select parent")}
+                  data-tip={tr("Select parent (⇧Enter)")}
                   onPointerDown={(e) => e.stopPropagation()}
                   onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => {

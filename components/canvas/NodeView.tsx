@@ -262,7 +262,7 @@ export function NodeView({
         createElement(
           "div",
           { key: "ph", className: "cv-placeholder" },
-          tr("リスト表示の設定で、表示するリストを選んでください")
+          tr("Choose the list to display in the list display settings")
         )
       );
     } else if (!items.length && live) {
@@ -279,7 +279,7 @@ export function NodeView({
         createElement(
           "div",
           { key: "ph", className: "cv-placeholder" },
-          tr("表示できる項目がありません（データの読み込み・絞り込み条件を確認してください）")
+          tr("No items to show (check the data source and filters)")
         )
       );
     } else {
@@ -331,7 +331,7 @@ export function NodeView({
       return createElement("div", {
         ...common,
         style: { padding: 12, color: "#a1a1aa", fontSize: 13 },
-        children: tr("（コンポーネントが見つかりません）"),
+        children: tr("(Component not found)"),
       });
     }
     if (chain.includes(comp.id)) return recursiveInstance(common);
