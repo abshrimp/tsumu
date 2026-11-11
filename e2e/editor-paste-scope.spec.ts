@@ -83,6 +83,9 @@ test.describe("Native paste event scope in the editor", () => {
 
 // Verify persisted data using the real Next.js editor copy operation and a browser-generated paste event.
 for (const context of ["preview", "settings"] as const) test(`Ctrl+V in the real editor ${context} does not change the saved document`, async ({ page }) => {
+  // Clipboard API writes are asynchronous. Grant the real Chromium clipboard
+  // permissions and wait for the HTML payload before issuing the native paste.
+  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
   const created = await page.request.post("/api/sites", { data: { name: "Native paste scope" } });
   expect(created.ok()).toBeTruthy(); const { site } = await created.json();
@@ -93,6 +96,21 @@ for (const context of ["preview", "settings"] as const) test(`Ctrl+V in the real
   await page.locator('[data-node="a"]').click();
   await page.keyboard.press("ControlOrMeta+c");
   await expect.poll(() => page.evaluate(() => !!localStorage.getItem("tsumu-clipboard-v1"))).toBe(true);
+  await expect.poll(async () => page.evaluate(async () => {
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        for (const type of item.types) {
+          if (type !== "text/html") continue;
+          const html = await (await item.getType(type)).text();
+          if (/data-tsumu-clipboard="[^"]+"/.test(html)) return true;
+        }
+      }
+    } catch {
+      // The assertion below reports a rejected or incomplete Clipboard API write.
+    }
+    return false;
+  })).toBe(true);
   await page.evaluate(() => {
     (window as any).nativePastes = [];
     window.addEventListener("paste", event => (window as any).nativePastes.push({
