@@ -141,6 +141,7 @@ export default function VarExplorer({
   nodeId,
   extraNames,
   localNames,
+  localSamples,
   sourceStepId,
   context = "value",
   onPick,
@@ -152,6 +153,8 @@ export default function VarExplorer({
   extraNames?: string[];
   /** 型が不明でも、くり返し中の名前をページの見本より優先する。 */
   localNames?: string[];
+  /** Raw preview values for local loop fields, including nested arrays. */
+  localSamples?: Record<string, unknown>;
   sourceStepId?: string;
   context?: ValueContext;
   onPick: (name: string) => void;
@@ -174,7 +177,10 @@ export default function VarExplorer({
         return !roots.has(root) && (g.key === "item" || !itemRoots.has(root));
       })),
     }));
-    if (local.length) gs.unshift({ key: "item", label: tr("Current loop item"), vars: Object.fromEntries(local.map((name) => [name, undefined])) });
+    if (local.length) gs.unshift({
+      key: "item", label: tr("Current loop item"),
+      vars: Object.fromEntries(local.map((name) => [name, localSamples?.[name]])),
+    });
     const known = new Set(gs.flatMap((g) => Object.keys(g.vars)));
     const extra = (extraKey ? extraKey.split("\n") : []).filter((n) => !known.has(n) && !roots.has(n.split(".")[0]) && !itemRoots.has(n.split(".")[0]));
     if (extra.length) {
@@ -186,7 +192,7 @@ export default function VarExplorer({
       });
     }
     return gs;
-  }, [doc, activePageId, nodeId, extraKey, localKey, sourceStepId]);
+  }, [doc, activePageId, nodeId, extraKey, localKey, localSamples, sourceStepId]);
   const hasAdvanced = allGroups.some((g) => g.advanced);
   const groups = useMemo(() => allGroups.filter((g) => advanced || !g.advanced), [allGroups, advanced]);
   const [query, setQuery] = useState("");
