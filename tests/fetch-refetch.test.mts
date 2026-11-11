@@ -632,7 +632,7 @@ test("deleting and undo-restoring a pending block rejects its late result but re
   assert.deepEqual(useEditor.getState().doc, saved);
   assert.equal(mounted.action().props.children[1], "View data");
   mounted.action().props.onClick(); assert.equal(mounted.requests.length, 1);
-  assert.match(mounted.status().error!, /送信済み/);
+  assert.match(mounted.status().error!, /request was sent/);
 });
 
 test("modal runtime edits and result provenance persist across closing, reopening and block remount", async () => {

@@ -10,7 +10,7 @@ function fixture():SiteDoc {
   detail:{id:'detail',name:'Detail',title:'Detail',description:'',slug:'posts/[slug]',children:[],pageScripts:[{id:'load',trigger:'load',pos:{x:0,y:0},steps:[{id:'fetch',kind:'fetch',url:'https://example.com/posts/{slug}',as:'post'}]}]},
  }};
 }
-const missingData=(doc:SiteDoc)=>runChecks(doc).filter(r=>r.help==='data-detail'&&r.message.includes('データを取得していません'));
+const missingData=(doc:SiteDoc)=>runChecks(doc).filter(r=>r.help==='data-detail'&&r.message.includes('does not fetch data'));
 test('detail page with a generated server fetch does not warn that no data is fetched',()=>{
  const doc=fixture();
  assert.equal(pageDataSteps(doc,'detail').some(s=>s.kind==='fetch'&&s.as==='post'),true);

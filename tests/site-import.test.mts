@@ -253,7 +253,7 @@ test("an upload without a registered destination is never accepted as a restored
         assert.equal(init?.redirect, "error");
         return Response.json({ path });
       };
-      await assert.rejects(uploadStaticAsset(new File(["test"], "a.txt", { type: "text/plain" })), /アップロード/);
+      await assert.rejects(uploadStaticAsset(new File(["test"], "a.txt", { type: "text/plain" })), /uploaded|upload/i);
     }
   } finally { globalThis.fetch = original; }
 });

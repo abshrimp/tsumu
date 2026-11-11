@@ -12,7 +12,7 @@ function fixture() {
   state().replaceDoc(doc);
   const ui = importCallbacks("breakpoints");
   const buttons = elements(ui.render()).filter(e => e.type === "button");
-  return { ui, remove: () => buttons.find(e => e.props["aria-label"] === "Customを削除").props.onClick(),
+  return { ui, remove: () => buttons.find(e => e.props["aria-label"] === "Delete Custom").props.onClick(),
     reset: () => buttons.find(e => elements(e).some(x => x.props?.children?.includes?.("Reset to defaults"))).props.onClick() };
 }
 for (const action of ["remove", "reset"] as const) for (const change of ["edit", "replace", "unmount", "unchanged"] as const) {
