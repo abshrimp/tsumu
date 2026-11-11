@@ -506,6 +506,16 @@ const UNKNOWN_ITEMS: PathOption[] = [
 
 export const isNested = (v: unknown) => v != null && typeof v === "object";
 
+/** A list containing one string must not look like that string's scalar value. */
+function PathValuePreview({ value }: { value: unknown }) {
+  return (
+    <span className="se-pm-val">
+      {isNested(value) && <span className="vx-kind">{tr("List", "list_variant_1")}</span>}
+      {isNested(value) && " "}{readableValue(value)}
+    </span>
+  );
+}
+
 /**
  * 「取得したデータの［…］」「リストの［…］」の位置を選ぶメニュー。
  * 項目を選ぶと決まり、「›」で中の項目へ進む。
@@ -673,7 +683,7 @@ export function PathMenu({
                 onClick={() => pick(at)}
               >
                 <span className="se-pm-key">{at ? tr("All of this") : tr("Everything")}</span>
-                <span className="se-pm-val">{readableValue(levelValue)}</span>
+                <PathValuePreview value={levelValue} />
               </button>
             )}
             {rows.map((o) => {
@@ -689,7 +699,7 @@ export function PathMenu({
                     onClick={() => (pickable ? pick(full) : enter && setAt(full))}
                   >
                     <span className="se-pm-key">{o.label}</span>
-                    {known && <span className="se-pm-val">{readableValue(o.value)}</span>}
+                    {known && <PathValuePreview value={o.value} />}
                   </button>
                   {enter && (
                     <button
