@@ -105,3 +105,19 @@ test("script list chooser filters candidates, supports the keyboard, and dismiss
   expect(await snapshot(page)).toEqual(before);
   expect(errors).toEqual([]);
 });
+
+test("custom list picker accepts a path absent from the sample choices", async ({ page }) => {
+  await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
+  await page.addScriptTag({ content: await nestedOperationsBundle(true) });
+  await page.getByRole("button", { name: "Edit descending", exact: true }).click();
+  const choice = page.locator('.se-ws [data-sel-key="step:descending-step"] button.se-list-choice');
+  await choice.click();
+  const menu = page.locator(".se-list-picker");
+  await menu.locator("input").fill("tags.3");
+  await expect(menu.getByRole("option")).toHaveCount(0);
+  await menu.locator("input").press("Enter");
+  await expect(menu).toBeHidden();
+  await expect(choice).toHaveText("tags.3");
+  const saved = await snapshot(page);
+  expect(saved.doc.nodes.descending.scripts[0].steps[0].array).toBe("tags.3");
+});
