@@ -211,6 +211,46 @@ test("filter can target the categories record and suggest key and list membershi
   });
 });
 
+test("if conditions allow nested list variables and choose meaningful operators", async ({ page }) => {
+  await page.evaluate(() => (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
+    doc.pages.p.pageScripts[0].steps.push({
+      id: "if-categories", kind: "if",
+      cond: { subject: "var", target: "", left: "", op: "eq", value: "" },
+      then: [],
+    });
+  }));
+  const b = block(page, "if-categories");
+  await expect(b).toBeVisible();
+  await openPicker(page, "if-categories");
+  await pick(page, "data.rows.0.categories", "if-categories");
+  const operation = b.locator("select.se-in").filter({ has: page.locator('option[value="eq"]') });
+  await expect(operation).toHaveValue("has-key");
+  await expect(operation.locator('option[value="starts-with"]')).toHaveCount(0);
+  let cond = (await snapshot(page)).pages.p.pageScripts[0].steps.find((s: any) => s.id === "if-categories").cond;
+  expect(cond.left).toBe("{data.rows.0.categories}");
+  expect(cond.op).toBe("has-key");
+
+  await openPicker(page, "if-categories");
+  await pick(page, "data.rows.0.categories.出展カテゴリ", "if-categories");
+  await expect(operation).toHaveValue("contains");
+  await expect(operation.locator('option[value="has-key"]')).toHaveCount(0);
+  cond = (await snapshot(page)).pages.p.pageScripts[0].steps.find((s: any) => s.id === "if-categories").cond;
+  expect(cond.left).toBe("{data.rows.0.categories.出展カテゴリ}");
+
+  // The comparison value can also hold a raw list reference, for deep equality.
+  await operation.selectOption("eq");
+  const input = b.locator("input").last();
+  await input.focus();
+  await input.selectText();
+  await input.press("Control+/");
+  await expect(picker(page)).toBeVisible();
+  await pick(page, "data.rows.0.categories.投票カテゴリ", "if-categories");
+  await input.blur();
+  cond = (await snapshot(page)).pages.p.pageScripts[0].steps.find((s: any) => s.id === "if-categories").cond;
+  expect(cond.op).toBe("eq");
+  expect(cond.value).toBe("{data.rows.0.categories.投票カテゴリ}");
+});
+
 test("typed references preserve arrays, false, null and runtime-unknown choices", async ({ page }) => {
   for (const name of ["data.tags", "data.available", "data.empty", "later"]) {
     await openPicker(page); await pick(page, name);
