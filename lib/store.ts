@@ -147,7 +147,7 @@ export function findParentOf(doc: SiteDoc, nodeId: string): ParentRef | null {
 type ParentIndex = Map<string, { ref: ParentRef; position: number }>;
 
 /** Build once per operation; mutable updateDoc drafts must never share a cached index. */
-function indexParents(doc: SiteDoc): ParentIndex {
+export function indexParents(doc: SiteDoc): ParentIndex {
   const parents: ParentIndex = new Map();
   const add = (children: string[], ref: ParentRef) => children.forEach((id, position) => {
     // Match findParentOf's page-first, then node insertion-order precedence.
@@ -191,11 +191,23 @@ export function componentOf(doc: SiteDoc, nodeId: string): string | null {
   return null;
 }
 
+/** Visit selected subtrees in document order, including overlapping selections only once. */
+export function collectSubtreeIds(doc: SiteDoc, roots: readonly string[]): Set<string> {
+  const ids = new Set<string>();
+  const pending = [...roots].reverse();
+  while (pending.length) {
+    const id = pending.pop()!;
+    if (ids.has(id)) continue;
+    ids.add(id);
+    const node = doc.nodes[id];
+    if (!node) continue;
+    for (let i = node.children.length - 1; i >= 0; i--) pending.push(node.children[i]);
+  }
+  return ids;
+}
+
 export function collectDescendants(doc: SiteDoc, nodeId: string): string[] {
-  const out: string[] = [nodeId];
-  const node = doc.nodes[nodeId];
-  if (node) for (const c of node.children) out.push(...collectDescendants(doc, c));
-  return out;
+  return [...collectSubtreeIds(doc, [nodeId])];
 }
 
 /**

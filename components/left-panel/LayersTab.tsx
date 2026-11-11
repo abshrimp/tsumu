@@ -7,7 +7,7 @@
 import { isEnterKey } from "../../lib/keys";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { LoaderCircle, Pencil } from "lucide-react";
-import { ancestorsOf, collectDescendants, useEditor } from "../../lib/store";
+import { ancestorsOf, collectSubtreeIds, useEditor } from "../../lib/store";
 import { BODY_NODE_ID } from "../../lib/types";
 import { canContainElements, resolveTag } from "../../lib/tags";
 import { useImageDrop } from "../../lib/image-drop";
@@ -76,7 +76,7 @@ function LayerRow({
 
   const handleDrop = () => {
     const { dragIds, pos } = drag;
-    if (!dragIds.length || !pos || drag.blockedIds.includes(id)) return;
+    if (!dragIds.length || !pos || drag.blockedIds.has(id)) return;
     const point = layerDropPoint(doc, id, pos);
     if (point) moveNodes(dragIds, point.parent, point.index);
   };
@@ -128,14 +128,14 @@ function LayerRow({
               : [id];
           setDrag({
             dragIds,
-            blockedIds: dragIds.flatMap((x) => collectDescendants(doc, x)),
+            blockedIds: collectSubtreeIds(doc, dragIds),
             overId: null,
             pos: null,
           });
         }}
         onDragOver={(e) => {
           const files = isFileDrag(e);
-          if (!files && (!drag.dragIds.length || drag.blockedIds.includes(id))) return;
+          if (!files && (!drag.dragIds.length || drag.blockedIds.has(id))) return;
           e.preventDefault();
           if (files) e.dataTransfer.dropEffect = "copy";
           e.stopPropagation();
