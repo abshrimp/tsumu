@@ -43,5 +43,5 @@ test("large import support retains a finite asset-count guard", () => {
     const id = "asset-" + i;
     doc.assets[id] = { id, name: "asset.png", width: 1, height: 1 };
   }
-  assert.throws(() => validateImportedDoc(doc), /ページ・要素・アセット情報/);
+  assert.throws(() => validateImportedDoc(doc), /page, element or asset data/i);
 });
