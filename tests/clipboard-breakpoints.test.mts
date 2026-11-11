@@ -119,31 +119,21 @@ for (const changed of ["different-width", "changed-after-copy"] as const) {
   });
 }
 
-test("legacy clipboard without responsive references still pastes", () => {
+test("clipboard without required breakpoint metadata is rejected without altering the document", () => {
   const original = source();
-  delete original.breakpoints;
   original.nodes.box.styles = { base: { default: { color: "red" } } };
   delete original.nodes.box.hiddenOn;
   const payload = buildClipPayload(original, { nodes: [original.nodes.box], rootIds: ["box"] });
-  delete payload.breakpoints;
-  state().replaceDoc(original);
-  state().setActivePage("p");
-  state().select(null);
-  state().pasteClipboard(parseClipPayload(JSON.stringify(payload))!);
-  assert.notEqual(state().selection, "box");
-  assert.deepEqual(state().doc.nodes[state().selection!].styles, original.nodes.box.styles);
-});
-
-test("legacy responsive clipboard requires a new copy rather than guessing widths from IDs", () => {
-  const original = source();
-  const payload = buildClipPayload(original, { nodes: [original.nodes.box], rootIds: ["box"] });
-  delete payload.breakpoints;
+  const malformed = structuredClone(payload) as Partial<typeof payload>;
+  delete malformed.breakpoints;
+  assert.equal(parseClipPayload(JSON.stringify(malformed)), null);
   state().replaceDoc(original);
   state().setActivePage("p");
   const before = state();
-  state().pasteClipboard(payload);
+  state().pasteClipboard(malformed as typeof payload);
   assert.strictEqual(state().doc, before.doc);
   assert.strictEqual(state().past, before.past);
+  assert.strictEqual(state().future, before.future);
   const alert = useDialogs.getState().queue.at(-1)!;
   assert.equal(alert.kind, "alert");
   closeDialog(alert.id);
@@ -154,7 +144,7 @@ for (const metadata of [false, true]) {
     test(`malformed visibility is rejected without mutation (metadata: ${metadata}, value: ${JSON.stringify(hiddenOn)})`, () => {
       const original = source();
       const raw = buildClipPayload(original, { nodes: [structuredClone(original.nodes.box)], rootIds: ["box"] });
-      if (!metadata) delete raw.breakpoints;
+      if (!metadata) delete (raw as Partial<typeof raw>).breakpoints;
       Object.assign(raw.nodes[0], { hiddenOn });
       assert.equal(parseClipPayload(JSON.stringify(raw)), null);
       state().replaceDoc(original);

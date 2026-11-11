@@ -12,7 +12,7 @@ const emptyDoc = (): SiteDoc => ({
   pages: { p: { id: "p", name: "Home", slug: "", children: [] } }, nodes: {},
 });
 function payload(): ClipPayload {
-  return { v: 1, site: "other", nodes: [node("a")], rootIds: ["a"], assets: {}, components: {}, componentNodes: [], customFonts: [] };
+  return { v: 1, site: "other", breakpoints: [{ id: "lg", label: "タブレット", maxWidth: 1024 }], nodes: [node("a")], rootIds: ["a"], assets: {}, components: {}, componentNodes: [], customFonts: [] };
 }
 
 for (const kind of ["self-cycle", "indirect-cycle", "shared-child", "duplicate-child", "duplicate-root", "nested-root", "too-deep", "component-cycle", "shared-master", "nested-master", "missing-master"] as const) {
@@ -67,7 +67,7 @@ test("clipboard accepts the maximum supported tree depth", () => {
 
 
 test("clipboard requires explicit root IDs and a string source site", () => {
-  for (const field of ["rootIds", "site"] as const) {
+  for (const field of ["rootIds", "site", "breakpoints"] as const) {
     const p = payload() as Partial<ClipPayload>;
     delete p[field];
     assert.equal(parseClipPayload(JSON.stringify(p)), null);

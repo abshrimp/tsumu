@@ -120,7 +120,7 @@ test("pasted clipboard data that this editor did not write needs confirmation fo
   };
   try {
     const code = { ...makeBox(), id: "c", name: "Widget", type: "code" as const, code: { html: "<img src=x onerror=alert(1)>" } };
-    const raw = JSON.stringify({ v: 1, site: "evil", nodes: [code], rootIds: ["c"], assets: {}, components: {}, componentNodes: [], customFonts: [] });
+    const raw = JSON.stringify({ v: 1, site: "evil", breakpoints: [{ id: "lg", label: "タブレット", maxWidth: 1024 }], nodes: [code], rootIds: ["c"], assets: {}, components: {}, componentNodes: [], customFonts: [] });
     const payload = parseClipPayload(raw)!;
     assert.ok(payload);
     assert.equal(isOwnClip(raw), false);
@@ -388,7 +388,7 @@ test("clipboard assets and exported asset names refuse HTML files and style tag 
   };
   mergeClipDeps(doc as never, {
     v: 1,
-    site: "evil",
+    site: "evil", breakpoints: [{ id: "lg", label: "タブレット", maxWidth: 1024 }],
     nodes: [],
     rootIds: [],
     assets: {
