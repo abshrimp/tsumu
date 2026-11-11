@@ -137,11 +137,11 @@ test("filter field dropdown marks nested Japanese category arrays as lists", asy
   await filter.locator(".se-pm-btn").click();
   const menu = page.locator(".se-pm");
   const title = menu.locator(".se-pm-row").filter({
-    has: menu.locator(".se-pm-key").filter({ hasText: /^title$/ }),
+    has: page.locator(".se-pm-key").filter({ hasText: /^title$/ }),
   });
   await expect(title.locator(".vx-kind")).toHaveCount(0);
   const categories = menu.locator(".se-pm-row").filter({
-    has: menu.locator(".se-pm-key").filter({ hasText: /^categories$/ }),
+    has: page.locator(".se-pm-key").filter({ hasText: /^categories$/ }),
   });
   await expect(categories.locator(".vx-kind")).toHaveText("リスト");
   await categories.locator(".se-pm-enter").click();
@@ -150,14 +150,14 @@ test("filter field dropdown marks nested Japanese category arrays as lists", asy
     ["出展カテゴリ", "物販"], ["投票カテゴリ", "物販"], ["大分類", "かう"],
   ]) {
     const option = menu.locator(".se-pm-row").filter({
-      has: menu.locator(".se-pm-key").filter({ hasText: new RegExp("^" + name + "$") }),
+      has: page.locator(".se-pm-key").filter({ hasText: new RegExp("^" + name + "$") }),
     });
     await expect(option.locator(".vx-kind")).toHaveText("リスト");
     await expect(option.locator(".se-pm-val")).toContainText(value);
   }
 
   await menu.locator(".se-pm-row").filter({
-    has: menu.locator(".se-pm-key").filter({ hasText: /^出展カテゴリ$/ }),
+    has: page.locator(".se-pm-key").filter({ hasText: /^出展カテゴリ$/ }),
   }).locator(".dd-item").click();
   await expect(filter.locator(".se-pm-btn")).toHaveText("categories › 出展カテゴリ");
   const doc = await snapshot(page);
