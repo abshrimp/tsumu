@@ -213,8 +213,7 @@ export function mapStep(
   stepId: string,
   fn: (s: ScriptStep) => ScriptStep
 ): PageScript[] {
-  // Preserve untouched subtrees. Previously one input edit cloned every
-  // script, branch and block, producing large amounts of garbage.
+  // Preserve the identity of untouched scripts, branches, and blocks.
   const mapList = (list: ScriptStep[]): ScriptStep[] => {
     let changed: ScriptStep[] | null = null;
     list.forEach((step, index) => {
