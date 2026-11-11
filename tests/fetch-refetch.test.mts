@@ -372,7 +372,7 @@ test("pending state is independent for different blocks and identical writes ret
 test("unresolved URL values fail without sending; explicit temporary values are encoded without saving", async () => {
   const mounted = mount(); mounted.commitUrl("https://example.test/[slug]/{q}");
   await mounted.run(); assert.equal(mounted.requests.length, 0);
-  assert.equal(mounted.status().error, "テスト用の値を入力してください");
+  assert.equal(mounted.status().error, "Enter test values to continue");
   void mounted.run({ slug: "001", q: "a b" });
   assert.equal(mounted.requests[0].input.url, "https://example.test/001/a%20b");
   await mounted.finish(0, latest);
@@ -415,18 +415,18 @@ test("the browser regression fixture bundles the real script editor", async () =
 
 test("one block action executes immediately, opens the result, then becomes view-only", async () => {
   const mounted = mount();
-  assert.equal(mounted.action().props.children[1], "データを見る");
+  assert.equal(mounted.action().props.children[1], "View data");
   mounted.action().props.onClick();
   assert.equal(mounted.requests.length, 0);
   mounted.commitUrl("https://example.test/new");
-  assert.equal(mounted.action().props.children[1], "データ取得");
+  assert.equal(mounted.action().props.children[1], "Fetch data");
   mounted.action().props.onClick();
   assert.equal(mounted.requests.length, 1, "no confirmation step before sending");
   assert.equal(mounted.opened.length, 2);
   mounted.action().props.onClick();
   assert.equal(mounted.requests.length, 1, "reopening a pending result does not send");
   await mounted.finish(0, latest);
-  assert.equal(mounted.action().props.children[1], "データを見る");
+  assert.equal(mounted.action().props.children[1], "View data");
   mounted.action().props.onClick();
   assert.equal(mounted.requests.length, 1);
   const result = mounted.result();
@@ -446,7 +446,7 @@ test("settings invalidate only the current-result marker across save/load and Un
   assert.equal(mounted.step()!.preview?.fetchedAt, undefined);
   useEditor.getState().replaceDoc(JSON.parse(JSON.stringify(useEditor.getState().doc)));
   assert.equal(mounted.currentSample(), false);
-  assert.equal(mounted.action().props.children[1], "データ取得");
+  assert.equal(mounted.action().props.children[1], "Fetch data");
   assert.equal(mounted.requests.length, 0);
   const original = mount(); original.commitUrl("https://example.test/changed");
   useEditor.getState().undo();
@@ -460,7 +460,7 @@ test("samples without a valid success timestamp remain fallback data, not a conf
     const mounted = mount();
     useEditor.getState().updateDoc((doc) => { (doc.pages.p.pageScripts![0].steps[0] as FetchStep).preview!.fetchedAt = fetchedAt; });
     assert.equal(mounted.currentSample(), false);
-    assert.equal(mounted.action().props.children[1], "データ取得");
+    assert.equal(mounted.action().props.children[1], "Fetch data");
     assert.deepEqual(mounted.step()!.preview?.sample, [{ name: "Initial" }]);
   }
 });
@@ -488,7 +488,7 @@ test("a failed direct request retains fallback, shares the modal error, and can 
   const result = mounted.result();
   assert.equal(result().props.children.find((v: any) => v?.props?.role === "alert").props.children, "失敗しました");
   assert.equal(mounted.currentSample(), false);
-  assert.equal(mounted.action().props.children[1], "データを見る");
+  assert.equal(mounted.action().props.children[1], "View data");
   mounted.action().props.onClick(); assert.equal(mounted.requests.length, 1, "viewing a failed result never retries");
   result().props.children[0].props.children[1].props.onClick(); await mounted.finish(1, latest);
   assert.equal(mounted.currentSample(), true);
@@ -523,10 +523,10 @@ test("visual drag unmounts never abandon a transmitted POST or silently turn vie
   for (const error of [undefined, "POSTの取得に失敗しました"]) {
     const mounted = mount(); mounted.setOptions({ method: "POST" });
     mounted.action().props.onClick(); assert.equal(mounted.requests.length, 1);
-    mounted.dragRemount(); assert.equal(mounted.action().props.children[1], "送信中…");
+    mounted.dragRemount(); assert.equal(mounted.action().props.children[1], "Sending…");
     await mounted.finish(0, latest, error);
     assert.deepEqual(mounted.step()!.preview?.sample, error ? [{ name: "Initial" }] : latest);
-    assert.equal(mounted.action().props.children[1], "データを見る");
+    assert.equal(mounted.action().props.children[1], "View data");
     mounted.action().props.onClick(); assert.equal(mounted.requests.length, 1);
     if (error) assert.equal(mounted.result()().props.children.find((v: any) => v?.props?.role === "alert").props.children, error);
   }
@@ -538,11 +538,11 @@ test("identical page and step IDs in a replacement document cannot inherit pendi
     const other = structuredClone(useEditor.getState().doc); other.siteName = "Different document";
     useEditor.getState().replaceDoc(other);
     assert.equal(mounted.status().busy, false);
-    assert.equal(mounted.action().props.children[1], "データ取得");
+    assert.equal(mounted.action().props.children[1], "Fetch data");
     await mounted.finish(0, latest, error);
     assert.deepEqual(useEditor.getState().doc, other);
     assert.equal(mounted.status().error, null);
-    assert.equal(mounted.action().props.children[1], "データ取得");
+    assert.equal(mounted.action().props.children[1], "Fetch data");
   }
 });
 
@@ -556,14 +556,14 @@ test("restoring a backup with identical request IDs isolates late success, error
     useEditor.getState().restoreDoc(restored);
     assert.equal(useEditor.getState().documentSession, session + 1);
     assert.deepEqual(mounted.status(), { busy: false, error: null });
-    assert.equal(mounted.action().props.children[1], "データ取得");
+    assert.equal(mounted.action().props.children[1], "Fetch data");
     const past = structuredClone(useEditor.getState().past);
     await mounted.finish(0, latest, error);
     assert.deepEqual(useEditor.getState().doc, restored);
     assert.deepEqual(useEditor.getState().past, past);
     assert.equal(mounted.cached(), undefined);
     assert.deepEqual(mounted.status(), { busy: false, error: null });
-    assert.equal(mounted.action().props.children[1], "データ取得");
+    assert.equal(mounted.action().props.children[1], "Fetch data");
     mounted.action().props.onClick();
     assert.equal(mounted.requests.length, 2, "the restored document can explicitly send the same request");
     await mounted.finish(1, latest);
@@ -580,7 +580,7 @@ test("restore clears completed attempts, errors and temporary inputs without cha
   useEditor.getState().restoreDoc(restored);
   assert.deepEqual(mounted.values().values, {});
   assert.deepEqual(mounted.status(), { busy: false, error: null });
-  assert.equal(mounted.action().props.children[1], "データ取得");
+  assert.equal(mounted.action().props.children[1], "Fetch data");
   assert.equal(mounted.action().props.disabled, true);
   assert.equal(mounted.requests.length, 1, "restore and viewing never send automatically");
 });
@@ -630,7 +630,7 @@ test("deleting and undo-restoring a pending block rejects its late result but re
   useEditor.getState().undo(); const saved = structuredClone(useEditor.getState().doc);
   await mounted.finish(0, latest);
   assert.deepEqual(useEditor.getState().doc, saved);
-  assert.equal(mounted.action().props.children[1], "データを見る");
+  assert.equal(mounted.action().props.children[1], "View data");
   mounted.action().props.onClick(); assert.equal(mounted.requests.length, 1);
   assert.match(mounted.status().error!, /送信済み/);
 });

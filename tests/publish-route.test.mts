@@ -374,7 +374,7 @@ test("editable document uploads reject malformed JSON, invalid UTF-8 and oversiz
 
 test("safe editable uploads and ordinary binary assets retain their exact bytes", async () => {
   // Documents above the client's inline threshold use this detached upload path.
-  const document = Buffer.from(JSON.stringify({ siteName: "公開", text: "x".repeat(512 * 1024), scripts: [
+  const document = Buffer.from(JSON.stringify({ siteName: "Publish", text: "x".repeat(512 * 1024), scripts: [
     { kind: "fetch", url: "https://api.example.test/?api_key=%7Bkey%7D" },
   ] }));
   for (const [path, bytes] of [

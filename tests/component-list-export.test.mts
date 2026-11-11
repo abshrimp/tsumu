@@ -34,7 +34,7 @@ function convert(doc: SiteDoc, nodeId = "card") {
   // 設定画面の実際のボタンを取り出し、その onClick から store の操作を呼ぶ。
   const tree = loadUi("components/SettingsPanel.tsx", true).default({ nodeId });
   const find = (el: any): any => {
-    if (el?.type === "button" && React.Children.toArray(el.props.children).includes("コンポーネント化")) return el;
+    if (el?.type === "button" && React.Children.toArray(el.props.children).includes("Create component")) return el;
     return React.Children.toArray(el?.props?.children).map(find).find(Boolean);
   };
   const button = find(tree); assert.ok(button, "SettingsPanel offers component conversion");

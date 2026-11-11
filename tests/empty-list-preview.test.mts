@@ -31,9 +31,9 @@ function fixture(sample: readonly unknown[]) {
   state().replaceDoc(doc); state().setActivePage("p"); state().select("tag");
   const { default: SettingsPanel } = load("components/SettingsPanel.tsx", true);
   const panel = () => SettingsPanel({ nodeId: state().selection });
-  nodes(panel()).find(n => n.type === "button" && Array.isArray(n.props.children) && n.props.children.includes("リスト表示にする"))!.props.onClick();
-  const row = nodes(panel()).find(n => n.props?.className === "row" && nodes(n).some(x => x.type === "span" && x.props.className === "lbl" && x.props.children === "表示するリスト"));
-  const dropdown = nodes(row).find(n => n.props?.options && n.props?.placeholder === "選択してください").props;
+  nodes(panel()).find(n => n.type === "button" && Array.isArray(n.props.children) && n.props.children.includes("Turn into list display"))!.props.onClick();
+  const row = nodes(panel()).find(n => n.props?.className === "row" && nodes(n).some(x => x.type === "span" && x.props.className === "lbl" && x.props.children === "List to display"));
+  const dropdown = nodes(row).find(n => n.props?.options && n.props?.placeholder === "Select…").props;
   assert.ok(dropdown.options.some((o: any) => o.value === "tags"));
   dropdown.onChange("tags");
   const { NodeView } = load("components/canvas/NodeView.tsx");

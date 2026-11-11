@@ -91,7 +91,7 @@ test("a new comment rejected for a deleted site keeps its text and draft open", 
   const draft = { pageId: "page", nodeId: null, x: .5, y: .5, bp: "base" };
   useComments.setState({ active: true, store: "server", threads: [], error: null });
   useComments.getState().setDraft(draft);
-  t.mock.method(globalThis, "fetch", async () => Response.json({ error: "サイトが見つかりません", code: "comment_site_missing" }, { status: 404 }));
+  t.mock.method(globalThis, "fetch", async () => Response.json({ error: "Site not found", code: "comment_site_missing" }, { status: 404 }));
   const composer = h.instance(h.Composer, { initial: "Unsent new comment", placeholder: "", submitLabel: "", onSubmit: async (body: string) => {
     const ok = await useComments.getState().run({ action: "create", id: "new", ...draft, body });
     if (ok) openPostedComment(draft, "new");
@@ -102,7 +102,7 @@ test("a new comment rejected for a deleted site keeps its text and draft open", 
   assert.equal(textarea(composer.render()).props.readOnly, false);
   assert.equal(useComments.getState().draft, draft);
   assert.equal(useComments.getState().openId, null);
-  assert.equal(useComments.getState().error, "サイトが見つかりません");
+  assert.equal(useComments.getState().error, "Site not found");
 });
 
 test("an old edit completion cannot close a cancelled and reopened edit session", async () => {
@@ -200,7 +200,7 @@ for (const kind of ["message", "thread"]) test(`${kind} deletion confirmation is
   if (kind === "message") {
     find(panel.render(), node => node.type === "button").props.onClick({ currentTarget: { getBoundingClientRect: () => ({ right: 200, bottom: 20 }) } });
     remove = find(panel.render(), node => node.type === "ContextMenu").props.items.find((item: any) => item.key === "delete").onClick;
-  } else remove = find(panel.render(), node => node.props?.["aria-label"] === "スレッドを削除").props.onClick;
+  } else remove = find(panel.render(), node => node.props?.["aria-label"] === "Delete thread").props.onClick;
   const first = remove(), second = remove();
   assert.equal(confirms, 1); panel.unmount(); response.resolve(true); await Promise.all([first, second]);
   assert.deepEqual(actions, []);
@@ -211,7 +211,7 @@ test("thread deletion is cancelled when the discussion becomes unavailable durin
   h.setConfirm(() => response.promise); h.setRun(async action => { actions.push(action); return true; });
   const props = { thread: { id: "thread", messages: [{ id: "one", author: {}, body: "Original", at: 1 }] }, unavailable: false, place: "", notices: null, onClose() {} };
   const panel = h.instance(h.ThreadView, props);
-  const work = find(panel.render(), node => node.props?.["aria-label"] === "スレッドを削除").props.onClick();
+  const work = find(panel.render(), node => node.props?.["aria-label"] === "Delete thread").props.onClick();
   props.unavailable = true; panel.render(); response.resolve(true); await work;
   assert.deepEqual(actions, []);
 });
@@ -220,7 +220,7 @@ test("a cancelled thread deletion releases its lock so a later confirmed deletio
   const h = harness(); const actions: unknown[] = []; let closed = 0;
   h.setConfirm(async () => false); h.setRun(async action => { actions.push(action); return true; });
   const panel = h.instance(h.ThreadView, { thread: { id: "thread", messages: [{ id: "one", author: {}, body: "Original", at: 1 }] }, unavailable: false, place: "", notices: null, onClose() { closed++; } });
-  const remove = () => find(panel.render(), node => node.props?.["aria-label"] === "スレッドを削除").props.onClick();
+  const remove = () => find(panel.render(), node => node.props?.["aria-label"] === "Delete thread").props.onClick();
   await remove(); assert.equal(actions.length, 0);
   h.setConfirm(async () => true); await remove();
   assert.equal(actions.length, 1); assert.equal(closed, 1);
@@ -242,7 +242,7 @@ for (const kind of ["message", "thread"]) test(`${kind} deletion closes the remo
   if (kind === "message") {
     find(panel.render(), node => node.type === "button").props.onClick({ currentTarget: { getBoundingClientRect: () => ({ right: 200, bottom: 20 }) } });
     remove = find(panel.render(), node => node.type === "ContextMenu").props.items.find((item: any) => item.key === "delete").onClick;
-  } else remove = find(panel.render(), node => node.props?.["aria-label"] === "スレッドを削除").props.onClick;
+  } else remove = find(panel.render(), node => node.props?.["aria-label"] === "Delete thread").props.onClick;
   await remove();
   assert.deepEqual(h.closed, ["thread"]);
 });

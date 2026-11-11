@@ -86,7 +86,7 @@ for (const method of ["PUT", "PATCH"] as const) {
     f.hooks.beforeRoomWrite = async () => { throw new Error("synthetic-token storage failure"); };
     const response = await f.doc[method](request(method));
     assert.equal(response.status, 502);
-    assert.deepEqual(await response.json(), { error: "保存できませんでした" });
+    assert.deepEqual(await response.json(), { error: "Couldn't save" });
     assert.equal(f.room(key).meta()?.rev, "1");
     assert.deepEqual(f.notifications, []);
     assert.deepEqual(f.logs(), [["[api/doc] document save failed"]]);
@@ -96,7 +96,7 @@ for (const method of ["PUT", "PATCH"] as const) {
     f.hooks.afterRoomWrite = async () => { f.hooks.afterRoomWrite = undefined; newKey = await f.replace("source", replacement); };
     const response = await f.doc[method](request(method));
     assert.equal(response.status, 404);
-    assert.deepEqual(await response.json(), { error: "サイトが見つかりません" });
+    assert.deepEqual(await response.json(), { error: "Site not found" });
     assert.deepEqual(f.notifications, []);
     assert.ok(newKey); assert.notEqual(oldKey, newKey);
     assert.deepEqual(JSON.parse(f.room(newKey).snapshot()!.body), replacement);
@@ -116,7 +116,7 @@ for (const method of ["PUT", "PATCH"] as const) {
     f.hooks.afterRoomWrite = async () => { f.hooks.afterRoomWrite = undefined; await f.replace("source", replacement); };
     const response = await f.doc[method](request(method, "2"));
     assert.equal(response.status, 404);
-    assert.deepEqual(await response.json(), { error: "サイトが見つかりません" });
+    assert.deepEqual(await response.json(), { error: "Site not found" });
     assert.deepEqual(f.notifications, []);
   });
 }
