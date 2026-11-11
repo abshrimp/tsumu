@@ -288,20 +288,20 @@ export function varGroupsAt(doc: SiteDoc, pageId: string, nodeId: string): VarGr
   const { item, pageVars } = scopeAt(doc, pageId, nodeId);
   const groups: VarGroup[] = [];
   if (item && Object.keys(item).length) {
-    groups.push({ key: "item", label: tr("リスト表示の項目（1件ずつ変わる）"), vars: item });
+    groups.push({ key: "item", label: tr("List display item (changes for each entry)"), vars: item });
   }
   const data = namedVars(pageVars);
   if (Object.keys(data).length) {
-    groups.push({ key: "data", label: tr("取得したデータ・変数"), vars: data });
+    groups.push({ key: "data", label: tr("Fetched data and variables"), vars: data });
   }
   const url: Record<string, unknown> = {};
   const notes: Record<string, string> = {};
   if (page && isSlugPage(page.slug)) {
     url.slug = undefined;
-    notes.slug = tr("ページURLの [slug] の部分");
+    notes.slug = tr("The [slug] part of the page URL");
   }
   for (const [k, v] of Object.entries(pageQueryVars(page?.query))) url[k] = v;
-  if (Object.keys(url).length) groups.push({ key: "url", label: tr("ページのURL"), vars: url, notes });
+  if (Object.keys(url).length) groups.push({ key: "url", label: tr("Page URL"), vars: url, notes });
   const els: Record<string, unknown> = {};
   const elNotes: Record<string, string> = {};
   for (const n of idVarNodesOf(doc, pageId)) {
@@ -311,21 +311,21 @@ export function varGroupsAt(doc: SiteDoc, pageId: string, nodeId: string): VarGr
         els[name] = undefined;
         elNotes[name] =
           n.field?.kind === "checkbox"
-            ? tr("チェックしているとき true、していないとき false")
+            ? tr("true when checked, false when not")
             : n.field?.kind === "radio"
-              ? tr("グループで選んだラジオボタンの値")
-              : tr("入力欄に入力された値");
+              ? tr("Value of the chosen radio button in the group")
+              : tr("The value entered in the field");
       }
       if (isRadioItem(n)) {
         els[n.attrId!] = undefined;
-        elNotes[n.attrId!] = tr("このラジオボタンを選んでいるとき true");
+        elNotes[n.attrId!] = tr("true when this radio button is chosen");
       }
     } else {
       els[n.attrId!] = nodeTextTemplate(doc, n);
     }
   }
   if (Object.keys(els).length) {
-    groups.push({ key: "element", label: tr("ID付きの要素"), vars: els, notes: elNotes });
+    groups.push({ key: "element", label: tr("Elements with an ID"), vars: els, notes: elNotes });
   }
   // 入力欄の状態（{ID.checked} など）
   const states = fieldStateNotes(idVarNodesOf(doc, pageId).filter((n) => n.type === "field"), tr);
@@ -333,7 +333,7 @@ export function varGroupsAt(doc: SiteDoc, pageId: string, nodeId: string): VarGr
     groups.push({
       key: "state",
       advanced: true,
-      label: tr("入力欄の状態"),
+      label: tr("Field states"),
       vars: Object.fromEntries(Object.keys(states).map((k) => [k, undefined])),
       notes: states,
     });
@@ -343,9 +343,9 @@ export function varGroupsAt(doc: SiteDoc, pageId: string, nodeId: string): VarGr
   if (made.length) {
     groups.push({
       key: "script",
-      label: tr("スクリプトで作る変数（サイトを動かしたときに値が決まる）"),
+      label: tr("Variables set by scripts (their values are set at runtime)"),
       vars: Object.fromEntries(made.map((n) => [n, undefined])),
-      notes: Object.fromEntries(made.map((n) => [n, tr("動かしたときに値が入ります")])),
+      notes: Object.fromEntries(made.map((n) => [n, tr("Set when the script runs")])),
     });
   }
   return groups;
@@ -358,7 +358,7 @@ export function varSamplesAt(
   nodeId: string
 ): Record<string, string> {
   const describe = (v: unknown): string => {
-    if (v && typeof v === "object") return tr("リスト");
+    if (v && typeof v === "object") return trc("list_variant_1", "List");
     const t = varText(v).replace(/\s+/g, " ");
     return t.length > 28 ? `${t.slice(0, 28)}…` : t;
   };
@@ -371,11 +371,11 @@ export function varSamplesAt(
     const name = idVarName(n);
     if (name) {
       out[name] ??=
-        n.type !== "field" ? describe(nodeTextTemplate(doc, n)) : n.field?.kind === "checkbox" ? "true / false" : tr("入力欄の値");
+        n.type !== "field" ? describe(nodeTextTemplate(doc, n)) : n.field?.kind === "checkbox" ? "true / false" : tr("Field value");
     }
     if (isRadioItem(n)) out[n.attrId!] ??= "true / false";
   }
-  for (const n of scriptVarNames(doc, pageId)) out[n] ??= tr("スクリプトで作る変数");
+  for (const n of scriptVarNames(doc, pageId)) out[n] ??= tr("Variable made by a script");
   return out;
 }
 
@@ -832,7 +832,7 @@ export function scriptInputDoc(doc: SiteDoc, stepId?: string): SiteDoc {
 /** 名前の候補を、ページ内の既存の変数と重ならないようにする */
 export function uniqueVarName(doc: SiteDoc, pageId: string, base: string, exceptStepId?: string): string {
   const used = dataVarNames(doc, pageId, exceptStepId);
-  const stem = cleanVarName(base) || trc("変数名", "データ");
+  const stem = cleanVarName(base) || trc("variable_name", "data");
   let name = stem;
   for (let i = 2; used.has(name); i++) name = `${stem}${i}`;
   return name;
@@ -1276,7 +1276,7 @@ export interface FieldOption {
 export function fieldLabel(path: string): string {
   return path
     .split(".")
-    .map((seg) => (seg === "-1" ? tr("最後") : /^\d+$/.test(seg) ? tr("{p1}番目", { p1: +seg + 1 }) : seg))
+    .map((seg) => (seg === "-1" ? tr("Last") : /^\d+$/.test(seg) ? tr("#{p1}", { p1: +seg + 1 }) : seg))
     .join(" › ");
 }
 
