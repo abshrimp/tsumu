@@ -10,6 +10,9 @@ import { buildAssetNames, buildClassNames } from "./names";
 import { assetMediaUrl, assetSrc } from "../assets";
 import { importedAssetUrl, isZipJavascript } from "./imported-assets";
 import { cssValue, rawHtmlWithBodyStyles, usedGoogleFonts } from "./css";
+import { htmlZipSource } from "../html-zip-source";
+import { zipStylesheet, zipCssUrl } from "../zip-css";
+import { assetSrc } from "../assets";
 import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
 import { unnestLinks } from "./page";
 import { hasVars } from "../vars";
@@ -513,7 +516,9 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
       // Render with the shared HTML/CSS generators. Next.js route filenames and
       // serialized TypeScript are framework output, not a source of page data.
       const html = rawHtmlWithBodyStyles(normalized, page,
-        cssValue(normalized, "rawHtml", page.rawHtml, assets), assets);
+        cssValue(normalized, "rawHtml",
+          htmlZipSource(page.rawHtml, page.htmlZip, normalized.assets,
+            asset => zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset)), assets), assets);
       files[path] = rewriteRootUrls(html, prefix, scriptSources);
       continue;
     }
