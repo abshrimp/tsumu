@@ -19,10 +19,10 @@ export const SEMANTIC_OPTIONS: {
   },
   { value: "section", label: tr("Section"), desc: tr("A distinct section of the page") },
   { value: "header", label: tr("Header"), desc: tr("The top of the page, with the logo and navigation") },
-  { value: "nav", label: trc("navigation_variant_1", "Navigation"), desc: tr("A group of main links") },
+  { value: "nav", label: tr("Navigation", "navigation_variant_1"), desc: tr("A group of main links") },
   { value: "main", label: tr("Main"), desc: tr("The page's main content (one per page)") },
   { value: "article", label: tr("Article"), desc: tr("A self-contained article or post") },
-  { value: "footer", label: tr("Footer"), desc: trc("supplementary_info_at_the_bott_variant_1", "Supplementary info at the bottom of the page") },
+  { value: "footer", label: tr("Footer"), desc: tr("Supplementary info at the bottom of the page", "supplementary_info_at_the_bott_variant_1") },
   { value: "div", label: tr("Generic box"), desc: tr("A plain box for layout, with no meaning") },
   {
     value: "span",

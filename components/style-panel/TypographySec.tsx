@@ -253,7 +253,7 @@ export function TypographySec({ node }: { node: DocNode }) {
 
   return (
     <Sec
-      title={trc("text_variant_1", "Text")}
+      title={tr("Text", "text_variant_1")}
       defaultOpen={!!node.text || node.type === "field"}
       tutorialTarget="style-typography"
       help="text-size"
@@ -264,9 +264,9 @@ export function TypographySec({ node }: { node: DocNode }) {
             value={String(node.text.heading)}
             options={[
               { value: "0", label: tr("Body"), icon: <Pilcrow size={13} /> },
-              { value: "1", label: trc("heading_1_variant_1", "Heading 1"), icon: <Heading1 size={14} /> },
-              { value: "2", label: trc("heading_2_variant_1", "Heading 2"), icon: <Heading2 size={14} /> },
-              { value: "3", label: trc("heading_3_variant_1", "Heading 3"), icon: <Heading3 size={14} /> },
+              { value: "1", label: tr("Heading 1", "heading_1_variant_1"), icon: <Heading1 size={14} /> },
+              { value: "2", label: tr("Heading 2", "heading_2_variant_1"), icon: <Heading2 size={14} /> },
+              { value: "3", label: tr("Heading 3", "heading_3_variant_1"), icon: <Heading3 size={14} /> },
               { value: "4", label: tr("Heading 4"), icon: <Heading4 size={14} /> },
               { value: "5", label: tr("Heading 5"), icon: <Heading5 size={14} /> },
               { value: "6", label: tr("Heading 6"), icon: <Heading6 size={14} /> },

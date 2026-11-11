@@ -53,11 +53,11 @@ export function makeBox(name = tr("Box"), styles: StyleMap = {}): DocNode {
   };
 }
 
-export function makeText(content = trc("text_variant_1", "Text"), styles: StyleMap = {}): DocNode {
+export function makeText(content = tr("Text", "text_variant_1"), styles: StyleMap = {}): DocNode {
   return {
     id: genId("node"),
     type: "box",
-    name: trc("text_variant_1", "Text"),
+    name: tr("Text", "text_variant_1"),
     semantic: "auto",
     text: { content, heading: 0 },
     link: null,
@@ -285,7 +285,7 @@ export function makeField(kind: FieldKind): DocNode {
     { name: string; field: Partial<FieldContent>; attrId?: string; styles: StyleMap }
   > = {
     input: {
-      name: trc("input_variant_1", "Input"),
+      name: tr("Input", "input_variant_1"),
       field: { inputType: "text", placeholder: tr("Enter a value") },
       attrId: "field",
       styles: {
@@ -315,7 +315,7 @@ export function makeField(kind: FieldKind): DocNode {
       },
     },
     select: {
-      name: trc("select_variant_1", "Select"),
+      name: tr("Select", "select_variant_1"),
       field: {
         options: [tr("Select…"), tr("Option A"), tr("Option B")]
           .map((value) => ({ label: value, value })),
@@ -332,7 +332,7 @@ export function makeField(kind: FieldKind): DocNode {
       },
     },
     checkbox: {
-      name: trc("checkbox_variant_1", "Checkbox"),
+      name: tr("Checkbox", "checkbox_variant_1"),
       field: { label: tr("I agree") },
       attrId: "agree",
       styles: {

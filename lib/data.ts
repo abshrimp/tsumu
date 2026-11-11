@@ -358,7 +358,7 @@ export function varSamplesAt(
   nodeId: string
 ): Record<string, string> {
   const describe = (v: unknown): string => {
-    if (v && typeof v === "object") return trc("list_variant_1", "List");
+    if (v && typeof v === "object") return tr("List", "list_variant_1");
     const t = varText(v).replace(/\s+/g, " ");
     return t.length > 28 ? `${t.slice(0, 28)}…` : t;
   };

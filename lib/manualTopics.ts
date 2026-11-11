@@ -457,7 +457,7 @@ export const TOPICS: Topic[] = [
           rows: [
             [tr("Box"), tr("A container for other elements. The base for layout and backgrounds")],
             [tr("Heading"), tr("Titles for pages and sections")],
-            [trc("text_variant_1", "Text"), tr("Body")],
+            [tr("Text", "text_variant_1"), tr("Body")],
             [tr("Button"), tr("Actions you want people to take (sign up, learn more, etc.)")],
             [tr("Image"), tr("Photos, logos, illustrations")],
           ],
@@ -585,15 +585,15 @@ export const TOPICS: Topic[] = [
     level: 3,
     q: tr("What is \"Meaning (output tag)\"?"),
     a: tr("It tells search engines and screen readers what part of the page a box is, like a header, navigation or main content. **It doesn't change the look**."),
-    keys: [trc("meaning_variant_1", "Meaning"), tr("tag"), tr("semantic"), "header", "nav", "main", "section", "footer"],
+    keys: [tr("Meaning", "meaning_variant_1"), tr("tag"), tr("semantic"), "header", "nav", "main", "section", "footer"],
     ctx: ["box"],
     body: [
       {
         table: {
-          head: [trc("meaning_variant_1", "Meaning"), tr("Where to use")],
+          head: [tr("Meaning", "meaning_variant_1"), tr("Where to use")],
           rows: [
             [tr("Header"), tr("The logo and menu at the top of the page")],
-            [trc("navigation_variant_1", "Navigation"), tr("A row of main links")],
+            [tr("Navigation", "navigation_variant_1"), tr("A row of main links")],
             [tr("Main"), tr("The main content of the page (one per page)")],
             [tr("Section"), tr("A group with its own heading")],
             [tr("Article"), tr("A self-contained article or announcement")],
@@ -614,7 +614,7 @@ export const TOPICS: Topic[] = [
     level: 1,
     q: tr("How do I edit text or add line breaks?"),
     a: tr("**Double-click text** to edit it. Enter adds a line break; Esc or clicking outside confirms."),
-    keys: [tr("Text"), trc("text_variant_1", "Text"), tr("edit"), tr("rewrite"), tr("line break")],
+    keys: [tr("Text"), tr("Text", "text_variant_1"), tr("edit"), tr("rewrite"), tr("line break")],
     ctx: ["text"],
     body: [
       { p: tr("You can also press Enter on a selected element to start editing. ⌘Enter confirms too.") },
@@ -1091,7 +1091,7 @@ export const TOPICS: Topic[] = [
     level: 3,
     q: tr("How do I add effects like transparency, frosted glass or black and white?"),
     a: tr("Use Opacity under Appearance for transparency, Background blur under Effects for frosted glass, and Grayscale for black and white."),
-    keys: [tr("translucent"), tr("transparent"), tr("frosted glass"), tr("Blur"), tr("black and white"), trc("filter_variant_1", "filter"), tr("blend")],
+    keys: [tr("translucent"), tr("transparent"), tr("frosted glass"), tr("Blur"), tr("black and white"), tr("filter", "filter_variant_1"), tr("blend")],
     ctx: ["box", "image"],
     body: [
       { p: tr("Background blur blurs whatever is behind the element. Combined with a semi-transparent (60–80%) background color, it looks like frosted glass.") },
@@ -1107,7 +1107,7 @@ export const TOPICS: Topic[] = [
     level: 3,
     q: tr("I want to nudge, scale or skew an element (transform)"),
     a: tr("Add Transform with the + in Effects to set move, scale, rotate and skew, and their origin. The layout around the element doesn't change."),
-    keys: ["transform", trc("transform_variant_1", "Transform"), tr("Zoom in"), tr("Zoom out"), tr("Rotation"), tr("skew"), tr("Navigation"), tr("nudge")],
+    keys: ["transform", tr("Transform", "transform_variant_1"), tr("Zoom in"), tr("Zoom out"), tr("Rotation"), tr("skew"), tr("Navigation"), tr("nudge")],
     ctx: ["box", "image"],
     body: [
       { p: tr("Set the state to Hover, set Scale to 105%, and add a “state change” motion to make a button or card that grows smoothly when the pointer is over it.") },
@@ -1124,7 +1124,7 @@ export const TOPICS: Topic[] = [
     level: 2,
     q: tr("I want to set up inputs, checkboxes, switches and sliders"),
     a: tr("Select the field. Set its type, initial value, placeholder and whether it's required under Form field on the Settings tab, and colors such as the checkbox or slider color under Input on the Style tab."),
-    keys: [trc("input_variant_2", "Input"), tr("Form"), trc("checkbox_variant_1", "Checkbox"), tr("Radio button"), tr("slider"), "input", "accent-color", tr("Default value"), tr("placeholder")],
+    keys: [tr("Input", "input_variant_2"), tr("Form"), tr("Checkbox", "checkbox_variant_1"), tr("Radio button"), tr("slider"), "input", "accent-color", tr("Default value"), tr("placeholder")],
     body: [
       { p: tr("The initial value, placeholder, label and options can contain {variables}, such as fetched data or the value of another field ({ID}).") },
       { p: tr("Number, slider and date fields have a minimum, maximum and step; text fields have a maximum length. A Required field can't be submitted empty.") },
@@ -1471,7 +1471,7 @@ export const TOPICS: Topic[] = [
     level: 1,
     q: tr("How do I try out links and interactions (Preview)?"),
     a: tr("Click Preview in the top bar. Selection outlines disappear and buttons and links work as they will when published."),
-    keys: [tr("Preview"), tr("Confirm"), tr("try"), trc("test_variant_1", "test")],
+    keys: [tr("Preview"), tr("Confirm"), tr("try"), tr("test", "test_variant_1")],
     body: [
       { p: tr("Scripts and animations don't run in the Design view. Check them in Preview, then click Design to go back.") },
     ],
@@ -1495,7 +1495,7 @@ export const TOPICS: Topic[] = [
             [tr("When hover starts / ends"), tr("When the mouse enters or leaves")],
             [tr("When the value changes"), tr("When a field's or select's value changes")],
             [tr("When the page opens"), tr("When the page is shown (for \"This page\", also fetches data)")],
-            [tr("When scrolled into view"), trc("when_scrolled_into_view_variant_1", "When scrolled into view")],
+            [tr("When scrolled into view"), tr("When scrolled into view", "when_scrolled_into_view_variant_1")],
           ],
         },
       },
@@ -1559,14 +1559,14 @@ export const TOPICS: Topic[] = [
     level: 4,
     q: tr("How do I display repeated items from a list?"),
     a: tr("Store the list from the fetched data in a variable with the script block \"Set variable ［］ to ［value］\", then choose it as the \"List to display\" in the List display element. The first card is the template."),
-    keys: [trc("list_variant_1", "List"), tr("List"), tr("repeat"), tr("card"), tr("news list")],
+    keys: [tr("List", "list_variant_1"), tr("List"), tr("repeat"), tr("card"), tr("news list")],
     ctx: ["list", "box"],
     body: [
       { fig: "list-repeat" },
       {
         list: [
           tr("Fetch data in the page's script ([[data-fetch|fetching data]])"),
-          trc("name_the_list_inside_the_data__variant_1", "Name the list inside the data with \"Set variable ［］ to ［value / {data.path}］\" (e.g. store {news.items} as \"articles\")"),
+          tr("Name the list inside the data with \"Set variable ［］ to ［value / {data.path}］\" (e.g. store {news.items} as \"articles\")", "name_the_list_inside_the_data__variant_1"),
           tr("Make a template card (box) and turn it into a list with \"Turn into list display\" in the right-click menu"),
           tr("Choose \"articles\" under \"List to display\" in the List display settings"),
           tr("Write field names like {title} in the card's text"),
@@ -1584,7 +1584,7 @@ export const TOPICS: Topic[] = [
     id: "data-detail",
     cat: "data",
     level: 4,
-    q: trc("how_do_i_make_a_detail_page_fo_variant_1", "How do I make a detail page for each item ([slug])?"),
+    q: tr("How do I make a detail page for each item ([slug])?", "how_do_i_make_a_detail_page_fo_variant_1"),
     a: tr("Create one page with [slug] in its URL (e.g. news/[slug]) and a page is generated for each data item. Inside the page, {slug} gives you that part of the URL."),
     keys: [tr("detail page"), "slug", tr("dynamic page"), tr("item page"), "[slug]"],
     body: [
@@ -1607,7 +1607,7 @@ export const TOPICS: Topic[] = [
     level: 4,
     q: tr("How do I add search, filtering and sorting?"),
     a: tr("Set a box's meaning to \"Search form\" and add a field and a submit button. The entered value is added to the URL and can be used as {ID} in data URLs. On-screen filtering and sorting is built with script blocks."),
-    keys: [tr("Search"), tr("filter"), tr("reorder"), trc("filter_variant_1", "filter"), tr("sort"), tr("Form")],
+    keys: [tr("Search"), tr("filter"), tr("reorder"), tr("filter", "filter_variant_1"), tr("sort"), tr("Form")],
     body: [
       { p: tr("If the field's ID is \"q\", write `?q={q}` in the data URL. Submitting updates just the results without reloading the page.") },
       { p: tr("To filter an already-fetched list, attach \"Filter list ［］\" to \"When clicked\" or \"When the value changes\", and configure its conditions.") },
@@ -1692,7 +1692,7 @@ export const TOPICS: Topic[] = [
     level: 2,
     q: tr("I want to return the live site to an earlier version (rollback)"),
     a: tr("Open **Publish history & rollback** in the Publish dialog (or History in the \"…\" menu) and click **Restore site** on the version you want."),
-    keys: [tr("rollback"), trc("restore_variant_1", "restore"), tr("publish history"), tr("earlier version"), tr("Undo")],
+    keys: [tr("rollback"), tr("restore", "restore_variant_1"), tr("publish history"), tr("earlier version"), tr("Undo")],
     body: [
       { fig: "rollback" },
       {
@@ -1825,7 +1825,7 @@ export const TOPICS: Topic[] = [
     level: 4,
     q: tr("How do I export the site and run it myself (zip)?"),
     a: tr("Use **Export as zip** in the \"…\" menu at the top right to export a Next.js project. Unzip it and run `npm install && npm run dev`."),
-    keys: ["zip", trc("export_variant_1", "export"), tr("export"), "Next.js", tr("Download")],
+    keys: ["zip", tr("export", "export_variant_1"), tr("export"), "Next.js", tr("Download")],
     body: [
       { p: tr("Sites made with this editor are regular Next.js projects. You can edit and publish the exported files without the editor.") },
     ],
@@ -1934,7 +1934,7 @@ export const TOPICS: Topic[] = [
     level: 2,
     q: tr("How do I choose spacing sizes?"),
     a: tr("Pick from **a fixed scale** like 4, 8, 16, 24, 32, 48, 64px (multiples of 8). Keep related things close and separate groups more widely."),
-    keys: [tr("Spacing"), "8px", tr("Grid"), trc("spacing_variant_1", "spacing"), tr("Gap"), tr("align")],
+    keys: [tr("Spacing"), "8px", tr("Grid"), tr("spacing", "spacing_variant_1"), tr("Gap"), tr("align")],
     ctx: ["box"],
     body: [
       { fig: "spacing-scale" },
@@ -2023,7 +2023,7 @@ export const TOPICS: Topic[] = [
     body: [
       {
         table: {
-          head: [tr("Type"), tr("Feel"), trc("good_for_variant_1", "Good for")],
+          head: [tr("Type"), tr("Feel"), tr("Good for", "good_for_variant_1")],
           rows: [
             [tr("Sans-serif"), tr("Readable, friendly"), tr("Body text, guides, buttons")],
             [tr("Serif"), tr("Elegant, calm"), tr("Headings, formal notices")],
@@ -2071,7 +2071,7 @@ export const TOPICS: Topic[] = [
     level: 3,
     q: tr("Why does text overflow or overlap?"),
     a: tr("Usually it's because the box holding the text **has a fixed height or width**. Leave height empty (fits content) and use Min height if needed."),
-    keys: [tr("overflow"), trc("overlap_variant_1", "overlap"), tr("broken layout"), tr("fixed height"), tr("layout issues")],
+    keys: [tr("overflow"), tr("overlap", "overlap_variant_1"), tr("broken layout"), tr("fixed height"), tr("layout issues")],
     ctx: ["box", "text", "mobile"],
     body: [
       { fig: "fixed-height", caption: tr("On phones, text wraps onto more lines. It spills out of fixed-height boxes and overlaps the elements below.") },

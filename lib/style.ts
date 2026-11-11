@@ -73,14 +73,14 @@ export function normalizeBreakpoints(raw: unknown): BreakpointDef[] {
 export const DEVICE_WIDTHS: { width: number; label: string }[] = [
   { width: 390, label: tr("Phone (standard)") },
   { width: 768, label: tr("Tablet portrait (small)") },
-  { width: 667, label: trc("phone_landscape_variant_1", "Phone (landscape)") },
+  { width: 667, label: tr("Phone (landscape)", "phone_landscape_variant_1") },
   { width: 360, label: tr("Phone (small)") },
   { width: 430, label: tr("Phone (large)") },
   { width: 820, label: tr("Tablet portrait") },
   { width: 1024, label: tr("Tablet landscape") },
   { width: 600, label: tr("Small tablet") },
   { width: 1280, label: tr("Laptop") },
-  { width: 1440, label: trc("desktop_variant_1", "Desktop") },
+  { width: 1440, label: tr("Desktop", "desktop_variant_1") },
   { width: 1920, label: tr("Large desktop") },
 ];
 
@@ -253,7 +253,7 @@ export function nextHiddenOn(
 
 /** 表示切替ボタン・メニューの文言（表示中のデバイスに合わせる） */
 export function hideToggleLabel(hiddenHere: boolean, bp: Breakpoint): string {
-  if (bp === "base") return hiddenHere ? trc("show_variant_2", "Show") : trc("hide_variant_2", "Hide");
+  if (bp === "base") return hiddenHere ? tr("Show", "show_variant_2") : tr("Hide", "hide_variant_2");
   const name = BP_INFO[bp].label;
   return hiddenHere ? tr("show on {name}", { name }) : tr("hide on {name}", { name });
 }
