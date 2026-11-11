@@ -98,6 +98,27 @@ test("the nested source is a real named page array offered by ScriptEditor's Arr
   assert.doesNotMatch(html, /見つかりません/);
 });
 
+test("list candidates expand only the first sampled array item, including nested arrays", () => {
+  const doc = nestedOperationsDoc();
+  const fetch = doc.pages.p.pageScripts![0].steps[0];
+  assert.equal(fetch.kind, "fetch");
+  if (fetch.kind !== "fetch") return;
+  fetch.preview = {
+    sample: Array.from({ length: 20 }, (_, index) => ({
+      name: "Row " + index,
+      tags: [{ label: "Tag " + index }],
+      details: { labels: ["Label " + index] },
+    })),
+  };
+  const candidates = pageArrays(doc, "p").map(({ name }) => name);
+  for (const name of ["response", "response.0", "response.0.tags", "response.0.tags.0",
+    "response.0.details", "response.0.details.labels"]) {
+    assert.ok(candidates.includes(name), name);
+  }
+  assert.ok(!candidates.some((name) => /^response\.[1-9]\d*(?:\.|$)/.test(name)),
+    "only the first list record should be expanded into candidate paths");
+});
+
 for (const component of [false, true]) test(`${component ? "component" : "nested"} lists: runtime sort, filter and clear affect every rendered list`, async () => {
   const doc = nestedOperationsDoc(component), before = structuredClone(doc);
   const exported = runtime(await publishedNestedOperations(doc), scriptsFile(doc));
