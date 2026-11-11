@@ -114,7 +114,7 @@ export function startImageInsertion(
         if (nodes.length && select && own === latestDrop) state.select(nodes[nodes.length - 1].id);
       }
       if (failure && mounted && !options.quiet) {
-        void showAlert(userMessage(failure, tr("アップロードできませんでした")), { title: tr("アップロードできませんでした") });
+        void showAlert(userMessage(failure, tr("Couldn't upload")), { title: tr("Couldn't upload") });
       }
     }
     return { inserted, files: images, error: !cancelled && place ? failure : undefined };

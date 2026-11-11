@@ -161,10 +161,10 @@ async function prepareHtmlZip(file: File | Uint8Array, progress: (message: strin
     const bytes = await readZipEntryLimited(entry, HTML_ZIP_LIMITS.cssBytes);
     let source: string;
     try { source = decoder.decode(bytes); }
-    catch { throw new Error(tr("ZIP内のCSSはUTF-8に対応しています。文字コードをUTF-8に変換して再読み込みしてください。")); }
+    catch { throw new Error(tr("ZIP stylesheets must use UTF-8. Convert the CSS files to UTF-8 and reimport the ZIP.")); }
     const charset = /^@charset\s+["']([^"']+)["'];/i.exec(source)?.[1];
     if (charset && !/^utf-8$/i.test(charset)) {
-      throw new Error(tr("ZIP内のCSSはUTF-8に対応しています。文字コードをUTF-8に変換して再読み込みしてください。"));
+      throw new Error(tr("ZIP stylesheets must use UTF-8. Convert the CSS files to UTF-8 and reimport the ZIP."));
     }
     stylesheets.set(entry.name, { bytes, source });
   }
@@ -182,7 +182,7 @@ async function prepareHtmlZip(file: File | Uint8Array, progress: (message: strin
   const group = genId("zip");
   for (let index = 0; index < assetEntries.length; index++) {
     const entry = assetEntries[index];
-    progress(tr("アセットをアップロード中… {p1} / {length}", { p1: index + 1, length: assetEntries.length }));
+    progress(tr("Uploading assets… {p1} / {length}", { p1: index + 1, length: assetEntries.length }));
     const path = cleanZipPath(entry.name);
     const sheet = stylesheets.get(entry.name);
     const bytes = checkedBytes.get(entry.name) ?? await readZipEntryLimited(entry, HTML_ZIP_LIMITS.assetBytes);

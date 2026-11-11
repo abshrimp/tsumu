@@ -49,10 +49,10 @@ function safeUrl(value: string): string {
 }
 function htmlName(tag: string): string {
   const names: Record<string, string> = {
-    h1: tr("見出し"), h2: tr("見出し"), h3: tr("見出し"), p: tr("文章"), a: tr("リンク"),
-    img: tr("画像"), button: tr("ボタン"), nav: tr("ナビゲーション"), header: tr("ヘッダー"),
-    footer: tr("フッター"), section: tr("セクション"), main: tr("メイン"), form: tr("フォーム"),
-    input: tr("入力欄"), textarea: tr("テキストエリア"), select: tr("選択肢"),
+    h1: tr("Heading"), h2: tr("Heading"), h3: tr("Heading"), p: tr("Paragraph"), a: tr("Link"),
+    img: tr("Image"), button: tr("Button"), nav: trc("navigation_variant_1", "Navigation"), header: tr("Header"),
+    footer: tr("Footer"), section: tr("Section"), main: tr("Main"), form: tr("Form"),
+    input: trc("input_variant_2", "Input"), textarea: tr("Text area"), select: trc("select_variant_1", "Select"),
   };
   return names[tag] || tag;
 }
@@ -114,8 +114,8 @@ function isPageCode(element: Element): boolean {
 }
 
 export function convertHtmlToSite(html: string, options: Options = {}): HtmlConversion {
-  if (!html.trim() || html.length > MAX_HTML_CHARS) throw new Error(tr("HTMLのサイズが大きすぎるか、空です。"));
-  if (typeof DOMParser === "undefined") throw new Error(tr("この環境ではHTMLを解析できません。"));
+  if (!html.trim() || html.length > MAX_HTML_CHARS) throw new Error(tr("The HTML is empty or too large."));
+  if (typeof DOMParser === "undefined") throw new Error(tr("HTML parsing is not available in this environment."));
   // DOMParser is inert: imported scripts are never executed during conversion.
   const parsed = new DOMParser().parseFromString(html, "text/html");
   const warnings: string[] = [];
@@ -148,14 +148,14 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     try {
       const expanded = expandZipCss(css, assets, (warning) => {
         // An unresolved CSS import is kept for the published site.
-        if (warning.includes("circular")) warn(tr("循環するCSSの@importを読み飛ばしました。"));
-        else warn(tr("解決できないCSSの@importをカスタムコードに保持しました。"));
+        if (warning.includes("circular")) warn(tr("A circular CSS @import was skipped."));
+        else warn(tr("A CSS @import could not be resolved and was kept as custom code."));
       }, owner);
       unresolvedStyles.push(...expanded.unresolved);
       return expanded.css;
     } catch {
       unresolvedStyles.push(css);
-      warn(tr("CSSの依存関係が大きすぎるため、カスタムコードとして保持しました。"));
+      warn(tr("The CSS dependencies are too large; the original CSS was kept as custom code."));
       return "";
     }
   };
@@ -176,7 +176,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       if (source !== null) sheets.push(source);
       else {
         unusedHead.push(element.outerHTML);
-        warn(tr("対応できないCSSのmedia条件をカスタムコードに保持しました。"));
+        warn(tr("Unsupported CSS media conditions were kept as custom code."));
       }
     }
     else if (tag === "link" && (element.getAttribute("rel") || "").toLowerCase().split(/\s+/).includes("stylesheet")) {
@@ -193,11 +193,11 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
         if (converted !== null) sheets.push(converted);
         else {
           unusedHead.push(element.outerHTML);
-          warn(tr("対応できないCSSのmedia条件をカスタムコードに保持しました。"));
+          warn(tr("Unsupported CSS media conditions were kept as custom code."));
         }
       } else {
         unusedHead.push(element.outerHTML);
-        warn(tr("外部CSSまたは解決できないスタイルシートは、コードとして保持しました。"));
+        warn(tr("An external or unresolved stylesheet was preserved as custom code."));
       }
     } else if (tag === "script") {
       // Preserve head scripts *before* page content; appending them to body
@@ -217,9 +217,9 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     scriptCount++;
   }
   if (scriptCount) {
-    warn(tr("元のJavaScriptはページのカスタムコードに保存しました。エディタ内では実行されません。公開前に内容を確認してください。"));
+    warn(tr("Original JavaScript was saved as page custom code. It does not run in the editor. Review it before publishing."));
     if (assets.some((asset) => isZipJavascript(asset) && !importedAssetPath(asset))) {
-      warn(tr("一部のJavaScriptファイルは元の相対パスを保持できません。公開後の動作を確認してください。"));
+      warn(tr("Some JavaScript files could not keep their original relative paths. Check their behavior after publishing."));
     }
   }
 
@@ -259,14 +259,14 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
   };
   let declarationWork = 0, emittedStyleChars = 0;
   const collect = (rules: CSSRuleList, range: MediaRange, retained: string[], depth = 0) => {
-    if (depth > 32) throw new Error(tr("HTMLのスタイルが複雑すぎます。"));
+    if (depth > 32) throw new Error(tr("The HTML styles are too complex."));
     for (const rule of Array.from(rules)) {
       if (rule.type === CSSRule.MEDIA_RULE) {
         const media = rule as CSSMediaRule;
         const next = parseRange(media.conditionText);
         if (!next) {
           retained.push(rule.cssText);
-          warn(tr("複雑な@media条件はカスタムCSSとして保持しました。"));
+          warn(tr("Complex @media conditions were preserved as custom CSS."));
           continue;
         }
         const merged = { min: Math.max(range.min, next.min), max: Math.min(range.max, next.max) };
@@ -277,7 +277,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
         ];
         if (!limits.every(getBreakpoint)) {
           retained.push(rule.cssText);
-          warn(tr("Tsumuのブレークポイント上限により、一部の@mediaは変換できません。"));
+          warn(tr("Some @media queries exceed Tsumu's breakpoint limit."));
           continue;
         }
         const nested: string[] = [];
@@ -298,7 +298,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
           const baseSelector = stateMatch ? selector.slice(0, -stateMatch[0].length) : selector;
           if (!baseSelector || /::|(^|[^\\]):/.test(baseSelector)) {
             retain = true;
-            warn(tr("一部のCSSセレクターはカスタムCSSとして保持しました。"));
+            warn(tr("Some CSS selectors were preserved as custom CSS."));
             continue;
           }
           try {
@@ -307,7 +307,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
             // retain their declarations instead of silently losing variables.
             if (Array.from(matches).some((el) => el === parsed.documentElement || el === parsed.head)) {
               retain = true;
-              warn(tr("一部のCSSルールはカスタムCSSとして保持しました。"));
+              warn(tr("Some CSS rules were preserved as custom CSS."));
               continue;
             }
             declarationWork += matches.length * declarations.length;
@@ -319,16 +319,16 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
             }
           } catch (error) {
             if (error instanceof Error && error.message === "too-many-matches") {
-              throw new Error(tr("HTMLの要素数が多すぎます。"));
+              throw new Error(tr("The HTML contains too many elements."));
             }
             retain = true;
-            warn(tr("一部のCSSセレクターを解析できませんでした。"));
+            warn(tr("Some CSS selectors could not be parsed."));
           }
         }
         if (retain) retained.push(item.cssText);
       } else {
         retained.push(rule.cssText);
-        warn(tr("一部のCSSルールはカスタムCSSとして保持しました。"));
+        warn(tr("Some CSS rules were preserved as custom CSS."));
       }
     }
   };
@@ -337,7 +337,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     if (rules) collect(rules, { min: 0, max: Infinity }, unusedRules);
     else if (source.trim()) {
       unusedRules.push(source);
-      warn(tr("解析できないCSSをカスタムコードに保持しました。"));
+      warn(tr("CSS that could not be parsed was preserved as custom code."));
     }
   }
   // Original inline declarations override authored stylesheet rules unless
@@ -406,7 +406,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
           if (at.id === "base" || before !== after) {
             // A rule that only applied at wider widths must be cancelled here.
             emittedStyleChars += key.length + (after?.length ?? 6);
-            if (emittedStyleChars > MAX_HTML_CHARS) throw new Error(tr("HTMLのスタイルが複雑すぎます。"));
+            if (emittedStyleChars > MAX_HTML_CHARS) throw new Error(tr("The HTML styles are too complex."));
             if (after !== undefined) props[key] = after;
             else if (at.id !== "base") props[key] = "revert";
           }
@@ -445,7 +445,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
   const nodes: Record<string, DocNode> = {};
   let converted = 0;
   const add = (node: DocNode): string => {
-    if (++converted > MAX_NODES) throw new Error(tr("HTMLの要素数が多すぎます。"));
+    if (++converted > MAX_NODES) throw new Error(tr("The HTML contains too many elements."));
     nodes[node.id] = node;
     return node.id;
   };
@@ -453,10 +453,10 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     const tag = element.tagName.toLowerCase();
     if (SKIP_TAGS.has(tag)) return null;
     if (UNSAFE_TAGS.has(tag)) {
-      warn(tr("埋め込み要素は安全上の理由で変換対象から除外しました。"));
+      warn(tr("Embedded elements were excluded from conversion for security reasons."));
       return null;
     }
-    if (depth > MAX_NODE_DEPTH) throw new Error(tr("HTMLの要素数が多すぎます。"));
+    if (depth > MAX_NODE_DEPTH) throw new Error(tr("The HTML contains too many elements."));
     const id = genId("node");
     const visual = nodeStyle(element);
     const sourceClass = keepOriginalClasses
@@ -500,7 +500,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       if (tag === "input" && kind === "input" && !supportedInputs.has(inputType)) {
         common.type = "code";
         common.code = { html: element.outerHTML };
-        warn(tr("一部のHTML要素をカスタムコードとして保持しました。"));
+        warn(tr("Some HTML elements were preserved as custom code."));
         return add(common);
       }
       const options = tag === "select" ? Array.from(element.querySelectorAll("option")).map((option) => ({
@@ -548,7 +548,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     if (!TAGS.has(tag)) {
       common.type = "code";
       common.code = { html: element.outerHTML };
-      warn(tr("一部のHTML要素をカスタムコードとして保持しました。"));
+      warn(tr("Some HTML elements were preserved as custom code."));
       return add(common);
     }
     if (tag === "a") {
@@ -585,10 +585,10 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       if (child.nodeType === Node.TEXT_NODE) {
         const value = (child.textContent || "").replace(/\s+/g, " ").trim();
         if (!value) continue;
-        if (depth >= MAX_NODE_DEPTH) throw new Error(tr("HTMLの要素数が多すぎます。"));
+        if (depth >= MAX_NODE_DEPTH) throw new Error(tr("The HTML contains too many elements."));
         const textId = genId("node");
         common.children.push(add({
-          id: textId, type: "box", name: tr("テキスト"), semantic: "span",
+          id: textId, type: "box", name: trc("text_variant_1", "Text"), semantic: "span",
           text: { content: value, heading: 0 }, link: null, children: [],
           styles: { base: { default: {} } },
         }));
@@ -604,7 +604,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     if (child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) {
       const id = genId("node");
       roots.push(add({
-        id, type: "box", name: tr("テキスト"), semantic: "span",
+        id, type: "box", name: trc("text_variant_1", "Text"), semantic: "span",
         text: { content: child.textContent.replace(/\s+/g, " ").trim(), heading: 0 },
         link: null, children: [], styles: { base: { default: {} } },
       }));
@@ -615,7 +615,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
   }
   const bodyStyles = toStyles(parsed.body);
   const pageId = genId("page");
-  const name = parsed.title.trim() || tr("HTMLから変換したページ");
+  const name = parsed.title.trim() || tr("Page converted from HTML");
   const description = parsed.head.querySelector('meta[name="description"]')?.getAttribute("content") || "";
   const retainedCss = unusedRules.length ? "<style>\n" + escapeStyleContent(unusedRules.join("\n")) + "\n</style>" : "";
   const headMarkup = [unusedHead.join("\n"), retainedCss].filter(Boolean).join("\n");
@@ -627,7 +627,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
   };
   // Unsupported media and selector rules are retained for export; their preview
   // fidelity is limited because arbitrary class attributes are not part of DocNode.
-  if (unusedRules.length) warn(tr("変換できなかったCSSはカスタムコードに残しました。編集画面と公開サイトで表示が異なる場合があります。"));
+  if (unusedRules.length) warn(tr("Unconverted CSS remains in custom code. The editor and published site may look different."));
   return {
     doc: {
       schemaVersion: 1, siteName: name, pages: { [pageId]: page }, pageOrder: [pageId],
