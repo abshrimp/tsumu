@@ -281,6 +281,7 @@ export default function PublishModal({
   const markPublished = useEditor((s) => s.markPublished);
   const conf = usePublishConfig();
   const targets = conf && conf !== "error" ? conf : null;
+  const configuredTargets = targets?.configured ? targets : null;
   /** 選んだ公開先（公開開始まで null） */
   const [site, setSite] = useState<PublishTarget | null>(null);
   const [phase, setPhase] = useState<"check" | "busy" | "done" | "error">("check");
@@ -505,7 +506,21 @@ export default function PublishModal({
           </>
         )}
 
-        {phase === "check" && !(targets && !targets.configured) && (
+        {phase === "check" && conf === null && (
+          <div className="pub-loading is-large" role="status">
+            <LoaderCircle size={16} className="spin" />
+            {tr("公開先を確認しています…")}
+          </div>
+        )}
+        {phase === "check" && conf === "error" && (
+          <ul className="check-list">
+            <li className="is-error">
+              <TriangleAlert size={14} style={{ flex: "none", marginTop: 1 }} />
+              {tr("公開先の設定を読み込めませんでした")}
+            </li>
+          </ul>
+        )}
+        {phase === "check" && configuredTargets && (
           <>
             <p className="modal-desc">
               {format === "html" || format === "single-html"
@@ -581,49 +596,35 @@ export default function PublishModal({
             </p>
             <p className="hint export-note">{tr("GitHubへPushすると、編集データには非公開ページや設定も含まれ、公開リポジトリでは第三者が閲覧できます。公開前に内容を確認してください。")}</p>
             <CheckList checks={checks} onClose={onClose} />
-            {conf === null ? (
-              <div className="pub-loading">
-                <LoaderCircle size={14} className="spin" />
-                {tr("公開先を確認しています…")}
-              </div>
-            ) : conf === "error" ? (
-              <ul className="check-list">
-                <li className="is-error">
-                  <TriangleAlert size={14} style={{ flex: "none", marginTop: 1 }} />
-                  {tr("公開先の設定を読み込めませんでした")}
-                </li>
-              </ul>
-            ) : (
-              <div className="pub-cards">
-                {SITE_ORDER.filter((t) => t === "production" || conf.previewEnabled).map((t) => {
-                  const info = conf[t];
-                  const Icon = SITE[t].icon;
-                  const disabled = hasError || !!info.error;
-                  return (
-                    <section key={t} className={`pub-card${t === "production" ? " is-prod" : ""}`}>
-                      <header>
-                        <span className="pub-card-icon">
-                          <Icon size={15} />
-                        </span>
-                        <div>
-                          <strong>{SITE[t].label()}</strong>
-                          <p>{SITE[t].desc()}</p>
-                        </div>
-                      </header>
-                      <TargetMeta info={info} />
-                      <button
-                        className={t === "production" ? "btn btn-primary" : "btn"}
-                        disabled={disabled}
-                        onClick={() => publish(t)}
-                      >
-                        <Icon size={13} />
-                        {SITE[t].action()}
-                      </button>
-                    </section>
-                  );
-                })}
-              </div>
-            )}
+            <div className="pub-cards">
+              {SITE_ORDER.filter((t) => t === "production" || configuredTargets.previewEnabled).map((t) => {
+                const info = configuredTargets[t];
+                const Icon = SITE[t].icon;
+                const disabled = hasError || !!info.error;
+                return (
+                  <section key={t} className={`pub-card${t === "production" ? " is-prod" : ""}`}>
+                    <header>
+                      <span className="pub-card-icon">
+                        <Icon size={15} />
+                      </span>
+                      <div>
+                        <strong>{SITE[t].label()}</strong>
+                        <p>{SITE[t].desc()}</p>
+                      </div>
+                    </header>
+                    <TargetMeta info={info} />
+                    <button
+                      className={t === "production" ? "btn btn-primary" : "btn"}
+                      disabled={disabled}
+                      onClick={() => publish(t)}
+                    >
+                      <Icon size={13} />
+                      {SITE[t].action()}
+                    </button>
+                  </section>
+                );
+              })}
+            </div>
             <div className="modal-actions pub-actions">
               <button
                 className="btn btn-ghost"
