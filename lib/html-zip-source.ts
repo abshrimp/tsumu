@@ -42,7 +42,7 @@ export function rewriteHtmlZipSource(source: string, htmlPath: string, urls: Map
     try { url = new URL(ref, base); } catch { return raw; }
     if (url.protocol !== "file:") return url.href;
     const path = url.pathname + url.search + url.hash;
-    const mapped = resolveZipReference(path, "", urls);
+    const mapped = resolveZipReference(path, htmlPath, urls);
     return mapped === path ? raw : mapped;
   };
   const escapeAttribute = (value: string) => value
