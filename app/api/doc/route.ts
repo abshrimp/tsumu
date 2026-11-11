@@ -113,7 +113,7 @@ async function save(req: Request, partial: boolean) {
     ? isDocPatch(patch) ? null : "不正なリクエスト"
     : validateDocValue(input);
   if (validationError) {
-    return NextResponse.json({ error: tr(validationError) }, { status: 400 });
+    return NextResponse.json({ error: tr("Invalid request") }, { status: 400 });
   }
   const params = new URL(req.url).searchParams;
   const siteId = await siteIdOf(params.get("site"));

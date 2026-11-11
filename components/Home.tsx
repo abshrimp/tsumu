@@ -289,7 +289,7 @@ function SiteDialog({
     const checked = normalizeSiteInput(form, { name: "", ...emptyDest() });
     if (!checked.ok) {
       setError(tr(checked.error));
-      if (!checked.error.includes("サイト名")) setDestOpen(true);
+      if (!["Enter a site name", "Site names can be up to 100 characters"].includes(checked.error)) setDestOpen(true);
       return;
     }
     setBusy(true);
