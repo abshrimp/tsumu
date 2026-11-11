@@ -36,7 +36,7 @@ test("automatic titles and shared titles are reported", () => {
   assert.ok(messages(withPage("about", "ページ 3")).some((m) => m.includes("「ページ 3」のまま")));
   // タイトルが空ならページ名がタイトルになる
   assert.ok(messages(withPage("about", "", "ページ 12")).some((m) => m.includes("「ページ 12」のまま")));
-  assert.ok(messages(withPage("menu", "ホーム")).some((m) => m.includes("タイトルが同じ「ホーム」")));
+  assert.ok(messages(withPage("menu", "Home")).some((m) => m.includes("タイトルが同じ「ホーム」")));
   assert.ok(!messages(withPage("about", "ページの作り方")).some((m) => m.includes("自動で付けた「")));
 });
 
@@ -66,22 +66,22 @@ test("a new page takes its first confirmed name as its title, and is not linked 
   // 触っただけ（同じ名前で確定）では決まらない
   st().updatePage(added.id, { name: added.name });
   assert.equal(st().doc.pages[added.id].titlePending, true);
-  st().updatePage(added.id, { name: "会社概要" });
-  assert.equal(st().doc.pages[added.id].title, "会社概要");
+  st().updatePage(added.id, { name: "About us" });
+  assert.equal(st().doc.pages[added.id].title, "About us");
   assert.equal(st().doc.pages[added.id].titlePending, undefined);
   // 2回目以降は連動しない
   st().updatePage(added.id, { name: "会社案内" });
-  assert.equal(st().doc.pages[added.id].title, "会社概要");
+  assert.equal(st().doc.pages[added.id].title, "About us");
 });
 
 test("titles without an explicit pending marker stay unchanged when a page is renamed", async () => {
   const { st, page } = await fresh({ x: { name: "ページ 2", slug: "page-2", title: "ページ 2" }, y: { name: "News", slug: "news", title: "News" } });
-  st().updatePage("x", { name: "会社概要" });
+  st().updatePage("x", { name: "About us" });
   assert.equal(page("x").title, "ページ 2");
   st().updatePage("x", { name: "会社案内" });
   assert.equal(page("x").title, "ページ 2");
   // 自分で決めた名前と同じタイトルは連動しない
-  st().updatePage("y", { name: "お知らせ" });
+  st().updatePage("y", { name: "News" });
   assert.equal(page("y").title, "News");
 });
 
