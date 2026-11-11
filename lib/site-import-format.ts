@@ -91,7 +91,10 @@ export function validateImportedDoc(value: unknown): SiteDoc {
     }
   }
   for (const page of Object.values(doc.pages)) {
-    if (!isImportObject(page) || !assetRefValid(page.ogImage)) {
+    if (!isImportObject(page) || !assetRefValid(page.ogImage) ||
+        (isImportObject(page.htmlZip) && (!Array.isArray(page.htmlZip.assetIds) ||
+          !page.htmlZip.assetIds.every(id => typeof id === "string" &&
+            Object.hasOwn(doc.assets as Record<string, unknown>, id))))) {
       throw new Error(tr("Asset references are invalid."));
     }
   }

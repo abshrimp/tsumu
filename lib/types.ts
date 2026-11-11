@@ -452,6 +452,14 @@ export interface ImageRef {
   assetId?: string;
 }
 
+/** Links an untouched HTML source file to the imported ZIP's asset identities. */
+export interface HtmlZipPage {
+  /** Original path to the HTML entry inside the ZIP. */
+  path: string;
+  /** Exactly the assets belonging to this import (not earlier replaced versions). */
+  assetIds: string[];
+}
+
 export interface Page {
   id: string;
   name: string;
@@ -477,6 +485,8 @@ export interface Page {
   unpublished?: boolean;
   /** 設定されていればHTMLページ（このHTMLをそのまま配信。要素編集は無効） */
   rawHtml?: string | null;
+  /** Raw HTML source retains its relative references; resolve these only in preview/export. */
+  htmlZip?: HtmlZipPage;
   /** エディタのページ一覧で入れているフォルダ（URL・公開には関係しない） */
   folderId?: string;
   /** このページ専用コード（ページHTMLの先頭に挿入。JSON-LD・計測タグなど） */
@@ -528,6 +538,8 @@ export interface ZipAssetMetadata {
   version: 1;
   group: string;
   path: string;
+  /** SHA-256 of the original ZIP entry; enables unchanged-file reuse on reimport. */
+  sha256?: string;
   stylesheet?: {
     source: string;
     references: { url: string; assetId: string; suffix: string }[];

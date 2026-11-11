@@ -143,6 +143,7 @@ export function exportScopeDoc(doc: SiteDoc, options: ExportOptions): SiteDoc {
     query: undefined,
     unpublished: false,
     rawHtml: undefined,
+    htmlZip: undefined,
     redirectTo: undefined,
     rewriteTo: undefined,
     customTopHtml: undefined,

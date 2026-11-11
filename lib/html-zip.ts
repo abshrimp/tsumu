@@ -138,7 +138,10 @@ async function verifyZipIntegrity(htmlText: Map<string, string>, assetEntries: i
 }
 
 /** Preflight the archive before uploading anything; JavaScript dependencies are not resolved. */
-async function prepareHtmlZip(file: File | Uint8Array, progress: (message: string) => void, paths: string[]) {
+async function prepareHtmlZip(
+  file: File | Uint8Array, progress: (message: string) => void, paths: string[],
+  existing: Asset[] = [],
+) {
   const compressedBytes = file instanceof Uint8Array ? file.byteLength : file.size;
   if (compressedBytes > HTML_ZIP_LIMITS.zipBytes) {
     throw new Error("インポートするファイルが大きすぎます。");
@@ -152,7 +155,7 @@ async function prepareHtmlZip(file: File | Uint8Array, progress: (message: strin
   const htmlText = new Map<string, string>();
   for (const entry of htmlEntries) {
     const bytes = await readZipEntryLimited(entry, HTML_ZIP_LIMITS.htmlBytes);
-    htmlText.set(entry.name, new TextDecoder("utf-8").decode(bytes));
+    htmlText.set(entry.name, new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes));
   }
   const stylesheets = new Map<string, { bytes: Uint8Array<ArrayBuffer>; source: string }>();
   const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -169,6 +172,9 @@ async function prepareHtmlZip(file: File | Uint8Array, progress: (message: strin
     stylesheets.set(entry.name, { bytes, source });
   }
 
+  // Integrity validation may remove CSS SRI for a converted page. The raw HTML
+  // editor must keep the original source, including SRI, comments and formatting.
+  const pristineHtmlText = new Map(htmlText);
   const checkedBytes = new Map([...stylesheets].map(([path, sheet]) => [path, sheet.bytes]));
   await verifyZipIntegrity(htmlText, assetEntries, checkedBytes);
   for (const entry of assetEntries) {
@@ -179,7 +185,7 @@ async function prepareHtmlZip(file: File | Uint8Array, progress: (message: strin
 
   const assets: Asset[] = [];
   const urls = new Map<string, string>();
-  const group = genId("zip");
+  const group = existing.find(a => a.zip?.group)?.zip?.group ?? genId("zip");
   for (let index = 0; index < assetEntries.length; index++) {
     const entry = assetEntries[index];
     progress(tr("Uploading assets… {p1} / {length}", { p1: index + 1, length: assetEntries.length }));
@@ -188,24 +194,39 @@ async function prepareHtmlZip(file: File | Uint8Array, progress: (message: strin
     const bytes = checkedBytes.get(entry.name) ?? await readZipEntryLimited(entry, HTML_ZIP_LIMITS.assetBytes);
     const mime = zipMime(path);
     // Preserve original bytes, including UTF-8 BOM; CSS references are metadata.
-    const upload = new File([bytes], path.replace(/\//g, "-"), { type: mime });
-    const asset = await uploadStaticAsset(upload);
-    if (asset.path) paths.push(asset.path);
-    asset.zip = { version: 1, group, path,
+    const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+    const sha256 = Array.from(hash, byte => byte.toString(16).padStart(2, "0")).join("");
+    const previous = existing.find(asset => asset.zip?.path === path && asset.zip.sha256 === sha256);
+    const asset = previous
+      ? { ...previous }
+      : await uploadStaticAsset(new File([bytes], path.replace(/\//g, "-"), { type: mime }));
+    if (!previous && asset.path) paths.push(asset.path);
+    asset.zip = { version: 1, group, path, sha256,
       ...(sheet ? { stylesheet: { source: sheet.source, references: [] } } : {}) };
     assets.push(asset);
     urls.set(path, zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset));
   }
   attachZipDependencies(assets);
-  return { assets, htmlEntries, htmlEntry, urls, htmlText };
+  return { assets, htmlEntries, htmlEntry, urls, htmlText, pristineHtmlText };
 }
 
 /** Existing raw-HTML page import: keep its single index.html behavior unchanged. */
-export async function readHtmlZip(file: File | Uint8Array, progress: (message: string) => void = () => {}, uploaded?: string[]) {
+export async function readHtmlZip(
+  file: File | Uint8Array, progress: (message: string) => void = () => {},
+  uploaded?: string[], existing: Asset[] = [], sourceOnly = false,
+) {
   return withImportUploads(async paths => {
-    const { assets, htmlEntry, urls, htmlText } = await prepareHtmlZip(file, progress, paths);
-    const html = rewriteZipReferences(htmlText.get(htmlEntry.name) ?? "", cleanZipPath(htmlEntry.name), urls);
-    return { assets, html, name: htmlEntry.name };
+    const { assets, htmlEntry, urls, htmlText, pristineHtmlText } =
+      await prepareHtmlZip(file, progress, paths, existing);
+    const path = cleanZipPath(htmlEntry.name);
+    const source = pristineHtmlText.get(htmlEntry.name) ?? "";
+    // HTML-mode imports never parse/serialize the authored source.
+    // Visual-node imports still need resolved references for conversion.
+    const html = sourceOnly ? source : rewriteZipReferences(htmlText.get(htmlEntry.name) ?? "", path, urls);
+    return {
+      assets, html, source,
+      zip: { path, assetIds: assets.map(a => a.id) }, name: htmlEntry.name,
+    };
   }, uploaded);
 }
 

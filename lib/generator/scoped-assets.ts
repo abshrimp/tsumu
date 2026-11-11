@@ -16,6 +16,13 @@ const urlFields = new Set(["src", "href", "url", "poster", "action", "formaction
 export function scopedAssetIds(doc: SiteDoc, assets: Record<string, Asset>): Set<string> {
   const ids = new Set<string>();
   if (!Object.keys(assets).length) return ids;
+  // Raw ZIP HTML keeps original relative URLs, so the usual URL scanner
+  // cannot recover its asset IDs without the page's explicit ZIP association.
+  for (const page of Object.values(doc.pages)) {
+    for (const id of page.htmlZip?.assetIds ?? []) {
+      if (Object.hasOwn(assets, id)) ids.add(id);
+    }
+  }
   const urls = new Set<string>();
   let references = 0;
   function record(raw: string, base = root) {
