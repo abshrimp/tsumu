@@ -86,10 +86,10 @@ test("Next.js and HTML export map script image/audio paths to actual published a
   assert.equal(next.remoteAssets["public/assets/_imports/dream_zip/bgm.js"], "assets/module");
 
   const flat = generateExportProject(doc, "html");
-  assert.ok(flat.files["index.html"].includes('url: "assets/MENU-2.png"'));
-  assert.ok(flat.files["index.html"].includes('url: "assets/classroom.png?v=1#frame"'));
-  assert.ok(flat.files["index.html"].includes('import "assets/_imports/dream_zip/bgm.js"'));
-  assert.ok(flat.files["index.html"].includes('url: ' + tick + 'assets/sound.mp3' + tick));
+  assert.ok(flat.files["index.html"].includes('url: "./assets/MENU-2.png"'));
+  assert.ok(flat.files["index.html"].includes('url: "./assets/classroom.png?v=1#frame"'));
+  assert.ok(flat.files["index.html"].includes('import "./assets/_imports/dream_zip/bgm.js"'));
+  assert.ok(flat.files["index.html"].includes('url: ' + tick + './assets/sound.mp3' + tick));
   assert.equal(flat.remoteAssets["assets/MENU-2.png"], "assets/menu");
   assert.deepEqual(doc, before);
   assert.equal(doc.pages[doc.pageOrder[0]].rawHtml, source);
