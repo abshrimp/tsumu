@@ -158,7 +158,8 @@ export function generatePageFile(
   );
   const loads = nf ? [] : plan.steps.filter((st) => st.kind !== "fetch" || st.url.trim());
   const hasPurePageControls = loads.some((st) =>
-    st.kind === "for-each" || st.kind === "if" || st.kind === "repeat");
+    st.kind === "for-each" || st.kind === "if" || st.kind === "repeat" ||
+    st.kind === "set-list-item" || st.kind === "remove-list-item");
   /** [slug]ページのメタデータ・404判定に使うデータ */
   const primary = nf ? null : (primaryDataStep(doc, pageId)?.step ?? null);
 
@@ -357,6 +358,8 @@ ${loads
       case "for-each":
       case "if":
       case "repeat":
+      case "set-list-item":
+      case "remove-list-item":
         return `  if (!__runPurePageSteps(${codeLiteral([st])}, vars, lookupVar, interpolate, __evalValueRecipe)) console.warn("Page-load script exceeded execution limits");`;
       case "transform":
         if (!st.into || !st.source) return "";
