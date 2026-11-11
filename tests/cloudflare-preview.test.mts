@@ -31,8 +31,13 @@ test("hosted Preview has its own DO and no production storage or variables by de
   assert.equal(result.main, production.main);
 });
 
+const previewRooms = { bindings: [
+  ...production.durable_objects.bindings,
+  { name: "DOC_STORE", class_name: "DocumentRoom" },
+] };
+
 test("Preview IDs are independent and explicit config wins over Preview environment defaults", () => {
-  const result = isolatedPreviewConfig(production, {
+  const result = isolatedPreviewConfig({ ...production, previews: { durable_objects: previewRooms } }, {
     PREVIEW_D1_DATABASE_ID: "test-db", PREVIEW_KV_NAMESPACE_ID: "test-kv",
   });
   assert.equal(result.previews.d1_databases[0].database_id, "test-db");
@@ -43,6 +48,24 @@ test("Preview IDs are independent and explicit config wins over Preview environm
   assert.deepEqual(explicit.previews.d1_databases, []);
   assert.equal(explicit.previews.kv_namespaces[0].id, "specific-kv");
   assert.deepEqual(explicit.previews.vars, { APP_ENV: "preview" });
+});
+
+test("Preview D1 document storage requires the local SQLite DocumentRoom binding and export", () => {
+  const previews = {
+    d1_databases: [{ binding: "DB", database_id: "test-db" }],
+    durable_objects: previewRooms,
+  };
+  assert.doesNotThrow(() => isolatedPreviewConfig({ ...production, previews }));
+  for (const bindings of [production.durable_objects.bindings, [
+    ...production.durable_objects.bindings, { name: "DOC_STORE", class_name: "CollaborationRoom" },
+  ]]) {
+    assert.throws(() => isolatedPreviewConfig({ ...production, previews: { ...previews, durable_objects: { bindings } } }), /DOC_STORE/);
+  }
+  for (const docExport of [undefined, { type: "durable-object", storage: "kv" }]) {
+    assert.throws(() => isolatedPreviewConfig({
+      ...production, exports: { ...production.exports, DocumentRoom: docExport }, previews,
+    }), /DOC_STORE/);
+  }
 });
 
 for (const [key, idKey, envKey, productionEnv, id] of [
