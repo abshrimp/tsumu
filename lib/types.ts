@@ -291,6 +291,8 @@ export type ScriptStep = { id: string } & (
       shared?: boolean;
     }
   | { kind: "set-list-item"; list: string; key: string; value: string }
+  /** Delete every matching value, or one entry by its array position / object key. */
+  | { kind: "remove-list-item"; list: string; mode: "value" | "key"; value: string }
   | { kind: "break-loop" }
   | {
       /**
