@@ -528,7 +528,7 @@ export function PathMenu({
   path: string;
   onChange: (path: string) => void;
   mode: "any" | "list" | "item" | "field";
-  /** Optional source-picker customization; existing callers retain prior behavior. */
+  /** Optional source-picker configuration. */
   placeholder?: string;
   ariaLabel?: string;
   allowRoot?: boolean;

@@ -4,7 +4,7 @@ import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
 
 /**
- * AUD-F-002: Real Chromium must execute authored scripts after selecting the
+ * Real Chromium must execute authored scripts after selecting the
  * requested HTML variant, and only then install its generated page runtime.
  * The fixture is served from in-memory generated files, not an editor preview.
  */

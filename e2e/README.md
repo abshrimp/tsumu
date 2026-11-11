@@ -1,4 +1,4 @@
-# Browser smoke tests (P5-04)
+# Browser smoke tests
 
 The default Playwright config keeps the entire existing suite on Chromium and
 runs tests tagged `@core-editing` or `@form-values` on Firefox and WebKit as
