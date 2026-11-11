@@ -43,10 +43,17 @@ function ForEachView({
     const fields = [...itemFieldsOf(sample), "ループ.値", "ループ.キー", "ループ.順番",
       ...(outer.length ? ["ループ.外側.値", "ループ.外側.キー", "ループ.外側.順番"] : [])];
     const item = firstListItem(sample);
-    const samples = Object.fromEntries(
-      fields.map((f) => [f, readableValue(item ? keyOfItem(item, f) : undefined)])
-    );
-    return [{ array: step.array, fields, roots: [...Object.keys(item ?? {}), "ループ"], samples }, ...outer];
+    // Keep the original values alongside the short labels. A one-item list
+    // like ["物販"] has the same readable text as the scalar "物販".
+    const rawSamples = Object.fromEntries([
+      ...Object.entries(item ?? {}),
+      ...fields.map((field) => [field, item ? keyOfItem(item, field) : undefined] as const),
+      ["ループ.値", item],
+    ]);
+    const samples = Object.fromEntries(Object.entries(rawSamples).map(([field, value]) =>
+      [field, value && typeof value === "object" ? tr("List", "list_variant_1") : readableValue(value)]
+    ));
+    return [{ array: step.array, fields, roots: [...Object.keys(item ?? {}), "ループ"], samples, rawSamples }, ...outer];
   }, [sample, step.array, outer]);
   // The pre-rendering plan does not run for-each. Warn only for a page-load script,
   // not for click/change handlers that can iterate client-side lists.
