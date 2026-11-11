@@ -4,7 +4,7 @@
  */
 import type { DocNode, Page, SiteDoc } from "../types";
 import type { GeneratedProject } from "../generator";
-import { obfuscateVarNames, pagePlan } from "../data";
+import { obfuscateVarNames } from "../data";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
 import { assetMediaUrl, assetSrc } from "../assets";

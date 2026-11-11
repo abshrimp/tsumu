@@ -83,18 +83,10 @@ function isContainer(doc: SiteDoc, node: DocNode): boolean {
   );
 }
 
-function hasPositionedAuto(doc: SiteDoc, id: string, seen = new Set<string>()): boolean {
-  const n = doc.nodes[id];
-  if (!n || seen.has(id)) return false;
-  seen.add(id);
-  if (isOwnLayer(n)) return false;
-  if (isPositionedAuto(n)) return true;
-  // 位置指定した要素の中の absolute はその中に収まるので数えない
-  if (isContainer(doc, n)) return false;
-  return n.children.some((cid) => hasPositionedAuto(doc, cid, seen));
-}
-
-/** hasPositionedAuto と同じたどり方で、該当する要素を集める */
+/**
+ * 重なり順が auto のまま位置指定された要素を集める。独自の重なりを作る要素と、
+ * 位置指定した要素の中（absolute はその中に収まる）はたどらない
+ */
 function collectPositionedAuto(doc: SiteDoc, id: string, out: Set<string>, seen = new Set<string>()) {
   const n = doc.nodes[id];
   if (!n || seen.has(id)) return;

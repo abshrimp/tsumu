@@ -79,7 +79,3 @@ export function layerDropPoint(
 /** レイヤー行の字下げ（px） */
 export const layerIndent = (depth: number) => 8 + depth * 14;
 
-export interface InsertPoint {
-  parent: ParentRef;
-  index?: number;
-}

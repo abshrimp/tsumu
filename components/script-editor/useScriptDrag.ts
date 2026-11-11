@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { useEditor } from "../../lib/store";
-import { scriptUid, type PageScript } from "../../lib/script";
+import { scriptUid } from "../../lib/script";
 import { isDataStep } from "../../lib/data";
 import { PAGE_TARGET } from "../../lib/types";
 import { type Payload } from "./palette";

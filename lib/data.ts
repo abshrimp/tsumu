@@ -64,14 +64,6 @@ export function firstListItem(value: unknown): Record<string, unknown> | undefin
   return undefined;
 }
 
-/** 文字列を区切り文字で分解する（前後の空白を除き、空の要素は捨てる） */
-export function splitText(text: string, sep: string): string[] {
-  return text
-    .split(sep || ",")
-    .map((x) => x.trim())
-    .filter(Boolean);
-}
-
 /** 一覧の項目名（先頭10件にある項目をすべて） */
 export function detectFields(items: Record<string, unknown>[]): string[] {
   const fields = new Set<string>();
@@ -917,15 +909,6 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
   return out;
 }
 
-/** 取得したデータの名前（ページのスクリプトの「データを取得して［］とする」） */
-export function fetchNames(doc: SiteDoc, pageId: string): string[] {
-  const out: string[] = [];
-  for (const s of doc.pages[pageId]?.pageScripts ?? []) {
-    for (const st of s.steps) if (st.kind === "fetch" && st.as) out.push(st.as);
-  }
-  return out;
-}
-
 /** リストが並べる配列 */
 export function listFromOf(node: DocNode): string | undefined {
   return node.list?.from || undefined;
@@ -1247,20 +1230,6 @@ function sampleArray(
   return found ? null : undefined;
 }
 
-/** リストが並べる項目（エディタ表示用。最初の数件のサンプル） */
-export function listItemsAt(
-  doc: SiteDoc,
-  pageId: string,
-  listNodeId: string,
-  opts: PreviewOpts = {}
-): Record<string, unknown>[] {
-  const node = doc.nodes[listNodeId];
-  const from = node ? listFromOf(node) : undefined;
-  if (!from) return [];
-  const { pageVars, item } = scopeAt(doc, pageId, listNodeId, { ...opts, inside: false });
-  return toListItems(lookupVar({ ...pageVars, ...(item ?? {}) }, from));
-}
-
 /** 取得したデータの中にある「一覧」の候補（最大3階層まで探す） */
 export interface ItemsCandidate {
   /** 一覧の位置（"items" や "data.list"。"" = データ全体が一覧） */
@@ -1294,16 +1263,6 @@ export function looksLikeImage(value: unknown): boolean {
     /^(https?:)?\/\/|^\//.test(value) &&
     /\.(png|jpe?g|gif|webp|avif|svg)(\?|#|$)/i.test(value)
   );
-}
-
-/** 値がURLらしいか */
-export function looksLikeUrl(value: unknown): boolean {
-  return typeof value === "string" && /^(https?:)?\/\//.test(value);
-}
-
-/** 画面に文字として出せる値か（入れ子の項目は除く） */
-export function isDisplayable(value: unknown): boolean {
-  return value == null || typeof value !== "object";
 }
 
 /** 要素の位置で使えるデータ項目と、確認用の値（リストの項目・読み込んだデータから） */
@@ -1350,27 +1309,6 @@ export function flattenFields(
     }
   };
   for (const [key, v] of Object.entries(item)) walk(v, key, 0);
-  return out;
-}
-
-export function dataFieldsAt(
-  doc: SiteDoc,
-  pageId: string,
-  nodeId: string,
-  opts: PreviewOpts = {}
-): FieldOption[] {
-  const { pageVars, item } = scopeAt(doc, pageId, nodeId, opts);
-  const seen = new Set<string>();
-  const out: FieldOption[] = [];
-  // リストの項目 → 取得したデータの順（同じ名前はリストの項目が優先される）
-  for (const o of [
-    ...(item ? flattenFields(item) : []),
-    ...flattenFields(namedVars(pageVars), 4),
-  ]) {
-    if (seen.has(o.field)) continue;
-    seen.add(o.field);
-    out.push(o);
-  }
   return out;
 }
 

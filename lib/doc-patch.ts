@@ -1,5 +1,6 @@
 import type { SiteDoc } from "./types";
 import { isDocumentId } from "./document-id";
+import { sameJson } from "./doc-share";
 
 /** 設定は項目単位、ページ・要素・画像・コンポーネントはID単位で置き換える。 */
 export type DocPatchOp =
@@ -64,7 +65,7 @@ export function createDocPatch(base: SiteDoc, next: SiteDoc): DocPatch | null {
       const path = [...prefix, key];
       if (!prefix.length && COLLECTIONS.has(key) && record(before[key]) && record(after[key])) {
         diff(before[key], after[key], path);
-      } else if (JSON.stringify(before[key]) !== JSON.stringify(after[key])) {
+      } else if (!sameJson(before[key], after[key])) {
         ops.push(after[key] === undefined ? { path, remove: true } : { path, value: after[key] });
       }
     }

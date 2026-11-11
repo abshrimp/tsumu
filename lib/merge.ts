@@ -2,6 +2,7 @@ import type { PageFolder, SiteDoc } from "./types";
 import type { DocPatch } from "./doc-patch";
 import { MAX_NODE_DEPTH } from "./doc-tree";
 import { assetUsage } from "./asset-usage";
+import { sameJson } from "./doc-share";
 
 /**
  * ドキュメントの三方向マージ（同時編集の競合解決）。
@@ -11,8 +12,7 @@ import { assetUsage } from "./asset-usage";
  */
 
 /** JSON values distinguish a missing property from an explicit null. */
-const sameValue = (a: unknown, b: unknown): boolean =>
-  a === b || (a !== undefined && b !== undefined && JSON.stringify(a) === JSON.stringify(b));
+const sameValue = sameJson;
 
 /** Preserve arbitrary user data keys without triggering __proto__ setters. */
 function setOwn<T>(record: Record<string, T>, key: string, value: T): void {
@@ -136,7 +136,7 @@ function mergeContainers<T extends { children: string[] }>(
     if (!base[id] || !local[id] || remote[id]) continue;
     const { children: before, ...baseProps } = base[id];
     const { children: after, ...localProps } = local[id];
-    if (after.length >= before.length || JSON.stringify(baseProps) !== JSON.stringify(localProps)) continue;
+    if (after.length >= before.length || !sameJson(baseProps, localProps)) continue;
     // 順序変更・追加は取り消さず、元の並びから取り除いただけの場合に限る。
     let index = 0;
     for (const child of before) if (child === after[index]) index++;
@@ -199,24 +199,29 @@ function mergePageFolders(
 
 /** 親子関係は要素の見た目とは独立してマージする。同時追加や移動で要素を失わないため。 */
 function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteDoc) {
-  const containers = (doc: SiteDoc) => new Map<string, string[]>([
-    ...Object.entries(doc.pages).map(([id, p]) => [`page:${id}`, p.children] as const),
-    ...Object.entries(doc.nodes).map(([id, n]) => [`node:${id}`, n.children] as const),
-  ]);
-  const b = containers(base);
-  const l = containers(local);
-  const r = containers(remote);
-  const available = containers(merged);
-  const parentsOf = (lists: Map<string, string[]>) => {
+  // 親は "page:<id>" / "node:<id>" の形で表す。要素数ぶんの索引を文書ごとに作らず、文書から直接引く
+  const owner = (doc: SiteDoc, key: string) => (key.startsWith("page:") ? doc.pages : doc.nodes);
+  const listOf = (doc: SiteDoc, key: string): string[] | undefined => {
+    const id = key.slice(5);
+    const containers = owner(doc, key);
+    return Object.hasOwn(containers, id) ? containers[id].children : undefined;
+  };
+  const available = (key: string) => Object.hasOwn(owner(merged, key), key.slice(5));
+  const parentsOf = (doc: SiteDoc) => {
     const parents = new Map<string, string>();
-    for (const [parent, children] of lists) {
-      for (const child of children) parents.set(child, parent);
+    for (const id of Object.keys(doc.pages)) {
+      const key = `page:${id}`;
+      for (const child of doc.pages[id].children) parents.set(child, key);
+    }
+    for (const id of Object.keys(doc.nodes)) {
+      const key = `node:${id}`;
+      for (const child of doc.nodes[id].children) parents.set(child, key);
     }
     return parents;
   };
-  const bp = parentsOf(b);
-  const lp = parentsOf(l);
-  const rp = parentsOf(r);
+  const bp = parentsOf(base);
+  const lp = parentsOf(local);
+  const rp = parentsOf(remote);
   const parents = new Map<string, string>();
   const roots = new Set(Object.values(merged.components ?? {}).map((c) => c.rootId));
   for (const id of Object.keys(merged.nodes)) {
@@ -225,7 +230,7 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
     const parent = local.nodes[id] && !remote.nodes[id]
       ? lp.get(id)
       : pick(bp.get(id), lp.get(id), rp.get(id));
-    if (parent && available.has(parent)) parents.set(id, parent);
+    if (parent && available(parent)) parents.set(id, parent);
   }
 
   // AをBへ、BをAへと別々に動かした場合、合成後にだけ循環が生じる。
@@ -254,7 +259,7 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
       continue;
     }
     const parent = lp.get(id);
-    if (parent && available.has(parent)) parents.set(id, parent);
+    if (parent && available(parent)) parents.set(id, parent);
     else parents.delete(id);
   }
 
@@ -284,7 +289,7 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
         for (const nodeId of path) {
           const previous = parents.get(nodeId);
           const candidate = source.get(nodeId);
-          if (!candidate || candidate === previous || !available.has(candidate)) continue;
+          if (!candidate || candidate === previous || !available(candidate)) continue;
           parents.set(nodeId, candidate);
           if (!findCycle() && pathToRoot(id).length < path.length) {
             repaired = true;
@@ -376,7 +381,7 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
       const previous = parents.get(id);
       for (const source of [lp, rp, bp]) {
         const candidate = source.get(id);
-        if (!candidate || candidate === previous || !available.has(candidate)) continue;
+        if (!candidate || candidate === previous || !available(candidate)) continue;
         parents.set(id, candidate);
         if (!findCycle() && Object.keys(merged.nodes).every(nodeId => pathToRoot(nodeId).length <= MAX_NODE_DEPTH) && !instanceIsCyclic(id)) {
           restored = true;
@@ -398,7 +403,7 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
   }
 
   const mergeChildren = (key: string): string[] => {
-    const order = mergeOrder(b.get(key), l.get(key), r.get(key), id => parents.get(id) === key);
+    const order = mergeOrder(listOf(base, key), listOf(local, key), listOf(remote, key), id => parents.get(id) === key);
     const repaired = overflowPlacements.get(key);
     return repaired ? [...new Set([...order, ...repaired])] : order;
   };
@@ -407,8 +412,16 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
     merged.pages[id] = { ...page, children: mergeChildren(`page:${id}`) };
   }
   for (const [id, node] of Object.entries(merged.nodes)) {
-    merged.nodes[id] = { ...node, children: mergeChildren(`node:${id}`) };
+    const children = mergeChildren(`node:${id}`);
+    // 子の並びが変わらない要素は入力の参照のまま残す（次のマージや差分保存が参照の比較だけで済む）
+    if (!sameList(children, node.children)) merged.nodes[id] = { ...node, children };
   }
+}
+
+function sameList(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }
 
 /**
@@ -416,6 +429,13 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
  * 必要な祖先だけを戻す。未編集の兄弟や、ローカルで削除した要素は戻さない。
  */
 function restoreEditedTreePaths(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteDoc) {
+  // 戻す対象は、ローカルにあってリモートに無い要素・コンポーネントと、その祖先だけ。
+  // どちらも無ければ（履歴の付け替えの大半）、親子関係の索引を作らずに終える
+  const localOnly = (mine: Record<string, unknown> | undefined, theirs: Record<string, unknown> | undefined) => {
+    for (const id of Object.keys(mine ?? {})) if (mine![id] && !theirs?.[id]) return true;
+    return false;
+  };
+  if (!localOnly(local.nodes, remote.nodes) && !localOnly(local.components, remote.components)) return;
   const parents = new Map<string, { kind: "page" | "node"; id: string }>();
   for (const page of Object.values(local.pages)) {
     for (const id of page.children) parents.set(id, { kind: "page", id: page.id });

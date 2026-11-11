@@ -4,7 +4,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
-import { Phrase, TextIn } from "./inputs";
+import { TextIn } from "./inputs";
 import { tr } from "../../lib/i18n";
 import { formatValueOperandInput, parseValueOperandInput } from "../../lib/script-model/compose";
 import type {
