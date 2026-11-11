@@ -1404,7 +1404,11 @@ export function mapNodeTokens(node: DocNode, fn: (name: string) => string | null
       value: mapVarTokens(o.value, fn),
     }));
   }
-  for (const s of node.scripts ?? []) mapStepTokens(s.steps, fn);
+  for (const s of node.scripts ?? []) {
+    if (s.changeVariable !== undefined)
+      s.changeVariable = fn(s.changeVariable) ?? s.changeVariable;
+    mapStepTokens(s.steps, fn);
+  }
 }
 
 /** 「変数名」「変数名.〜」を、新しい変数名に付け替える関数 */
@@ -1435,6 +1439,8 @@ export function renameVarInPage(doc: SiteDoc, pageId: string, from: string, to: 
   const page = doc.pages[pageId];
   page?.children.forEach(walk);
   for (const s of [...(page?.pageScripts ?? []), ...(page?.scripts ?? [])]) {
+    if (s.changeVariable !== undefined)
+      s.changeVariable = fn(s.changeVariable) ?? s.changeVariable;
     mapStepTokens(s.steps, fn);
   }
 }
@@ -1520,7 +1526,11 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
     if (n.list?.from) n.list.from = fn(n.list.from) ?? n.list.from;
   }
   for (const p of Object.values(out.pages)) {
-    for (const s of [...(p.pageScripts ?? []), ...(p.scripts ?? [])]) mapStepTokens(s.steps, fn);
+    for (const s of [...(p.pageScripts ?? []), ...(p.scripts ?? [])]) {
+      if (s.changeVariable !== undefined)
+        s.changeVariable = fn(s.changeVariable) ?? s.changeVariable;
+      mapStepTokens(s.steps, fn);
+    }
   }
   for (const steps of stepLists) {
     walkAll(steps, (st) => {
