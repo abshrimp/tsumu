@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createInitialDoc } from "../lib/presets";
+import { loadLocale } from "../lib/i18n";
 import { browserDoc, setBrowserDoc } from "./helpers/browser-doc";
+
+// Presets created on the Node side must use the same locale as the browser.
+test.beforeAll(async () => { await loadLocale(); });
 
 const status = (page: Page) => page.locator('[data-tutorial="save-status"]');
 const canvas = (page: Page) => page.locator('[data-tutorial="canvas"]');
