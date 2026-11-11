@@ -19,7 +19,7 @@ function seeded(seed: number) {
   };
 }
 
-test("AUD-J-007: ZIP extraction round-trips bounded random bytes and rejects undersized output limits", async () => {
+test("ZIP extraction round-trips bounded random bytes and rejects undersized output limits", async () => {
   const next = seeded(SEED ^ 0x707);
   for (let i = 0; i < 48; i++) {
     const payload = Uint8Array.from({ length: 1 + next() % 4096 }, () => next() & 255);
@@ -37,7 +37,7 @@ test("AUD-J-007: ZIP extraction round-trips bounded random bytes and rejects und
   }
 });
 
-test("AUD-J-008: central-directory and local-header corruptions fail before parsing untrusted documents", async () => {
+test("central-directory and local-header corruptions fail before parsing untrusted documents", async () => {
   const doc = createInitialDoc();
   doc.assets = {};
   const raw = await new JSZip()
@@ -69,7 +69,7 @@ test("AUD-J-008: central-directory and local-header corruptions fail before pars
   }
 });
 
-test("AUD-J-009: archive path normalization is rejected across editable and raw HTML entry points", async () => {
+test("archive path normalization is rejected across editable and raw HTML entry points", async () => {
   const doc = createInitialDoc();
   doc.assets = {};
   const paths = ["../escape.js", "assets/../escape.js", "assets\\escape.js", "/absolute.js"];
@@ -103,7 +103,7 @@ test("AUD-J-009: archive path normalization is rejected across editable and raw 
   }
 });
 
-test("AUD-J-010: mutated CSS cannot terminate an inline style or create extra URL tokens", () => {
+test("mutated CSS cannot terminate an inline style or create extra URL tokens", () => {
   const next = seeded(SEED ^ 0x1010);
   const tokens = [
     "</style>", "</StYlE><script>globalThis.injected=true</script><style>",

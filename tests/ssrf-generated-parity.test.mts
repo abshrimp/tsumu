@@ -7,7 +7,7 @@ import type { SiteDoc } from "../lib/types";
 
 function fixture(): SiteDoc {
   return {
-    siteName: "AUD-J SSRF boundary", pageOrder: ["home"], assets: {},
+    siteName: "SSRF boundary fixture", pageOrder: ["home"], assets: {},
     pages: { home: {
       id: "home", name: "Home", title: "Home", slug: "",
       description: "", children: ["node"],
@@ -19,7 +19,7 @@ function fixture(): SiteDoc {
 type PublicRequest = (uri: string, init: RequestInit, base: string,
   localFetch: (uri: string, init: RequestInit) => Promise<Response>) => Promise<Response>;
 
-test("AUD-J-016: server API and generated SSR refuse private destinations before any HTTP request", async () => {
+test("server API and generated SSR refuse private destinations before any HTTP request", async () => {
   // The exported SSR runtime is loaded as actual generated JavaScript, not
   // copied from lib/safe-fetch. A regression in the snapshot is independently caught.
   const project = generateExportProject(fixture(), "sveltekit");
