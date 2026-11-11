@@ -8,13 +8,18 @@ export async function imageDropBundle() {
       contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import Canvas from "./components/Canvas";
-import StylePanel from "./components/StylePanel";
-import { LayersTab } from "./components/left-panel/LayersTab";
+
+
+
 import { useEditor } from "./lib/store";
 import { useDialogs } from "./lib/dialog";
 import { makeBox } from "./lib/presets";
 import css from "./app/globals.css";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: Canvas } = await import("./components/Canvas");
+  const { default: StylePanel } = await import("./components/StylePanel");
+  const { LayersTab } = await import("./components/left-panel/LayersTab");
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 const doc = { siteName: "Image drops", assets: {}, pageOrder: ["p", "q"], pages: {
   p: { id: "p", name: "P", slug: "", title: "", description: "", children: ["a", "b"] },
@@ -41,6 +46,8 @@ function Fixture() {
   </div>;
 }
 root.render(<React.StrictMode><Fixture /></React.StrictMode>);
+
+});
 `, loader: "tsx", sourcefile: "image-drop-browser.tsx", resolveDir: resolve("."),
     },
     loader: { ".css": "text" },

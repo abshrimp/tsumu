@@ -25,9 +25,12 @@ export async function nestedScopeBundle(doc = nestedScopeDoc()) {
   return (await build({ stdin: { contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import Canvas from "./components/Canvas";
+
 import { useEditor } from "./lib/store";
 import css from "./app/globals.css";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: Canvas } = await import("./components/Canvas");
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 useEditor.getState().replaceDoc(${JSON.stringify(doc)});
 window.nestedScopeStore = useEditor;
@@ -36,6 +39,8 @@ function Example() {
   return <><button onClick={() => useEditor.getState().setMode(mode === "preview" ? "design" : "preview")}>Toggle preview</button><Canvas /></>;
 }
 createRoot(document.getElementById("app")).render(<Example />);
+
+});
 `, resolveDir: resolve("."), loader: "tsx", sourcefile: "nested-script-scope-browser.tsx" },
     loader: { ".css": "text" }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic", define: { "process.env.NODE_ENV": '"development"' },
   })).outputFiles[0].text;
