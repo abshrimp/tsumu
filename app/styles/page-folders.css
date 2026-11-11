@@ -2302,3 +2302,89 @@ a.hist-msg:hover {
   color: var(--accent-ink);
 }
 
+/* Export and history use a single internal scroll region.
+   Keep the heading and action buttons in view on shorter screens. */
+.modal.export-layout-modal,
+.modal.hist-modal {
+  display: flex;
+  flex-direction: column;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  overflow: hidden;
+}
+.modal.export-layout-modal {
+  width: 540px;
+}
+.modal.hist-modal {
+  width: 620px;
+}
+.export-layout-header {
+  flex: none;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.export-layout-header h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 600;
+}
+.export-layout-header .modal-desc {
+  margin: 8px 0 0;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.65;
+}
+.export-layout-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px 24px 24px;
+}
+.export-layout-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex: none;
+  gap: 8px;
+  margin: 0;
+  padding: 14px 24px;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+}
+.export-layout-actions .btn {
+  min-height: 32px;
+}
+.export-layout-scroll .hist-tabs {
+  margin-top: 0;
+}
+.export-layout-scroll .hist-body {
+  margin-bottom: 0;
+}
+@media (max-width: 560px) {
+  .export-layout-header {
+    padding: 18px 16px 14px;
+  }
+  .export-layout-scroll {
+    padding: 16px;
+  }
+  .export-layout-actions {
+    padding: 12px 16px;
+    flex-wrap: wrap;
+  }
+  .export-layout-modal .export-option-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hist-modal .hist-tabs {
+    gap: 0;
+  }
+  .hist-modal .hist-tabs button {
+    min-width: 0;
+    font-size: 11px;
+    line-height: 1.35;
+    white-space: normal;
+  }
+}

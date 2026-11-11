@@ -2293,3 +2293,27 @@ body.is-scrubbing * {
   text-overflow: ellipsis;
 }
 
+/* Confirmation and prompt dialogs stay readable on narrow phone screens. */
+.modal.dialog {
+  max-height: calc(100dvh - 32px);
+  max-width: calc(100vw - 24px);
+}
+.dialog-head h2,
+.dialog-msg {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 480px) {
+  .modal.dialog {
+    padding: 20px 16px;
+  }
+  .dialog-msg {
+    margin: 12px 0 18px;
+  }
+  .dialog-input {
+    width: 100%;
+    margin: 0 0 18px;
+  }
+  .modal.dialog > .modal-actions {
+    flex-wrap: wrap;
+  }
+}

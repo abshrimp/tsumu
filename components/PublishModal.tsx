@@ -1027,10 +1027,13 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal hist-modal" role="dialog" aria-modal="true" aria-label={tr("History")} onClick={(e) => e.stopPropagation()}>
-        <h2>{tr("History")}</h2>
-        <p className="modal-desc">
-          {tr("Return the published site to an earlier version, or bring your edits back to an earlier state.")}
-        </p>
+        <div className="export-layout-header">
+          <h2>{tr("History")}</h2>
+          <p className="modal-desc">
+            {tr("Return the published site to an earlier version, or bring your edits back to an earlier state.")}
+          </p>
+        </div>
+        <div className="export-layout-scroll">
         <div className="hist-tabs" role="tablist">
           <button role="tab" aria-selected={tab === "site"} className={tab === "site" ? "is-on" : ""} onClick={() => setTab("site")}>
             <Globe size={13} />
@@ -1060,7 +1063,8 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
             <PublishHistory conf={conf} onDone={onClose} />
           )}
         </div>
-        <div className="modal-actions">
+        </div>
+        <div className="modal-actions export-layout-actions">
           <button className="btn" onClick={onClose}>
             {tr("Close")}
           </button>

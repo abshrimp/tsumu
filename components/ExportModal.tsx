@@ -55,10 +55,12 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
-      <div className="modal export-modal" role="dialog" aria-modal="true" aria-label={tr("Export code")} onClick={(event) => event.stopPropagation()}>
-        <h2>{tr("Export code")}</h2>
-        <p className="modal-desc">{description}</p>
-
+      <div className="modal export-modal export-layout-modal" role="dialog" aria-modal="true" aria-label={tr("Export code")} onClick={(event) => event.stopPropagation()}>
+        <div className="export-layout-header">
+          <h2>{tr("Export code")}</h2>
+          <p className="modal-desc">{description}</p>
+        </div>
+        <div className="export-layout-scroll">
         <fieldset className="export-options" disabled={busy}>
           <div className="export-option">
             <div className="export-option-label">{tr("Framework")}</div>
@@ -158,8 +160,9 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
           </p>
         )}
         <CheckList checks={checks} onClose={onClose} />
+        </div>
 
-        <div className="modal-actions">
+        <div className="modal-actions export-layout-actions">
           <button className="btn" disabled={busy} onClick={onClose}>
             {tr("Cancel")}
           </button>
