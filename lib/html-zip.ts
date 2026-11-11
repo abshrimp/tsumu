@@ -213,15 +213,18 @@ async function prepareHtmlZip(
 /** Existing raw-HTML page import: keep its single index.html behavior unchanged. */
 export async function readHtmlZip(
   file: File | Uint8Array, progress: (message: string) => void = () => {},
-  uploaded?: string[], existing: Asset[] = [],
+  uploaded?: string[], existing: Asset[] = [], sourceOnly = false,
 ) {
   return withImportUploads(async paths => {
     const { assets, htmlEntry, urls, htmlText, pristineHtmlText } =
       await prepareHtmlZip(file, progress, paths, existing);
     const path = cleanZipPath(htmlEntry.name);
-    const html = rewriteZipReferences(htmlText.get(htmlEntry.name) ?? "", path, urls);
+    const source = pristineHtmlText.get(htmlEntry.name) ?? "";
+    // HTML-mode imports never parse/serialize the authored source.
+    // Visual-node imports still need resolved references for conversion.
+    const html = sourceOnly ? source : rewriteZipReferences(htmlText.get(htmlEntry.name) ?? "", path, urls);
     return {
-      assets, html, source: pristineHtmlText.get(htmlEntry.name) ?? "",
+      assets, html, source,
       zip: { path, assetIds: assets.map(a => a.id) }, name: htmlEntry.name,
     };
   }, uploaded);
