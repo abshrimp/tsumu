@@ -460,6 +460,8 @@ export interface PagePlan {
   serverIds: Set<string>;
   /** 画面上（ブラウザ）で値が決まる変数・配列の名前 */
   clientVars: Set<string>;
+  /** Exact destinations, used to distinguish mutable paths from their server-only siblings. */
+  clientWritePaths: Set<string>;
   /** Exact list paths mutated by browser actions, for initializing their runtime values. */
   clientListTargets: Set<string>;
   /**
@@ -539,6 +541,7 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
   const mayRunOnServer = (st: ScriptStep) => loadRoot.has(st) || nestedLoad.has(st);
   const clientVars = new Set<string>();
   const clientListTargets = new Set<string>();
+  const clientWritePaths = new Set<string>();
   const watchedRoots = new Set((page?.pageScripts ?? []).flatMap((s) =>
     s.trigger === "change" && s.changeVariable && s.steps.length ? [rootName(s.changeVariable)] : []));
   const runtimeScripts = scriptsInPage(doc, pageId, true);
@@ -548,6 +551,7 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
     const name = writeTarget(st);
     if (!name) return;
     clientVars.add(rootName(name));
+    clientWritePaths.add(name);
     if (st.kind === "set-list-item" || st.kind === "remove-list-item") clientListTargets.add(name);
   };
   const fieldIds = new Set(
@@ -686,7 +690,7 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
       }
     }
   }
-  return { steps, serverIds, clientVars, clientListTargets, listOps };
+  return { steps, serverIds, clientVars, clientWritePaths, clientListTargets, listOps };
 }
 
 /**

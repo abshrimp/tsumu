@@ -11,6 +11,8 @@ import type { Asset, BreakpointDef, Component, CustomFont, DocNode, Page, SiteDo
 import { assetSrc } from "./assets";
 import { createCssAssetFinder } from "./css-asset-dependencies";
 import { zipAssetClosure, zipStylesheet } from "./zip-css";
+import { zipMime } from "./zip-mime";
+import { tr } from "./i18n";
 import { isZipJavascript } from "./generator/imported-assets";
 import { genId } from "./presets";
 import { cloneSteps, scriptUid } from "./script";
@@ -322,10 +324,23 @@ export function mergeClipDeps(
   componentNodes: DocNode[];
 } {
   const remap = new Map<string, string>();
+  // Check the complete explicit page association before mutating the destination.
+  // An unrelated destination asset may already have the ID of a missing member.
+  const pageAssets = new Set<Asset>();
+  for (const id of htmlZipAssetIds ?? []) {
+    const asset = p.assets[id];
+    const path = asset?.zip?.path;
+    if (!Object.hasOwn(p.assets, id) || !validAssetEntry(id, asset) || !path ||
+        /[\\\u0000-\u001f\u007f]/.test(path) || path.split("/").some(part => !part || part === "." || part === "..") ||
+        disallowedClipFilename.test(path.trim()) || !isSafeClipAsset(asset, zipMime(path))) {
+      throw new Error(tr("Asset references are invalid."));
+    }
+    pageAssets.add(asset);
+  }
   const added: Asset[] = [];
   const scriptGroups = new Set(Object.values(p.assets).filter(a => a && isZipJavascript(a)).map(a => a.zip!.group));
   for (const a of Object.values(p.assets)) {
-    if (!a || typeof a.id !== "string" || !a.id || !isSafeClipAsset(a)) continue;
+    if (!a || typeof a.id !== "string" || !a.id || (!pageAssets.has(a) && !isSafeClipAsset(a))) continue;
     const existing = d.assets[a.id];
     // Identical stylesheet bytes may resolve differently in different archives.
     // JS 内の相対参照は ID の付け替えでは直せないため、同じ内容でも元の ZIP パスを残す。
@@ -421,9 +436,11 @@ export function mergeClipDeps(
   return { assetIds: remap, componentIds, componentNodes };
 }
 
+const disallowedClipFilename = /\.(?:x?html?|mhtml|shtml|xml)$/i;
+
 /** クリップボードのアセットが安全か（HTML や不正なパス・スキームは受け取らない） */
-function isSafeClipAsset(a: Asset): boolean {
-  if (typeof a.name !== "string" || /\.(?:x?html?|mhtml|shtml|xml)$/i.test(a.name.trim())) return false;
+function isSafeClipAsset(a: Asset, pageZipMime?: string): boolean {
+  if (typeof a.name !== "string" || disallowedClipFilename.test(a.name.trim())) return false;
   if (a.mimeType && /^(?:text\/html|application\/xhtml\+xml|(?:text|application)\/xml)\b/i.test(a.mimeType.trim())) {
     return false;
   }
@@ -438,10 +455,15 @@ function isSafeClipAsset(a: Asset): boolean {
     }
   }
   if (a.dataUrl !== undefined) {
-    if (typeof a.dataUrl !== "string" || (!/^data:(?:image|video|audio|font)\//i.test(a.dataUrl) &&
-        !(zipStylesheet(a) && /\.css$/i.test(a.name) && /^data:text\/css(?:;charset=utf-8)?(?:;base64)?,/i.test(a.dataUrl)))) {
-      return false;
-    }
+    if (typeof a.dataUrl !== "string") return false;
+    const media = /^data:(?:image|video|audio|font)\//i.test(a.dataUrl);
+    const style = zipStylesheet(a) && /\.css$/i.test(a.name) &&
+      /^data:text\/css(?:;charset=utf-8)?(?:;base64)?,/i.test(a.dataUrl);
+    // Only a page-copy operation can carry local scripts, JSON or other ZIP
+    // bytes. Require the MIME recorded by the ZIP importer and the data URL to agree.
+    const embedded = pageZipMime && pageZipMime !== "text/css" && pageZipMime === a.mimeType &&
+      /^data:([^;,]+)(?:;charset=utf-8)?(?:;base64)?,/i.exec(a.dataUrl)?.[1].toLowerCase() === pageZipMime;
+    if (!media && !style && !embedded) return false;
   }
   return Boolean(a.path || a.dataUrl);
 }

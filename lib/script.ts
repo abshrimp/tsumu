@@ -12,7 +12,7 @@ import {
 } from "./types";
 import { filterConds, isDataStep } from "./data";
 import { tr } from "./i18n";
-import { extractVars } from "./vars";
+import { extractVars, hasVars } from "./vars";
 import { singleValueReference } from "./variable-choice";
 
 /** src が空のときに出す透明の1×1画像（壊れた画像の枠を出さない） */
@@ -465,16 +465,17 @@ export function compileScripts(
    * （配列を文字にしない）。画面上で値が決まる変数なら undefined
    * item が true のときは配列の各項目が優先されるため、参照を残す。
    */
-  raw?: (name: string, item?: boolean) => unknown
+  raw?: (name: string, item?: boolean, usage?: "length") => unknown
 ): RuntimeScript[] {
-  const conditionInput = (value: string) => {
+  const typedInput = (value: string) => {
+    if (!hasVars(value)) return value;
     const name = singleValueReference(value);
     if (!name) return str(value, "value");
     const fallback = raw?.(name);
     return { inputRef: name, ...(fallback !== undefined ? { raw: fallback } : {}) };
   };
   const compileCondition = (condition: ScriptCond) => {
-    const input = condition.subject === "var" ? conditionInput : (s: string) => str(s, "value");
+    const input = condition.subject === "var" ? typedInput : (s: string) => str(s, "value");
     return {
       ...condition,
       ...(condition.left !== undefined ? { left: input(condition.left) } : {}),
@@ -505,10 +506,14 @@ export function compileScripts(
             ...(st.no !== undefined ? { no: st.no } : {}),
             ...(st.mode === "filter" ? {
               ...(st.join === "or" ? { join: "or" } : {}),
-              conds: filterConds(st).map((v) => ({ ...v, value: str(v.value, "value") })),
+              conds: filterConds(st).map((v) => ({ ...v, value: typedInput(v.value) })),
             } : {}),
             ...(st.mode === "sort" ? { field: st.field, dir: st.dir } : {}),
           };
+        case "set-list-item":
+          return { kind: st.kind, list: st.list, key: typedInput(st.key), value: typedInput(st.value) };
+        case "remove-list-item":
+          return { kind: st.kind, list: st.list, mode: st.mode, value: typedInput(st.value) };
         case "store-save": {
           const { id: _id, ...rest } = st;
           return { ...rest, value: str(st.value, "value") };
@@ -523,7 +528,7 @@ export function compileScripts(
           const { id: _id, ...rest } = st;
           // Provide an SSR fallback only. A preceding browser-side assignment
           // takes priority at runtime, allowing several blocks to rewrite one variable.
-          const v = st.source ? raw?.(st.source) : undefined;
+          const v = st.source ? raw?.(st.source, undefined, st.transform.kind === "length" ? "length" : undefined) : undefined;
           return v !== undefined ? { ...rest, raw: v } : rest;
         }
         case "copy": {
@@ -575,15 +580,35 @@ export function listFilterFields(doc: SiteDoc): Map<string, Set<string>> {
   return out;
 }
 
+/** A write replaces its descendants and changes the value of its ancestors. */
+export function matchVariableWrites(writes: Set<string>): (name: string) => boolean {
+  const parents = new Set<string>();
+  for (const path of writes) {
+    const last = path.lastIndexOf(".");
+    if (last >= 0 && /^(0|[1-9]\d*)$/.test(path.slice(last + 1))) {
+      parents.add(path.slice(0, last) + ".length");
+    }
+    for (let end = path.indexOf("."); end >= 0; end = path.indexOf(".", end + 1)) {
+      parents.add(path.slice(0, end));
+    }
+  }
+  return (name) => {
+    if (writes.has(name) || parents.has(name)) return true;
+    for (let end = name.indexOf("."); end >= 0; end = name.indexOf(".", end + 1)) {
+      if (writes.has(name.slice(0, end))) return true;
+    }
+    return false;
+  };
+}
+
 /**
- * 文字列中の {変数} のうち、画面上で値が決まるもの（names の変数とその中の項目）を
+ * 文字列中の {変数} のうち、画面上で値が決まるものを
  * そのまま残すための値（{ "名前": "{名前}" }）。ページを配信するときの置き換えに混ぜて使う
  */
-export function keepTokens(str: string, names: Set<string>): Record<string, string> {
+export function keepTokens(str: string, isLive: (name: string) => boolean): Record<string, string> {
   const out: Record<string, string> = {};
-  if (!names.size) return out;
   for (const name of extractVars(str)) {
-    if (names.has(name.split(".")[0])) out[name] = `{${name}}`;
+    if (isLive(name)) out[name] = `{${name}}`;
   }
   return out;
 }

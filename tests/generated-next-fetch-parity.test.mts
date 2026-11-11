@@ -110,6 +110,10 @@ test("clicking remove in a Next page updates the fetched list without sending it
   assert.deepEqual(items(), ["A", "C"]);
   await dom.click("act");
   assert.deepEqual(items(), ["A"]);
+  dom.navigate(await publishedComponentList(doc, "app/page.tsx", [{ rows: ["D", "E"] }]));
+  assert.deepEqual(items(), ["D", "E"]);
+  await dom.click("act");
+  assert.deepEqual(items(), ["D"]);
 });
 
 test("a click condition compares fetched records and lists with their original types", async () => {
@@ -126,4 +130,66 @@ test("a click condition compares fetched records and lists with their original t
     await dom.click("act");
     assert.deepEqual(urls, expected);
   }
+});
+
+test("a click filter compares a row's nested list against a fetched list variable", async () => {
+  const doc = fetchedListDoc([
+    { id: "filter", kind: "list-display", mode: "filter", array: "data.0.rows",
+      field: "tags", op: "eq", value: "{data.0.wanted}", dir: "asc" },
+  ]);
+  doc.nodes.name.text!.content = "{name}";
+  const html = await publishedComponentList(doc, "app/page.tsx", [{
+    rows: [{ name: "first", tags: ["x", "y"] }, { name: "second", tags: ["x"] }],
+    wanted: ["x"],
+  }]);
+  const dom = listRuntimeDom(html, generateProject(doc).files["public/scripts.js"]);
+  await dom.click("act");
+  const visible = dom.active("[data-item]").filter(node => node.style.display !== "none");
+  assert.deepEqual(visible.map(node => node.textContent), ["second"]);
+});
+
+test("list removal keeps a structured selection supplied by another fetched variable", async () => {
+  const doc = fetchedListDoc([
+    { id: "remove", kind: "remove-list-item", list: "data.0.rows", mode: "value", value: "{selection.0.target}" },
+  ]);
+  doc.pages.p.pageScripts![0].steps.push({ id: "selection", kind: "fetch", url: "https://example.com/selection", as: "selection" });
+  doc.nodes.name.text!.content = "{name}";
+  const html = await publishedComponentList(doc, "app/page.tsx", [{
+    rows: [{ name: "A" }, { name: "B" }], target: { name: "A" },
+  }]);
+  const dom = listRuntimeDom(html, generateProject(doc).files["public/scripts.js"]);
+  await dom.click("act");
+  assert.deepEqual(dom.active("#item").map(node => node.textContent), ["B"]);
+});
+
+test("mutating a fetched list preserves sibling text, other lists and conditions through hydration", async () => {
+  const doc = fetchedListDoc([
+    { id: "remove", kind: "remove-list-item", list: "data.0.rows", mode: "key", value: "0" },
+    { id: "count", kind: "transform", source: "data", into: "count", transform: { kind: "length" } },
+    { id: "read", kind: "transform", source: "data.0.heading", into: "heading", transform: { kind: "field", key: "name" } },
+    { id: "if", kind: "if", conditions: [{ subject: "var", target: "", left: "{heading}", op: "eq", value: "Reports", and: true },
+      { subject: "var", target: "", left: "{count}", op: "eq", value: "1", and: true }],
+      cond: { subject: "var", target: "", left: "{data.0.status}", op: "eq", value: "open" },
+      then: [{ id: "ok", kind: "open-url", url: "/open", newTab: true }] },
+  ]);
+  doc.nodes.title = { ...makeText("{data.0.title}"), id: "title", attrId: "title" };
+  doc.nodes.related = { ...makeBox(), id: "related", type: "list", list: { from: "data.0.related" }, children: ["tag"] };
+  doc.nodes.tag = { ...makeText("{label}"), id: "tag", attrId: "tag" };
+  doc.pages.p.children.push("title", "related");
+  const html = await publishedComponentList(doc, "app/page.tsx", [{
+    title: "Catalogue", rows: ["A", "B"], related: [{ label: "X", extra: "unreferenced-field" }], status: "open", heading: { name: "Reports" }, private: "unreferenced-field",
+  }]);
+  assert.doesNotMatch(html, /unreferenced-field/);
+  const urls: string[] = [];
+  const dom = listRuntimeDom(html, generateProject(doc).files["public/scripts.js"], {
+    window: { open: (url: string) => urls.push(url) },
+  });
+  const visible = (selector: string) => dom.active(selector).map(node => node.textContent);
+  assert.deepEqual(visible("#title"), ["Catalogue"]);
+  assert.deepEqual(visible("#tag"), ["X"]);
+  await dom.click("act");
+  assert.deepEqual(visible("#item"), ["B"]);
+  assert.deepEqual(visible("#tag"), ["X"]);
+  assert.deepEqual(visible("#title"), ["Catalogue"]);
+  assert.deepEqual(urls, ["/open"]);
 });

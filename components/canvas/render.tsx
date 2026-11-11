@@ -135,7 +135,7 @@ export function applyScriptsAttr(
       if (item) return str;
       if (!hasVars(str)) return str;
       // 画面上の変数は {名前} のまま、文字としての「{」は「\{」のまま渡し、ランタイムが置き換える
-      const v = { ...vars, ...keepTokens(str, clientVars), [KEEP_ESCAPES]: true };
+      const v = { ...vars, ...keepTokens(str, (name) => clientVars.has(name.split(".")[0])), [KEEP_ESCAPES]: true };
       return kind === "url" ? interpolateUrl(str, v) : interpolate(str, v);
     },
     true,

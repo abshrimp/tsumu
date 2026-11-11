@@ -12,19 +12,10 @@ import { tr } from "./i18n";
 import type { DefaultTreeAdapterTypes as Html } from "parse5";
 import { verifyZipEntry } from "./zip-stream";
 import { createIntegrityVerifier } from "./resource-integrity";
-import type { Asset } from "./types";
+import type { Asset, HtmlZipPage, SiteDoc } from "./types";
+import { assetUsage } from "./asset-usage";
+import { zipMime } from "./zip-mime";
 
-const ZIP_MIME: Record<string, string> = {
-  css: "text/css", js: "text/javascript", mjs: "text/javascript",
-  json: "application/json", svg: "image/svg+xml", png: "image/png",
-  jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp",
-  avif: "image/avif", ico: "image/x-icon", mp4: "video/mp4", webm: "video/webm",
-  mp3: "audio/mpeg", wav: "audio/wav", woff: "font/woff", woff2: "font/woff2",
-  ttf: "font/ttf", otf: "font/otf", pdf: "application/pdf",
-};
-
-const zipMime = (name: string) =>
-  ZIP_MIME[name.split(".").pop()?.toLowerCase() ?? ""] ?? "application/octet-stream";
 const cleanZipPath = (value: string) =>
   value.replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "");
 
@@ -142,6 +133,54 @@ function bindZipDependencies(assets: Asset[], existing: Asset[]): void {
     }
   }
   if (newGroup || changedSheets.size) attachZipDependencies(assets);
+}
+
+/** Reuse document identities only after checking the current document at commit time. */
+export function applyHtmlZipPage(doc: SiteDoc, pageId: string, imported: { assets: Asset[]; source: string; zip: HtmlZipPage }): void {
+  const page = doc.pages[pageId];
+  if (!page) return;
+  const old = (page.htmlZip?.assetIds ?? []).map(id => doc.assets[id]).filter(asset => asset?.zip);
+  const oldByPath = new Map(old.map(asset => [asset.zip!.path, asset]));
+  const oldIds = new Set(old.map(asset => asset.id));
+  const sameBytes = new Map<string, Asset>();
+  for (const asset of imported.assets) {
+    const previous = oldByPath.get(asset.zip!.path);
+    if (previous?.zip?.sha256 && previous.zip.sha256 === asset.zip!.sha256 &&
+        previous.path === asset.path && previous.dataUrl === asset.dataUrl) sameBytes.set(asset.id, previous);
+  }
+  const groups = new Set(old.map(asset => asset.zip!.group));
+  const all = Object.values(doc.assets);
+  // Older reimports could leave different module dependencies at a single alias.
+  const conflicts = old.some(isZipJavascript) && all.some(asset => {
+    const zip = asset.zip, other = zip && oldByPath.get(zip.path);
+    return zip && other && other.zip!.group === zip.group && !oldIds.has(asset.id) &&
+      (other.path !== asset.path || other.dataUrl !== asset.dataUrl);
+  });
+  let assets = imported.assets;
+  if (conflicts || assets.some(asset => sameBytes.has(asset.id) && sameBytes.get(asset.id)!.id !== asset.id)) {
+    const reused = new Set([...sameBytes.values()].map(asset => asset.id));
+    const outside = assetUsage({ ...doc, pages: { ...doc.pages,
+      [pageId]: { ...page, rawHtml: imported.source, htmlZip: undefined } } });
+    // A replaced or previously retained script can still be selected in the asset
+    // panel. Keep its module directory, and preserve old stylesheet dependencies.
+    const preserve = old.some(asset => outside.has(asset.id)) || all.some(asset => !reused.has(asset.id) &&
+      ((isZipJavascript(asset) && groups.has(asset.zip!.group)) ||
+        zipStylesheet(asset)?.references.some(ref => reused.has(ref.assetId))));
+    const repairGroup = conflicts && assets.some(asset => groups.has(asset.zip!.group)) ? genId("zip") : undefined;
+    if (!preserve || repairGroup) {
+      assets = assets.map(asset => {
+        const id = (!preserve && sameBytes.get(asset.id)?.id) ||
+          (repairGroup && oldIds.has(asset.id) ? genId("asset") : asset.id);
+        const zip = asset.zip!, sheet = zip.stylesheet;
+        return { ...asset, id, zip: { ...zip, group: repairGroup ?? zip.group,
+          ...(sheet ? { stylesheet: { ...sheet, references: [] } } : {}) } };
+      });
+      attachZipDependencies(assets);
+    }
+  }
+  for (const asset of assets) doc.assets[asset.id] = asset;
+  page.rawHtml = imported.source;
+  page.htmlZip = { path: imported.zip.path, assetIds: assets.map(asset => asset.id) };
 }
 
 /** Preflight the archive before uploading anything; JavaScript dependencies are not resolved. */

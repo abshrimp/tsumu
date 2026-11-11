@@ -161,6 +161,11 @@ export function useCanvasData({
     [doc, page]
   );
 
+  const fetchedVars = useMemo(() => Object.fromEntries(plan.steps.flatMap(step =>
+    step.kind === "fetch" && step.as && Object.hasOwn(dataVars, step.as)
+      ? [[step.as, dataVars[step.as]]] : []
+  )), [plan, dataVars]);
+
   /* ID付きの入力欄 → まだ入力していない欄の {ID} は最初の値（初期値・チェック） */
   const fieldVarNodes = useMemo(
     () => (page ? idVarNodesOf(doc, page.id).filter((n) => n.type === "field") : []),
@@ -313,5 +318,5 @@ export function useCanvasData({
     [doc, setActivePage, setPreviewIndex]
   );
 
-  return { fieldValues, setFieldValues, setClientValues, setLiveSamples, setLiveTotals, setFullData, previewSlug, setPreviewSlug, refreshing, primary, primaryFindBy, primaryItems, setTypedSlugOf, slugNotFound, slugVal, plan, fieldVarNodes, pageVars, refreshData, setActivePage, navigateTo };
+  return { fetchedVars, fieldValues, setFieldValues, setClientValues, setLiveSamples, setLiveTotals, setFullData, previewSlug, setPreviewSlug, refreshing, primary, primaryFindBy, primaryItems, setTypedSlugOf, slugNotFound, slugVal, plan, fieldVarNodes, pageVars, refreshData, setActivePage, navigateTo };
 }

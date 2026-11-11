@@ -9,7 +9,7 @@ import { INVIEW_SCRIPT } from "./motion";
 import { fieldVarNames } from "./fields";
 import { VARS_RUNTIME } from "./vars";
 import { idVarNodesOf, obfuscateVarNames, pagePlan } from "./data";
-import { hasRunnableScripts, listFilterFields, scriptTargetIds } from "./script";
+import { hasRunnableScripts, listFilterFields, matchVariableWrites, scriptTargetIds } from "./script";
 import { compactJs, scriptsFile, usesLiveFields } from "./script-runtime";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 import { PAGE_STEP_RUNNER_SOURCE } from "./page-load-steps";
@@ -102,7 +102,7 @@ export function generateProject(
       ),
     ]),
     listFilterFields: listFilterFields(doc),
-    liveNames: new Set(),
+    isLive: () => false,
     assetNames,
   };
   const files: Record<string, string> = {};
@@ -234,6 +234,8 @@ export function GET() {
     if (n.type === "field") fieldVarNames(n).forEach((v) => siteLiveNames.add(v));
   }
 
+  const sharedPathIsLive = matchVariableWrites(siteLiveNames);
+
   // コンポーネント（1コンポーネント = 1ファイル）
   for (const comp of Object.values(doc.components ?? {})) {
     const name = componentNames.get(comp.id)!;
@@ -251,7 +253,7 @@ export function GET() {
     ctx.varsExpr = "{}";
     ctx.listVars = undefined;
     ctx.listOps = undefined;
-    ctx.liveNames = new Set(siteLiveNames);
+    ctx.isLive = sharedPathIsLive;
     ctx.componentRootId = comp.rootId;
     const body = renderNode(ctx, comp.rootId, "    ", false);
     ctx.componentRootId = undefined;
@@ -452,7 +454,7 @@ export default function manifest(): MetadataRoute.Manifest {
       varsExpr: "{}",
       listVars: undefined,
       listOps: undefined,
-      liveNames: new Set(siteLiveNames),
+      isLive: sharedPathIsLive,
     };
     const loadingBody = loadingPage
       ? loadingPage.children

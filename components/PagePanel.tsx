@@ -3,7 +3,7 @@
 import { isEnterKey } from "../lib/keys";
 import { useLayoutEffect, useRef, useState } from "react";
 import { FileUp } from "lucide-react";
-import { readHtmlZip } from "../lib/html-zip";
+import { applyHtmlZipPage, readHtmlZip } from "../lib/html-zip";
 import { convertHtmlFile } from "../lib/html-file-import";
 import { normalizeBreakpoints } from "../lib/style";
 import { useEditor } from "../lib/store";
@@ -22,7 +22,7 @@ import { isSiteLang, SITE_LANGS, siteLangOf } from "../lib/site-lang";
 
 const htmlImportScope = (state: ReturnType<typeof useEditor.getState>) => {
   const target = state.doc.pages[state.activePageId];
-  return JSON.stringify([state.activePageId, target?.rawHtml, target?.redirectTo, target?.rewriteTo, target?.children]);
+  return JSON.stringify([state.activePageId, target?.rawHtml, target?.htmlZip, target?.redirectTo, target?.rewriteTo, target?.children]);
 };
 
 const Sec = Section;
@@ -136,14 +136,7 @@ export default function PagePanel() {
         useEditor.getState().retainUploadedAssets(assets);
         return;
       }
-      updateDoc((draft) => {
-        for (const asset of assets) draft.assets[asset.id] = asset;
-        const target = draft.pages[page.id];
-        if (target) {
-          target.rawHtml = source;
-          target.htmlZip = zip;
-        }
-      });
+      updateDoc(draft => applyHtmlZipPage(draft, page.id, { assets, source, zip }));
       setZipMessage(
         tr("Loaded {name} and {length} assets", { name, length: assets.length })
       );
