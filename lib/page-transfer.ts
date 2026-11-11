@@ -91,7 +91,7 @@ function prepareResponsivePayload(d: SiteDoc, payload: PagePayload): PagePayload
     throw new Error("Invalid page copy metadata");
   }
   const fail = (): never => {
-    throw new Error(tr("コピー元とコピー先の画面幅設定が一致しないか、参照できない設定があります。表示を保持するためコピーを中止しました。画面幅設定を揃えてから再試行してください。"));
+    throw new Error(tr("The source and destination screen-width settings differ or contain unknown references. Nothing was copied, to preserve the appearance. Match the screen-width settings and try again."));
   };
   const checked = (input: BreakpointDef[]) => {
     if (!Array.isArray(input) || input.length > MAX_BREAKPOINTS) return fail();
@@ -164,7 +164,7 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
     const id = pageMap.get(raw.id)!;
     const { name, slug } = uniquePageNaming(
       d,
-      (n) => (n === 0 ? raw.name : n > 1 ? tr("{name} のコピー {n}", { name: raw.name, n }) : tr("{name} のコピー", { name: raw.name })),
+      (n) => (n === 0 ? raw.name : n > 1 ? tr("{name} copy {n}", { name: raw.name, n }) : tr("{name} copy", { name: raw.name })),
       (n) => (n === 0 ? raw.slug : copySlug(raw.slug, n)),
       0
     );
@@ -199,7 +199,7 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
 async function readJson(res: Response): Promise<Record<string, any>> {
   const data = await res.json().catch(() => null);
   if (!res.ok && res.status !== 409) {
-    throw new Error(data?.error ?? tr("通信に失敗しました（{status}）", { status: res.status }));
+    throw new Error(data?.error ?? tr("Request failed ({status})", { status: res.status }));
   }
   return data ?? {};
 }
@@ -233,18 +233,18 @@ export async function copyPagesToSite(
       expected = raw;
       doc = parsed as SiteDoc;
     } catch {
-      throw new Error(tr("コピー先の編集データを読み込めませんでした。コピー先を確認して、もう一度お試しください。"));
+      throw new Error(tr("Could not read the destination site’s document. Check the destination site and try again."));
     }
     applyPagePayload(doc, payload);
     if (!validSiteDoc(doc)) {
-      throw new Error(tr("コピー先の編集データを読み込めませんでした。コピー先を確認して、もう一度お試しください。"));
+      throw new Error(tr("Could not read the destination site’s document. Check the destination site and try again."));
     }
     try {
       if (isLocalSiteDeleted(target.id)) throw new Error("Local destination deleted");
       const result = await writeBrowserDoc(target.id, JSON.stringify(doc), expected);
       if (result !== "saved" || isLocalSiteDeleted(target.id)) throw new Error("Destination changed");
     } catch {
-      throw new Error(tr("ブラウザへの保存ができなかったため、コピーできませんでした"));
+      throw new Error(tr("Could not copy because the document could not be saved in this browser"));
     }
     return;
   }
@@ -272,5 +272,5 @@ export async function copyPagesToSite(
     data = await readJson(res);
     if (res.ok) return;
   }
-  throw new Error(tr("ほかの人の保存と重なったため、コピーできませんでした。もう一度お試しください。"));
+  throw new Error(tr("Couldn't copy because someone else saved at the same time. Please try again."));
 }

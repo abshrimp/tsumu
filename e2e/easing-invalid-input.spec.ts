@@ -7,7 +7,9 @@ const bundle = build({
     contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { EasingCurve, EasingEditorModal } from "./components/MotionEditors";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+const { EasingCurve, EasingEditorModal } = await import("./components/MotionEditors");
 function Fixture() {
   const [value, setValue] = useState("ease");
   const [open, setOpen] = useState(true);
@@ -19,7 +21,8 @@ function Fixture() {
       onApply={(next) => { setValue(next); setOpen(false); }} />}
   </>;
 }
-createRoot(document.getElementById("app")).render(<Fixture />);`,
+createRoot(document.getElementById("app")).render(<Fixture />);
+});`,
     resolveDir: resolve("."), loader: "tsx", sourcefile: "easing-input-fixture.tsx",
   },
   bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",

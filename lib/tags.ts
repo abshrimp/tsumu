@@ -6,33 +6,33 @@ export const SEMANTIC_OPTIONS: {
   label: string;
   desc: string;
 }[] = [
-  { value: "auto", label: tr("自動"), desc: tr("中身から自動で判定します") },
+  { value: "auto", label: tr("automatic"), desc: tr("Chosen automatically from the content") },
   {
     value: "form",
-    label: tr("検索フォーム"),
-    desc: tr("中のフォーム部品の値をURLに付けて送信します"),
+    label: tr("Search form"),
+    desc: tr("Sends the values of its form fields in the URL"),
   },
   {
     value: "button",
-    label: tr("ボタン"),
-    desc: tr("押せるボタンです。検索フォームの中では送信ボタンになります"),
+    label: tr("Button"),
+    desc: tr("A pressable button. Inside a search form it submits the form"),
   },
-  { value: "section", label: tr("セクション"), desc: tr("ページの中のひとまとまりの区画です") },
-  { value: "header", label: tr("ヘッダー"), desc: tr("ページ上部の、ロゴやナビゲーションを置く部分です") },
-  { value: "nav", label: tr("ナビゲーション"), desc: tr("主要なリンクのまとまりです") },
-  { value: "main", label: tr("メイン"), desc: tr("ページの主な内容です（1ページに1つ）") },
-  { value: "article", label: tr("記事"), desc: tr("それだけで完結する記事や投稿です") },
-  { value: "footer", label: tr("フッター"), desc: tr("ページ下部の補足情報です") },
-  { value: "div", label: tr("汎用ボックス"), desc: tr("意味を持たない、レイアウト用の箱です") },
+  { value: "section", label: tr("Section"), desc: tr("A distinct section of the page") },
+  { value: "header", label: tr("Header"), desc: tr("The top of the page, with the logo and navigation") },
+  { value: "nav", label: tr("Navigation", "navigation_variant_1"), desc: tr("A group of main links") },
+  { value: "main", label: tr("Main"), desc: tr("The page's main content (one per page)") },
+  { value: "article", label: tr("Article"), desc: tr("A self-contained article or post") },
+  { value: "footer", label: tr("Footer"), desc: tr("Supplementary info at the bottom of the page", "supplementary_info_at_the_bott_variant_1") },
+  { value: "div", label: tr("Generic box"), desc: tr("A plain box for layout, with no meaning") },
   {
     value: "span",
-    label: tr("インラインテキスト"),
-    desc: tr("テキストの一部です（行内の span として出力）"),
+    label: tr("Inline text"),
+    desc: tr("Part of a text (output as an inline span)"),
   },
   {
     value: "custom",
-    label: tr("カスタム"),
-    desc: tr("pre・aside など、出力するタグ名を自由に指定します"),
+    label: tr("Custom"),
+    desc: tr("Specify any tag name to output, such as pre or aside"),
   },
 ];
 

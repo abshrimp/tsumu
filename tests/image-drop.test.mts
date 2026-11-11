@@ -63,7 +63,7 @@ test("one drop inserts every image in order and is one complete Undo/Redo action
   assert.deepEqual(state().doc, before, "do not expose half a batch while the next upload is pending");
   assert.equal(pending.length, 2);
   pending[1](); await task.done;
-  assert.deepEqual(nodeNames(state().doc.pages.p.children), ["ボックス", "one.png", "two.png", "ボックス"]);
+  assert.deepEqual(nodeNames(state().doc.pages.p.children), ["Box", "one.png", "two.png", "Box"]);
   assert.equal(Object.keys(state().doc.assets).length, 2);
   assert.equal(state().past.length, 1);
   const after = structuredClone(state().doc);
@@ -117,7 +117,7 @@ test("a pending sibling insertion follows its anchor when unrelated siblings cha
     doc.pages.p.children.unshift("extra");
   });
   pending[0](); await task.done;
-  assert.deepEqual(nodeNames(state().doc.pages.p.children), ["Extra", "ボックス", "new.png", "ボックス"]);
+  assert.deepEqual(nodeNames(state().doc.pages.p.children), ["Extra", "Box", "new.png", "Box"]);
 });
 
 for (const destination of ["page", "node", "component"] as const) {

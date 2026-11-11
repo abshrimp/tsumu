@@ -81,7 +81,7 @@ test("preview work is bounded for amplifying DAGs while a 200-sheet chain works"
   assert.ok(zipCssPreviewUrls(record(chain), ["s0"], assetSrc).get("s0")!.length < 1024 * 1024);
   const dag = Array.from({ length: 16 }, (_, i) => sheet("d" + i, i + ".css", i === 15 ? ".x{color:red}" : `@import "${i + 1}.css";@import "${i + 1}.css";`));
   attachZipDependencies(dag);
-  assert.throws(() => zipCssPreviewUrls(record(dag), ["d0"], assetSrc), /CSS/);
+  assert.throws(() => zipCssPreviewUrls(record(dag), ["d0"], assetSrc), /CSS|stylesheet/i);
 });
 
 test("export rewrites source bytes once, retains native cycles, and never emits original CSS as remote/binary", () => {
@@ -173,8 +173,8 @@ test("clipboard permits only metadata-bearing text/css data URLs, never HTML or 
 test("invalid or oversized CSS metadata fails explicitly, rather than leaking unresolved internal URLs", async () => {
   const a = sheet("a", "a.css", "a{}");
   a.zip!.version = 2 as 1;
-  await assert.rejects(() => withSignedAssetUrls(`<link href="${zipCssUrl("a")}">`, { a }), /CSS/);
-  await assert.rejects(() => withSignedAssetUrls(`<link href="${zipCssUrl("missing")}">`, {}), /CSS/);
+  await assert.rejects(() => withSignedAssetUrls(`<link href="${zipCssUrl("a")}">`, { a }), /CSS|stylesheet/i);
+  await assert.rejects(() => withSignedAssetUrls(`<link href="${zipCssUrl("missing")}">`, {}), /CSS|stylesheet/i);
 });
 
 test("real ZIP import rejects unsupported CSS encodings and excessive CSS without committing document state", async () => {
@@ -238,7 +238,7 @@ test("export resolves complete internal CSS tokens, not asset-ID prefixes", asyn
   const names = new Map([["a", "first.css"], ["ab", "second.css"]]);
   const html = `<link href="${zipCssUrl("ab")}?v=1&amp;x=2#theme"><link href="${zipCssUrl("a")}#other">`;
   assert.equal(cssValue(doc, "rawHtml", html, names), '<link href="/assets/second.css?v=1&amp;x=2#theme"><link href="/assets/first.css#other">');
-  assert.throws(() => cssValue(doc, "rawHtml", '<link href="tsumu-zip-css:abc">', names), /CSS/);
+  assert.throws(() => cssValue(doc, "rawHtml", '<link href="tsumu-zip-css:abc">', names), /CSS|stylesheet/i);
 });
 
 
@@ -247,8 +247,8 @@ test("invalid nested stylesheet metadata is not silently treated as a unmapped r
   const b = sheet("b", "b.css", ".x{color:red}");
   attachZipDependencies([a, b]);
   b.zip!.version = 9 as 1;
-  assert.throws(() => zipCssPreviewUrls(record([a, b]), ["a"], assetSrc), /CSS/);
-  assert.throws(() => exportZipStylesheet(b, new Map([["a", "a.css"], ["b", "b.css"]])), /CSS/);
+  assert.throws(() => zipCssPreviewUrls(record([a, b]), ["a"], assetSrc), /CSS|stylesheet/i);
+  assert.throws(() => exportZipStylesheet(b, new Map([["a", "a.css"], ["b", "b.css"]])), /CSS|stylesheet/i);
 });
 
 test("signing batches distinct remote paths within the endpoint limit and propagates cancellation", async () => {
@@ -281,7 +281,7 @@ test("CSS graph source limits count UTF-8 bytes, including copied Japanese style
   const b = sheet("b", "b.css", text);
   attachZipDependencies([a, b]);
   assert.ok(zipStylesheet(a) && zipStylesheet(b), "each sheet individually fits");
-  assert.throws(() => zipCssPreviewUrls(record([a, b]), ["a"], assetSrc), /CSS/);
+  assert.throws(() => zipCssPreviewUrls(record([a, b]), ["a"], assetSrc), /CSS|stylesheet/i);
   const oversized = sheet("large", "large.css", "/*" + "あ".repeat(800_000) + "*/");
   assert.equal(zipStylesheet(oversized), undefined, "an individual non-ASCII sheet uses the same byte limit");
 });

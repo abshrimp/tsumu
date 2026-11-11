@@ -15,8 +15,11 @@ export async function commitFieldsBundle() {
     stdin: { contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { CommitInput, CommitTextarea } from "./components/controls";
+
 import { isEnterKey } from "./lib/keys";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { CommitInput, CommitTextarea } = await import("./components/controls");
 window.commitFields = { writes: [], events: [] };
 function Example() {
   const [value, setValue] = useState("Original value");
@@ -46,6 +49,8 @@ function Example() {
   </>;
 }
 createRoot(document.getElementById("app")).render(<React.StrictMode><Example /></React.StrictMode>);
+
+});
 `, resolveDir: resolve("."), loader: "tsx", sourcefile: "commit-fields-browser.tsx" },
     bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },
@@ -58,11 +63,16 @@ export async function commitPageFieldsBundle() {
     stdin: { contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import PagePanel from "./components/PagePanel";
+
 import { useEditor } from "./lib/store";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: PagePanel } = await import("./components/PagePanel");
 useEditor.getState().replaceDoc(${JSON.stringify(commitFieldsDoc())});
 window.commitPageEditor = useEditor;
 createRoot(document.getElementById("app")).render(<React.StrictMode><PagePanel /></React.StrictMode>);
+
+});
 `, resolveDir: resolve("."), loader: "tsx", sourcefile: "commit-page-fields-browser.tsx" },
     bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },

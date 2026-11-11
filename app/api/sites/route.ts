@@ -37,7 +37,7 @@ export async function GET() {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (e) {
-    return NextResponse.json({ error: tr(userMessage(e, "読み込めませんでした")) }, { status: 502 });
+    return NextResponse.json({ error: tr(userMessage(e, "Couldn't load")) }, { status: 502 });
   }
 }
 
@@ -57,30 +57,30 @@ export async function POST(req: Request) {
     input = JSON.parse(raw);
   } catch (error) {
     const status = error instanceof TooLargeError ? 413 : 400;
-    return NextResponse.json({ error: tr(status === 413 ? "インポートするファイルが大きすぎます。" : "リクエストが正しくありません") }, { status });
+    return NextResponse.json({ error: tr(status === 413 ? "The import file is too large." : "Invalid request", status === 413 ? undefined : "invalid_request_variant_1") }, { status });
   }
   if (!input || typeof input !== "object" || Array.isArray(input)) {
-    return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
   }
   const { copyFrom, importId, initialDoc } = input;
   const importing = importId !== undefined || initialDoc !== undefined;
   if (copyFrom !== undefined && (!isSiteId(copyFrom) || importing)) {
-    return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+    return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
   }
   let initialBody: string | undefined;
   if (importing) {
     if (typeof importId !== "string" || !/^[a-z0-9]{10}$/.test(importId)) {
-      return NextResponse.json({ error: tr("リクエストが正しくありません") }, { status: 400 });
+      return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
     }
     try {
       const doc = validateImportedDoc(initialDoc);
       if (doc.siteName !== input.name) throw new Error("リクエストが正しくありません");
       initialBody = JSON.stringify(doc);
       if (new TextEncoder().encode(initialBody).byteLength > IMPORT_LIMITS.docBytes) {
-        return NextResponse.json({ error: tr("編集データが容量上限を超えています。") }, { status: 413 });
+        return NextResponse.json({ error: tr("The edit data exceeds the size limit.") }, { status: 413 });
       }
     } catch (error) {
-      return NextResponse.json({ error: tr(userMessage(error, "リクエストが正しくありません")) }, { status: 400 });
+      return NextResponse.json({ error: tr(userMessage(error, "Invalid request")) }, { status: 400 });
     }
   }
   const parsed = normalizeSiteInput(input, {
@@ -96,17 +96,17 @@ export async function POST(req: Request) {
   try {
     const db = await getDb();
     if (copyFrom && !(await getSite(db, copyFrom))) {
-      return NextResponse.json({ error: tr("複製するサイトが見つかりません") }, { status: 404 });
+      return NextResponse.json({ error: tr("The site to duplicate was not found") }, { status: 404 });
     }
     // Capture the source before creating the destination. A missing document is
     // valid only for an existing, never-opened site, not one deleted mid-copy.
     const src = copyFrom ? await readSiteDocument(db, copyFrom) : null;
     if (copyFrom && !src && !(await getSite(db, copyFrom))) {
-      return NextResponse.json({ error: tr("複製するサイトが見つかりません") }, { status: 404 });
+      return NextResponse.json({ error: tr("The site to duplicate was not found") }, { status: 404 });
     }
     const id = typeof importId === "string" ? importId : newSiteId();
     if (importing && await getSite(db, id)) {
-      return NextResponse.json({ error: tr("サイトを作成できませんでした。") }, { status: 409 });
+      return NextResponse.json({ error: tr("Could not create the site.") }, { status: 409 });
     }
     // The D1 site record and DO document are different transactional stores.
     // If document initialization fails, delete the newly created site record.
@@ -127,13 +127,13 @@ export async function POST(req: Request) {
       await cleanupAbandonedDocuments(createdSite.db, 1).catch(() => undefined);
     }
     if (e instanceof Error && /SQLITE_TOOBIG|too big/i.test(e.message)) {
-      return NextResponse.json({ error: tr("ドキュメントが大きすぎて、保存先に入りきりません") }, { status: 413 });
+      return NextResponse.json({ error: tr("The document is too large for the storage") }, { status: 413 });
     }
     if (importing && e instanceof Error && /UNIQUE constraint failed: sites\.id/i.test(e.message)) {
-      return NextResponse.json({ error: tr("サイトを作成できませんでした。") }, { status: 409 });
+      return NextResponse.json({ error: tr("Could not create the site.") }, { status: 409 });
     }
     // 複製元の本文や保存先の接続情報を含む例外をログや応答に渡さない。
     console.error("[api/sites POST] site creation failed");
-    return NextResponse.json({ error: tr("作成できませんでした") }, { status: 502 });
+    return NextResponse.json({ error: tr("Couldn't create it") }, { status: 502 });
   }
 }

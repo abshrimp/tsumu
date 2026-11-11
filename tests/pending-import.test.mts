@@ -44,7 +44,7 @@ test("image upload does not replace a newer chosen image or cleared value", asyn
   for (const choose of [true, false]) {
     const f = imageFixture();
     if (choose) f.render().find((e) => e.props?.onPick).props.onPick({ id: "existing" });
-    else f.render().find((e) => e.props?.["data-tip"] === "クリア").props.onClick();
+    else f.render().find((e) => e.props?.["data-tip"] === "Clear").props.onClick();
     f.work.resolve(uploaded);
     await tick();
     assert.deepEqual(f.writes, [choose ? { assetId: "existing" } : null]);
@@ -249,7 +249,7 @@ function fontFixture() {
   globalThis.fetch = () => work.promise;
   const ui = importCallbacks("font");
   const render = () => elements(ui.render({ inheritedValue: "Arial" }));
-  render().find((e) => e.props?.["data-tip"] === "Google Fontsから追加").props.onClick();
+  render().find((e) => e.props?.["data-tip"] === "Add from Google Fonts").props.onClick();
   render().find((e) => e.type === "input").props.onChange({ target: { value: "New Font" } });
   render().find((e) => e.type === "button" && e.props.className === "btn btn-sm").props.onClick();
   render();
@@ -277,7 +277,7 @@ test("closing or editing a pending font request leaves styles and font registrat
   for (const change of ["close", "edit", "unmount", "external"]) {
     const f = fontFixture();
     try {
-      if (change === "close") f.render().find((e) => e.props?.["data-tip"] === "Google Fontsから追加").props.onClick();
+      if (change === "close") f.render().find((e) => e.props?.["data-tip"] === "Add from Google Fonts").props.onClick();
       if (change === "edit") f.render().find((e) => e.type === "input").props.onChange({ target: { value: "Different Font" } });
       if (change === "unmount") f.ui.unmount();
       if (change === "external") { state().setStyleProps("a", { fontFamily: "Arial" }); f.render(); }

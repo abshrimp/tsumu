@@ -119,13 +119,13 @@ export function addBreakpoint(d: SiteDoc): Breakpoint | null {
   const id = `bp_${Math.random().toString(36).slice(2, 8)}`;
   let n = list.length + 1;
   const names = new Set(list.map((b) => b.label));
-  while (names.has(tr("画面幅{n}", { n }))) n++;
+  while (names.has(tr("Width {n}", { n }))) n++;
   // 今その幅を受け持っているブレークポイント（足す位置のすぐ上）
   const parent: Breakpoint = best === 0 ? "base" : list[best - 1].id;
   for (const node of Object.values(d.nodes)) {
     if (node.hiddenOn?.includes(parent)) node.hiddenOn = [...node.hiddenOn, id];
   }
-  save(d, [...list, { id, label: tr("画面幅{n}", { n }), maxWidth: width }]);
+  save(d, [...list, { id, label: tr("Width {n}", { n }), maxWidth: width }]);
   return id;
 }
 

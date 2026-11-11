@@ -47,7 +47,7 @@ function Person({ entry, time }: { entry: ActivityEntry; time?: boolean }) {
     <div className="ftr-person">
       <UserAvatar user={entry} />
       <span className="ftr-person-name">
-        <strong>{entry.name || entry.email || tr("ログインなしの編集者")}</strong>
+        <strong>{entry.name || entry.email || tr("Editor without sign-in")}</strong>
         {entry.name && entry.email && <small>{entry.email}</small>}
       </span>
       {time && (
@@ -63,7 +63,7 @@ function Person({ entry, time }: { entry: ActivityEntry; time?: boolean }) {
 function PublishInfo({ entry, localAt, loading }: { entry: ActivityEntry | null; localAt: number | null; loading: boolean }) {
   const at = Math.max(entry?.at ?? 0, localAt ?? 0);
   if (!at) {
-    return <p className="ftr-pop-empty">{loading ? tr("読み込み中…") : tr("まだ公開されていません")}</p>;
+    return <p className="ftr-pop-empty">{loading ? tr("Loading…") : tr("Not published yet")}</p>;
   }
   // このブラウザで、サーバーに記録が無い（または記録より新しい）公開をした
   const local = !entry || (localAt ?? 0) > entry.at;
@@ -73,10 +73,10 @@ function PublishInfo({ entry, localAt, loading }: { entry: ActivityEntry | null;
         {new Date(at).toLocaleString(getLang())}
         <small>{relativeTime(at)}</small>
       </p>
-      <span className="ftr-pop-label">{tr("公開した人")}</span>
+      <span className="ftr-pop-label">{tr("Published by")}</span>
       {local ? (
         <p className="ftr-pop-empty">
-          {tr("このブラウザから公開しました。公開した人は、サーバーの保存先（D1）があるときに記録されます。")}
+          {tr("Published from this browser. Who published is recorded when server storage (D1) is set up.")}
         </p>
       ) : (
         <Person entry={entry} />
@@ -163,11 +163,11 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
       <span className="hint">
         {page
           ? isLoadingPage
-            ? tr("ローディング画面")
-            : tr("{name}（/{slug}）", { name: page.name, slug: page.slug })
+            ? tr("Loading screen")
+            : tr("{name} (/{slug})", { name: page.name, slug: page.slug })
           : ""}
         {" · "}
-        {tr("{pages}ページ · {nodes}要素", { pages: pageCount, nodes: nodeCount })}
+        {tr("{pages} pages · {nodes} elements", { pages: pageCount, nodes: nodeCount })}
       </span>
 
       <div className="ftr-spacer" />
@@ -176,16 +176,16 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
         onOpen={load}
         card={
           <>
-            <PopSection title={tr("最後の公開")}>
+            <PopSection title={tr("Last publish")}>
               <PublishInfo entry={activity?.lastPublish ?? null} localAt={publishedAt} loading={activity === undefined} />
             </PopSection>
             {activity?.lastTestPublish && (
-              <PopSection title={tr("最後のテスト公開")}>
+              <PopSection title={tr("Last test publish")}>
                 <PublishInfo entry={activity.lastTestPublish} localAt={null} loading={false} />
               </PopSection>
             )}
             {publishedAt && publishedFingerprint && changedSincePublish && (
-              <p className="ftr-pop-note">{tr("公開した後に変更があります。公開すると反映されます。")}</p>
+              <p className="ftr-pop-note">{tr("There are changes since the last publish. Publish to apply them.")}</p>
             )}
           </>
         }
@@ -199,9 +199,9 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
           <Globe size={12} />
           {lastPublishAt
             ? publishedFingerprint && changedSincePublish
-              ? tr("未公開の変更あり")
-              : tr("公開済み")
-            : tr("未公開")}
+              ? tr("Unpublished changes")
+              : tr("Published")
+            : tr("Not published")}
         </span>
       </HoverCard>
 
@@ -210,49 +210,49 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
         card={
           <>
             {cloudState === "local" || activity === null ? (
-              <PopSection title={tr("保存")}>
+              <PopSection title={tr("save")}>
                 <p className="ftr-pop-empty">
                   {cloudState === "local"
                     ? localSaveState === "deleted"
-                      ? tr("このブラウザの保存先は削除されています。画面の内容は残っています。必要な内容は、閉じる前にコピーするかZIPに書き出してください。")
+                      ? tr("The save location in this browser was deleted. Your content is still on screen. Copy what you need or export a ZIP before closing.")
                       : localSaveState === "error"
-                        ? tr("ブラウザに保存できません。容量や設定を確認して、クリックで再試行してください。")
+                        ? tr("Couldn't save in this browser. Check its storage space and settings, then click to retry.")
                         : localSaveState === "pending"
-                          ? tr("サーバー保存が設定されていません。ブラウザへの保存を待っています。")
-                          : tr("サーバー保存が設定されていないため、このブラウザにだけ保存しています。クリックで再接続します。")
-                    : tr("編集した人の記録は、サーバーの保存先（D1）があるときに表示されます。")}
+                          ? tr("Server storage is not configured. Waiting for the browser save.")
+                          : tr("Server storage isn't set up, so changes are saved only in this browser. Click to reconnect.")
+                    : tr("Who edited the site is shown when server storage (D1) is set up.")}
                 </p>
               </PopSection>
             ) : (
               <>
-                <PopSection title={tr("最新の変更")}>
+                <PopSection title={tr("Latest change")}>
                   {activity?.lastEdit ? (
                     <Person entry={activity.lastEdit} time />
                   ) : (
-                    <p className="ftr-pop-empty">{activity === undefined ? tr("読み込み中…") : tr("まだ記録がありません")}</p>
+                    <p className="ftr-pop-empty">{activity === undefined ? tr("Loading…") : tr("Nothing recorded yet")}</p>
                   )}
                 </PopSection>
                 {activity && (
-                  <PopSection title={tr("直近10分に変更した人（{n}人）", { n: activity.recentEditors.length })}>
+                  <PopSection title={tr("Edited in the last 10 minutes ({n})", { n: activity.recentEditors.length })}>
                     {activity.recentEditors.length ? (
                       activity.recentEditors.map((e) => <Person key={e.email || "-"} entry={e} time />)
                     ) : (
-                      <p className="ftr-pop-empty">{tr("いません")}</p>
+                      <p className="ftr-pop-empty">{tr("No one")}</p>
                     )}
                   </PopSection>
                 )}
               </>
             )}
             {cloudSavedAt && cloudState !== "local" && (
-              <p className="ftr-pop-note">{tr("サーバーに保存 {p1}", { p1: new Date(cloudSavedAt).toLocaleString(getLang()) })}</p>
+              <p className="ftr-pop-note">{tr("Saved to server {p1}", { p1: new Date(cloudSavedAt).toLocaleString(getLang()) })}</p>
             )}
             {cloudState === "error" && cloudError && <p className="ftr-pop-note">{cloudError}</p>}
-            {cloudState === "error" && <p className="ftr-pop-note">{tr("クリックで再接続します")}</p>}
+            {cloudState === "error" && <p className="ftr-pop-note">{tr("Click to reconnect")}</p>}
             {localSaveState === "deleted" && cloudState !== "local" && (
-              <p className="ftr-pop-note">{tr("このブラウザの保存先は削除されています。サーバーへの保存状態は上の表示を確認してください。")}</p>
+              <p className="ftr-pop-note">{tr("The save location in this browser was deleted. Check the status above for server saving.")}</p>
             )}
             {localSaveState === "error" && cloudState !== "local" && (
-              <p className="ftr-pop-note">{tr("ブラウザに保存できません。容量や設定を確認して、クリックで再試行してください。")}</p>
+              <p className="ftr-pop-note">{tr("Couldn't save in this browser. Check its storage space and settings, then click to retry.")}</p>
             )}
           </>
         }
@@ -271,19 +271,19 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
           {cloudState === "checking" && (
             <>
               <LoaderCircle size={12} className="spin" />
-              {tr("同期を確認中…")}
+              {tr("Checking sync…")}
             </>
           )}
           {cloudState === "saving" && (
             <>
               <CloudUpload size={13} />
-              {tr("サーバーへ保存中…")}
+              {tr("Saving to server…")}
             </>
           )}
           {cloudState === "synced" && (
             <>
               <CloudCheck size={13} />
-              {tr("サーバー保存済み")}
+              {tr("Saved to server")}
               {cloudSavedAt &&
                 ` ${new Date(cloudSavedAt).toLocaleTimeString(getLang())}`}
             </>
@@ -292,10 +292,10 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
             <>
               {localSaveState === "error" || localSaveState === "deleted" ? <CloudAlert size={13} style={{ color: "var(--warn)" }} /> : <CloudOff size={13} />}
               {localSaveState === "deleted"
-                ? tr("このブラウザの保存先は削除済み")
+                ? tr("Browser save location deleted")
                 : localSaveState === "error"
-                  ? tr("このブラウザに保存できません")
-                  : localSaveState === "pending" ? tr("このブラウザへ保存中…") : tr("このブラウザにのみ保存")}
+                  ? tr("Couldn't save in this browser")
+                  : localSaveState === "pending" ? tr("Saving in this browser…") : tr("Saved in this browser only")}
               {localSaveState === "saved" && savedAt && ` ${new Date(savedAt).toLocaleTimeString(getLang())}`}
             </>
           )}
@@ -303,12 +303,12 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
             <>
               <CloudAlert size={13} style={{ color: "var(--warn)" }} />
               {localSaveState === "deleted"
-                ? tr("サーバーに保存できません（ブラウザの保存先は削除済み）")
+                ? tr("Couldn't save to server (browser save location deleted)")
                 : localSaveState === "error"
-                  ? tr("サーバーにもこのブラウザにも保存できません")
+                  ? tr("Couldn't save to the server or in this browser")
                   : localSaveState === "pending"
-                    ? tr("サーバーに保存できません（ブラウザへの保存を確認中…）")
-                    : tr("サーバーに保存できません（このブラウザには保存済み）")}
+                    ? tr("Couldn't save to server (checking browser save…)")
+                    : tr("Couldn't save to server (saved in this browser)")}
             </>
           )}
         </button>

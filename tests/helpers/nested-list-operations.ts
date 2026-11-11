@@ -42,11 +42,13 @@ export async function nestedOperationsBundle(component = false) {
   return (await build({ stdin: { contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import ScriptEditor from "./components/ScriptEditor";
-import Canvas from "./components/Canvas";
+import { loadLocale } from "./lib/i18n";
 import { useEditor } from "./lib/store";
 import css from "./app/globals.css";
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
+void loadLocale().then(async () => {
+const { default: ScriptEditor } = await import("./components/ScriptEditor");
+const { default: Canvas } = await import("./components/Canvas");
 useEditor.getState().replaceDoc(${JSON.stringify(nestedOperationsDoc(component, false))});
 useEditor.getState().setActivePage("p");
 window.nestedOperationsStore = useEditor;
@@ -60,6 +62,7 @@ function Example() {
   </>;
 }
 createRoot(document.getElementById("app")).render(<Example />);
+});
 `, loader: "tsx", sourcefile: "nested-list-operations-browser.tsx", resolveDir: resolve(".") },
     loader: { ".css": "text" }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },

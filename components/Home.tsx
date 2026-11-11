@@ -60,7 +60,7 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
     headers: init?.body ? { "Content-Type": "application/json" } : undefined,
   });
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(data?.error ?? tr("通信に失敗しました（{status}）", { status: res.status }));
+  if (!res.ok) throw new Error(data?.error ?? tr("Request failed ({status})", { status: res.status }));
   return data as T;
 }
 
@@ -72,11 +72,11 @@ async function seedDoc(id: string, name: string): Promise<boolean> {
 }
 
 function localSaveError() {
-  return new Error(tr("ブラウザに変更を保存できませんでした。ブラウザの保存容量や設定を確認して、もう一度お試しください。"));
+  return new Error(tr("Could not save changes in this browser. Check your browser's storage capacity and settings, then try again."));
 }
 
 function localDuplicateError() {
-  return new Error(tr("サイトを複製できませんでした。ブラウザの保存容量や設定を確認して、もう一度お試しください。"));
+  return new Error(tr("Could not duplicate the site. Check your browser's storage space and settings, then try again."));
 }
 
 /** サイトの編集データ（ブラウザ保存）を、新しいサイトへ写す。元に無ければ新しいサイトと同じく作る */
@@ -129,7 +129,7 @@ function CardMenu({ items }: { items: { label: string; icon: ReactNode; danger?:
       <button
         type="button"
         className={`icon-btn${open ? " is-open" : ""}`}
-        aria-label={tr("サイトの操作")}
+        aria-label={tr("Site actions")}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
@@ -173,7 +173,7 @@ function SiteCard({
   const edited = site.savedAt ?? site.updatedAt;
   return (
     <article className="home-card">
-      <a className="home-card-link" href={sitePath(site.id)} aria-label={tr("{name} を開く", { name: site.name })}>
+      <a className="home-card-link" href={sitePath(site.id)} aria-label={tr("Open {name}", { name: site.name })}>
         <span className="home-card-thumb" aria-hidden>
           <span>{Array.from(site.name)[0]?.toUpperCase() ?? "S"}</span>
         </span>
@@ -191,26 +191,26 @@ function SiteCard({
           ) : (
             <span className="home-card-repo is-unset">
               <GitBranch size={12} />
-              <span>{tr("公開先が未設定")}</span>
+              <span>{tr("No publish target")}</span>
             </span>
           )}
-          {edited ? <span className="home-card-time">{tr("{time}に編集", { time: relativeTime(edited) })}</span> : null}
+          {edited ? <span className="home-card-time">{tr("Edited {time}", { time: relativeTime(edited) })}</span> : null}
         </div>
       </div>
       <CardMenu
         items={[
-          { label: tr("設定"), icon: <Settings size={14} />, onSelect: onSettings },
-          { label: tr("複製"), icon: <Copy size={14} />, onSelect: onDuplicate },
+          { label: tr("Settings"), icon: <Settings size={14} />, onSelect: onSettings },
+          { label: tr("Duplicate"), icon: <Copy size={14} />, onSelect: onDuplicate },
           ...(site.siteUrl
             ? [
                 {
-                  label: tr("公開サイトを開く"),
+                  label: tr("Open live site"),
                   icon: <ExternalLink size={14} />,
                   onSelect: () => window.open(site.siteUrl!, "_blank", "noopener"),
                 },
               ]
             : []),
-          { label: tr("削除"), icon: <Trash2 size={14} />, danger: true, onSelect: onDelete },
+          { label: tr("Delete"), icon: <Trash2 size={14} />, danger: true, onSelect: onDelete },
         ]}
       />
     </article>
@@ -266,7 +266,7 @@ function SiteDialog({
 }) {
   // 複製では公開先を写さない（同じリポジトリへ2つのサイトから公開してしまわないように）
   const [form, setForm] = useState<FormValue>(() =>
-    copyOf ? { ...toForm(null), name: tr("{name} のコピー", { name: copyOf.name }) } : toForm(site)
+    copyOf ? { ...toForm(null), name: tr("{name} copy", { name: copyOf.name }) } : toForm(site)
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -289,7 +289,7 @@ function SiteDialog({
     const checked = normalizeSiteInput(form, { name: "", ...emptyDest() });
     if (!checked.ok) {
       setError(tr(checked.error));
-      if (!checked.error.includes("サイト名")) setDestOpen(true);
+      if (!["Enter a site name", "Site names can be up to 100 characters"].includes(checked.error)) setDestOpen(true);
       return;
     }
     setBusy(true);
@@ -305,30 +305,30 @@ function SiteDialog({
   return (
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
       <form className="modal home-dialog" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
-        <h2>{site ? tr("サイトの設定") : copyOf ? tr("サイトを複製") : tr("新しいサイト")}</h2>
+        <h2>{site ? tr("Site settings", "site_settings_variant_1") : copyOf ? tr("Duplicate site") : tr("New site")}</h2>
         <p className="modal-desc">
           {site
-            ? tr("サイト名と、公開先のGitHubリポジトリを変更できます。")
+            ? tr("Change the site name and the GitHub repository it publishes to.")
             : copyOf
-              ? tr("「{name}」のページ・要素・設定をそのまま写した、新しいサイトを作ります。公開先は複製しないので、必要なら設定してください。", { name: copyOf.name })
-              : tr("空のサイトを作って、エディタで開きます。")}
+              ? tr("Creates a new site with the same pages, elements and settings as “{name}”. The publishing destination isn't copied, so set it if you need one.", { name: copyOf.name })
+              : tr("Creates an empty site and opens it in the editor.")}
         </p>
 
-        <Field label={tr("サイト名")}>
+        <Field label={tr("Site name")}>
           <input className="input" value={form.name} onChange={set("name")} autoFocus maxLength={100} required />
         </Field>
 
         <section className={`home-dest${destOpen ? " is-open" : ""}`}>
           <button type="button" className="home-dest-head" onClick={() => setDestOpen((v) => !v)} aria-expanded={destOpen}>
             <ChevronRight size={14} />
-            <span>{tr("公開先")}</span>
-            {!destOpen && <span className="home-dest-sub">{tr("あとからでも設定できます")}</span>}
+            <span>{tr("Publish target")}</span>
+            {!destOpen && <span className="home-dest-sub">{tr("You can set this later")}</span>}
           </button>
           {destOpen && (
             <div className="home-dest-body">
               <Field
-                label={tr("GitHubリポジトリ")}
-                hint={tr("owner/name の形で入力します。空のままでも編集はできます（公開はできません）。")}
+                label={tr("GitHub repository")}
+                hint={tr("Enter as owner/name. You can edit without it, but you can't publish.")}
               >
                 <input
                   className="input mono"
@@ -340,10 +340,10 @@ function SiteDialog({
                 />
               </Field>
               <div className="home-field-row">
-                <Field label={tr("本番のブランチ")}>
+                <Field label={tr("Production branch")}>
                   <input className="input mono" value={form.branch} onChange={set("branch")} placeholder="main" spellCheck={false} />
                 </Field>
-                <Field label={tr("テスト公開のブランチ")} hint={tr("空にするとテスト公開を使いません")}>
+                <Field label={tr("Test branch")} hint={tr("Leave empty to turn off test publishing")}>
                   <input
                     className="input mono"
                     value={form.previewBranch}
@@ -354,10 +354,10 @@ function SiteDialog({
                 </Field>
               </div>
               <div className="home-field-row">
-                <Field label={tr("本番サイトのURL")}>
+                <Field label={tr("Live site URL")}>
                   <input className="input" value={form.siteUrl} onChange={set("siteUrl")} placeholder="https://example.com" type="url" />
                 </Field>
-                <Field label={tr("テストサイトのURL")}>
+                <Field label={tr("Test site URL")}>
                   <input
                     className="input"
                     value={form.previewUrl}
@@ -380,11 +380,11 @@ function SiteDialog({
 
         <div className="modal-actions">
           <button type="button" className="btn" onClick={onClose} disabled={busy}>
-            {tr("キャンセル")}
+            {tr("Cancel")}
           </button>
           <button type="submit" className="btn btn-primary" disabled={busy}>
             {busy && <LoaderCircle size={13} className="spin" />}
-            {site ? tr("保存") : copyOf ? tr("複製") : tr("作成して開く")}
+            {site ? tr("save") : copyOf ? tr("Duplicate") : tr("Create and open")}
           </button>
         </div>
       </form>
@@ -407,12 +407,12 @@ function AppSettings({ auth, onClose }: { auth: boolean; onClose: () => void }) 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal home-dialog" onClick={(e) => e.stopPropagation()}>
-        <h2>{tr("設定")}</h2>
-        <p className="modal-desc">{tr("すべてのサイトに共通の設定です。")}</p>
+        <h2>{tr("Settings")}</h2>
+        <p className="modal-desc">{tr("These settings apply to all sites.")}</p>
 
         <section className="home-set-sec">
-          <h3>{tr("表示言語")}</h3>
-          <div className="home-seg" role="radiogroup" aria-label={tr("表示言語")}>
+          <h3>{tr("Language", "language_variant_1")}</h3>
+          <div className="home-seg" role="radiogroup" aria-label={tr("Language", "language_variant_1")}>
             {LANGS.map((l) => (
               <button
                 key={l.value}
@@ -428,20 +428,20 @@ function AppSettings({ auth, onClose }: { auth: boolean; onClose: () => void }) 
               </button>
             ))}
           </div>
-          <p className="home-field-hint">{tr("切り替えると画面を読み込み直します。作成中のサイトの内容は変わりません。")}</p>
+          <p className="home-field-hint">{tr("The editor reloads when you switch. Your site's content isn't changed.")}</p>
         </section>
 
         {auth && (
           <section className="home-set-sec">
-            <h3>{tr("ログインできるアカウント")}</h3>
-            <p className="home-field-hint">{tr("このエディタにGoogleアカウントでログインできるメールアドレスです。")}</p>
+            <h3>{tr("Accounts with access")}</h3>
+            <p className="home-field-hint">{tr("Email addresses that can sign in to this editor with Google.")}</p>
             <AllowedAccounts />
           </section>
         )}
 
         <div className="modal-actions">
           <button type="button" className="btn" onClick={onClose}>
-            {tr("閉じる")}
+            {tr("Close")}
           </button>
         </div>
       </div>
@@ -481,7 +481,7 @@ export default function Home() {
         return;
       }
       const data = await res.json().catch(() => null);
-      if (!res.ok || !data?.sites) throw new Error(data?.error ?? tr("読み込めませんでした"));
+      if (!res.ok || !data?.sites) throw new Error(data?.error ?? tr("Couldn't load"));
       setStore("server");
       setSites(data.sites);
     } catch (e) {
@@ -499,14 +499,14 @@ export default function Home() {
   const runFileImport = useCallback(async (file: File) => {
     if (!store || importActive.current) return;
     importActive.current = true;
-    setImportStatus({ kind: "loading", message: tr("編集データを読み込み中…") });
+    setImportStatus({ kind: "loading", message: tr("Reading edit data…") });
     try {
       const { id } = await createSiteFromFile(file, store,
         (message) => setImportStatus({ kind: "loading", message: tr(message) }));
       window.location.assign(sitePath(id));
     } catch (error) {
       setImportStatus({ kind: "error", message: error instanceof Error
-        ? tr(error.message) : tr("サイトを復元できませんでした。") });
+        ? tr(error.message) : tr("Could not restore the site.") });
     } finally {
       importActive.current = false;
     }
@@ -620,7 +620,7 @@ export default function Home() {
         copied = true;
         await withLocalSiteListLock(() => {
           const list = loadLocalSites({ strict: true });
-          if (!list.some((s) => s.id === src.id)) throw new Error(tr("サイトが見つかりません"));
+          if (!list.some((s) => s.id === src.id)) throw new Error(tr("Site not found"));
           if (localSiteIdInUse(site.id, list)) throw localDuplicateError();
           localSites = [site, ...list];
           if (!saveLocalSites(localSites)) throw localDuplicateError();
@@ -649,7 +649,7 @@ export default function Home() {
         } catch {
           throw localSaveError();
         }
-        if (!list.some((s) => s.id === site.id)) throw new Error(tr("サイトが見つかりません"));
+        if (!list.some((s) => s.id === site.id)) throw new Error(tr("Site not found"));
         const next = list.map((s) => (s.id === site.id ? { ...s, ...input, updatedAt: Date.now() } : s));
         if (!saveLocalSites(next)) throw localSaveError();
         setSites(next);
@@ -660,10 +660,10 @@ export default function Home() {
 
   const remove = async (site: SiteRecord) => {
     const typed = await showPrompt(
-      tr("「{name}」の編集データと自動バックアップを削除します。元に戻せません。\n公開済みのサイト（GitHubリポジトリ）はそのまま残ります。\n\n確認のため、サイト名を入力してください。", {
+      tr("This deletes the editing data and automatic backups of \"{name}\". This can't be undone.\nThe published site (GitHub repository) stays as it is.\n\nType the site name to confirm.", {
         name: site.name,
       }),
-      { title: tr("サイトを削除"), okLabel: tr("削除"), danger: true, expect: site.name, placeholder: site.name }
+      { title: tr("Delete site"), okLabel: tr("Delete"), danger: true, expect: site.name, placeholder: site.name }
     );
     if (typed === null) return;
     try {
@@ -680,7 +680,7 @@ export default function Home() {
       await forgetLocal(site.id);
       setSites((list) => list?.filter((s) => s.id !== site.id) ?? null);
     } catch (e) {
-      await showAlert((e as Error).message, { title: tr("削除できませんでした") });
+      await showAlert((e as Error).message, { title: tr("Couldn't delete") });
     }
   };
 
@@ -700,7 +700,7 @@ export default function Home() {
         <div className="home-top-actions">
           <button type="button" className="btn btn-ghost home-top-btn" onClick={() => setSettingsOpen(true)}>
             <Settings size={14} />
-            {tr("設定")}
+            {tr("Settings")}
           </button>
           {status?.auth && (
             <button
@@ -709,7 +709,7 @@ export default function Home() {
               onClick={() => void signOut({ callbackUrl: "/login" })}
             >
               <LogOut size={14} />
-              {tr("ログアウト")}
+              {tr("Sign out")}
             </button>
           )}
         </div>
@@ -718,8 +718,8 @@ export default function Home() {
       <main className="home-main">
         <div className="home-head">
           <div>
-            <h1>{tr("サイト")}</h1>
-            {sites && sites.length > 0 && <p>{tr("{n}件のサイト", { n: sites.length })}</p>}
+            <h1>{tr("Site")}</h1>
+            {sites && sites.length > 0 && <p>{tr("{n} sites", { n: sites.length })}</p>}
           </div>
           <div className="home-head-actions">
             {sites && sites.length > 3 && (
@@ -729,20 +729,20 @@ export default function Home() {
                   type="search"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder={tr("サイトを探す")}
-                  aria-label={tr("サイトを探す")}
+                  placeholder={tr("Search sites")}
+                  aria-label={tr("Search sites")}
                 />
               </label>
             )}
             <button type="button" className="btn home-new" onClick={() => importFileInput.current?.click()} disabled={!store || importActive.current}>
               <FileUp size={14} />
-              {tr("インポート")}
+              {tr("Import")}
             </button>
             <input
               ref={importFileInput}
               type="file"
               accept=".zip,.json,.html,.htm,application/zip,application/json,text/html"
-              aria-label={tr("ZIP・doc.json・HTMLファイルを選択")}
+              aria-label={tr("Choose a ZIP, doc.json, or HTML file")}
               style={{ display: "none" }}
               onChange={(event) => {
                 const file = event.target.files?.[0];
@@ -752,7 +752,7 @@ export default function Home() {
             />
             <button type="button" className="btn btn-primary home-new" onClick={() => setDialog("new")} disabled={!store}>
               <Plus size={14} />
-              {tr("新しいサイト")}
+              {tr("New site")}
             </button>
           </div>
         </div>
@@ -766,7 +766,7 @@ export default function Home() {
             <p>{importStatus.message}</p>
             {importStatus.kind === "error" && (
               <button type="button" className="btn btn-sm" onClick={() => importFileInput.current?.click()}>
-                {tr("別のファイルを選択")}
+                {tr("Choose another file")}
               </button>
             )}
           </div>
@@ -776,7 +776,7 @@ export default function Home() {
           <div className="home-notice">
             <HardDrive size={14} />
             <p>
-              {tr("サーバーの保存先が設定されていないため、サイトと編集内容はこのブラウザに保存されます。別のブラウザや端末からは見えません。")}
+              {tr("No server storage is set up, so sites and edits are saved in this browser. They won't appear in other browsers or devices.")}
             </p>
           </div>
         )}
@@ -786,7 +786,7 @@ export default function Home() {
             <TriangleAlert size={14} />
             <p>{loadError}</p>
             <button type="button" className="btn btn-sm" onClick={() => void load()}>
-              {tr("再読み込み")}
+              {tr("Reload")}
             </button>
           </div>
         )}
@@ -802,15 +802,15 @@ export default function Home() {
             <span className="home-empty-icon">
               <LayoutGrid size={22} />
             </span>
-            <strong>{tr("まだサイトがありません")}</strong>
-            <p>{tr("最初のサイトを作って、編集を始めましょう。")}</p>
+            <strong>{tr("No sites yet")}</strong>
+            <p>{tr("Create your first site to start editing.")}</p>
             <button type="button" className="btn btn-primary" onClick={() => setDialog("new")}>
               <Plus size={14} />
-              {tr("新しいサイト")}
+              {tr("New site")}
             </button>
           </div>
         ) : shown.length === 0 ? (
-          <p className="home-none">{tr("「{q}」に当てはまるサイトはありません。", { q: query.trim() })}</p>
+          <p className="home-none">{tr("No sites match \"{q}\".", { q: query.trim() })}</p>
         ) : (
           <div className="home-grid">
             {shown.map((site) => (
@@ -842,7 +842,7 @@ export default function Home() {
         <div className="home-drop-overlay" aria-hidden="true">
           <div className="home-drop-overlay-content">
             <FileUp size={24} />
-            <span>{tr("ZIP・doc.json・HTMLをドロップしてインポート")}</span>
+            <span>{tr("Drop a ZIP, doc.json, or HTML file to import")}</span>
           </div>
         </div>
       )}

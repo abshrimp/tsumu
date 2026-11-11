@@ -7,7 +7,7 @@ import { serverTr } from "../../lib/i18n-server";
 
 export async function generateMetadata() {
   const tr = await serverTr();
-  return { title: tr("ログイン | Tsumu") };
+  return { title: tr("Sign in | Tsumu") };
 }
 
 /** ログイン画面の左に出す、エディタの画面の見本（飾り） */
@@ -82,15 +82,15 @@ export default async function LoginPage({
         <ul className="login-points">
           <li>
             <MousePointerClick size={15} />
-            {tr("見たままの画面で、文字や画像を直接編集")}
+            {tr("Edit text and images directly on the page")}
           </li>
           <li>
             <Smartphone size={15} />
-            {tr("スマホでの見え方も、その場で確かめて調整")}
+            {tr("Check and adjust the phone layout as you go")}
           </li>
           <li>
             <Globe size={15} />
-            {tr("できあがったら、ボタン1つでサイトに公開")}
+            {tr("Publish your site with a single click")}
           </li>
         </ul>
       </section>
@@ -101,19 +101,19 @@ export default async function LoginPage({
           <h1>Tsumu</h1>
           <p className="login-tagline">Design freely. Build openly.</p>
           <p className="login-desc">
-            {tr("Webサイトを見たまま編集して、そのまま公開できるエディタです。")}
+            {tr("Edit your website visually and publish it as is.")}
           </p>
           {error === "AccessDenied" ? (
             <p className="login-error" role="alert">
-              {tr("このGoogleアカウントは、まだ利用が許可されていません。管理者にアカウントの追加を依頼してください。")}
+              {tr("This Google account doesn't have access yet. Ask an administrator to add it.")}
             </p>
           ) : error ? (
             <p className="login-error" role="alert">
-              {tr("ログインできませんでした。時間をおいて、もう一度お試しください。")}
+              {tr("Couldn't sign in. Please wait a moment and try again.")}
             </p>
           ) : null}
-          <GoogleSignIn label={tr("Googleでログイン")} busyLabel={tr("Googleに移動しています…")} />
-          <p className="login-note">{tr("利用を許可されたGoogleアカウントでログインします。")}</p>
+          <GoogleSignIn label={tr("Sign in with Google")} busyLabel={tr("Redirecting to Google…")} />
+          <p className="login-note">{tr("Sign in with a Google account that has been granted access.")}</p>
         </div>
       </section>
     </main>

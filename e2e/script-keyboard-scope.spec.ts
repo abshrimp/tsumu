@@ -2,8 +2,10 @@ import { expect, test, type Page } from "@playwright/test";
 import { scriptKeyboardBundle } from "../tests/helpers/script-keyboard";
 
 let bundle: string;
-test.beforeAll(async () => { bundle = await scriptKeyboardBundle(); });
+test.beforeAll(async () => { bundle = await scriptKeyboardBundle({ localized: true }); });
 test.beforeEach(async ({ page }) => {
+  // Use an ordinary origin so the language cookie and dictionary load as in production.
+  await page.goto("/robots.txt");
   await page.setContent('<html><body><div id="app"></div></body></html>');
   await page.addScriptTag({ content: bundle });
   await expect(page.getByRole("dialog", { name: "スクリプト", exact: true })).toBeVisible();

@@ -42,7 +42,7 @@ function summarizeChanges(ops: AiOp[], before: SiteDoc, after: SiteDoc): AiChang
     const id = op.op === "update_page" ? "" : op.op === "insert" ? op.node.id : op.op === "duplicate" ? op.newId : op.id;
     if (id === undefined) continue;
     const node = id ? after.nodes[id] ?? before.nodes[id] : null;
-    const entry = byId.get(id) ?? { id: id || null, name: id ? node?.name || id : tr("ページ設定"), kinds: [] };
+    const entry = byId.get(id) ?? { id: id || null, name: id ? node?.name || id : tr("Page settings"), kinds: [] };
     const kind = opLabel(op.op);
     if (!entry.kinds.includes(kind)) entry.kinds.push(kind);
     if (id && !after.nodes[id]) entry.deleted = true;
@@ -109,10 +109,10 @@ export function useAiAvailability(): boolean {
 }
 
 const SUGGESTIONS = () => [
-  tr("選んでいる要素を中央にそろえて"),
-  tr("このページの上に、見出しと説明とボタンのあるヒーローセクションを作って"),
-  tr("スマホでは文字を少し小さく、余白を詰めて"),
-  tr("ボタンにホバーしたとき少し暗くなるようにして"),
+  tr("Center the selected element"),
+  tr("Add a hero section with a heading, a description and a button at the top of this page"),
+  tr("On phones, make the text a bit smaller and tighten the spacing"),
+  tr("Make the buttons slightly darker on hover"),
 ];
 
 /** 連続編集を分断せず、AIだけのUndoを作る。中止・履歴移動でも購読を解放する。 */
@@ -199,10 +199,10 @@ async function ask(text: string) {
       messages: [
         ...st.messages,
         { role: "assistant", text: controller.signal.aborted
-          ? tr("AIへの依頼を中止しました。変更は適用していません。")
+          ? tr("The AI request was stopped. No changes were applied.")
           : e instanceof AiEditConflict
-            ? tr("待機中に編集内容が変わったため、AIの変更は適用していません。もう一度依頼してください。")
-            : userMessage(e, tr("AIに問い合わせできませんでした")), error: true, activity: st.activity },
+            ? tr("The document changed while waiting, so the AI edits were not applied. Please ask again.")
+            : userMessage(e, tr("Couldn't reach AI")), error: true, activity: st.activity },
       ],
     }));
   } finally {
@@ -254,23 +254,23 @@ export default function AiChat() {
   };
 
   return (
-    <aside className="ai-panel" aria-label={tr("AIに頼む")}>
+    <aside className="ai-panel" aria-label={tr("Ask AI")}>
       <header className="ai-head">
         <Sparkles size={15} />
-        <strong>{tr("AIに頼む")}</strong>
+        <strong>{tr("Ask AI")}</strong>
         <span className="ai-head-sp" />
         {messages.length > 0 && (
           <button
             className="icon-btn"
-            aria-label={tr("会話を消す")}
-            data-tip={tr("会話を消す（編集内容はそのまま）")}
+            aria-label={tr("Clear conversation")}
+            data-tip={tr("Clear conversation (your edits stay)")}
             disabled={busy}
             onClick={() => useAi.setState({ messages: [] })}
           >
             <Trash2 size={13} />
           </button>
         )}
-        <button className="icon-btn" aria-label={tr("閉じる")} data-tip={tr("閉じる")} onClick={() => toggleAi(false)}>
+        <button className="icon-btn" aria-label={tr("Close")} data-tip={tr("Close")} onClick={() => toggleAi(false)}>
           <X size={14} />
         </button>
       </header>
@@ -279,7 +279,7 @@ export default function AiChat() {
         {!messages.length && (
           <div className="ai-empty">
             <p>
-              {tr("やりたいことを文章で頼むと、AIがページを編集します。結果は「元に戻す」（⌘Z）でいつでも取り消せます。")}
+              {tr("Describe what you want and AI edits the page. You can always undo the result with Undo (⌘Z).")}
             </p>
             <div className="ai-suggest">
               {SUGGESTIONS().map((s) => (
@@ -296,11 +296,11 @@ export default function AiChat() {
             <div key={i} className={`ai-msg is-${m.role}${m.error ? " is-error" : ""}`}>
               <p>{m.text}</p>
               {!!m.changes?.length && !m.undone && (
-                <ul className="ai-changes" aria-label={tr("変更した要素")}>
+                <ul className="ai-changes" aria-label={tr("Changed elements")}>
                   {m.changes.map((c) => (
                     <li key={c.id ?? ""}>
                       {c.id && !c.deleted && doc.nodes[c.id] ? (
-                        <button type="button" data-tip={tr("この要素を選ぶ")} onClick={() => revealNode(c.id!)}>{c.name}</button>
+                        <button type="button" data-tip={tr("Select this element")} onClick={() => revealNode(c.id!)}>{c.name}</button>
                       ) : (
                         <span className={`ai-changes-name${c.id ? " is-gone" : ""}`}>{c.name}</span>
                       )}
@@ -311,13 +311,13 @@ export default function AiChat() {
               )}
               {!!m.activity?.length && (
                 <details className="ai-activity-history">
-                  <summary>{tr("作業の記録")}</summary>
+                  <summary>{tr("Activity log")}</summary>
                   <AiActivity events={m.activity} />
                 </details>
               )}
               {!!m.ops && (
                 <div className="ai-msg-meta">
-                  <span>{m.undone ? tr("取り消しました") : tr("{n}件の変更を適用", { n: m.ops })}</span>
+                  <span>{m.undone ? tr("Undone") : tr("Applied {n} changes", { n: m.ops })}</span>
                   {canUndo && (
                     <button
                       onClick={() => {
@@ -328,7 +328,7 @@ export default function AiChat() {
                       }}
                     >
                       <RotateCcw size={11} />
-                      {tr("元に戻す")}
+                      {tr("Undo")}
                     </button>
                   )}
                 </div>
@@ -341,14 +341,14 @@ export default function AiChat() {
             <div className="ai-activity-head">
               <LoaderCircle size={13} className="spin" />
               <span role="status">{phaseLabel(phase)}</span>
-              <span className="ai-elapsed">{tr("{n}秒", { n: elapsed })}</span>
-              <button type="button" className="icon-btn" aria-label={tr("中止")} onClick={() => pendingRequest?.abort()}>
+              <span className="ai-elapsed">{tr("{n}s", { n: elapsed })}</span>
+              <button type="button" className="icon-btn" aria-label={tr("Stop")} onClick={() => pendingRequest?.abort()}>
                 <Square size={12} />
               </button>
             </div>
-            <p className="ai-activity-note">{tr("変更は完了後にまとめて反映します。")}</p>
+            <p className="ai-activity-note">{tr("Changes will be applied together when complete.")}</p>
             <AiActivity events={activity} live />
-            {elapsed >= 20 && <p className="ai-activity-note">{tr("応答を待っています。このまま待つか、中止できます。")}</p>}
+            {elapsed >= 20 && <p className="ai-activity-note">{tr("Waiting for the response. You can keep waiting or stop the request.")}</p>}
           </div>
         )}
       </div>
@@ -361,8 +361,8 @@ export default function AiChat() {
         }}
       >
         {selected && (
-          <span className="ai-sel" title={tr("「これ」「選んでいる要素」はこの要素を指します")}>
-            {tr("選択中: {name}", { name: selected.name })}
+          <span className="ai-sel" title={tr("\"This\" and \"the selected element\" refer to this element")}>
+            {tr("Selected: {name}", { name: selected.name })}
           </span>
         )}
         <div className="ai-input-row">
@@ -370,7 +370,7 @@ export default function AiChat() {
             ref={inputRef}
             value={input}
             rows={2}
-            placeholder={tr("例: 見出しをもっと大きく、太くして")}
+            placeholder={tr("e.g. Make the heading bigger and bolder")}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (isEnterKey(e) && !e.shiftKey) {
@@ -383,8 +383,8 @@ export default function AiChat() {
           <button
             type="submit"
             className="ai-send"
-            aria-label={tr("送信")}
-            data-tip={tr("送信（Enter）")}
+            aria-label={tr("Submit")}
+            data-tip={tr("Send (Enter)")}
             disabled={busy || !input.trim()}
           >
             <ArrowUp size={15} />

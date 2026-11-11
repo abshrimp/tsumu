@@ -104,7 +104,7 @@ export function cssValue(
       let id = "";
       try { id = decodeURIComponent(encoded); } catch { /* explicit error below */ }
       const name = assetNames.get(id);
-      if (!name || !zipStylesheet(doc.assets[id])) throw new Error(tr("ZIPのCSSデータを読み込めません。ZIPを再読み込みしてください。"));
+      if (!name || !zipStylesheet(doc.assets[id])) throw new Error(tr("The ZIP stylesheet data could not be read. Reimport the ZIP."));
       return `/assets/${name}`;
     });
     const rewrite = (text: string, entities = true) => {

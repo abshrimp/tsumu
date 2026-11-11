@@ -18,8 +18,8 @@ export function CustomCssSec({ node }: { node: DocNode }) {
   const updateTargets = useEditor((s) => s.updateTargets);
   return (
     <Sec
-      title={tr("カスタムCSS")}
-      info={tr("この要素に常に適用されるCSSを書けます。")}
+      title={tr("Custom CSS")}
+      info={tr("Write CSS that always applies to this element.")}
       defaultOpen={!!node.customCss}
       tutorialTarget="style-css"
       help="look-custom-css"
@@ -74,7 +74,7 @@ export function VisibilitySec({ node }: { node: DocNode }) {
   return (
     <div className="sec vis-sec" data-tutorial="style-visibility">
       <div className="vis-head">
-        <span className="grp-label">{tr("表示するデバイス")}</span>
+        <span className="grp-label">{tr("Show on devices")}</span>
         <div className="vis-toggles">
           {BP_ORDER.map((bp) => {
             const shown = !isHiddenAt(node, bp);
@@ -85,11 +85,11 @@ export function VisibilitySec({ node }: { node: DocNode }) {
                   bp === breakpoint ? " is-current" : ""
                 }`}
                 aria-pressed={shown}
-                aria-label={tr("{label}で表示", { label: BP_INFO[bp].label })}
+                aria-label={tr("View as {label}", { label: BP_INFO[bp].label })}
                 data-tip={
                   shown
-                    ? tr("{label}: 表示（クリックで非表示）", { label: BP_INFO[bp].label })
-                    : tr("{label}: 非表示（クリックで表示）", { label: BP_INFO[bp].label })
+                    ? tr("{label}: shown (click to hide)", { label: BP_INFO[bp].label })
+                    : tr("{label}: hidden (click to show)", { label: BP_INFO[bp].label })
                 }
                 onClick={() => setHiddenAt(node.id, bp, shown)}
               >
@@ -101,7 +101,7 @@ export function VisibilitySec({ node }: { node: DocNode }) {
       </div>
       {hiddenHere && (
         <p className="hint vis-note">
-          {tr("{label}では非表示のため、キャンバスには表示されません", { label: BP_INFO[breakpoint].label })}
+          {tr("Hidden on {label}, so it isn't shown on the canvas", { label: BP_INFO[breakpoint].label })}
         </p>
       )}
     </div>

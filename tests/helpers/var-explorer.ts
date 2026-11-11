@@ -29,7 +29,8 @@ export async function varExplorerBundle() {
       contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import SettingsPanel from "./components/SettingsPanel";
+import { loadLocale } from "./lib/i18n";
+let SettingsPanel;
 import { useEditor } from "./lib/store";
 useEditor.getState().replaceDoc(${JSON.stringify(varExplorerDoc())});
 useEditor.getState().setActivePage("p");
@@ -42,8 +43,11 @@ function Example() {
     <button id="outside">Outside</button>
   </>;
 }
-window.pickerRoot = createRoot(document.getElementById("app"));
-window.pickerRoot.render(<Example />);
+void loadLocale().then(async () => {
+  ({ default: SettingsPanel } = await import("./components/SettingsPanel"));
+  window.pickerRoot = createRoot(document.getElementById("app"));
+  window.pickerRoot.render(<Example />);
+});
 `,
       loader: "tsx", sourcefile: "var-explorer-browser.tsx", resolveDir: resolve("."),
     },

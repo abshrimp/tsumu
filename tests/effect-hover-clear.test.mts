@@ -72,6 +72,6 @@ test("base effect removal still deletes the property instead of forcing none", (
 test("right-click reset retains inheritance semantics", () => {
   const node = { ...makeBox(), styles: { base: { default: { backdropFilter: "blur(8px)" }, hover: { backdropFilter: "none" } } } };
   const view = renderEffects(node, "base", "hover");
-  view.fields.find(e => e.type === "Grp" && e.props.label === "背景ぼかし").props.onReset();
+  view.fields.find(e => e.type === "Grp" && e.props.label === "Background blur").props.onReset();
   assert.deepEqual(view.writes.at(-1), { backdropFilter: null });
 });

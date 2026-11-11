@@ -4,11 +4,11 @@ import DOMPurify from "dompurify";
 export function sanitizeClipboardSvg(source: string): string {
   // Reject XML entity declarations before parsing and bound oversized paste payloads.
   if (source.length > 2 * 1024 * 1024 || /<!\s*(?:doctype|entity)\b/i.test(source)) {
-    throw new Error(tr("SVGデータが壊れています"));
+    throw new Error(tr("The SVG data is corrupted"));
   }
   const start = source.search(/<svg\b/i);
   const end = source.toLowerCase().lastIndexOf("</svg>");
-  if (start < 0 || end < start) throw new Error(tr("SVGデータを読み取れませんでした"));
+  if (start < 0 || end < start) throw new Error(tr("Couldn't read the SVG data"));
 
   const raw = source.slice(start, end + 6);
   // DOMPurify sanitizes unsafe SVG markup before we apply the editor's stricter
@@ -27,7 +27,7 @@ export function sanitizeClipboardSvg(source: string): string {
   });
   const root = cleaned instanceof Element ? cleaned : null;
   const svg = root?.localName === "svg" ? root : root?.querySelector("svg");
-  if (!svg) throw new Error(tr("SVGではありません"));
+  if (!svg) throw new Error(tr("Not an SVG"));
 
   const blockedTags = new Set([
     "script", "foreignobject", "iframe", "object", "embed", "applet",
@@ -108,7 +108,7 @@ function dataUrlFile(dataUrl: string): File {
   // base64 image data rather than passing arbitrary clipboard input to fetch().
   const match = /^data:image\/(png|jpe?g|gif|webp|avif|bmp);base64,([A-Za-z0-9+/]*={0,2})$/i.exec(dataUrl);
   if (!match || match[2].length > 24 * 1024 * 1024) {
-    throw new Error(tr("SVGデータを読み取れませんでした"));
+    throw new Error(tr("Couldn't read the SVG data"));
   }
   const bytes = Uint8Array.from(atob(match[2]), (char) => char.charCodeAt(0));
   const mime = match[1].toLowerCase() === "jpg" ? "jpeg" : match[1].toLowerCase();

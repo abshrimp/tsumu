@@ -20,7 +20,7 @@ export const EXPORT_FRAMEWORK_OPTIONS: { value: ExportFormat; label: string }[] 
   { value: "nuxt", label: "Nuxt" },
   { value: "sveltekit", label: "SvelteKit" },
   { value: "html", label: "HTML / CSS / JavaScript" },
-  { value: "single-html", label: "単一のHTML" },
+  { value: "single-html", label: "Single HTML" },
 ];
 
 export type ExportLanguage = "typescript" | "javascript";
@@ -118,7 +118,7 @@ export function exportScopeDoc(doc: SiteDoc, options: ExportOptions): SiteDoc {
   if (options.scope === "project") return doc;
   const page = options.pageId && Object.prototype.hasOwnProperty.call(doc.pages, options.pageId)
     ? doc.pages[options.pageId] : undefined;
-  if (!page) throw new Error(tr("書き出すページを選択してください。"));
+  if (!page) throw new Error(tr("Select a page to export."));
   if (options.scope === "page") {
     // An explicitly selected page can be exported even when it is excluded
     // from whole-project publication. Otherwise the ZIP contains no page
@@ -129,7 +129,7 @@ export function exportScopeDoc(doc: SiteDoc, options: ExportOptions): SiteDoc {
   const node = options.nodeId && Object.prototype.hasOwnProperty.call(doc.nodes, options.nodeId)
     ? doc.nodes[options.nodeId] : undefined;
   if (!node || !pageContainsNode(doc, page, node.id)) {
-    throw new Error(tr("書き出すコンポーネントを選択してください。"));
+    throw new Error(tr("Select an element or component to export."));
   }
   let id = "__export_component__";
   while (doc.pages[id]) id += "_";
@@ -179,7 +179,7 @@ export function exportLimitations(
       /^(?:metadata-flavor|x-metadata-token)$/i.test(header.name.trim()))
   ));
   if (hasPublishCredentials(doc) || metadataHeaders) {
-    return [tr("データ取得に認証情報や秘密のAPIキー、または利用できない内部向けヘッダーが含まれています。Next.jsのサーバー側処理でも生成ソースや編集用ZIPに設定値が残ります。機密値を削除し、サーバー環境変数や安全なAPI中継を使用してください。")];
+    return [tr("The fetch settings contain credentials, a secret API key, or an unsupported internal-service header. Even server-side Next.js output can expose these values in generated source files or the editable ZIP. Remove sensitive values and use server environment variables or a secure API proxy.")];
   }
   if (options.framework === "nextjs") {
     // Route handlers for imported HTML cannot share a Next.js path with
@@ -196,7 +196,7 @@ export function exportLimitations(
     }
     if ([...routeKinds.values()].some(({ imported, regular }) =>
       imported > 1 || (imported > 0 && regular > 0))) {
-      return [tr("同じパスに取り込んだHTMLページと通常ページ、または複数の取り込んだHTMLページがあります。Next.jsでは同じルートに両方を書き出せません。ページのURLを分けてください。")];
+      return [tr("Imported HTML and regular pages, or multiple imported HTML pages, share a path. Next.js cannot export both to the same route. Give each page a different URL.")];
     }
     return [];
   }
@@ -271,7 +271,7 @@ export function generateExportProject(
   // Reject unsafe output *before* rendering secret-bearing values into source.
   const limitations = exportLimitations(scoped, { ...options, scope: "project" });
   if (limitations.length) {
-    throw new Error(tr("選択した形式では次の機能を利用できません。") + "\n" + limitations.join("\n"));
+    throw new Error(tr("This export format does not yet support these features:") + "\n" + limitations.join("\n"));
   }
   const next = generateProject(scoped, target);
   const generated = options.framework === "react"

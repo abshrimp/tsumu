@@ -8,7 +8,10 @@ export async function numberFieldBundle() {
       contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { NumField } from "./components/controls";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { NumField } = await import("./components/controls");
+
 window.numberFieldWrites = [];
 function Example() {
   const [value, setValue] = useState("100px");
@@ -25,6 +28,8 @@ function Example() {
   </>;
 }
 createRoot(document.getElementById("app")).render(<Example />);
+
+});
 `,
       loader: "tsx", sourcefile: "number-field-browser.tsx", resolveDir: resolve("."),
     },
@@ -40,9 +45,12 @@ export async function inspectorNumberBundle() {
       contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import RightPanel from "./components/RightPanel";
+
 import { useEditor } from "./lib/store";
 import { makeText } from "./lib/presets";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: RightPanel } = await import("./components/RightPanel");
 const doc = structuredClone(useEditor.getState().doc);
 const pageId = doc.pageOrder[0];
 doc.pageOrder = [pageId];
@@ -59,6 +67,8 @@ useEditor.getState().select("a");
 useEditor.getState().setRightTab("style");
 window.numericInspector = useEditor;
 createRoot(document.getElementById("app")).render(<RightPanel />);
+
+});
 `,
       loader: "tsx", sourcefile: "number-inspector-browser.tsx", resolveDir: resolve("."),
     },

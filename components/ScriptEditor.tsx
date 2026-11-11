@@ -76,13 +76,13 @@ export function ScriptSummary({
               className="ss-card"
               onClick={() => onOpen?.(s)}
               disabled={!onOpen}
-              data-tip={onOpen ? tr("クリックでスクリプトを編集") : undefined}
+              data-tip={onOpen ? tr("Click to edit scripts") : undefined}
             >
               <span className="ss-when">
                 <Ico icon={TrigIcon} cat="event" />
                 {element && <span className="ss-el">{element}</span>}
                 <span className="ss-trig">
-                  {s.trigger ? TRIGGER_LABELS[s.trigger] : tr("きっかけなし（実行されません）")}
+                  {s.trigger ? TRIGGER_LABELS[s.trigger] : tr("No trigger (won't run)")}
                 </span>
               </span>
               <ol className="ss-steps">
@@ -93,9 +93,9 @@ export function ScriptSummary({
                   </li>
                 ))}
                 {s.steps.length > MAX && (
-                  <li className="ss-more">{tr("ほか{n}件の動作", { n: s.steps.length - MAX })}</li>
+                  <li className="ss-more">{tr("and {n} more actions", { n: s.steps.length - MAX })}</li>
                 )}
-                {!s.steps.length && <li className="ss-more">{tr("動作がありません")}</li>}
+                {!s.steps.length && <li className="ss-more">{tr("No actions")}</li>}
               </ol>
             </button>
           </li>
@@ -180,7 +180,7 @@ export default function ScriptEditor(props: {
   onClose: () => void;
 }) {
   return (
-    <SafeBoundary label={tr("スクリプト画面")} onClose={props.onClose}>
+    <SafeBoundary label={tr("Script editor")} onClose={props.onClose}>
       <ScriptEditorInner {...props} />
     </SafeBoundary>
   );
@@ -278,7 +278,7 @@ function ScriptEditorInner({
     () =>
       nodeIds.map((id) => {
         const n = doc.nodes[id];
-        return { id, label: n.attrId ? tr("{name}（#{attrId}）", { name: n.name, attrId: n.attrId }) : n.name };
+        return { id, label: n.attrId ? tr("{name} (#{attrId})", { name: n.name, attrId: n.attrId }) : n.name };
       }),
     [doc, nodeIds]
   );
@@ -849,7 +849,7 @@ function ScriptEditorInner({
             )}
             {drag.payload.steps.length > 8 && (
               <span className="se-ghost-more">
-                {tr("ほか{n}件の動作", { n: drag.payload.steps.length - 8 })}
+                {tr("and {n} more actions", { n: drag.payload.steps.length - 8 })}
               </span>
             )}
           </div>
@@ -874,41 +874,41 @@ function ScriptEditorInner({
         className={`se${drag?.payload ? " is-dragging" : ""}`}
         data-tutorial="settings-link"
         role="dialog"
-        aria-label={tr("スクリプト")}
+        aria-label={tr("Scripts")}
         onClick={() => setMenu(null)}
       >
         <div className="se-header">
           <button
             className="se-close se-pal-toggle"
             onClick={togglePal}
-            aria-label={palOpen ? tr("ブロック一覧を閉じる") : tr("ブロック一覧を開く")}
+            aria-label={palOpen ? tr("Close block list") : tr("Open block list")}
             aria-pressed={palOpen}
-            data-tip={palOpen ? tr("ブロック一覧を閉じる") : tr("ブロック一覧を開く")}
+            data-tip={palOpen ? tr("Close block list") : tr("Open block list")}
           >
             {palOpen ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
           </button>
           <div className="se-title">
-            <h2>{tr("スクリプト")}</h2>
-            <p>{tr("ページ「{name}」のすべての要素のスクリプト", { name: page.name })}</p>
+            <h2>{tr("Scripts")}</h2>
+            <p>{tr("Scripts for all elements on \"{name}\"", { name: page.name })}</p>
           </div>
           <div className="se-tools">
             {selectedList.length > 1 && (
-              <span className="se-sel-count">{tr("{n}個を選択中", { n: selectedList.length })}</span>
+              <span className="se-sel-count">{tr("{n} selected", "n_selected_variant_1", { n: selectedList.length })}</span>
             )}
-            <div className="se-zoom" role="group" aria-label={tr("表示倍率")}>
+            <div className="se-zoom" role="group" aria-label={tr("Zoom")}>
               <button
                 className="se-close"
                 onClick={() => stepZoom(-1)}
                 disabled={zoom <= ZOOM_MIN}
-                aria-label={tr("縮小")}
-                data-tip={tr("縮小")} data-tip-kbd="⌘-"
+                aria-label={tr("Zoom out")}
+                data-tip={tr("Zoom out")} data-tip-kbd="⌘-"
               >
                 <Minus size={15} />
               </button>
               <button
                 className="se-zoom-val"
                 onClick={() => setZoom(1)}
-                data-tip={tr("100%に戻す")} data-tip-kbd="⌘0"
+                data-tip={tr("Reset to 100%")} data-tip-kbd="⌘0"
               >
                 {Math.round(zoom * 100)}%
               </button>
@@ -916,8 +916,8 @@ function ScriptEditorInner({
                 className="se-close"
                 onClick={() => stepZoom(1)}
                 disabled={zoom >= ZOOM_MAX}
-                aria-label={tr("拡大")}
-                data-tip={tr("拡大")} data-tip-kbd="⌘+"
+                aria-label={tr("Zoom in")}
+                data-tip={tr("Zoom in")} data-tip-kbd="⌘+"
               >
                 <Plus size={15} />
               </button>
@@ -927,8 +927,8 @@ function ScriptEditorInner({
               className="se-close"
               onClick={() => useEditor.getState().undo()}
               disabled={!canUndo}
-              aria-label={tr("取り消す")}
-              data-tip={tr("取り消す（⌘Z）")}
+              aria-label={tr("Remove")}
+              data-tip={tr("Undo (⌘Z)")}
             >
               <Undo2 size={16} />
             </button>
@@ -936,13 +936,13 @@ function ScriptEditorInner({
               className="se-close"
               onClick={() => useEditor.getState().redo()}
               disabled={!canRedo}
-              aria-label={tr("やり直す")}
-              data-tip={tr("やり直す（⇧⌘Z）")}
+              aria-label={tr("Redo")}
+              data-tip={tr("Redo (⇧⌘Z)")}
             >
               <Redo2 size={16} />
             </button>
             <span className="se-tools-sep" />
-            <button className="se-close" onClick={onClose} aria-label={tr("閉じる")}>
+            <button className="se-close" onClick={onClose} aria-label={tr("Close")}>
               <X size={16} />
             </button>
           </div>
@@ -961,7 +961,7 @@ function ScriptEditorInner({
             className={`se-pal-wrap${drag && isFromWorkspace(drag.payload) ? " is-trash-ready" : ""}${drag && isFromWorkspace(drag.payload) && inPaletteHint(drag, paletteRef.current) ? " is-trash" : ""}`}
           >
             <ScriptPalette begin={begin} />
-            <div className="se-trash">{tr("ここで離すと削除")}</div>
+            <div className="se-trash">{tr("Release here to delete")}</div>
           </div>
           {palOpen && (
             <div
@@ -1039,39 +1039,39 @@ function ScriptEditorInner({
             {!scripts.length && (
               <div className="se-empty">
                 <p>
-                  {tr("左の「きっかけ」をここへドラッグし、どの要素のきっかけかを選んでから、その下に動作のブロックをつなげます。")}
+                  {tr("Drag a trigger from the left onto this area, choose its element, then attach action blocks below it.")}
                 </p>
                 <p>
-                  {trNodes("例: 「［ボタン］クリックしたとき」{arrow}「［ページ］を開く」", { arrow: glyphs("→") })}
+                  {trNodes("Example: \"［Button］ When clicked\" {arrow} \"Open ［page］\"", { arrow: glyphs("→") })}
                 </p>
                 <p>
-                  {tr("データを表示するときは、「［URL］のデータを取得して［名前］とする」の下に「［値］を変数［］とする」をつなげて中身を取り出します（ページを開いたときに実行されます）。リストを入れた変数をリスト表示の設定で選ぶと、1件ずつ並びます。")}
+                  {tr("To show data, attach \"Set variable ［］ to ［value］\" under \"Fetch data from ［URL］ as ［name］\" to pull out what you need (it runs when the page opens). Choose a variable holding a list in a List display element's settings to show each item.")}
                 </p>
               </div>
             )}
           </div>
         </div>
         <div className="se-footer">
-          <span>{tr("ドラッグでつなげる・並べ替え")}</span>
+          <span>{tr("Drag to connect and reorder")}</span>
           <span>
-            <kbd>{glyphs("⇧")}</kbd>/<kbd>{glyphs("⌘")}</kbd>{tr("+クリック・空き部分のドラッグで複数選択")}
+            <kbd>{glyphs("⇧")}</kbd>/<kbd>{glyphs("⌘")}</kbd>{tr("+click or drag on empty space to multi-select")}
           </span>
           <span>
-            <kbd>Backspace</kbd>{tr("削除")}
+            <kbd>Backspace</kbd>{tr("Delete")}
           </span>
           <span>
-            <kbd>{glyphs("⌘A")}</kbd>{tr("全選択")}
+            <kbd>{glyphs("⌘A")}</kbd>{tr("Select all")}
           </span>
           <span>
             <kbd>{glyphs("⌘C")}</kbd>/<kbd>{glyphs("⌘X")}</kbd>/<kbd>{glyphs("⌘V")}</kbd>
-            {tr("コピー")}・{tr("切り取り")}・{tr("貼り付け")}
+            {tr("Copy")}・{tr("Cut")}・{tr("Paste")}
           </span>
           <span>
-            <kbd>{glyphs("⌘Z")}</kbd>/<kbd>{glyphs("⇧⌘Z")}</kbd>{tr("取り消し・やり直し")}
+            <kbd>{glyphs("⌘Z")}</kbd>/<kbd>{glyphs("⇧⌘Z")}</kbd>{tr("Undo/redo")}
           </span>
           <InfoTip
             style={{ marginLeft: "auto" }}
-            text={tr("「クリックしたとき」にページやURLを開くだけのスクリプトは、リンク（aタグ）として出力されます。\nストレージは localStorage → このサイトだけのクッキー → メモリ（ページを閉じると消える）の順に、使えるところへ保存します。")}
+            text={tr("Scripts that only open a page or URL \"When clicked\" are output as links (a tags).\nStorage uses localStorage, then a cookie for this site only, then memory (lost when the page closes), whichever is available.")}
           />
         </div>
         {peekStep && (
@@ -1082,7 +1082,7 @@ function ScriptEditorInner({
             }}
           >
             <Ctx.Provider value={ctx}>
-              <SafeBoundary label={tr("取得したデータ")} onClose={() => setPeekId(null)}>
+              <SafeBoundary label={tr("Fetched data")} onClose={() => setPeekId(null)}>
                 <PeekModal step={peekStep} scope={peekScope} onClose={() => setPeekId(null)} />
               </SafeBoundary>
             </Ctx.Provider>
@@ -1107,13 +1107,13 @@ function ScriptEditorInner({
             style={{ left: menu.x, top: menu.y }}
             onClick={(e) => e.stopPropagation()}
           >
-            <button onClick={() => runMenu("duplicate")}>{tr("複製")}</button>
+            <button onClick={() => runMenu("duplicate")}>{tr("Duplicate")}</button>
             <button className="is-danger" onClick={() => runMenu("delete")}>
               {menuCount > 1
-                ? tr("{menuCount}個のブロックを削除", { menuCount })
+                ? tr("Delete {menuCount} blocks", { menuCount })
                 : menu.target.type === "script"
-                  ? tr("スクリプトを削除")
-                  : tr("このブロックを削除")}
+                  ? tr("Delete script")
+                  : tr("Delete this block")}
             </button>
           </div>
         )}

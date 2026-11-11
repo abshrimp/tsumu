@@ -80,11 +80,11 @@ test("validated history JSON round-trips a SiteDoc but rejects poisoned restores
 
   const poison = JSON.parse(JSON.stringify(doc));
   Object.defineProperty(poison.nodes, "__proto__", { value: { poisoned: true }, enumerable: true });
-  assert.throws(() => validateImportedDoc(poison), /プロパティ/);
+  assert.throws(() => validateImportedDoc(poison), /invalid property names/i);
 
   const invalid = JSON.parse(JSON.stringify(doc));
   invalid.pageOrder = ["nonexistent-page"];
-  assert.throws(() => validateImportedDoc(invalid), /ページ|親子/);
+  assert.throws(() => validateImportedDoc(invalid), /page|hierarchy/i);
 });
 
 test("credential checks normalize header names exactly as executable fetch settings do", () => {

@@ -1,15 +1,22 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
 import { createInitialDoc } from "../lib/presets";
+import { loadLocale } from "../lib/i18n";
 import type { SiteDoc } from "../lib/types";
 import { browserDoc, setBrowserDoc } from "./helpers/browser-doc";
+
+// The fixture uses Japanese labels to find and replace the starter heading.
+test.beforeAll(async () => { await loadLocale(); });
 
 const canvas = (page: Page) => page.locator('[data-tutorial="canvas"]');
 const saved = (page: Page) => expect(page.getByText("サーバー保存済み")).toBeVisible();
 function fixture(label: string): SiteDoc {
   const doc = createInitialDoc();
   doc.siteName = label;
-  const heading = Object.values(doc.nodes).find((n) => n.text?.content.includes("見出しをここに"))!;
-  heading.text!.content = label;
+  const heading = Object.values(doc.nodes).find((n) =>
+    n.text?.content.includes("見出しをここに") || n.text?.content.includes("Your headline here")
+  );
+  if (!heading?.text) throw new Error("Starter hero heading not found in the test document");
+  heading.text.content = label;
   return doc;
 }
 async function createSite(page: Page, remote?: SiteDoc) {

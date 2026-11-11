@@ -3,13 +3,11 @@ import { test } from "node:test";
 import { EXPORT_FRAMEWORK_OPTIONS } from "../lib/export-formats";
 import { LOCALES } from "../lib/locales";
 
-// The labels are translated at render time with tr(option.label), which
-// i18n:check can't see. Japanese labels must still have an English entry.
-test("every non-ASCII export format label has an English translation", async () => {
-  const en = await LOCALES.en!();
-  for (const option of EXPORT_FRAMEWORK_OPTIONS) {
-    if (/^[\x20-\x7e]+$/.test(option.label)) continue;
-    assert.ok(Object.prototype.hasOwnProperty.call(en, option.label),
-      `missing English translation for export format label "${option.label}"`);
+// Dynamic format labels are not visible to the static i18n checker.
+test("all export format labels are English source text with Japanese translations", async () => {
+  const ja = await LOCALES.ja!();
+  for (const { label } of EXPORT_FRAMEWORK_OPTIONS) {
+    assert.doesNotMatch(label, /[぀-ヿ㐀-鿿]/, label);
   }
+  assert.equal(ja["Single HTML"], "単一のHTML");
 });

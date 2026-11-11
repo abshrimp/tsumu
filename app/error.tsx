@@ -10,14 +10,14 @@ export default function ErrorPage({ error, reset }: { error: Error; reset: () =>
   }, [error]);
   return (
     <div className="safe-page">
-      <h1>{tr("画面を表示できませんでした")}</h1>
-      <p>{tr("編集中のデータは保存されています。もう一度表示するか、ページを再読み込みしてください。")}</p>
+      <h1>{tr("Something went wrong")}</h1>
+      <p>{tr("Your work has been saved. Try again, or reload the page.")}</p>
       <div className="safe-fallback-actions">
         <button className="btn" onClick={reset}>
-          {tr("もう一度表示する")}
+          {tr("Try again")}
         </button>
         <button className="btn" onClick={() => location.reload()}>
-          {tr("再読み込み")}
+          {tr("Reload")}
         </button>
       </div>
     </div>

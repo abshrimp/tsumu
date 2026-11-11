@@ -19,8 +19,8 @@ export function ScriptPalette({ begin }: {
         <input
           type="search"
           className="se-pal-search-input"
-          aria-label={tr("操作を探す")}
-          placeholder={tr("操作を探す")}
+          aria-label={tr("Find an action")}
+          placeholder={tr("Find an action")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -36,7 +36,7 @@ export function ScriptPalette({ begin }: {
           <button
             type="button"
             className="se-pal-search-clear"
-            aria-label={tr("検索をクリア")}
+            aria-label={tr("Clear search")}
             onClick={() => setQuery("")}
           >
             <X size={13} />
@@ -64,7 +64,7 @@ export function ScriptPalette({ begin }: {
         );
       })}
       {items.length === 0 && (
-        <p className="se-pal-empty" role="status">{tr("一致する操作がありません")}</p>
+        <p className="se-pal-empty" role="status">{tr("No matching actions")}</p>
       )}
     </div>
   );

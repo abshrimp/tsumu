@@ -37,7 +37,7 @@ export async function POST(req: Request) {
   if (!conf.enabled) {
     console.warn("AI is unavailable:", conf.reason);
     return NextResponse.json(
-      { error: tr("AI機能は有効になっていません") },
+      { error: tr("AI isn't enabled") },
       { status: 503 }
     );
   }
@@ -47,21 +47,21 @@ export async function POST(req: Request) {
     parsed = parseAiRequest(await readAiRequest(req));
   } catch (error) {
     return NextResponse.json({ error: error instanceof RangeError
-      ? tr("ページが大きすぎるため、AIに送れません") : tr("リクエストが正しくありません") },
+      ? tr("This page is too large to send to AI") : tr("Invalid request", "invalid_request_variant_1") },
       { status: error instanceof RangeError ? 413 : 400 });
   }
   const { turns, context } = parsed;
   const failure = (e: unknown): string => {
     if (e instanceof AiApiError) {
       console.error("AI request failed", { kind: e.kind, status: e.status });
-      if (e.kind === "timeout") return tr("AIの応答が時間内に完了しませんでした。もう一度お試しください。");
-      if (e.kind === "incomplete") return tr("AIの編集を完了できませんでした。変更は適用していません。依頼を小さく分けてお試しください。");
-      if (e.kind === "auth") return tr("AIサービスに接続できませんでした。管理者に確認してください");
-      if (e.kind === "rate") return tr("AIの利用が混み合っています。少し待ってからお試しください");
-      return tr("AIに問い合わせできませんでした（{status}）", { status: e.status ?? "?" });
+      if (e.kind === "timeout") return tr("The AI response timed out. Please try again.");
+      if (e.kind === "incomplete") return tr("The AI couldn't complete the edit. No changes were applied. Try a smaller request.");
+      if (e.kind === "auth") return tr("Couldn't connect to the AI service. Contact your administrator");
+      if (e.kind === "rate") return tr("AI is busy right now. Please try again in a moment");
+      return tr("Couldn't reach AI ({status})", { status: e.status ?? "?" });
     }
     console.error("AI request failed unexpectedly", { kind: e instanceof Error ? e.name : typeof e });
-    return tr("AIに問い合わせできませんでした");
+    return tr("Couldn't reach AI");
   };
   const execute = async (emit: (event: AiProgress) => void, signal: AbortSignal): Promise<AiResult> => {
     const refs = new Map<string, string>();
@@ -93,8 +93,8 @@ export async function POST(req: Request) {
       };
     }, signal, emit);
     return {
-      reply: reply === null ? tr("この依頼には対応できませんでした。")
-        : reply || (operations.length ? tr("変更しました。") : tr("変更はありませんでした。")),
+      reply: reply === null ? tr("I couldn't help with this request.")
+        : reply || (operations.length ? tr("Done.") : tr("Nothing was changed.")),
       operations,
     };
   };

@@ -50,9 +50,12 @@ export async function fetchRefetchBundle() {
       contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import ScriptEditor from "./components/ScriptEditor";
+
 import { useEditor } from "./lib/store";
 import { previewDataVars } from "./lib/data";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: ScriptEditor } = await import("./components/ScriptEditor");
 useEditor.getState().replaceDoc(${JSON.stringify(fetchRefetchDoc())});
 window.refetchEditor = useEditor;
 window.refetchRequests = [];
@@ -73,6 +76,8 @@ function Fixture() {
   </>;
 }
 createRoot(document.getElementById("app")).render(<Fixture />);
+
+});
 `,
       loader: "tsx", sourcefile: "fetch-refetch-browser.tsx", resolveDir: resolve("."),
     },

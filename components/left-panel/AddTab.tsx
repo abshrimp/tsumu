@@ -65,14 +65,14 @@ export function AddTab() {
   const TargetIcon = targetKind === "inside" ? CornerDownRight : targetKind === "after" ? ArrowDownToLine : FileText;
   const targetLabel =
     selection === BODY_NODE_ID
-      ? tr("bodyの中")
+      ? tr("Inside body")
       : sel && point.parent.kind === "node" && point.parent.id === sel.id
-      ? tr("「{name}」の中", { name: sel.name })
+      ? tr("Inside \"{name}\"", { name: sel.name })
       : sel && findParentOf(doc, sel.id)
-        ? tr("「{name}」の後", { name: sel.name })
+        ? tr("After \"{name}\"", { name: sel.name })
       : editingComp
-        ? tr("コンポーネント「{name}」の中", { name: editingComp.name })
-        : tr("ページ直下");
+        ? tr("Inside component \"{name}\"", { name: editingComp.name })
+        : tr("Top level of the page");
   const components = Object.values(doc.components ?? {});
 
   return (
@@ -80,13 +80,13 @@ export function AddTab() {
       <div className="add-sec" style={{ paddingBottom: 4 }}>
         <div className="insert-target" data-tutorial="insert-target">
           <div className="insert-target-row">
-            <span className="insert-target-caption">{tr("挿入先")}</span>
+            <span className="insert-target-caption">{tr("Insert into")}</span>
             <Seg
               full={false}
               value={insertMode}
               options={[
-                { value: "inside", label: tr("中へ"), title: tr("選んだボックスの中の最後に追加します（中に入れられない要素なら後ろ）") },
-                { value: "after", label: tr("後ろへ"), title: tr("選んだ要素のすぐ後ろに、同じ階層の要素として追加します") },
+                { value: "inside", label: tr("Inside"), title: tr("Adds to the end of the selected box (or after it, if it can't contain elements)") },
+                { value: "after", label: tr("After"), title: tr("Adds right after the selected element, at the same level") },
               ]}
               onChange={(v) => setInsertMode(v as InsertMode)}
             />
@@ -107,7 +107,7 @@ export function AddTab() {
                 className="add-item"
                 data-tutorial={`add-element-${el.key}`}
                 draggable
-                data-tip={tr("クリックで挿入・キャンバスへドラッグでも置けます")}
+                data-tip={tr("Click to insert, or drag onto the canvas")}
                 onClick={() => insertOne(el.make())}
                 onDragStart={(e) => {
                   e.dataTransfer.setData(ELEMENT_DRAG_TYPE, el.key);
@@ -123,18 +123,18 @@ export function AddTab() {
       ))}
       <div className="add-sec" data-tutorial="add-components">
         <div className="add-title">
-          {tr("コンポーネント")}
-          <InfoTip text={tr("要素を右クリックして「コンポーネント化」で作れます。ヘッダーなど、複数のページで使い回す部品に使います。")} />
+          {tr("Components")}
+          <InfoTip text={tr("Right-click an element and choose \"Create component\". Use components for parts shared across pages, like headers.")} />
         </div>
         {components.length === 0 && (
-          <p className="hint" style={{ margin: 0 }}>{tr("まだありません")}</p>
+          <p className="hint" style={{ margin: 0 }}>{tr("None yet")}</p>
         )}
         {components.map((c) => (
           <div key={c.id} className="add-row comp-row">
             <button
               className="comp-insert"
               data-tip={
-                editingComp ? tr("ページの末尾に挿入（コンポーネントの編集を終えます）") : tr("挿入先に挿入")
+                editingComp ? tr("Insert at the end of the page (exits component editing)") : tr("Insert at the target")
               }
               onClick={() => {
                 insertInstance(c.id);
@@ -146,19 +146,19 @@ export function AddTab() {
             </button>
             <button
               className="layer-act is-active"
-              data-tip={tr("マスターを編集")}
+              data-tip={tr("Edit main component")}
               onClick={() => setEditingComponent(c.id)}
             >
               <Pencil size={12} />
             </button>
             <button
               className="layer-act is-active"
-              data-tip={tr("削除（すべてのインスタンスも削除）")}
+              data-tip={tr("Delete (also deletes every instance)")}
               onClick={async () => {
                 if (
-                  await confirmDeletion(() => showConfirm(tr("ページに置いた、このコンポーネントの使用箇所（インスタンス）もすべて削除されます。"), {
-                    title: tr("コンポーネント「{name}」を削除しますか？", { name: c.name }),
-                    okLabel: tr("削除"),
+                  await confirmDeletion(() => showConfirm(tr("Every instance of this component placed on pages will also be deleted."), {
+                    title: tr("Delete component \"{name}\"?", { name: c.name }),
+                    okLabel: tr("Delete"),
                     danger: true,
                   }))
                 ) {

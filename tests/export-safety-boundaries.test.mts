@@ -35,11 +35,11 @@ test("component export cannot select a stale node from a different page", () => 
   const site = doc();
   assert.ok(exportLimitations(site, { ...opts, nodeId: "secret" }).length > 0);
   assert.throws(() => exportScopeDoc(site, { ...opts, nodeId: "secret" }),
-    /書き出すコンポーネント/);
+    /Select an element or component to export/i);
   assert.throws(() => generateExportProject(site, { ...opts, nodeId: "secret" }),
-    /書き出すコンポーネント/);
+    /Select an element or component to export/i);
   assert.throws(() => exportScopeDoc(site, { ...opts, nodeId: "missing" }),
-    /書き出すコンポーネント/);
+    /Select an element or component to export/i);
 });
 
 test("descendant nodes and referenced component masters remain valid selections", () => {
@@ -59,9 +59,9 @@ test("descendant nodes and referenced component masters remain valid selections"
 test("inherited object properties never count as page or component nodes", () => {
   const site = doc();
   assert.throws(() => exportScopeDoc(site, { ...opts, nodeId: "toString" }),
-    /書き出すコンポーネント/);
+    /Select an element or component to export/i);
   assert.throws(() => exportScopeDoc(site, { ...opts, pageId: "constructor", nodeId: "visible" }),
-    /書き出すページ/);
+    /Select a page to export/i);
 });
 
 test("malformed cyclic child pointers terminate without widening export scope", () => {
@@ -69,7 +69,7 @@ test("malformed cyclic child pointers terminate without widening export scope", 
   site.nodes.visible.children = ["container"];
   assert.doesNotThrow(() => exportScopeDoc(site, { ...opts, nodeId: "visible" }));
   assert.throws(() => exportScopeDoc(site, { ...opts, nodeId: "secret" }),
-    /書き出すコンポーネント/);
+    /Select an element or component to export/i);
 });
 
 test("static query variants bootstrap authored scripts before the page engine", async () => {
@@ -358,12 +358,12 @@ test("Next.js refuses imported HTML route collisions before generating files", (
   site.pages.private.slug = "";
   site.pages.private.query = "tab=2";
   assert.ok(exportLimitations(site, "nextjs").some((reason) =>
-    reason.includes("同じパス")));
-  assert.throws(() => generateExportProject(site, "nextjs"), /同じパス/);
+    reason.includes("share a path")));
+  assert.throws(() => generateExportProject(site, "nextjs"), /share a path/);
 
   // Two imported pages with different queries still compile to one route.ts.
   site.pages.private.rawHtml = "<!doctype html><html><body>Other</body></html>";
-  assert.throws(() => generateExportProject(site, "nextjs"), /同じパス/);
+  assert.throws(() => generateExportProject(site, "nextjs"), /share a path/);
 
   // Different URLs are independent routes and remain supported.
   site.pages.private.slug = "other";
@@ -379,17 +379,17 @@ test("browser exports use decoded, deep credential scanning like GitHub Push", (
   }];
   for (const framework of ["react", "vue", "nuxt", "sveltekit", "html", "single-html"] as const) {
     assert.ok(exportLimitations(site, framework).some((reason) =>
-      reason.includes("APIキー")), framework + ": encoded query must be rejected");
+      reason.includes("secret API key")), framework + ": encoded query must be rejected");
   }
   const step = site.pages.public.pageScripts[0].steps[0];
   if (step.kind !== "fetch") throw new Error("Expected fetch fixture");
   step.url = "https://public.example/data";
   step.method = "POST";
   step.body = '{"nested":{"password":"literal"}}';
-  assert.ok(exportLimitations(site, "html").some((reason) => reason.includes("APIキー")),
+  assert.ok(exportLimitations(site, "html").some((reason) => reason.includes("secret API key")),
     "nested JSON must be rejected");
   step.body = "mode=public&client%5Fsecret=literal";
-  assert.ok(exportLimitations(site, "react").some((reason) => reason.includes("APIキー")),
+  assert.ok(exportLimitations(site, "react").some((reason) => reason.includes("secret API key")),
     "URL-encoded body fields must be rejected");
   step.body = undefined;
   step.headers = [{ name: "Authorization", value: "Bearer {private}" }];
@@ -417,12 +417,12 @@ test("every export, including Next.js SSR, rejects credentials before source gen
   }];
   assert.equal(hasPublishCredentials(site), true);
   for (const framework of ["nextjs", "react", "vue", "nuxt", "sveltekit", "html", "single-html"] as const) {
-    assert.ok(exportLimitations(site, framework).some(reason => reason.includes("編集用ZIP")),
+    assert.ok(exportLimitations(site, framework).some(reason => reason.includes("editable ZIP")),
       framework + ": a server-only fetch still exposes hardcoded credentials in source or archives");
     assert.throws(() => generateExportProject(site, framework),
-      /認証情報|APIキー/, framework);
+      /credentials|API key/i, framework);
   }
-  await assert.rejects(prepareExportProject(site, "nextjs"), /認証情報|APIキー/,
+  await assert.rejects(prepareExportProject(site, "nextjs"), /credentials|API key/i,
     "the shared async ZIP / GitHub Push entrypoint must fail closed");
 
   const step = site.pages.public.pageScripts![0].steps[0];

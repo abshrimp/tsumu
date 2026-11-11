@@ -48,7 +48,7 @@ async function belongsToHistory(
   if (sha === head) return true;
   const res = await gh(`/compare/${sha}...${head}`);
   if (res.status === 404 || res.status === 422) return false;
-  if (!res.ok) await fail(tr("指定した版の取得"), res);
+  if (!res.ok) await fail(tr("Fetching the selected version"), res);
   const data = (await res.json()) as { merge_base_commit?: { sha?: unknown } };
   // Merely existing in the repository does not authorize restoration.
   return data.merge_base_commit?.sha === sha;
@@ -87,11 +87,11 @@ export async function GET(req: Request) {
     const docSha = params.get("doc");
     if (docSha) {
       if (!isSha(docSha)) {
-        return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
+        return NextResponse.json({ error: tr("Invalid parameters") }, { status: 400 });
       }
       const current = await head();
       if (!current || !(await belongsToHistory(gh, fail, tr, docSha, current))) {
-        return NextResponse.json({ error: tr("この版には編集データが含まれていません") }, { status: 404 });
+        return NextResponse.json({ error: tr("This version doesn't include editor data") }, { status: 404 });
       }
       // raw で受け取り、パースせずにそのまま返す（大きな編集データでもCPU時間を使わない）
       const res = await gh(`/contents/${DOC_PATH}?ref=${docSha}`, {
@@ -99,11 +99,11 @@ export async function GET(req: Request) {
       });
       if (res.status === 404) {
         return NextResponse.json(
-          { error: tr("この版には編集データが含まれていません") },
+          { error: tr("This version doesn't include editor data") },
           { status: 404 }
         );
       }
-      if (!res.ok) await fail(tr("編集データの取得"), res);
+      if (!res.ok) await fail(tr("Fetching editor data"), res);
       return new NextResponse(res.body, {
         headers: { ...PRIVATE_NO_STORE, "Content-Type": "application/json; charset=utf-8" },
       });
@@ -112,7 +112,7 @@ export async function GET(req: Request) {
     const current = await head();
     if (!current) return NextResponse.json({ head: null, commits: [] }, { headers: PRIVATE_NO_STORE });
     const res = await gh(`/commits?sha=${current}&per_page=30`);
-    if (!res.ok) await fail(tr("履歴の取得"), res);
+    if (!res.ok) await fail(tr("Fetching history"), res);
     const list = (await res.json()) as {
       sha: string;
       html_url: string;
@@ -127,7 +127,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ head: current, commits }, { headers: PRIVATE_NO_STORE });
   } catch (e) {
     return NextResponse.json(
-      { error: tr(userMessage(e, "履歴を読み込めませんでした")) },
+      { error: tr(userMessage(e, "Couldn't load the history")) },
       { status: 502 }
     );
   }
@@ -149,10 +149,10 @@ export async function POST(req: Request) {
   } catch (error) {
     const status = error instanceof JsonBodyTooLargeError ? 413
       : error instanceof JsonContentTypeError ? 415 : 400;
-    return NextResponse.json({ error: tr(status === 413 ? "リクエストが大きすぎます" : "リクエストが正しくありません") }, { status });
+    return NextResponse.json({ error: tr(status === 413 ? "Request too large" : "Invalid request", status === 413 ? undefined : "invalid_request_variant_1") }, { status });
   }
   if (!isSha(body.sha)) {
-    return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 400 });
+    return NextResponse.json({ error: tr("Invalid parameters") }, { status: 400 });
   }
   const sha = body.sha;
   const target = parseTarget(body.target);
@@ -174,25 +174,25 @@ export async function POST(req: Request) {
   try {
     const current = await head();
     if (!current) {
-      return NextResponse.json({ error: tr("まだ公開されていません") }, { status: 404 });
+      return NextResponse.json({ error: tr("Not published yet") }, { status: 404 });
     }
     if (current !== body.expectedHead) return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
     if (!(await belongsToHistory(gh, fail, tr, sha, current))) {
-      return NextResponse.json({ error: tr("指定が正しくありません") }, { status: 404 });
+      return NextResponse.json({ error: tr("Invalid parameters") }, { status: 404 });
     }
     const srcRes = await gh(`/git/commits/${sha}`);
-    if (!srcRes.ok) await fail(tr("指定した版の取得"), srcRes);
+    if (!srcRes.ok) await fail(tr("Fetching the selected version"), srcRes);
     const src = (await srcRes.json()) as { tree: { sha: string }; message: string };
     // A rollback replaces the generated site, not manually maintained files.
     // Compare full snapshots and keep manual files added after the old commit.
     // Refuse partial trees, since an omitted file could otherwise be deleted.
     const readTree = async (commit: string): Promise<TreeEntry[]> => {
       const res = await gh(`/git/trees/${commit}?recursive=1`);
-      if (!res.ok) await fail(tr("ツリーの取得"), res);
+      if (!res.ok) await fail(tr("Fetching the tree"), res);
       const result = (await res.json()) as { tree?: TreeEntry[]; truncated?: boolean };
       if (result.truncated || !Array.isArray(result.tree) ||
           result.tree.some(entry => !isSafeCommitPath(entry.path))) {
-        throw new Error(tr("公開先のファイル一覧をすべて取得できなかったため、公開を中止しました"));
+        throw new Error(tr("Publishing stopped because the complete file list could not be retrieved from the destination"));
       }
       return result.tree;
     };
@@ -204,22 +204,22 @@ export async function POST(req: Request) {
     const sourceDoc = sourceEntries.find(entry => entry.path === DOC_PATH && entry.type === "blob");
     if (sourceDoc?.sha) {
       const docRes = await gh(`/git/blobs/${sourceDoc.sha}`);
-      if (!docRes.ok) await fail(tr("編集データの取得"), docRes);
+      if (!docRes.ok) await fail(tr("Fetching editor data"), docRes);
       const blob = (await docRes.json()) as { content?: unknown; encoding?: unknown };
       if (typeof blob.content !== "string" || (blob.encoding && blob.encoding !== "base64")) {
-        return NextResponse.json({ error: tr("編集データの形式ではありません") }, { status: 400 });
+        return NextResponse.json({ error: tr("Not an editor data file") }, { status: 400 });
       }
       const bytes = Buffer.from(blob.content, "base64");
       if (bytes.byteLength > 12 * 1024 * 1024) {
-        return NextResponse.json({ error: tr("doc.jsonが大きすぎます。") }, { status: 400 });
+        return NextResponse.json({ error: tr("doc.json exceeds the size limit.") }, { status: 400 });
       }
       let doc: unknown;
       try { doc = JSON.parse(bytes.toString("utf8")); } catch {
-        return NextResponse.json({ error: tr("編集データの形式ではありません") }, { status: 400 });
+        return NextResponse.json({ error: tr("Not an editor data file") }, { status: 400 });
       }
       if (hasPublishCredentials(doc as Parameters<typeof hasPublishCredentials>[0])) {
         return NextResponse.json({
-          error: tr("認証情報を含む編集データはGitHubへPushできません。APIキーやパスワードを削除し、サーバーの環境変数などで管理してください。"),
+          error: tr("Cannot push editable data containing credentials to GitHub. Remove API keys or passwords and manage them with server environment variables instead."),
         }, { status: 400 });
       }
     }
@@ -241,13 +241,13 @@ export async function POST(req: Request) {
       const sha = blobs[GENERATED_MANIFEST_PATH];
       if (!sha) return null;
       const res = await gh(`/git/blobs/${sha}`);
-      if (!res.ok) await fail(tr("ツリーの取得"), res);
+      if (!res.ok) await fail(tr("Fetching the tree"), res);
       const data = (await res.json()) as { content?: unknown; encoding?: unknown };
       if (typeof data.content !== "string" || (data.encoding && data.encoding !== "base64")) {
-        throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
+        throw new Error(tr("Publishing stopped because the generated file manifest is invalid."));
       }
       const parsed = parseGeneratedManifest(Buffer.from(data.content, "base64").toString("utf8"));
-      if (!parsed) throw new Error(tr("公開ファイル一覧が壊れているため、公開を中止しました"));
+      if (!parsed) throw new Error(tr("Publishing stopped because the generated file manifest is invalid."));
       return parsed;
     };
     const generated = await readGenerated(currentBlobs);
@@ -269,7 +269,7 @@ export async function POST(req: Request) {
     if (!kept || conflictingCommitPaths([
       ...sourcePaths.filter(path => !isProtectedPath(path) && !deletedPaths.has(path)), ...keptPaths,
     ])) {
-      return NextResponse.json({ error: tr("公開できないファイルの場所が含まれています") }, { status: 409 });
+      return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 409 });
     }
     // Preserve .github as a whole subtree. Do not also write its nested files
     // in this Git Trees API request; that could replace the subtree.
@@ -313,7 +313,7 @@ export async function POST(req: Request) {
         method: "POST",
         body: JSON.stringify({ base_tree: treeSha, tree: changes }),
       });
-      if (!treeRes.ok) await fail(tr("ツリーの作成"), treeRes);
+      if (!treeRes.ok) await fail(tr("Creating the tree"), treeRes);
       treeSha = ((await treeRes.json()) as { sha: string }).sha;
     }
     const commitRes = await gh(`/git/commits`, {
@@ -324,11 +324,11 @@ export async function POST(req: Request) {
         parents: [current],
       }),
     });
-    if (!commitRes.ok) await fail(tr("コミットの作成"), commitRes);
+    if (!commitRes.ok) await fail(tr("Creating the commit"), commitRes);
     const commitSha = (await commitRes.json()).sha as string;
     if (!(await advanceBranchRef(gh, fail, conf.branch, commitSha, true, tr))) {
       return NextResponse.json(
-        { error: tr("ほかの公開と重なりました。履歴を読み込み直してから、もう一度お試しください") },
+        { error: tr("Another publish happened at the same time. Reload the history and try again") },
         { status: 409 }
       );
     }
@@ -346,7 +346,7 @@ export async function POST(req: Request) {
     });
   } catch (e) {
     return NextResponse.json(
-      { error: tr(userMessage(e, "ロールバックできませんでした")) },
+      { error: tr(userMessage(e, "Couldn't roll back")) },
       { status: 502 }
     );
   }

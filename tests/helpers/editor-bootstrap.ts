@@ -9,10 +9,13 @@ export async function editorBootstrapBundle(browser = false) {
     stdin: {
       contents: browser ? `
         import React from 'react'; import { createRoot } from 'react-dom/client';
-        import Editor from './components/Editor'; import { useEditor } from './lib/store';
+        import { loadLocale } from './lib/i18n'; import { useEditor } from './lib/store';
+        void loadLocale().then(async () => {
+          const { default: Editor } = await import('./components/Editor');
         const root = createRoot(document.getElementById('app'));
         window.pasteEditor = useEditor; window.unmountPasteEditor = () => root.unmount();
         root.render(<React.StrictMode><Editor /></React.StrictMode>);
+        });
       ` : `export { default as Editor } from './components/Editor'; export { useEditor } from './lib/store'; export { createInitialDoc } from './lib/presets';`,
       resolveDir: repo, loader: "tsx",
     },

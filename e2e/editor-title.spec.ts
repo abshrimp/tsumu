@@ -51,7 +51,7 @@ test("Editor errors and retries preserve the site name in the page title", async
   await expect.poll(() => page.evaluate(() => (window as any).metadataReady)).toBe(true);
   await expect(page).toHaveTitle("Recovery title | Tsumu");
   await page.evaluate(() => { (window as any).titleEditorFailed = false; });
-  await page.getByRole("button", { name: "もう一度表示する", exact: true }).click();
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(page.locator("[data-editor-ready]")).toBeVisible();
   await expect(page.locator(".safe-page")).toHaveCount(0);
   await expect(page).toHaveTitle("Recovery title | Tsumu");

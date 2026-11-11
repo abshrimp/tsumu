@@ -42,7 +42,7 @@ import { Phrase, TextIn } from "./inputs";
 /** テスト実行で明示的に送る。未解決の値を空文字や仮の slug に置き換えない。 */
 export async function fetchWhole(url: string, options: FetchOptions = {}, vars: Vars = {}): Promise<unknown> {
   if (fetchPreviewInputs(url, options, vars).some((input) => input.missing)) {
-    throw new Error(tr("テスト用の値を入力してください"));
+    throw new Error(tr("Enter test values to continue"));
   }
   const resolved = interpolateUrl(url, vars);
   const res = await fetch("/api/fetch-json", {
@@ -51,7 +51,7 @@ export async function fetchWhole(url: string, options: FetchOptions = {}, vars: 
     body: JSON.stringify({ url: resolved, ...fetchRequestOf(options, vars) }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? tr("読み込めませんでした（{status}）", { status: res.status }));
+  if (!res.ok) throw new Error(data.error ?? tr("Couldn't load ({status})", { status: res.status }));
   return data.json;
 }
 
@@ -180,14 +180,14 @@ export function useRefetch(step: FetchStep, suppliedScope?: FetchPreviewScope) {
       return saved;
     } catch (e) {
       if (!isCurrent()) return false;
-      const msg = userMessage(e, tr("読み込めませんでした"));
-      requestErrors.set(owner, { key, message: msg.includes(tr("JSONとして読み取れませんでした"))
-        ? tr("データを読み取れませんでした。WebページではなくJSONを返すURLか確認してください") : msg });
+      const msg = userMessage(e, tr("Couldn't load"));
+      requestErrors.set(owner, { key, message: msg.includes(tr("Couldn't parse it as JSON"))
+        ? tr("Couldn't read the data. Make sure the URL returns JSON, not a web page") : msg });
       return false;
     } finally {
       unsubscribe();
       if (!valid && useEditor.getState().documentSession === session && activeRefetches.get(owner) === token) {
-        requestErrors.set(owner, { key, message: tr("送信済みですが、文書の変更により結果を反映していません") });
+        requestErrors.set(owner, { key, message: tr("The request was sent, but its result was not applied because the document changed") });
       }
       if (pending.get(key) === token) pending.delete(key);
       if (!pending.size) pendingRefetches.delete(owner);
@@ -234,14 +234,14 @@ function FetchValues({ state, busy }: { state: ReturnType<typeof useFetchValues>
   return <>
     {inputs.filter((input) => input.missing).map((input) => <label key={input.name} className="se-fetch-test-value">
       <code>{`{${input.name}}`}</code>
-      <input className="se-in" aria-label={tr("{name} のテスト用の値", { name: input.name })}
-        placeholder={tr("テスト用の値")} disabled={busy} value={values[input.name] ?? ""}
+      <input className="se-in" aria-label={tr("Test value for {name}", { name: input.name })}
+        placeholder={tr("Test value")} disabled={busy} value={values[input.name] ?? ""}
         onChange={(e) => setValue(input.name, e.target.value)} />
       {!Object.hasOwn(values, input.name) && <button type="button" className="se-mini se-mini-text"
-        onClick={() => setValue(input.name, "")}>{tr("空の値を使う")}</button>}
+        onClick={() => setValue(input.name, "")}>{tr("Use an empty value")}</button>}
     </label>)}
-    {inputs.some((input) => input.missing) && <p className="hint">{tr("テスト用の値は保存されません")}</p>}
-    {state.invalid && <p className="se-badge is-warn">{tr("JSONとして読み取れません")}</p>}
+    {inputs.some((input) => input.missing) && <p className="hint">{tr("Test values are not saved")}</p>}
+    {state.invalid && <p className="se-badge is-warn">{tr("Not valid JSON")}</p>}
   </>;
 }
 
@@ -263,7 +263,7 @@ export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: 
   const method = step.method ?? "GET";
   const destination = state.missing ? step.url : interpolateUrl(step.url, state.vars);
   return <div ref={dialogRef} className="se-modal se-fetch-test" role="dialog" aria-modal="true"
-    aria-label={tr("取得したデータ")} data-se-popover=""
+    aria-label={tr("Fetched data")} data-se-popover=""
     onCompositionStartCapture={() => { composing.current = true; }}
     onCompositionEndCapture={() => { composing.current = false; }}
     onKeyDown={(e) => {
@@ -278,8 +278,8 @@ export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: 
       }
     }}>
     <div className="se-modal-head">
-      <h3>{tr("取得したデータ")}</h3>
-      <button type="button" className="se-close" aria-label={tr("取得し直す")}
+      <h3>{tr("Fetched data")}</h3>
+      <button type="button" className="se-close" aria-label={tr("Fetch again")}
         title={`${method} ${destination}`} disabled={busy || state.missing || state.invalid || !step.url.trim()}
         onPointerDown={(e) => {
           blockedClick.current = composing.current;
@@ -289,23 +289,23 @@ export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: 
           if (composing.current || blockedClick.current) { blockedClick.current = false; return; }
           void run(step.url, step, state.prepare());
         }}><RefreshCw size={15} /></button>
-      <button type="button" className="se-close" onClick={onClose} aria-label={tr("閉じる")}><X size={16} /></button>
+      <button type="button" className="se-close" onClick={onClose} aria-label={tr("Close")}><X size={16} /></button>
     </div>
-    <div className="se-fetch-destination"><b>{method}</b><span>{destination}</span><small>{tr("現在の設定の送信先")}</small></div>
-    {submitted && (submitted.url !== destination || submitted.method !== method) && (!resultSource || submitted.url !== resultSource.url || submitted.method !== resultSource.method) && <p className="hint se-fetch-submitted">{tr("最後に送信")}: {submitted.method} {submitted.url}</p>}
+    <div className="se-fetch-destination"><b>{method}</b><span>{destination}</span><small>{tr("Destination for current settings")}</small></div>
+    {submitted && (submitted.url !== destination || submitted.method !== method) && (!resultSource || submitted.url !== resultSource.url || submitted.method !== resultSource.method) && <p className="hint se-fetch-submitted">{tr("Last request")}: {submitted.method} {submitted.url}</p>}
     <FetchValues state={state} busy={busy} />
     {!state.missing && (step.headers?.length || sendsBody(step.method) && step.body) ? <details className="se-fetch-payload">
-      <summary>{tr("送る内容")}</summary><pre>{JSON.stringify(fetchRequestOf(step, state.vars), null, 2)}</pre>
+      <summary>{tr("Request contents")}</summary><pre>{JSON.stringify(fetchRequestOf(step, state.vars), null, 2)}</pre>
     </details> : null}
-    {method !== "GET" && <p className="se-badge is-warn">{tr("この送信は接続先のデータを変更する場合があります")}</p>}
-    {busy && <p role="status">{tr("送信中…")}</p>}
+    {method !== "GET" && <p className="se-badge is-warn">{tr("This request may change data at the destination")}</p>}
+    {busy && <p role="status">{tr("Sending…")}</p>}
     {error && <p className="se-badge is-warn" role="alert">{error}</p>}
     {step.preview?.sample !== undefined && <>
-      {resultSource && (resultSource.url !== destination || resultSource.method !== method) && <p className="hint se-fetch-result-source">{tr("この結果の送信先")}: {resultSource.method} {resultSource.url}</p>}
-      {!hasCurrentSample(step) && <p className="se-badge is-warn">{tr("現在の設定で未確認の見本です")}</p>}
+      {resultSource && (resultSource.url !== destination || resultSource.method !== method) && <p className="hint se-fetch-result-source">{tr("Result request destination")}: {resultSource.method} {resultSource.url}</p>}
+      {!hasCurrentSample(step) && <p className="se-badge is-warn">{tr("This sample has not been verified with the current settings.")}</p>}
       {!full && <p className="hint">{truncatedSample
-        ? tr("見本にはリストの先頭20件のみ保存されています。全件を見るには右上の「取得し直す」で再取得してください。")
-        : tr("保存された見本を表示しています。")}</p>}
+        ? tr("Only the first 20 items of each list are saved in the sample. To view all items, use Fetch again in the top-right corner.")
+        : tr("Showing the saved sample.")}</p>}
       <JsonPeek value={full ? wholeCache.get(key) : step.preview?.sample} />
     </>}
   </div>;
@@ -321,7 +321,7 @@ function FetchOptionsPanel({ step, onChange }: { step: FetchStep; onChange: (pat
   return (
     <div className="se-fetch-opts">
       <div className="se-fetch-row">
-        <span className="se-fetch-label">{tr("メソッド")}</span>
+        <span className="se-fetch-label">{tr("Method")}</span>
         <select
           className="se-in"
           value={method}
@@ -335,19 +335,19 @@ function FetchOptionsPanel({ step, onChange }: { step: FetchStep; onChange: (pat
         </select>
       </div>
       <div className="se-fetch-row is-top">
-        <span className="se-fetch-label">{tr("ヘッダー")}</span>
+        <span className="se-fetch-label">{tr("Header")}</span>
         <div className="se-fetch-list">
           {headers.map((h, i) => (
             <div key={i} className="se-fetch-header">
               <TextIn
                 value={h.name}
-                placeholder={tr("名前")}
+                placeholder={tr("Name")}
                 width={130}
                 onCommit={(v) => setHeader(i, { name: v.trim() })}
               />
               <TextIn
                 value={h.value}
-                placeholder={tr("値 / {変数}")}
+                placeholder={tr("value / {variable}")}
                 vars
                 width={150}
                 onCommit={(v) => setHeader(i, { value: v })}
@@ -355,7 +355,7 @@ function FetchOptionsPanel({ step, onChange }: { step: FetchStep; onChange: (pat
               <button
                 type="button"
                 className="se-mini"
-                data-tip={tr("このヘッダーを削除")}
+                data-tip={tr("Remove this header")}
                 onClick={() => onChange({ headers: headers.filter((_, j) => j !== i) })}
               >
                 <X size={12} />
@@ -368,13 +368,13 @@ function FetchOptionsPanel({ step, onChange }: { step: FetchStep; onChange: (pat
             onClick={() => onChange({ headers: [...headers, { name: "", value: "" }] })}
           >
             <Plus size={12} />
-            {tr("ヘッダーを追加")}
+            {tr("Add header")}
           </button>
         </div>
       </div>
       {sendsBody(method) && (
         <div className="se-fetch-row is-top">
-          <span className="se-fetch-label">{tr("送るJSON")}</span>
+          <span className="se-fetch-label">{tr("JSON body")}</span>
           <div className="se-fetch-list">
             <textarea
               key={step.body ?? ""}
@@ -387,12 +387,12 @@ function FetchOptionsPanel({ step, onChange }: { step: FetchStep; onChange: (pat
                 if (e.target.value !== (step.body ?? "")) onChange({ body: e.target.value || undefined });
               }}
             />
-            {bodyError && <span className="se-badge is-warn">{tr("JSONとして読み取れません")}</span>}
+            {bodyError && <span className="se-badge is-warn">{tr("Not valid JSON")}</span>}
           </div>
         </div>
       )}
       <p className="se-fetch-hint">
-        {tr("ヘッダーと本文は、公開したサイトのサーバーで送ります。値は公開するプロジェクトのコードに含まれるため、秘密のキーを入れるときはリポジトリを非公開にしてください。")}
+        {tr("Headers and the body are sent from the published site's server. The values are included in the published project's code, so keep the repository private if you put secret keys here.")}
       </p>
     </div>
   );
@@ -423,18 +423,18 @@ export function FetchBody({ step }: { step: FetchStep }) {
           url: (
             <TextIn
               value={step.url}
-              placeholder={tr("https://~（{slug} などの変数も使えます）")}
+              placeholder={tr("https://~ (variables like {slug} work too)")}
               vars
               width={240}
               onCommit={(v) => {
                 const url = v.trim();
                 updateStep(step.id, (s) => s.kind === "fetch" ? changeFetchRequest(s, { url }, pageId, scope) : s);
                 // 名前が空なら付けておく
-                if (url && !step.as) renameVar(step.id, "", uniqueVarName(doc, pageId, trc("変数名", "データ"), step.id));
+                if (url && !step.as) renameVar(step.id, "", uniqueVarName(doc, pageId, trc("variable_name", "data"), step.id));
               }}
             />
           ),
-          as: <VarNameIn stepId={step.id} value={step.as ?? ""} placeholder={tr("名前")} />,
+          as: <VarNameIn stepId={step.id} value={step.as ?? ""} placeholder={tr("Name")} />,
         }}
       />
       <button type="button" className="se-mini se-mini-text"
@@ -452,7 +452,7 @@ export function FetchBody({ step }: { step: FetchStep }) {
           if (!hasResult && !busy) void run(step.url, step, values.prepare());
         }}>
         {hasResult ? <Table2 size={12} /> : <Play size={12} />}
-        {busy ? tr("送信中…") : hasResult ? tr("データを見る") : tr("データ取得")}
+        {busy ? tr("Sending…") : hasResult ? tr("View data") : tr("Fetch data")}
       </button>
       <button
         type="button"
@@ -461,10 +461,10 @@ export function FetchBody({ step }: { step: FetchStep }) {
         onClick={() => setOpen((v) => !v)}
       >
         <SlidersHorizontal size={12} />
-        {customized ? tr("リクエストの設定（{method}）", { method: step.method ?? "GET" }) : tr("リクエストの設定")}
+        {customized ? tr("Request settings ({method})", { method: step.method ?? "GET" }) : tr("Request settings")}
       </button>
       {!hasResult && <FetchValues state={values} busy={busy} />}
-      {step.method && step.method !== "GET" && <span className="se-badge is-warn">{tr("この送信は接続先のデータを変更する場合があります")}</span>}
+      {step.method && step.method !== "GET" && <span className="se-badge is-warn">{tr("This request may change data at the destination")}</span>}
       {open && (
         <>
           <span className="se-br" />
@@ -486,9 +486,9 @@ function childOptions(value: unknown): PathOption[] {
   if (Array.isArray(value)) {
     const out: PathOption[] = value
       .slice(0, 20)
-      .map((v, i) => ({ key: String(i), label: tr("{p1}番目", { p1: i + 1 }), value: v }));
+      .map((v, i) => ({ key: String(i), label: tr("#{p1}", { p1: i + 1 }), value: v }));
     if (value.length > 1) {
-      out.push({ key: "-1", label: tr("最後"), value: value[value.length - 1] });
+      out.push({ key: "-1", label: tr("Last"), value: value[value.length - 1] });
     }
     return out;
   }
@@ -500,8 +500,8 @@ function childOptions(value: unknown): PathOption[] {
 
 /** 中身の分からないリスト（画面を開いてから値が決まるもの）の位置の選択肢 */
 const UNKNOWN_ITEMS: PathOption[] = [
-  ...[0, 1, 2, 3, 4].map((i) => ({ key: String(i), label: tr("{p1}番目", { p1: i + 1 }), value: undefined })),
-  { key: "-1", label: tr("最後"), value: undefined },
+  ...[0, 1, 2, 3, 4].map((i) => ({ key: String(i), label: tr("#{p1}", { p1: i + 1 }), value: undefined })),
+  { key: "-1", label: tr("Last"), value: undefined },
 ];
 
 export const isNested = (v: unknown) => v != null && typeof v === "object";
@@ -577,10 +577,10 @@ export function PathMenu({
         value={path}
         placeholder={
           mode === "list"
-            ? tr("リストの位置")
+            ? tr("List path")
             : mode === "field"
-              ? tr("項目名")
-              : tr("位置")
+              ? tr("Field name")
+              : tr("Position")
         }
         width={120}
         onCommit={(v) => onChange(v.trim())}
@@ -608,12 +608,12 @@ export function PathMenu({
   const label = path
     ? fieldLabel(path)
     : placeholder ?? (mode === "list"
-      ? tr("リストを選択")
+      ? tr("Select a list", "select_a_list_variant_1")
       : mode === "item"
-        ? tr("位置を選択")
+        ? tr("Select a path")
         : mode === "field"
-          ? tr("項目を選択")
-          : tr("全体"));
+          ? tr("Select a field")
+          : tr("Everything"));
 
   const show = () => {
     const r = btnRef.current?.getBoundingClientRect();
@@ -657,7 +657,7 @@ export function PathMenu({
                 <button
                   type="button"
                   className="se-pm-back"
-                  aria-label={tr("ひとつ上へ")}
+                  aria-label={tr("Up one level")}
                   onClick={() => setAt(at.split(".").slice(0, -1).join("."))}
                 >
                   <ChevronLeft size={13} />
@@ -672,7 +672,7 @@ export function PathMenu({
                 className={`dd-item${path === at ? " is-sel" : ""}`}
                 onClick={() => pick(at)}
               >
-                <span className="se-pm-key">{at ? tr("ここ全体") : tr("全体")}</span>
+                <span className="se-pm-key">{at ? tr("All of this") : tr("Everything")}</span>
                 <span className="se-pm-val">{readableValue(levelValue)}</span>
               </button>
             )}
@@ -695,7 +695,7 @@ export function PathMenu({
                     <button
                       type="button"
                       className="se-pm-enter"
-                      aria-label={tr("{label} の中を見る", { label: o.label })}
+                      aria-label={tr("Look inside {label}", { label: o.label })}
                       onClick={() => setAt(full)}
                     >
                       <ChevronRight size={13} />
@@ -704,9 +704,9 @@ export function PathMenu({
                 </div>
               );
             })}
-            {known && !rows.length && <div className="se-pm-none">{tr("中に項目がありません")}</div>}
+            {known && !rows.length && <div className="se-pm-none">{tr("No fields inside")}</div>}
             {mode === "list" && known && !at && !findsList(root) && (
-              <div className="se-pm-none">{tr("リストが見つかりません")}</div>
+              <div className="se-pm-none">{tr("No list found")}</div>
             )}
           </div>,
           document.body
@@ -729,7 +729,7 @@ export const RESERVED_VARS = new Set(["slug", ITEM_VALUE, "ループ"]);
 export function VarNameIn({
   stepId,
   value,
-  placeholder = tr("名前"),
+  placeholder = tr("Name"),
 }: {
   stepId: string;
   value: string;
@@ -854,7 +854,7 @@ export function VarNameIn({
         matches.length > 0 &&
         createPortal(
           <div ref={menuRef} className="dd-menu var-comp" style={pos} data-se-popover="" onMouseDown={(e) => e.preventDefault()}>
-            <div className="var-comp-head">{tr("既存の変数を上書き")}</div>
+            <div className="var-comp-head">{tr("Overwrite an existing variable")}</div>
             <div className="var-comp-list">
               {matches.map((name, i) => (
                 <button
@@ -878,9 +878,9 @@ export function VarNameIn({
       {overwrite && (
         <span
           className="se-badge"
-          data-tip={tr("同じ名前の変数がほかのブロックにもあります。後から動いたブロックの値で上書きされます")}
+          data-tip={tr("Another block uses the same variable name. Whichever block runs last wins")}
         >
-          {tr("上書き")}
+          {tr("Overwrites")}
         </span>
       )}
     </>
@@ -893,5 +893,5 @@ export function nameFromPath(path: string): string {
     .split(".")
     .reverse()
     .find((x) => x && !/^-?\d+$/.test(x));
-  return seg ?? tr("データ");
+  return seg ?? tr("Data");
 }

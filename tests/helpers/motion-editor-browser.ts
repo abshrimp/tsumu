@@ -8,7 +8,10 @@ export async function motionEditorBundle(initialCss = "0% { opacity: 0; } 50% { 
       contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { KeyframeEditorModal } from "./components/MotionEditors";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { KeyframeEditorModal } = await import("./components/MotionEditors");
+
 function Fixture() {
   const [css, setCss] = useState(${JSON.stringify(initialCss)});
   const [open, setOpen] = useState(true);
@@ -22,6 +25,8 @@ function Fixture() {
   </>;
 }
 createRoot(document.getElementById("app")).render(<Fixture />);
+
+});
 `,
       resolveDir: resolve("."), loader: "tsx", sourcefile: "motion-editor-fixture.tsx",
     },
@@ -37,7 +42,10 @@ export async function easingEditorBundle(initial = "cubic-bezier(0.123456, 0.000
       contents: `
 import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
-import { EasingEditorModal } from "./components/MotionEditors";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { EasingEditorModal } = await import("./components/MotionEditors");
+
 function Fixture() {
   const [value, setValue] = useState(${JSON.stringify(initial)});
   const [open, setOpen] = useState(true);
@@ -50,6 +58,8 @@ function Fixture() {
   </>;
 }
 createRoot(document.getElementById("app")).render(<Fixture />);
+
+});
 `,
       resolveDir: resolve("."), loader: "tsx", sourcefile: "easing-editor-fixture.tsx",
     },

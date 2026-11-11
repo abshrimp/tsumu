@@ -22,14 +22,19 @@ export async function scriptDataPickerBundle() {
   return (await build({ stdin: { contents: `
 import React from "react";
 import {createRoot} from "react-dom/client";
-import ScriptEditor from "./components/ScriptEditor";
+import { loadLocale } from "./lib/i18n";
 import {useEditor} from "./lib/store";
 import {generateProject} from "./lib/generator";
 useEditor.getState().replaceDoc(${JSON.stringify(scriptDataPickerDoc())});
 window.dataPickerStore=useEditor;
 window.dataPickerProject=()=>generateProject(useEditor.getState().doc);
 window.fetch=()=>{throw new Error("No network expected in data picker fixture");};
-createRoot(document.getElementById("app")).render(<ScriptEditor onClose={()=>{}}/>);
+// Match the real app: load the locale before importing UI modules that
+// calculate translated labels when their module is first evaluated.
+void loadLocale().then(async () => {
+  const { default: ScriptEditor } = await import("./components/ScriptEditor");
+  createRoot(document.getElementById("app")).render(<ScriptEditor onClose={()=>{}}/>);
+});
 `, loader: "tsx", sourcefile: "script-data-picker-browser.tsx", resolveDir: resolve(".") },
     bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },

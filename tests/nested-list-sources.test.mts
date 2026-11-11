@@ -31,11 +31,11 @@ function fixture() {
   state().replaceDoc(nestedListSourcesDoc()); state().setActivePage("p"); state().select("tag");
   const { default: SettingsPanel } = load("components/SettingsPanel.tsx", true);
   const render = () => SettingsPanel({ nodeId: state().selection });
-  nodes(render()).find(n => n.type === "button" && Array.isArray(n.props.children) && n.props.children.includes("リスト表示にする"))!.props.onClick();
+  nodes(render()).find(n => n.type === "button" && Array.isArray(n.props.children) && n.props.children.includes("Turn into list display"))!.props.onClick();
   const id = state().selection!;
   const dropdown = () => {
-    const row = nodes(render()).find(n => n.props?.className === "row" && nodes(n).some(x => x.type === "span" && x.props.className === "lbl" && x.props.children === "表示するリスト"));
-    return nodes(row).find(n => n.props?.options && n.props?.placeholder === "選択してください").props;
+    const row = nodes(render()).find(n => n.props?.className === "row" && nodes(n).some(x => x.type === "span" && x.props.className === "lbl" && x.props.children === "List to display"));
+    return nodes(row).find(n => n.props?.options && n.props?.placeholder === "Select…").props;
   };
   const { NodeView } = load("components/canvas/NodeView.tsx");
   const require = createRequire(resolve("components/canvas/NodeView.tsx"));

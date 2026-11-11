@@ -105,7 +105,7 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
         missing.push(path);
         return;
       }
-      if (!res.ok) throw new Error(tr("アセットを読み込めませんでした（{status}）: {path}", { status: res.status, path }));
+      if (!res.ok) throw new Error(tr("Couldn't load asset ({status}): {path}", { status: res.status, path }));
       root.file(path, await res.arrayBuffer());
     });
   } catch (error) {

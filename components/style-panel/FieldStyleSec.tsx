@@ -34,59 +34,59 @@ export function FieldStyleSec({ node }: { node: DocNode }) {
     "fileButtonRadius",
   ];
   return (
-    <Sec title={tr("入力欄")} defaultOpen={props.some((p) => insp.get(p).set)} help="form-fields">
+    <Sec title={tr("Input", "input_variant_2")} defaultOpen={props.some((p) => insp.get(p).set)} help="form-fields">
       {accent && (
         <PropFill
-          label={f.kind === "checkbox" ? tr("チェックの色") : f.kind === "radio" ? tr("選択の色") : tr("つまみ・バーの色")}
-          info={tr("ブラウザ標準の部品の色（accent-color）です。")}
+          label={f.kind === "checkbox" ? tr("Check color") : f.kind === "radio" ? tr("Selection color") : tr("Thumb and track color")}
+          info={tr("The color of the browser's built-in control (accent-color).")}
           prop="accentColor"
         />
       )}
       {(f.kind === "checkbox" || f.kind === "radio") && (
         <p className="hint" style={{ margin: 0 }}>
-          {tr("チェックの大きさは、文字の大きさに合わせて変わります（テキストの「サイズ」）。")}
+          {tr("The checkbox grows with the text size (Text → Size).")}
         </p>
       )}
       {caret && (
         <PropFill
-          label={tr("入力カーソルの色")}
-          info={tr("文字を入力するときに点滅する縦線の色（caret-color）です。")}
+          label={tr("Caret color")}
+          info={tr("The color of the blinking line while typing (caret-color).")}
           prop="caretColor"
         />
       )}
       {scheme && (
         <Grp
-          label={tr("ピッカーの配色")}
-          info={tr("カレンダー・色選び・選択肢の一覧など、ブラウザが出す部品を明るい配色・暗い配色のどちらで出すか（color-scheme）です。")}
+          label={tr("Picker theme")}
+          info={tr("Whether the browser's pop-ups such as the calendar, color picker and option list use a light or dark theme (color-scheme).")}
           props={["colorScheme"]}
         >
           <PropSeg
             prop="colorScheme"
             options={[
-              { label: tr("明るい"), value: "light" },
-              { label: tr("暗い"), value: "dark" },
+              { label: tr("Light"), value: "light" },
+              { label: tr("Dark"), value: "dark" },
             ]}
           />
         </Grp>
       )}
       {f.kind === "textarea" && (
-        <Grp label={tr("大きさの変更")} info={tr("右下の角をドラッグして、入力欄の大きさを変えられるか（resize）です。")} props={["resize"]}>
+        <Grp label={tr("Resize")} info={tr("Whether visitors can resize the field by dragging its bottom-right corner (resize).")} props={["resize"]}>
           <PropSeg
             prop="resize"
             options={[
-              { label: tr("不可"), value: "none" },
-              { label: tr("縦"), value: "vertical" },
-              { label: tr("横"), value: "horizontal" },
-              { label: tr("両方"), value: "both" },
+              { label: tr("None", "none_variant_2"), value: "none" },
+              { label: tr("Vertical"), value: "vertical" },
+              { label: tr("Horizontal"), value: "horizontal" },
+              { label: tr("Both"), value: "both" },
             ]}
           />
         </Grp>
       )}
       {f.kind === "file" && (
         <>
-          <PropFill label={tr("ボタンの背景色")} prop="fileButtonBackground" />
-          <PropFill label={tr("ボタンの文字色")} prop="fileButtonColor" />
-          <Grp label={tr("ボタンの角丸")} props={["fileButtonRadius"]}>
+          <PropFill label={tr("Button background")} prop="fileButtonBackground" />
+          <PropFill label={tr("Button text color")} prop="fileButtonColor" />
+          <Grp label={tr("Button radius")} props={["fileButtonRadius"]}>
             <PropNum prop="fileButtonRadius" pre={<Scan size={I} />} units={["px"]} />
           </Grp>
         </>

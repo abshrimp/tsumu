@@ -65,7 +65,7 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style" | "bac
       if (name.endsWith("/controls")) return { useInspector: inspector, InspectorCtx: { Provider: "inspector" } };
       if (name.endsWith("/dialog")) return {
         showAlert: (...args: unknown[]) => { alerts.push(args); },
-        showPrompt: () => new Promise<string | null>(resolve => { confirmations.push({ resolve: value => resolve(value ? "初期状態に戻す" : null) }); }),
+        showPrompt: () => new Promise<string | null>(resolve => { confirmations.push({ resolve: value => resolve(value ? "Reset" : null) }); }),
         showConfirm: () => new Promise<boolean>(resolve => { confirmations.push({ resolve }); }),
       };
       if (["/NodeContextMenu", "/CopyToSite", "/exportZip", "/export-formats", "/AiChat", "/HelpCenter", "/Tutorial", "/GuideOverlay"].some(x => name.endsWith(x))) return {};
@@ -113,7 +113,8 @@ export async function pendingImportBundle() {
       contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import RightPanel from "./components/RightPanel";
+import { loadLocale } from "./lib/i18n";
+let RightPanel;
 import { useEditor } from "./lib/store";
 import { makeText } from "./lib/presets";
 const doc = { siteName: "Pending imports", assets: {
@@ -129,9 +130,12 @@ useEditor.getState().replaceDoc(doc);
 useEditor.getState().select("a");
 useEditor.getState().setRightTab("style");
 window.importEditor = useEditor;
-const root = createRoot(document.getElementById("app"));
-window.unmountImportEditor = () => root.unmount();
-root.render(<RightPanel />);
+void loadLocale().then(async () => {
+  ({ default: RightPanel } = await import("./components/RightPanel"));
+  const root = createRoot(document.getElementById("app"));
+  window.unmountImportEditor = () => root.unmount();
+  root.render(<RightPanel />);
+});
 `,
       loader: "tsx", sourcefile: "pending-import-browser.tsx", resolveDir: resolve("."),
     },

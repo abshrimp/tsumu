@@ -6,7 +6,7 @@ import { cookies, headers } from "next/headers";
 import { LANG_COOKIE, loadDicts, translate, type Dict, type Lang } from "./i18n";
 import { isLang, parseAcceptLanguage, pickLang } from "./lang";
 
-export type Tr = (ja: string, vars?: Record<string, string | number>) => string;
+export type Tr = (key: string, varsOrContext?: Record<string, string | number> | string, contextVars?: Record<string, string | number>) => string;
 
 const cache = new Map<Lang, Promise<Dict[]>>();
 
@@ -17,7 +17,7 @@ async function trOf(lang: Lang): Promise<Tr> {
     cache.set(lang, dicts);
   }
   const list = await dicts;
-  return (ja, vars) => translate(lang, list, ja, vars);
+  return (key, varsOrContext, contextVars) => translate(lang, list, key, varsOrContext, contextVars);
 }
 
 /** サーバーコンポーネント・API ルート用 */

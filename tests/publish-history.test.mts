@@ -164,17 +164,17 @@ function fixture(holdWrites = false, holdConfirmation = false) {
     reads, writes, pendingWrites, settle, alerts,
     changeBranch() { branch = "release"; },
     confirm() { assert.ok(confirm); confirm(true); },
-    rollbackDisabled: () => elements(tree).find((e) => e.type === "button" && text(e) === "サイトを戻す")?.props.disabled,
+    rollbackDisabled: () => elements(tree).find((e) => e.type === "button" && text(e) === "Restore site")?.props.disabled,
     text: () => text(tree),
     select(target: string) { elements(tree).find((e) => e.type === "tabs").props.onChange(target); flush(); },
     async restore() {
-      const button = elements(tree).find((e) => e.type === "button" && text(e) === "編集内容を復元");
+      const button = elements(tree).find((e) => e.type === "button" && text(e) === "Restore edits");
       assert.ok(button, "a restore button must be present");
       button.props.onClick();
       await settle();
     },
     async rollback() {
-      const button = elements(tree).find((e) => e.type === "button" && text(e) === "サイトを戻す");
+      const button = elements(tree).find((e) => e.type === "button" && text(e) === "Restore site");
       assert.ok(button, "a rollback button must be present");
       button.props.onClick();
       await settle();
@@ -264,7 +264,7 @@ test("rollback confirmation keeps the displayed identity and head when Home sett
   assert.equal(f.writes[0].expectedHead, "production-head");
   assert.equal(f.reads.length, 1, "a conflicted rollback is not automatically retried or refreshed into another destination");
   assert.match(f.text(), /Destination changed/);
-  assert.ok(f.alerts.every(args => args[1].title !== "ロールバックしました"));
+  assert.ok(f.alerts.every(args => args[1].title !== "Rolled back"));
 });
 
 

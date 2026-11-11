@@ -14,135 +14,135 @@ import { tr } from "./i18n";
 /* ---------- 表示用の文 ---------- */
 
 function targetText(t: string): string {
-  return t === SELF_TARGET ? tr("この要素") : t ? `#${t}` : tr("（未選択）");
+  return t === SELF_TARGET ? tr("this element") : t ? `#${t}` : tr("(not selected)");
 }
 
 /** 「〜が「値」と同じ」などの比較の文 */
 function opText(subject: string, op: ScriptOp | undefined, value: string): string {
-  const v = tr("「{value}」", { value });
+  const v = tr("\"{value}\"", { value });
   switch (op) {
     case "contains":
-      return tr("{subject}が {v} を含む", { subject, v });
+      return tr("{subject} contains {v}", { subject, v });
     case "starts-with":
-      return tr("{subject}が {v} で始まる", { subject, v });
+      return tr("{subject} starts with {v}", { subject, v });
     case "ends-with":
-      return tr("{subject}が {v} で終わる", { subject, v });
+      return tr("{subject} ends with {v}", { subject, v });
     case "gt":
-      return tr("{subject}が {v} より大きい", { subject, v });
+      return tr("{subject} is greater than {v}", { subject, v });
     case "gte":
-      return tr("{subject}が {v} 以上", { subject, v });
+      return tr("{subject} is at least {v}", { subject, v });
     case "lt":
-      return tr("{subject}が {v} より小さい", { subject, v });
+      return tr("{subject} is less than {v}", { subject, v });
     case "lte":
-      return tr("{subject}が {v} 以下", { subject, v });
+      return tr("{subject} is at most {v}", { subject, v });
     case "empty":
-      return tr("{subject}が空", { subject });
+      return tr("{subject} is empty", { subject });
     case "has-key":
-      return tr("{subject}に項目 {v} が存在する", { subject, v });
+      return tr("{subject} has key {v}", { subject, v });
     default:
-      return tr("{subject}が {v} と同じ", { subject, v });
+      return tr("{subject} equals {v}", { subject, v });
   }
 }
 
 export function condText(c: ScriptCond): string {
   const t = targetText(c.target);
-  const negate = (phrase: string) => c.not ? tr("{phrase}ではない", { phrase }) : phrase;
+  const negate = (phrase: string) => c.not ? tr("Not ({phrase})", { phrase }) : phrase;
   switch (c.subject) {
     case "var":
-      return negate(opText(tr("「{value}」", { value: c.left ?? "" }), c.op, c.value ?? ""));
+      return negate(opText(tr("\"{value}\"", { value: c.left ?? "" }), c.op, c.value ?? ""));
     case "value":
-      return negate(opText(tr("{t} の値", { t }), c.op, c.value ?? ""));
+      return negate(opText(tr("value of {t}", { t }), c.op, c.value ?? ""));
     case "checked":
-      return c.not ? tr("{t} がチェックされていない", { t }) : tr("{t} がチェックされている", { t });
+      return c.not ? tr("{t} is not checked", { t }) : tr("{t} is checked", { t });
     case "visible":
-      return c.not ? tr("{t} が隠れている", { t }) : tr("{t} が表示されている", { t });
+      return c.not ? tr("{t} is hidden", { t }) : tr("{t} is visible", { t });
     case "hovered":
-      return c.not ? tr("{t} にホバーしていない", { t }) : tr("{t} にホバーしている", { t });
+      return c.not ? tr("{t} is not hovered", { t }) : tr("{t} is hovered", { t });
   }
 }
 
 export function stepText(st: ScriptStep, doc: SiteDoc): string {
   switch (st.kind) {
     case "show":
-      return tr("{p1} を表示する", { p1: targetText(st.target) });
+      return tr("Show {p1}", { p1: targetText(st.target) });
     case "hide":
-      return tr("{p1} を隠す", { p1: targetText(st.target) });
+      return tr("Hide {p1}", { p1: targetText(st.target) });
     case "toggle":
-      return tr("{p1} の表示を切り替える", { p1: targetText(st.target) });
+      return tr("Toggle visibility of {p1}", { p1: targetText(st.target) });
     case "open-page":
-      return tr("ページ「{p1}」を開く", { p1: doc.pages[st.pageId]?.name ?? tr("未選択") });
+      return tr("Open page \"{p1}\"", { p1: doc.pages[st.pageId]?.name ?? tr("not selected") });
     case "open-url":
-      return tr("{p1} を開く", { p1: st.url || tr("URL未入力") });
+      return tr("Open {p1}", { p1: st.url || tr("no URL") });
     case "set-state":
-      return tr("{target}を{state}にする", {
-        target: targetText(st.target), state: st.state || tr("既定"),
+      return tr("Set {target} to state {state}", {
+        target: targetText(st.target), state: st.state || tr("Default"),
       });
     case "scroll-to":
-      return tr("{p1} までスクロールする", { p1: targetText(st.target) });
+      return tr("Scroll to {p1}", { p1: targetText(st.target) });
     case "set-value":
-      return tr("{p1} に「{value}」を入れる", { p1: targetText(st.target), value: st.value });
+      return tr("Set {p1} to \"{value}\"", { p1: targetText(st.target), value: st.value });
     case "set-enabled":
       return st.op === "disable"
-        ? tr("{p1} を無効にする", { p1: targetText(st.target) })
+        ? tr("Disable {p1}", { p1: targetText(st.target) })
         : st.op === "toggle"
-          ? tr("{p1} の有効・無効を切り替える", { p1: targetText(st.target) })
-          : tr("{p1} を有効にする", { p1: targetText(st.target) });
+          ? tr("Toggle whether {p1} is enabled", { p1: targetText(st.target) })
+          : tr("Enable {p1}", { p1: targetText(st.target) });
     case "list-display": {
       if (st.mode === "clear") return st.no !== undefined
-        ? tr("リスト{p1}の絞り込み{no}を解除する", { p1: arrayText(st.array), no: st.no })
-        : tr("リスト{p1}のすべての絞り込みを解除する", { p1: arrayText(st.array) });
+        ? tr("Clear filter {no} on list {p1}", { p1: arrayText(st.array), no: st.no })
+        : tr("Clear all filters on list {p1}", { p1: arrayText(st.array) });
       if (st.mode === "sort") return st.dir === "desc"
-        ? tr("リスト{array}を {field} の降順に並べ替える", { array: arrayText(st.array), field: st.field || tr("（項目未選択）") })
-        : tr("リスト{array}を {field} の昇順に並べ替える", { array: arrayText(st.array), field: st.field || tr("（項目未選択）") });
+        ? tr("Sort list {array} by {field}, descending", { array: arrayText(st.array), field: st.field || tr("(no field)") })
+        : tr("Sort list {array} by {field}, ascending", { array: arrayText(st.array), field: st.field || tr("(no field)") });
       const conds = [{ field: st.field, op: st.op, value: st.value, not: st.not }, ...(st.or ?? [])]
         .map((c, i) => {
-          const detail = opText(c.field || tr("（項目未選択）"), c.op, c.value);
-          return `${i ? ("and" in c && c.and ? tr(" かつ ") : tr(" または ")) : ""}${c.not ? tr("{phrase}ではない", { phrase: detail }) : detail}`;
+          const detail = opText(c.field || tr("(no field)"), c.op, c.value);
+          return `${i ? ("and" in c && c.and ? tr(" and ") : tr(" or ")) : ""}${c.not ? tr("Not ({phrase})", { phrase: detail }) : detail}`;
         })
         .join("");
-      const head = `${st.no !== undefined ? tr("絞り込み{no}: ", { no: st.no }) : ""}${st.join === "or" ? tr("（ほかの絞り込みと「または」）") : ""}`;
-      return tr("{head}リスト{p2}を {conds} ものに絞り込む", { head, p2: arrayText(st.array), conds });
+      const head = `${st.no !== undefined ? tr("Filter {no}: ", { no: st.no }) : ""}${st.join === "or" ? tr("(OR with other filters) ") : ""}`;
+      return tr("{head}Filter list {p2} to items where {conds}", { head, p2: arrayText(st.array), conds });
     }
     case "store-save":
       return st.shared
-        ? tr("共有ストレージの「{key}」に「{value}」を保存する", { key: st.key || tr("キー未入力"), value: st.value })
-        : tr("ストレージの「{key}」に「{value}」を保存する", { key: st.key || tr("キー未入力"), value: st.value });
+        ? tr("Save \"{value}\" to shared storage key \"{key}\"", { key: st.key || tr("no key"), value: st.value })
+        : tr("Save \"{value}\" to storage key \"{key}\"", { key: st.key || tr("no key"), value: st.value });
     case "store-load":
       return st.shared
-        ? tr("共有ストレージの「{key}」を読み込んで変数 {{into}} とする", { key: st.key || tr("キー未入力"), into: st.into || "?" })
-        : tr("ストレージの「{key}」を読み込んで変数 {{into}} とする", { key: st.key || tr("キー未入力"), into: st.into || "?" });
+        ? tr("Load shared storage key \"{key}\" into variable {{into}}", { key: st.key || tr("no key"), into: st.into || "?" })
+        : tr("Load storage key \"{key}\" into variable {{into}}", { key: st.key || tr("no key"), into: st.into || "?" });
     case "copy":
-      return tr("「{value}」をコピーする", { value: st.value });
+      return tr("Copy \"{value}\"", { value: st.value });
     case "set-var":
-      return tr("「{value}」を変数 {{p2}} とする", { value: st.value, p2: st.into || "?" });
+      return tr("Set variable {{p2}} to \"{value}\"", { value: st.value, p2: st.into || "?" });
     case "set-list-item":
-      return tr("リスト{list}のキー{key}に{value}を入れる", {
-        list: arrayText(st.list), key: st.key || tr("末尾"), value: st.value,
+      return tr("Set {value} at key {key} of list {list}", {
+        list: arrayText(st.list), key: st.key || tr("End"), value: st.value,
       });
     case "break-loop":
-      return tr("ループを終了する");
+      return tr("Break out of loop");
     case "transform":
-      return tr("変数{source}を加工して変数{into}に入れる", {
-        source: st.source || tr("（未選択）"), into: st.into || "?",
+      return tr("Transform variable {source} and save into {into}", {
+        source: st.source || tr("(not selected)"), into: st.into || "?",
       });
     case "repeat":
-      return st.times === 0 ? tr("ずっとくり返す…") : tr("{times}回くり返す…", { times: st.times });
+      return st.times === 0 ? tr("Repeat forever…") : tr("Repeat {times} times…", { times: st.times });
     case "for-each":
-      return tr("リスト{p1}の要素ごとにくり返す…", { p1: arrayText(st.array) });
+      return tr("For each item in list {p1}…", { p1: arrayText(st.array) });
     case "wait":
-      return tr("{seconds}秒待つ", { seconds: st.seconds });
+      return tr("Wait {seconds} seconds", { seconds: st.seconds });
     case "fetch":
-      return tr("{p1} のデータを取得して「{p2}」とする", { p1: st.url || tr("URL未入力"), p2: st.as || "?" });
+      return tr("Fetch data from {p1} as \"{p2}\"", { p1: st.url || tr("no URL"), p2: st.as || "?" });
     case "if": {
       const clauses = [st.cond, ...(st.conditions ?? [])];
       const condition = clauses.map((clause, index) =>
-        (index === 0 ? "" : "and" in clause && clause.and ? tr(" かつ ") : tr(" または ")) +
+        (index === 0 ? "" : "and" in clause && clause.and ? tr(" and ") : tr(" or ")) +
         condText(clause)).join("");
-      return tr("もし {p1} なら…", { p1: condition });
+      return tr("If {p1}…", { p1: condition });
     }
   }
 }
 
 function arrayText(name: string): string {
-  return name ? tr("［{name}］", { name }) : tr("（未選択）");
+  return name ? tr("［{name}］", { name }) : tr("(not selected)");
 }

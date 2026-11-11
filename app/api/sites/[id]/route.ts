@@ -28,11 +28,11 @@ async function load(ctx: Ctx) {
   if (!dbConfigured()) return await dbUnavailable();
   const { id } = await ctx.params;
   if (!isSiteId(id)) {
-    return NextResponse.json({ error: tr("サイトの指定が正しくありません") }, { status: 400 });
+    return NextResponse.json({ error: tr("Invalid site") }, { status: 400 });
   }
   const db = await getDb();
   const site = await getSite(db, id);
-  if (!site) return NextResponse.json({ error: tr("サイトが見つかりません") }, { status: 404 });
+  if (!site) return NextResponse.json({ error: tr("Site not found") }, { status: 404 });
   return { tr, db, site };
 }
 
@@ -45,7 +45,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     });
   } catch (e) {
     const tr = await serverTr();
-    return NextResponse.json({ error: tr(userMessage(e, "読み込めませんでした")) }, { status: 502 });
+    return NextResponse.json({ error: tr(userMessage(e, "Couldn't load")) }, { status: 502 });
   }
 }
 
@@ -58,12 +58,12 @@ export async function PATCH(req: Request, ctx: Ctx) {
     try {
       input = await readJsonLimited(req, 64 * 1024) as SiteInput | null;
     } catch (error) {
-      return NextResponse.json({ error: r.tr("リクエストが正しくありません") }, {
+      return NextResponse.json({ error: r.tr("Invalid request", "invalid_request_variant_1") }, {
         status: error instanceof JsonBodyTooLargeError ? 413 : error instanceof JsonContentTypeError ? 415 : 400,
       });
     }
     if (!input || typeof input !== "object" || Array.isArray(input)) {
-      return NextResponse.json({ error: r.tr("リクエストが正しくありません") }, { status: 400 });
+      return NextResponse.json({ error: r.tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
     }
     let current = r.site;
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -71,16 +71,16 @@ export async function PATCH(req: Request, ctx: Ctx) {
       if (!parsed.ok) return NextResponse.json({ error: r.tr(parsed.error) }, { status: 400 });
       const saved = await updateSite(r.db, current.id, parsed.value, current);
       const latest = await getSite(r.db, current.id);
-      if (!latest) return NextResponse.json({ error: r.tr("サイトが見つかりません") }, { status: 404 });
+      if (!latest) return NextResponse.json({ error: r.tr("Site not found") }, { status: 404 });
       if (saved) return NextResponse.json({ site: latest });
       // Reapply only the submitted fields to the new settings. In particular,
       // branch/previewBranch must be validated together after a competing edit.
       current = latest;
     }
-    return NextResponse.json({ error: r.tr("保存できませんでした") }, { status: 409 });
+    return NextResponse.json({ error: r.tr("Couldn't save") }, { status: 409 });
   } catch (e) {
     const tr = await serverTr();
-    return NextResponse.json({ error: tr(userMessage(e, "保存できませんでした")) }, { status: 502 });
+    return NextResponse.json({ error: tr(userMessage(e, "Couldn't save")) }, { status: 502 });
   }
 }
 
@@ -91,7 +91,7 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     if (r instanceof NextResponse) return r;
     const roomKey = await getSiteRoomKey(r.db, r.site.id);
     if (r.db.backend === "d1" && !roomKey) {
-      return NextResponse.json({ error: r.tr("サイトの保存先が見つかりません") }, { status: 409 });
+      return NextResponse.json({ error: r.tr("The site's document storage was not found.") }, { status: 409 });
     }
     // The D1 transaction also queues cleanup of this exact DO generation.
     await deleteSite(r.db, r.site.id, roomKey ?? undefined);
@@ -103,6 +103,6 @@ export async function DELETE(_req: Request, ctx: Ctx) {
     return NextResponse.json({ ok: true });
   } catch (e) {
     const tr = await serverTr();
-    return NextResponse.json({ error: tr(userMessage(e, "削除できませんでした")) }, { status: 502 });
+    return NextResponse.json({ error: tr(userMessage(e, "Couldn't delete")) }, { status: 502 });
   }
 }

@@ -136,9 +136,12 @@ export async function homeSiteStorageBundle() {
   return (await build({
     stdin: {
       contents: `import React from "react"; import { createRoot } from "react-dom/client";
-        import Home from "./components/Home";
-        window.homeRoot = createRoot(document.getElementById("app"));
-        window.homeRoot.render(<Home />);`,
+        import { loadLocale } from "./lib/i18n";
+        void loadLocale().then(async () => {
+  const { default: Home } = await import("./components/Home");
+  window.homeRoot = createRoot(document.getElementById("app"));
+          window.homeRoot.render(<Home />);
+});`,
       resolveDir: repo, loader: "tsx",
     },
     bundle: true, platform: "browser", format: "iife", write: false,

@@ -16,10 +16,14 @@ export async function inputDefaultBundle(doc: SiteDoc) {
     stdin: { contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import Canvas from "./components/Canvas";
-import SettingsPanel from "./components/SettingsPanel";
+
+
 import { useEditor } from "./lib/store";
 import css from "./app/globals.css";
+import { loadLocale } from "./lib/i18n";
+void loadLocale().then(async () => {
+  const { default: Canvas } = await import("./components/Canvas");
+  const { default: SettingsPanel } = await import("./components/SettingsPanel");
 const style = document.createElement("style"); style.textContent = css; document.head.append(style);
 useEditor.getState().replaceDoc(${JSON.stringify(doc)});
 window.initialEditor = useEditor;
@@ -34,6 +38,8 @@ function Example() {
   </>;
 }
 createRoot(document.getElementById("app")).render(<Example />);
+
+});
 `, resolveDir: resolve("."), loader: "tsx", sourcefile: "input-default-browser.tsx" },
     loader: { ".css": "text" }, bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },

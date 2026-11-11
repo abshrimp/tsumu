@@ -98,7 +98,7 @@ for (const timing of ["before request", "before write"] as const) {
     await assertEmpty(db);
     assert.equal((await db.execute("SELECT COUNT(*) AS n FROM sites")).rows[0].n, 0);
     assert.equal(response.status, 404);
-    assert.deepEqual(await response.json(), { error: "サイトが見つかりません", code: "comment_site_missing" });
+    assert.deepEqual(await response.json(), { error: "Site not found", code: "comment_site_missing" });
     assert.equal(writes, 1, "a failed create must not fetch a success snapshot");
   }));
 }

@@ -1,7 +1,5 @@
-/**
- * 訳の抜けを調べる: npm run i18n:check -- <言語コード>（既定 en）
- * ソースの tr("…") / trNodes("…") / trc("…", "…") の日本語のうち、その言語の辞書に無いものを
- * ファイルごとに出す。抜けがあれば終了コード 1
+/** Validate that every static English source key has a translation in the selected locale.
+ * Run npm run i18n:check -- <language> (default: ja).
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -9,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import ts from "@typescript/typescript6";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const lang = process.argv[2] ?? "en";
+const lang = process.argv[2] ?? "ja";
 const file = path.join(root, "lib/locales", `${lang}.ts`);
 if (!fs.existsSync(file)) {
   console.error(`lib/locales/${lang}.ts がありません`);
@@ -29,7 +27,6 @@ const walk = (dir: string) => {
 for (const d of ["app", "components", "lib"]) walk(path.join(root, d));
 files.push(path.join(root, "auth.ts"), path.join(root, "middleware.ts"));
 
-const JA = /[぀-ヿ㐀-鿿]/;
 const literal = (node: ts.Node | undefined): string | undefined =>
   node && ts.isStringLiteralLike(node) ? node.text : undefined;
 // Match the runtime's lookup: an empty translation falls back to the source text.
@@ -50,7 +47,9 @@ for (const f of files) {
         : ts.isPropertyAccessExpression(node.expression) ? node.expression.name.text : undefined;
       const first = literal(node.arguments[0]);
       if ((name === "tr" || name === "trNodes") && first !== undefined) {
-        if (JA.test(first) && !translated(first)) add(f, first);
+        const context = name === "tr" ? literal(node.arguments[1]) : literal(node.arguments[2]);
+        const key = context === undefined ? first : `${context}\u0004${first}`;
+        if (!translated(key)) add(f, key);
       } else if (name === "trc" && first !== undefined) {
         const second = literal(node.arguments[1]);
         if (second !== undefined) {

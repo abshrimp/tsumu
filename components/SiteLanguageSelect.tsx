@@ -43,7 +43,7 @@ export default function SiteLanguageSelect({ value, onChange, inheritLabel, id }
       <select
         id={id ?? `${hintId}-select`}
         className="select"
-        aria-label={tr("言語")}
+        aria-label={tr("Language")}
         value={custom ? CUSTOM : value}
         onChange={(event) => {
           const next = event.target.value;
@@ -55,14 +55,14 @@ export default function SiteLanguageSelect({ value, onChange, inheritLabel, id }
       >
         {inheritLabel !== undefined && <option value="">{inheritLabel}</option>}
         {SITE_LANGS.map((lang) => <option key={lang.value} value={lang.value}>{lang.label}</option>)}
-        <option value={CUSTOM}>{tr("カスタム…")}</option>
+        <option value={CUSTOM}>{tr("Custom…")}</option>
       </select>
       {custom && (
         <>
           <input
             id={`${hintId}-custom`}
             className="input"
-            aria-label={tr("カスタム言語コード")}
+            aria-label={tr("Custom language code")}
             aria-describedby={hintId}
             aria-invalid={invalid || undefined}
             value={draft}
@@ -82,8 +82,8 @@ export default function SiteLanguageSelect({ value, onChange, inheritLabel, id }
           />
           <p id={hintId} className="hint" role={invalid ? "alert" : undefined}>
             {invalid
-              ? tr("言語コードを入力してください（例: en-US、pt-BR）。変更は保存されていません。")
-              : tr("言語コードを入力します（例: en-US、pt-BR）。")}
+              ? tr("Enter a language code (e.g. en-US or pt-BR). Your change has not been saved.")
+              : tr("Enter a language code (e.g. en-US or pt-BR).")}
           </p>
         </>
       )}

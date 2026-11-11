@@ -37,12 +37,12 @@ export default function AllowedAccounts() {
         const data = await res.json();
         if (cancelled) return;
         if (!res.ok) {
-          setFatal(data.error ?? tr("読み込めませんでした（{status}）", { status: res.status }));
+          setFatal(data.error ?? tr("Couldn't load ({status})", { status: res.status }));
           return;
         }
         setUsers(data);
       } catch {
-        if (!cancelled) setFatal(tr("読み込めませんでした"));
+        if (!cancelled) setFatal(tr("Couldn't load"));
       }
     })();
     return () => {
@@ -66,13 +66,13 @@ export default function AllowedAccounts() {
       const data = await res.json();
       if (pending.current !== request) return;
       if (!res.ok) {
-        setError(data.error ?? tr("追加できませんでした"));
+        setError(data.error ?? tr("Couldn't add"));
         return;
       }
       setUsers(data);
       setEmail(current => current.trim() === v ? "" : current);
     } catch {
-      if (pending.current === request) setError(tr("追加できませんでした"));
+      if (pending.current === request) setError(tr("Couldn't add"));
     } finally {
       if (pending.current === request) { pending.current = null; setBusy(false); }
     }
@@ -85,9 +85,9 @@ export default function AllowedAccounts() {
     setBusy(true);
     setError(null);
     try {
-      const accepted = await showConfirm(tr("「{target}」はこのエディタにログインできなくなります。", { target }), {
-        title: tr("ログイン許可を取り消しますか？"),
-        okLabel: tr("取り消す"),
+      const accepted = await showConfirm(tr("{target} will no longer be able to sign in to this editor.", { target }), {
+        title: tr("Remove sign-in access?"),
+        okLabel: tr("Remove"),
         danger: true,
       });
       if (!accepted || pending.current !== request) return;
@@ -95,12 +95,12 @@ export default function AllowedAccounts() {
       const data = await res.json();
       if (pending.current !== request) return;
       if (!res.ok) {
-        setError(data.error ?? tr("削除できませんでした"));
+        setError(data.error ?? tr("Couldn't delete"));
         return;
       }
       setUsers(data);
     } catch {
-      if (pending.current === request) setError(tr("削除できませんでした"));
+      if (pending.current === request) setError(tr("Couldn't delete"));
     } finally {
       if (pending.current === request) { pending.current = null; setBusy(false); }
     }
@@ -111,20 +111,20 @@ export default function AllowedAccounts() {
     return (
       <div key={addr} className="acct-row">
         <span className="acct-email">{addr}</span>
-        {isMe && <span className="acct-tag">{tr("自分")}</span>}
+        {isMe && <span className="acct-tag">{tr("You")}</span>}
         {fixed ? (
           <span
             className="acct-tag"
-            title={tr("サーバーの設定で許可されているため、ここからは削除できません")}
+            title={tr("Allowed by the server settings, so it can't be removed here")}
           >
-            {tr("固定")}
+            {tr("Fixed")}
           </span>
         ) : (
           <button
             type="button"
             className="icon-btn"
-            aria-label={isMe ? tr("自分自身は削除できません") : tr("ログイン許可を取り消す")}
-            title={isMe ? tr("自分自身は削除できません") : tr("ログイン許可を取り消す")}
+            aria-label={isMe ? tr("You can't remove yourself") : tr("Remove sign-in access")}
+            title={isMe ? tr("You can't remove yourself") : tr("Remove sign-in access")}
             disabled={isMe || busy}
             onClick={() => {
               if (!isMe) void remove(addr);
@@ -149,7 +149,7 @@ export default function AllowedAccounts() {
     return (
       <div className="acct-loading">
         <LoaderCircle size={16} className="spin" />
-        {tr("読み込んでいます…")}
+        {tr("Loading…", "loading_variant_1")}
       </div>
     );
   }
@@ -160,7 +160,7 @@ export default function AllowedAccounts() {
         {users.extra.map((e) => row(e, false))}
         {!users.fixed.length && !users.extra.length && (
           <p className="hint" style={{ margin: 0 }}>
-            {tr("許可されたアカウントがありません。")}
+            {tr("No accounts have access yet.")}
           </p>
         )}
       </div>
@@ -170,7 +170,7 @@ export default function AllowedAccounts() {
           type="email"
           value={email}
           placeholder="user@gmail.com"
-          aria-label={tr("追加するメールアドレス")}
+          aria-label={tr("Email address to add")}
           onChange={(e) => setEmail(e.target.value)}
           onKeyDown={(e) => {
             if (isEnterKey(e)) void add();
@@ -182,12 +182,12 @@ export default function AllowedAccounts() {
           disabled={busy || !email.trim()}
           onClick={() => void add()}
         >
-          {tr("追加")}
+          {tr("Add")}
         </button>
       </div>
       {error && <p className="acct-add-error">{error}</p>}
       <p className="hint acct-note">
-        {tr("追加したアカウントはログインできるようになります。削除したアカウントは、ログイン中でも次回のアクセスから利用が制限されます。")}
+        {tr("Added accounts can sign in. Removed accounts are restricted from their next access, even if already signed in.")}
       </p>
     </>
   );

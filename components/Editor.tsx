@@ -142,8 +142,8 @@ export default function Editor({ onReady }: EditorProps = {}) {
     const lines = warnings.filter((item): item is string => typeof item === "string");
     if (!lines.length) return;
     void showAlert(lines.slice(0, 20).join("\n") +
-      (lines.length > 20 ? "\n" + tr("ほかにもインポート時の注意事項があります。") : ""), {
-      title: tr("インポート時の注意事項"),
+      (lines.length > 20 ? "\n" + tr("There are additional import notices.") : ""), {
+      title: tr("Import notices"),
     });
   }, [initialLoadComplete]);
   // ページが準備画面を持つ場合は、描画前に完了を伝えて同じ画面を一度だけ閉じる。
@@ -401,7 +401,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
         event.preventDefault();
         const paste = () => {
           useEditor.getState().pasteClipboard(copied);
-          if (copied.site !== currentSiteId()) setPasteNotice(tr("ほかのサイトの要素を貼り付けました"));
+          if (copied.site !== currentSiteId()) setPasteNotice(tr("Pasted elements from another site"));
         };
         // このブラウザのエディタでコピーしたものでなければ（ほかのWebサイトが書き込んだかもしれない）、
         // 貼り付けるとすぐ動く HTML（カスタムコード・アイコン）を含むときは確かめる
@@ -412,10 +412,10 @@ export default function Editor({ onReady }: EditorProps = {}) {
         }
         const destination = useEditor.getState();
         void showConfirm(
-          tr("貼り付ける要素に、HTMLとして動く内容（{names}）が含まれています。このエディタ以外でコピーされたデータです。信頼できるところでコピーしたものだけを貼り付けてください。", {
-            names: active.slice(0, 3).join(tr("・")) + (active.length > 3 ? tr("ほか{count}件", { count: active.length - 3 }) : ""),
+          tr("The elements you're pasting contain content that runs as HTML ({names}), and they weren't copied in this editor. Only paste data you copied from a source you trust.", {
+            names: active.slice(0, 3).join(tr(", ")) + (active.length > 3 ? tr("and {count} more", { count: active.length - 3 }) : ""),
           }),
-          { title: tr("この内容を貼り付けますか？"), okLabel: tr("貼り付ける"), danger: true }
+          { title: tr("Paste this content?"), okLabel: tr("Paste", "paste_variant_1"), danger: true }
         ).then((ok) => {
           const now = useEditor.getState();
           if (ok && mounted && own === latestPaste &&
@@ -430,12 +430,12 @@ export default function Editor({ onReady }: EditorProps = {}) {
       if (!hasClipboardArtwork(data)) {
         if (Array.from(data.types).some((type) => /figma|illustrator|aicb|pdf/i.test(type))) {
           event.preventDefault();
-          setPasteNotice(tr("Figmaでは「SVGとしてコピー」、Illustratorでは「SVGコードを含める」でコピーしてください"));
+          setPasteNotice(tr("In Figma use \"Copy as SVG\"; in Illustrator, enable \"Include SVG code\" when copying"));
         }
         return;
       }
       event.preventDefault();
-      setPasteNotice(tr("デザインを貼り付けています…"));
+      setPasteNotice(tr("Pasting design…"));
       // SVG・ファイル・data URLの読み取りを待つ前に、貼り付け先を確定する。
       const state = useEditor.getState();
       const { doc, selection, activePageId, editingComponentId } = state;
@@ -444,12 +444,12 @@ export default function Editor({ onReady }: EditorProps = {}) {
         component ? { kind: "node", id: component.rootId } : { kind: "page", id: activePageId }, state.insertMode);
       const task = startImageInsertion(async () => {
         const file = await clipboardArtworkFile(data);
-        if (!file) throw new Error(tr("画像データを読み取れませんでした"));
+        if (!file) throw new Error(tr("Couldn't read the image data"));
         return [file];
       }, point, {
         quiet: true,
         prepareNode(node, asset, file) {
-          node.name = file.type === "image/svg+xml" ? tr("貼り付けたSVG") : tr("貼り付けた画像");
+          node.name = file.type === "image/svg+xml" ? tr("Pasted SVG") : tr("Pasted image");
           const base = (node.styles.base ??= {});
           base.default = { ...base.default, width: asset.width ? `${asset.width}px` : "100%", maxWidth: "100%", borderRadius: "0px" };
         },
@@ -458,8 +458,8 @@ export default function Editor({ onReady }: EditorProps = {}) {
       void task.done.then(({ inserted, files, error }) => {
         pending.delete(task);
         if (!mounted || own !== latestPaste) return;
-        setPasteNotice(error ? userMessage(error, tr("貼り付けできませんでした")) : !inserted ? null :
-          files[0]?.type === "image/svg+xml" ? tr("SVGをベクター画像として貼り付けました") : tr("画像を貼り付けました"));
+        setPasteNotice(error ? userMessage(error, tr("Couldn't paste")) : !inserted ? null :
+          files[0]?.type === "image/svg+xml" ? tr("Pasted the SVG as a vector image") : tr("Image pasted"));
       });
     };
     window.addEventListener("paste", onPaste);
@@ -522,7 +522,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
         } catch (error) {
           clearTimeout(timer);
           collabRequests.current.delete(requestId);
-          reject(error instanceof Error ? error : new Error(tr("送信できませんでした")));
+          reject(error instanceof Error ? error : new Error(tr("Couldn't send")));
         }
       });
     },
@@ -1224,7 +1224,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       />
       {browserSaveState === "deleted" && cloudState !== "synced" && (
         <div className="local-save-notice" role="alert">
-          {tr("このブラウザの保存先は削除されています。画面の内容は残っています。必要な内容は、閉じる前にコピーするかZIPに書き出してください。")}
+          {tr("The save location in this browser was deleted. Your content is still on screen. Copy what you need or export a ZIP before closing.")}
         </div>
       )}
       <div
@@ -1240,7 +1240,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       >
         {mode === "design" && (
           <>
-            <SafeBoundary label={tr("左のパネル")} resetKey={activePageId}>
+            <SafeBoundary label={tr("Left panel", "left_panel_variant_1")} resetKey={activePageId}>
               <LeftPanel />
             </SafeBoundary>
             {!closedL && (
@@ -1253,7 +1253,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
             )}
           </>
         )}
-        <SafeBoundary label={tr("キャンバス")} resetKey={activePageId}>
+        <SafeBoundary label={tr("Canvas")} resetKey={activePageId}>
           <Canvas />
         </SafeBoundary>
         {mode === "design" && (
@@ -1266,7 +1266,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
                 onResize={setPanelR}
               />
             )}
-            <SafeBoundary label={tr("右のパネル")} resetKey={activePageId}>
+            <SafeBoundary label={tr("Right panel", "right_panel_variant_1")} resetKey={activePageId}>
               <RightPanel />
             </SafeBoundary>
           </>
@@ -1298,44 +1298,44 @@ export default function Editor({ onReady }: EditorProps = {}) {
       <SafeBoundary label={tr("AI")}>
         <AiChat />
       </SafeBoundary>
-      <SafeBoundary label={tr("ヘルプ")} onClose={closeHelp}>
+      <SafeBoundary label={tr("Help")} onClose={closeHelp}>
         <HelpCenter onStartTutorial={startTutorial} />
       </SafeBoundary>
-      <SafeBoundary label={tr("操作ガイド")} onClose={() => stopGuide()}>
+      <SafeBoundary label={tr("Guide")} onClose={() => stopGuide()}>
         <GuideOverlay />
       </SafeBoundary>
       {tutorialOpen && (
-        <SafeBoundary label={tr("チュートリアル")} onClose={() => setTutorialOpen(false)}>
+        <SafeBoundary label={tr("Tutorial")} onClose={() => setTutorialOpen(false)}>
           <Tutorial onClose={() => setTutorialOpen(false)} />
         </SafeBoundary>
       )}
       {conflict && (
         <div className="modal-backdrop">
           <div className="modal">
-            <h2>{tr("保存されていない変更があります")}</h2>
+            <h2>{tr("You have unsaved changes")}</h2>
             <p className="modal-desc">
-              {tr("前回このブラウザで編集した内容が、サーバーに保存されないまま残っています。どちらの内容で編集を続けますか？")}
+              {tr("Edits you made in this browser last time were never saved to the server. Which version do you want to keep editing?")}
             </p>
             <p className="hint" style={{ margin: "0 0 4px" }}>
-              {tr("サーバーの最終保存:")}{" "}
+              {tr("Last saved to server:")}{" "}
               {new Date(conflict.savedAt).toLocaleString(getLang())}
-              {tr("（他の人や別ブラウザの変更が含まれている可能性があります）")}
+              {tr(" (may include changes from other people or browsers)")}
             </p>
             <p className="hint" style={{ margin: 0 }}>
-              {tr("「このブラウザの内容」を選ぶとサーバーへ上書き保存され、「サーバーの内容」を選ぶとこのブラウザの変更は破棄されます。")}
+              {tr("\"Use this browser's version\" overwrites the server copy. \"Use the server version\" discards this browser's changes.")}
             </p>
             <div className="modal-actions">
               <button
                 className="btn"
                 onClick={() => void resolveConflict("remote")}
               >
-                {tr("サーバーの内容を使う")}
+                {tr("Use the server version")}
               </button>
               <button
                 className="btn btn-primary"
                 onClick={() => void resolveConflict("local")}
               >
-                {tr("このブラウザの内容を使う")}
+                {tr("Use this browser's version")}
               </button>
             </div>
           </div>

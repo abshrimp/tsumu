@@ -19,11 +19,13 @@ export async function emptyListBundle(items: readonly unknown[]) {
     stdin: { contents: `
 import React from "react";
 import { createRoot } from "react-dom/client";
-import SettingsPanel from "./components/SettingsPanel";
-import { NodeView } from "./components/canvas/NodeView";
-import { VarsCtx } from "./components/canvas/render";
+import { loadLocale } from "./lib/i18n";
 import { previewDataVars, pagePlan } from "./lib/data";
 import { useEditor } from "./lib/store";
+void loadLocale().then(async () => {
+const { default: SettingsPanel } = await import("./components/SettingsPanel");
+const { NodeView } = await import("./components/canvas/NodeView");
+const { VarsCtx } = await import("./components/canvas/render");
 useEditor.getState().replaceDoc(${JSON.stringify(emptyListDoc(items))});
 useEditor.getState().setActivePage("p"); useEditor.getState().select("tag");
 window.emptyListStore = useEditor;
@@ -39,6 +41,7 @@ function Example() {
   </>;
 }
 createRoot(document.getElementById("app")).render(<Example />);
+});
 `, loader: "tsx", sourcefile: "empty-list-preview-browser.tsx", resolveDir: resolve(".") },
     bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
     define: { "process.env.NODE_ENV": '"development"' },

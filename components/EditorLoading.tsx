@@ -10,17 +10,17 @@ import { loadLocale, tr } from "../lib/i18n";
  * 一目で読めるよう1文に収め、キーは Mac の記号で書く（Mac 以外では glyphs が Ctrl などに直す）
  */
 const tips = () => [
-  tr("⌘ を押しながらクリックすると、いちばん奥の要素を直接選べます。"),
-  tr("⇧Enter で、選んでいる要素の親を選べます。"),
-  tr("⌘D で、選んでいる要素をまとめて複製できます。"),
-  tr("⌘[ と ⌘] で、左右のパネルを開け閉めできます。"),
-  tr("並べ方は、並べたい要素ではなく、それを囲む親のボックスで決めます。"),
-  tr("幅を % で決めて「最大幅」を付けると、どの画面でも崩れにくくなります。"),
-  tr("スマホ表示で変えた設定は、スマホにだけ効きます。"),
-  tr("色の付いた項目名を右クリックすると、その画面幅での変更を取り消せます。"),
-  tr("どのページにも置くヘッダーは、右クリックから「コンポーネント化」すると1か所の修正で済みます。"),
-  tr("公開した版は、公開履歴からいつでも戻せます。"),
-  tr("? キーでヘルプを開くと、やりたいことから操作を探せます。"),
+  tr("⌘-click to select the innermost element directly."),
+  tr("Press ⇧Enter to select the parent of the current element."),
+  tr("Press ⌘D to duplicate everything you've selected."),
+  tr("Press ⌘[ and ⌘] to show or hide the left and right panels."),
+  tr("How items are arranged is set on the box around them, not on the items themselves."),
+  tr("Set widths in % and add a Max width so layouts hold up on any screen."),
+  tr("Changes made in the phone view apply to phones only."),
+  tr("Right-click a highlighted property name to undo its change for this screen size."),
+  tr("Turn a header used on every page into a component (right-click) so one edit updates them all."),
+  tr("You can roll back to any published version from the publish history."),
+  tr("Press ? to open Help and search by what you want to do."),
 ];
 
 /** エディタ本体を読み込んでいる間の画面（エディタと同じ配置の骨組みを出す） */
@@ -73,14 +73,14 @@ export default function EditorLoading() {
       </div>
       <div className="boot-card">
         <BrandMark size={40} />
-        <strong>{tip !== null && tr("エディタを準備しています")}</strong>
+        <strong>{tip !== null && tr("Preparing the editor")}</strong>
         <div className="boot-bar">
           <span />
         </div>
         <p className="boot-tip">
           {tip !== null && (
             <>
-              <span>{tr("ヒント")}</span>
+              <span>{tr("Tip")}</span>
               {glyphs(tip)}
             </>
           )}
