@@ -1,12 +1,7 @@
 /**
- * エディタの表示言語。
- * 画面の文言は日本語をそのまま書き、`tr("日本語")` で包む。ほかの言語の訳は
- * lib/locales/<言語>.ts に「日本語 → 訳」の対応で置く（訳が無い文は英語、それも無ければ日本語で出る）。
- * 使える言語の一覧と、言語の足し方は lib/lang.ts にある。
- * 差し込む値は `tr("{name}を削除しますか？", { name })` のように {名前} で書く。
- *
- * 言語を切り替えるとページを読み込み直す（表示中の文言を作り直さずに済むように）。
- * 訳の辞書は loadLocale() で読み込んでからエディタ本体を読み込む。
+ * Use English source strings in tr("Save"), tr("Delete {name}?", { name }),
+ * or trc("context", "Save"). Translations live in lib/locales/{lang}.ts.
+ * The selected language is loaded before the editor; switching reloads the page.
  */
 
 import { createElement, Fragment, type ReactNode } from "react";
@@ -33,7 +28,7 @@ const STORAGE_KEY = "tsumu-lang";
 export type Dict = Record<string, string>;
 
 function detectLang(): Lang {
-  if (typeof window === "undefined") return SOURCE_LANG;
+  if (typeof window === "undefined") return "ja";
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY);
     if (isLang(saved)) return saved;
@@ -124,32 +119,32 @@ export function format(s: string, vars?: Record<string, string | number>): strin
 }
 
 /** 画面の文言を今の言語にする */
-export function tr(ja: string, vars?: Record<string, string | number>): string {
-  const out = format(lookup(dicts, ja) ?? ja, vars);
-  return current === SOURCE_LANG ? out : remember(out);
+export function tr(key: string, vars?: Record<string, string | number>): string {
+  const out = format(lookup(dicts, key) ?? key, vars);
+  return remember(out);
 }
 
 /** サーバー側: 指定した言語・辞書（loadDicts で読み込んだもの）で訳す */
 export function translate(
   lang: Lang,
   list: Dict[],
-  ja: string,
+  key: string,
   vars?: Record<string, string | number>
 ): string {
-  const out = format(lookup(list, ja) ?? ja, vars);
-  return lang === SOURCE_LANG ? out : remember(out);
+  const out = format(lookup(list, key) ?? key, vars);
+  return remember(out);
 }
 
-/** 文の途中に要素を差し込む: trNodes("{cmd} を実行します", { cmd: <code>…</code> }) */
-export function trNodes(ja: string, nodes: Record<string, ReactNode>): ReactNode[] {
-  return tr(ja)
+/** Insert React nodes into translated text: trNodes("Run {cmd}", { cmd: <code>…</code> }) */
+export function trNodes(key: string, nodes: Record<string, ReactNode>): ReactNode[] {
+  return tr(key)
     .split(/\{(\w+)\}/)
     // 配列で返すので、差し込んだ要素にも key を付ける（React の警告が出ないように）
     .map((part, i) => (i % 2 ? createElement(Fragment, { key: i }, nodes[part] ?? `{${part}}`) : part));
 }
 
-/** 同じ日本語でも場面で訳が変わる短い語に使う: trc("行間", "行") */
-export function trc(context: string, ja: string, vars?: Record<string, string | number>): string {
-  const out = format(lookup(dicts, `${context}\u0004${ja}`) ?? ja, vars);
+/** Different translations of the same English source in different contexts. */
+export function trc(context: string, key: string, vars?: Record<string, string | number>): string {
+  const out = format(lookup(dicts, `${context}\u0004${key}`) ?? lookup(dicts, key) ?? key, vars);
   return current === SOURCE_LANG ? out : remember(out);
 }
