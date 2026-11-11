@@ -86,14 +86,15 @@ export function validPageAdditionalFields(page: Record<string, unknown>): boolea
     optional(page[key], str)) &&
     ["titlePending", "noindex", "unpublished"].every(key => optional(page[key], bool)) &&
     nullable(page.rawHtml, str) &&
-    optional(page.htmlZip, x => record(x) && str(x.path) && x.path.length <= 600 &&
-      arrayOf(x.assetIds, id => str(id) && id.length > 0) && x.assetIds.length <= 200) &&
+    optional(page.htmlZip, x => record(x) && typeof x.path === "string" && x.path.length <= 600 &&
+      Array.isArray(x.assetIds) && x.assetIds.length <= 200 &&
+      x.assetIds.every(id => typeof id === "string" && id.length > 0)) &&
     nullable(page.ogImage, validImageRef);
 }
 
 function validZipMetadata(value: unknown): boolean {
   if (!record(value) || value.version !== 1 || !str(value.group) || !str(value.path)) return false;
-  return optional(value.sha256, x => str(x) && /^[a-f0-9]{64}$/.test(x)) &&
+  return optional(value.sha256, x => typeof x === "string" && /^[a-f0-9]{64}$/.test(x)) &&
     optional(value.stylesheet, x => record(x) && str(x.source) &&
     arrayOf(x.references, ref => record(ref) &&
       str(ref.url) && str(ref.assetId) && str(ref.suffix)));
