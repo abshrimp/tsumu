@@ -388,7 +388,7 @@ lib/github.ts	Q1	scoped
 lib/help.ts	Q5	scoped
 lib/html-css-import.ts	Q4	scoped
 lib/html-file-import.ts	Q4	scoped
-lib/html-to-site.ts	Q5	scoped
+lib/html-to-site.ts	Q4	scoped
 lib/html-zip-guard.ts	Q4	scoped
 lib/html-zip.ts	Q4	scoped
 lib/i18n-server.ts	Q5	scoped
@@ -929,3 +929,13 @@ tests/zip-references.test.mts	Q7	scoped
 tests/zip-svg-references.test.mts	Q7	scoped
 tsconfig.json	Q7	scoped
 wrangler.jsonc	Q7	scoped
+benchmarks/generator-names-results.md	Q7	added
+benchmarks/generator-names.mts	Q7	added
+docs/repository-quality-inventory-2026-11-11.tsv	Q8	added
+docs/repository-quality-plan-2026-11-11.md	Q8	added
+lib/value-text.ts	Q5	added
+tests/api-author-identity.test.mts	Q7	added
+tests/collab-stream-backpressure.test.mts	Q7	added
+tests/generator-name-allocation.test.mts	Q7	added
+tests/merge-asset-deletion.test.mts	Q7	added
+tests/value-text-depth.test.mts	Q7	added

@@ -6,6 +6,7 @@
 
 import { NAVIGATION_RUNTIME } from "./url-policy";
 import { tr } from "./i18n";
+import { formatValueText } from "./value-text";
 
 const TOKEN_RE = /\\\{|\{([^{}\s"'<>`]+)\}|\[slug\]/g;
 
@@ -40,10 +41,7 @@ export function lookupVar(vars: Vars, name: string): unknown {
 
 /** 表示用の文字にする（配列は「, 」でつなぐ） */
 export function varText(v: unknown): string {
-  if (v == null) return "";
-  if (Array.isArray(v)) return v.map(varText).filter(Boolean).join(", ");
-  if (typeof v === "object") return "";
-  return String(v);
+  return formatValueText(v);
 }
 
 /** 通常の置換（未定義は空文字） */
@@ -414,12 +412,8 @@ export function lookupVar(vars: Vars, name: string): unknown {
 }
 
 /** 表示用の文字にする（配列は「, 」でつなぐ） */
-export function varText(v: unknown): string {
-  if (v == null) return "";
-  if (Array.isArray(v)) return v.map(varText).filter(Boolean).join(", ");
-  if (typeof v === "object") return "";
-  return String(v);
-}
+const formatValueText: (value: unknown, comparison?: boolean) => string = (${formatValueText.toString()});
+export function varText(v: unknown): string { return formatValueText(v); }
 
 /** "{name}" と "[slug]" を値に置き換える（未定義は空文字。「\\{」は文字の「{」） */
 export function interpolate(template: string, vars: Vars): string {

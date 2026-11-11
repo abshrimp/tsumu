@@ -11,6 +11,7 @@ import { EMPTY_GIF, allScripts, pageNodeIds, walkSteps } from "./script";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 import { parseValueLiteral, matchesValueCondition, setVarPath, withinScriptValueLimit } from "./value-semantics";
 import { codeLiteral } from "./generator/code-literal";
+import { formatValueText } from "./value-text";
 
 /* ---------- 実行ランタイム ---------- */
 
@@ -29,6 +30,7 @@ export const SCRIPT_RUNTIME = `function (env) {
   var withinValueLimit = (${withinScriptValueLimit.toString()});
   var matchValueCondition = (${matchesValueCondition.toString()});
   var parseValueLiteral = (${parseValueLiteral.toString()});
+  var formatValueText = (${formatValueText.toString()});
   // esbuild may annotate nested functions embedded via toString().
   var __name = function (fn) { return fn; };
   /*#setvar*/
@@ -79,10 +81,7 @@ export const SCRIPT_RUNTIME = `function (env) {
   }
   // 表示用の文字にする（配列は「, 」でつなぐ）
   function text(v) {
-    if (v == null) return "";
-    if (Array.isArray(v)) return v.map(text).filter(Boolean).join(", ");
-    if (typeof v === "object") return "";
-    return String(v);
+    return formatValueText(v);
   }
   /*#show|visible*/
   function isHidden(el) {
@@ -723,10 +722,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         return has(item, f) ? item[f] : dig(item, f);
       }
       function filterText(v) {
-        if (v == null) return "";
-        if (Array.isArray(v)) return v.map(filterText).join(",");
-        if (typeof v === "object") return "[object Object]";
-        return String(v);
+        return formatValueText(v, true);
       }
       function passOne(conds, item) {
         if (!conds.length) return true;

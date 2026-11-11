@@ -1,7 +1,7 @@
 # リポジトリ全体の品質改善計画
 
-作成日: 2026-11-11（日本時間）  
-開始点: `c57335997034275f3d639f567ea4809246bac3d7`（main）  
+作成日: 2026-11-11（日本時間）
+開始点: `c57335997034275f3d639f567ea4809246bac3d7`（main）
 対象: 開始点の Git 管理対象 930 ファイル。既存 PR の処理は本計画に含めない。
 
 ## 目的と進め方
@@ -53,8 +53,68 @@ APIが複数領域にまたがる場合も、認可から呼び出し先まで�
 - 内訳: app 29、components 80、lib 179、tests 437、e2e 124、docs 22、scripts 13、benchmarks 6、skills 5、.github 8、ルート27。
 - CI: check、4分割E2E、5種類の生成フレームワーク検証。別途Tailwind生成検証。
 - 初期の実行環境はNode 24/npm 11。プロジェクト指定のNode 26.12.1/npm 12.2.1を準備してから検証する。
-- 作業状態: 計画作成済み。製品コード変更前。以下に実施結果を追記する。
+- 初期計画は製品コード変更前にコミット済み。以下はその計画に沿った実施記録。
 
 ## 実施記録
 
-調査・修正・検証の完了後、対象パスと結果を追記する。
+### 調査範囲と結果
+
+| 領域 | 実査した主要経路 | 結果 |
+| --- | --- | --- |
+| Q1 | auth/server/allowlist/CSRF、全APIの認可、アセット配信・署名・削除、safe-fetch、GitHub公開、backups | 保存・状態取得の重複認証を削減。今回の確認範囲では新規の認証回避・SSRFは実証されなかった |
+| Q2 | store/merge、cloud/local/browser保存、doc-patch、両保存backend、DocumentRoom/Worker、Editor同期、SSE | 同時編集・Undoの資産参照欠損と、SSEの無制限バッファを修正 |
+| Q3 | Canvas描画・データ取得・HTMLプレビュー、ScriptEditor選択/drag/keyboard/仮想化、Layers、共通controls、resize、image-drop | ページ間の値混入、古い通信の残存、不正URLによる例外を修正 |
+| Q4 | SiteDoc/ZIP/HTMLインポート、展開制限、SVG、部分出力、資産依存、単一HTML、各framework、CSS/JS変換、出力パス | 重複名の二乗時間処理と長すぎるcomponent出力名を修正 |
+| Q5 | script-runtime、vars/data、値の意味・recipe・page-load、生成側の変数処理 | 深いJSON配列の文字列化によるスタックオーバーフローを修正。共通処理を生成先にも埋め込む |
+| Q6 | lib/ai全体、AI API、aiOps、AiChat/AiActivity、キャンセル・stream・検証・競合 | 現クライアントが使わない旧JSON成功応答を削除。provider側の対応形式は維持 |
+| Q7 | workflows、Docker、Cloudflare/config、scripts/audit、依存lock、tests/e2e構成 | ~ALL rulesetを落として必須CIを誤判定する問題を修正。依存監査は0件 |
+| Q8 | README/architecture/security/contributing/releasing、同梱site仕様・参照型、文書とfixtureの参照 | 計画・全ファイル台帳・測定ハーネス/結果を追加。生成元/同梱参照の整合は既存テストで検証 |
+
+上表は経路を追った調査範囲であり、930ファイルの全行を個別精査したという意味ではない。画像・大きな翻訳辞書・既存fixtureは用途/参照と既存検証を対象とし、全画面の目視確認は実施していない。
+
+### 確認した問題と変更
+
+| ID | 再現と変更 | 回帰検証 |
+| --- | --- | --- |
+| F1 | 未使用画像の削除と別利用者の使用開始が重なると、3つの入力文書は有効なのにmerge結果だけが無効。残る参照に必要な資産を復元し、古いUndo履歴も通常mergeへ戻す | `merge-asset-deletion.test.mts`。両方向・画像/media/設定/CSS/HTML/ZIP依存・不要資産削除・履歴不変 |
+| F2 | Node側SSEで認可待ちと未読通知が無制限に滞留。待機32件、待機+stream合計64 MiB（UTF-8）を上限とし、超過時は購読/queueを解放して再接続させる | `collab-stream-backpressure.test.mts`。停滞・Unicode byte数・順序・cancel/abort。既存の再接続同期を確認 |
+| F3 | ページ切替の最初のfetchに前ページのフォーム値が混入。ページID付き状態に変更し、初回から移動先の値を使う | `preview-refresh.test.mts`、`e2e/preview-refresh.spec.ts` |
+| F4 | 更新/ページ移動/preview終了後も古いfetchを処理。不必要なブラウザ通信をAbortControllerで止め、不要JSON解析を回避 | 同上。6件の新規回帰が修正前に失敗、修正後成功。サーバー側外部fetchの即時停止は保証しない |
+| F5 | 不正なパーセントエスケープの動的URLでURIError。既存404経路へ進める | `preview-query-navigation.test.mts` |
+| F6 | 同名の要素/資産/component採番が毎回2から探索する二乗時間処理。共通の次番号管理へ置換 | `generator-name-allocation.test.mts`。予約語/大文字小文字/既存連番/25,000件、修正前との混合入力照合 |
+| F7 | 長いcomponent名から255バイト超のfilenameを作り、出力全体が失敗。生成識別子を120 ASCII文字までに制限 | `component-output-name-portability.test.mts`。Next.js/Reactのファイル名とimport整合 |
+| F8 | 保存/状態取得がauthを2回実行し、認可時と保存者情報も食い違い得る。認可結果の利用者情報をそのまま使用 | `api-author-identity.test.mts`。PUT/PATCH/status、署名済み/匿名/拒否、認証回数2→1 |
+| F9 | activeな~ALL rulesetの必須checkを落とし、CI成功を誤報。~ALLを含め、不明なwildcardは未確認にする | `audit-merge-gates.test.mts` |
+| F10 | AI APIに旧クライアント向けJSON成功応答が残存。現行NDJSON契約へ統一 | `api-json-endpoints.test.mts`、AI suite。Accept有無・progress・失敗・中断 |
+| F11 | 約40KB・20,000段の有効JSON配列を表示/比較すると再帰がoverflow。共通の反復処理へ置換し、循環・展開量も制限 | `value-text-depth.test.mts`。editor/生成vars/native/DOM runtimeの整合、共有部分木・循環 |
+
+### 性能測定
+
+`benchmarks/generator-names.mts` を、同じNode 26.12.1・Linux x64環境で変更前後に順番に実行した。warmup 1回、測定5回の中央値。計測中は全テストとビルドを停止していた。
+
+| 同名要素数 | 変更前 | 変更後 |
+| ---: | ---: | ---: |
+| 1,000 | 70.974 ms | 3.502 ms |
+| 5,000 | 1,486.985 ms | 5.584 ms |
+| 10,000 | 7,067.562 ms | 15.214 ms |
+
+対象はclass名の割当だけ。エディタ全体・全書き出し・同時編集の体感速度を表す値ではない。生データ・環境・制限は `benchmarks/generator-names-results.md` に記録。
+
+### 統合検証
+
+- Node 26.12.1 / npm 12.2.1、lockfileから `npm ci --ignore-scripts`。esbuild実行を確認。
+- 基準点: 単体3,826成功、失敗0、Docker opt-in 1件skip。typecheck・i18n成功。
+- 最終の全単体: 3,876成功、失敗0、Docker opt-in 1件skip（計3,877件）。生成コードの型指定漏れ2件を統合テストで検出して修正後、全件を再実行した。
+- 最終 `npm run build:worker` 成功（内部のNext.js production build・TypeScript検証を含む）。明示的なtypecheck・i18nも成功。
+- browser-projectsチェック成功。Playwrightの列挙は889ケース/118ファイルで成功（実行成功とは区別）。
+- ファイル台帳は追加10ファイルを含む940管理対象と完全一致、重複/漏れなし。
+- `npm audit --json` と `npm audit --omit=dev --audit-level=high`: production/devを含め既知脆弱性0件。
+- 独立レビュー: merge/Canvas/SSE/認証/AI/gate、名前割当と出力互換、深い配列の共通変換を別担当が確認。重大な回帰の指摘なし。
+- ローカルPlaywright: 必要なChromiumのdownloadが不正/欠損ZIPで失敗。ブラウザE2Eは実行済みとしない。最終CIで確認する。
+
+### 継続確認・限界
+
+- 全E2E、生成5形式のビルド/SSR/browser、DockerはPRのCI結果を確認する。Worker buildはローカル成功。本環境にDockerはないため、そのopt-in検証は未実行。
+- 4,000ブロックの既存ブラウザ性能計測、実際の複数端末での同時編集p95/heapは未計測。今回の測定で代替しない。
+- AI操作ごとの全SiteDocコピーは候補として確認したが、transaction/rollback保証に関わるため今回変更していない。計測と独立した設計検討が必要。
+- 全範囲を棚卸し・経路調査したうえで確認できた問題を修正したもの。未知の不具合や脆弱性が残らないことは保証しない。

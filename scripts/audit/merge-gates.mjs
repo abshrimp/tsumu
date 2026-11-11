@@ -8,6 +8,20 @@
 /** Return the active default-branch Ruleset requirements, not every historical rule. */
 export function requiredChecksForBranch(rulesets, branch = "main") {
   if (!Array.isArray(rulesets)) return { contexts: null, note: "Rulesets unavailable" };
+  // ワイルドカードを無視すると、一部の必須チェックだけで合格してしまう。
+  // GitHub の fnmatch と同じ評価を保証できない条件は未確認として扱う。
+  const matchesScope = (patterns) => {
+    let unknown = false;
+    for (const pattern of patterns) {
+      if (typeof pattern !== "string" || !pattern || /[*?\[\]\\]/.test(pattern) ||
+          (pattern.startsWith("~") && !["~ALL", "~DEFAULT_BRANCH"].includes(pattern))) {
+        unknown = true;
+      } else if (["~ALL", "~DEFAULT_BRANCH", "refs/heads/" + branch, branch].includes(pattern)) {
+        return true;
+      }
+    }
+    return unknown ? null : false;
+  };
   const contexts = new Map();
   let relevant = 0;
   for (const ruleset of rulesets) {
@@ -15,13 +29,11 @@ export function requiredChecksForBranch(rulesets, branch = "main") {
     const refs = ruleset.conditions?.ref_name;
     if (!refs || !Array.isArray(refs.include) || !Array.isArray(refs.exclude))
       return { contexts: null, note: "Ruleset branch scope cannot be established" };
-    const matches = refs.include.includes("~DEFAULT_BRANCH") ||
-      refs.include.includes("refs/heads/" + branch) ||
-      refs.include.includes(branch);
-    const excluded = refs.exclude.includes("~DEFAULT_BRANCH") ||
-      refs.exclude.includes("refs/heads/" + branch) ||
-      refs.exclude.includes(branch);
-    if (!matches || excluded) continue;
+    const matches = matchesScope(refs.include);
+    const excluded = matchesScope(refs.exclude);
+    if (matches === false || excluded === true) continue;
+    if (matches === null || excluded === null)
+      return { contexts: null, note: "Ruleset branch patterns cannot be established" };
     relevant++;
     for (const rule of ruleset.rules || []) {
       if (rule.type !== "required_status_checks") continue;
