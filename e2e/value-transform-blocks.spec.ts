@@ -466,8 +466,8 @@ test("canvas reads dictionary fields by key", async ({ page }) => {
     });
   });
   const lookup = page.locator('[data-sel-key="step:dictionary-key"]');
-  const key = lookup.getByRole("combobox", { name: "取り出す項目" });
-  await expect(key).toHaveAttribute("placeholder", "項目 / {変数}");
+  const key = lookup.getByRole("combobox", { name: "取り出す項目名" });
+  await expect(key).toHaveAttribute("placeholder", "項目名 / {変数}");
   await key.fill("{selectedDate}");
   await key.blur();
   await expect.poll(() => page.evaluate(() => {
@@ -487,8 +487,8 @@ test("canvas processing settings persist changes directly", async ({ page }) => 
   });
   const box = page.locator('[data-sel-key="step:native"]');
   await expect(box.getByRole("combobox", { name: "加工の種類" })).toBeVisible();
-  await expect(box.getByRole("combobox", { name: "取り出す項目" })).toHaveCSS("height", "24px");
-  await box.getByRole("combobox", { name: "取り出す項目" }).fill("tags");
+  await expect(box.getByRole("combobox", { name: "取り出す項目名" })).toHaveCSS("height", "24px");
+  await box.getByRole("combobox", { name: "取り出す項目名" }).fill("tags");
   await expect.poll(() => page.evaluate(() => {
     const steps = (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps;
     return steps.find((step: any) => step.id === "native").transform.key;
@@ -909,7 +909,7 @@ test("canvas field picker leaves Japanese composition keys to the IME", async ({
     });
   });
   const key = page.locator('[data-sel-key="step:ime-field"]')
-    .getByRole("combobox", { name: "取り出す項目" });
+    .getByRole("combobox", { name: "取り出す項目名" });
   await key.fill("商品");
   await expect(key).toHaveAttribute("aria-expanded", "true");
   const active = await key.getAttribute("aria-activedescendant");
