@@ -11,7 +11,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "@typescript/typescript6";
-import { LANGUAGES } from "../lib/lang";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -25,11 +24,18 @@ const selected = args.filter((arg) => !arg.startsWith("--"));
 if ((all && selected.length) || selected.length > 1) {
   throw new Error("Specify either one language or --all");
 }
-const codes = all
-  ? Object.keys(LANGUAGES).filter((code) => code !== "en")
-  : [selected[0] ?? "ja"];
+// Read files directly rather than importing the generated registry: the
+// checker must also run against isolated test trees and incomplete locales.
+const localeDir = path.join(root, "lib", "locales");
+const available = new Map<string, string>();
+for (const name of fs.readdirSync(localeDir)) {
+  if (!name.endsWith(".ts") || name === "index.ts" || name.endsWith(".generated.ts")) continue;
+  const code = Intl.getCanonicalLocales(name.slice(0, -3))[0].toLowerCase();
+  available.set(code, name);
+}
+const codes = all ? [...available.keys()].sort() : [selected[0] ?? "ja"];
 for (const code of codes) {
-  if (!Object.hasOwn(LANGUAGES, code)) throw new Error("Unknown language: " + code);
+  if (code !== "en" && !available.has(code)) throw new Error("Unknown language: " + code);
 }
 
 const files: string[] = [];
@@ -79,13 +85,7 @@ for (const code of codes) {
     console.log("English is the source language; no dictionary is required.");
     continue;
   }
-  const localeDir = path.join(root, "lib", "locales");
-  const filename = fs.readdirSync(localeDir).find((name) =>
-    name.endsWith(".ts") && name !== "index.ts" && !name.endsWith(".generated.ts") &&
-    Intl.getCanonicalLocales(name.slice(0, -3))[0].toLowerCase() === code
-  );
-  if (!filename) throw new Error("Missing locale dictionary for: " + code);
-  const file = path.join(localeDir, filename);
+  const file = path.join(localeDir, available.get(code)!);
   const dict = (await import(file)).default as Record<string, string>;
   if (!dict || typeof dict !== "object" || Array.isArray(dict)) {
     throw new Error("Invalid dictionary in " + file);
@@ -111,7 +111,7 @@ for (const code of codes) {
   if (limit < missing.length) {
     console.log("... and " + (missing.length - limit) + " more (use --verbose to list all)");
   }
-  const message = missing.length + " untranslated static strings for " + code +
+  const message = missing.length + " untranslated strings for " + code +
     " (English fallback applies; dynamic keys need separate verification)";
   if (strict) {
     console.error("ERROR: " + message);
