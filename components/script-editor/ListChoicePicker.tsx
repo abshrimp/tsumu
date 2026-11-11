@@ -67,7 +67,7 @@ export function ListChoicePicker({
       if (outside(event.target)) setOpen(false);
     };
     const onWheel = (event: Event) => {
-      if (!menuRef.current?.contains(event.target as Node)) setOpen(false);
+      if (!(event.target instanceof Node) || !menuRef.current?.contains(event.target)) setOpen(false);
     };
     document.addEventListener("pointerdown", onPointer, true);
     document.addEventListener("focusin", onFocus, true);
@@ -189,7 +189,7 @@ export function ListChoicePicker({
                   onMouseEnter={() => setActive(index)}
                   onClick={() => choose(option)}
                 >
-                  <span className="se-pm-key" title={option.value}>{option.label}</span>
+                  <span className="se-pm-key" style={{ maxWidth: "100%" }} title={option.value}>{option.label}</span>
                 </button>
               </div>
             ))}
