@@ -155,7 +155,7 @@ async function prepareHtmlZip(
   const htmlText = new Map<string, string>();
   for (const entry of htmlEntries) {
     const bytes = await readZipEntryLimited(entry, HTML_ZIP_LIMITS.htmlBytes);
-    htmlText.set(entry.name, new TextDecoder("utf-8").decode(bytes));
+    htmlText.set(entry.name, new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes));
   }
   const stylesheets = new Map<string, { bytes: Uint8Array<ArrayBuffer>; source: string }>();
   const decoder = new TextDecoder("utf-8", { fatal: true });
