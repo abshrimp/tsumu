@@ -21,7 +21,7 @@ test("JSON controls call a key an 項目 without changing the storage-key termin
 
 test("list labels distinguish array elements from dictionary items", () => {
   assert.equal(definition("List · {length} elements", "リスト・{length}要素"), true);
-  assert.equal(definition("list_length_items_variant_1\\u0004List · {length} items", "リスト・{length}項目"), true);
+  assert.equal(definition("list_length_items_variant_1\u0004List · {length} items", "リスト・{length}項目"), true);
   // Identifiers in previously saved scripts are preserved.
   assert.equal(locale.includes("{ループ.キー}"), true);
 });
