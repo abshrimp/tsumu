@@ -1,3 +1,4 @@
+import { tr } from "./i18n";
 import { rebindImportedAssetUrls } from "./imported-asset-urls";
 import { sanitizeImportedInlineIcons } from "./imported-svg";
 import { IMPORT_LIMITS, isImportObject, validateImportedDoc } from "./site-import-format";
@@ -30,9 +31,9 @@ const decoder = new TextDecoder("utf-8", { fatal: true });
 function jsonText(bytes: Uint8Array): unknown {
   let content: string;
   try { content = decoder.decode(bytes); }
-  catch { throw new Error("編集データの文字コードはUTF-8である必要があります。"); }
+  catch { throw new Error(tr("The document must use UTF-8 encoding.")); }
   try { return JSON.parse(content.replace(/^\uFEFF/, "")) as unknown; }
-  catch { throw new Error("doc.jsonをJSONとして読み込めませんでした。"); }
+  catch { throw new Error(tr("Could not parse doc.json as JSON.")); }
 }
 
 function pathOK(path: string): boolean {
@@ -49,7 +50,7 @@ export async function parseSiteImport(
   mode: "zip" | "doc",
 ): Promise<SiteImport> {
   if (bytes.byteLength > (mode === "zip" ? IMPORT_LIMITS.zipBytes : IMPORT_LIMITS.docBytes)) {
-    throw new Error("インポートするファイルが大きすぎます。");
+    throw new Error(tr("The import file is too large."));
   }
   if (mode === "doc") {
     return { doc: validateImportedDoc(await decodePortableDoc(jsonText(bytes), IMPORT_LIMITS.docBytes)),
@@ -57,71 +58,71 @@ export async function parseSiteImport(
   }
   const zip = await openImportZip(bytes, IMPORT_LIMITS.entries);
   const entries = Object.values(zip.files).filter((entry) => !entry.dir);
-  if (entries.length > IMPORT_LIMITS.entries) throw new Error("ZIP内のファイルが多すぎます。");
+  if (entries.length > IMPORT_LIMITS.entries) throw new Error(tr("The ZIP contains too many files."));
   for (const entry of entries) {
     const original = (entry as JSZip.JSZipObject & { unsafeOriginalName?: string }).unsafeOriginalName;
     if (original && original !== entry.name) {
-      throw new Error("ZIPに安全でないファイルパスがあります。");
+      throw new Error(tr("The ZIP contains an unsafe path."));
     }
   }
   const editableDocs = entries.filter((entry) =>
     /^(?:[^/]+\/)?_tsumu\/doc\.json$/i.test(entry.name));
   if (editableDocs.length > 1) {
-    throw new Error("ZIPに複数の編集データが見つかりました。");
+    throw new Error(tr("The ZIP contains multiple editor documents."));
   }
   let size = 0;
   const canonicalPaths = new Set<string>();
   for (const entry of entries) {
-    if (!pathOK(entry.name)) throw new Error("ZIPに安全でないファイルパスがあります。");
+    if (!pathOK(entry.name)) throw new Error(tr("The ZIP contains an unsafe path."));
     // ZIP members must be unambiguous on case-insensitive and Unicode-normalizing hosts.
     const canonical = entry.name.normalize("NFC").toLowerCase();
-    if (canonicalPaths.has(canonical)) throw new Error("ZIPに重複したファイルパスがあります。");
+    if (canonicalPaths.has(canonical)) throw new Error(tr("The ZIP contains duplicate file paths."));
     canonicalPaths.add(canonical);
     const n = zipEntrySize(entry);
-    if (n === null) throw new Error("ZIP内のファイルサイズが正しくありません。");
+    if (n === null) throw new Error(tr("A file in the ZIP has an invalid size."));
     if (n > IMPORT_LIMITS.expandedBytes || (size += n) > IMPORT_LIMITS.expandedBytes) {
-      throw new Error("ZIP展開後のデータが大きすぎます。");
+      throw new Error(tr("The ZIP expands beyond the size limit."));
     }
   }
   const documentEntry = findEditDoc(entries);
   if (!documentEntry) {
-    throw new Error("ZIPに_tsumu/doc.jsonがありません。HTML ZIPの取り込みとは別の機能です。");
+    throw new Error(tr("The ZIP does not contain _tsumu/doc.json. Importing a plain HTML ZIP is a separate feature."));
   }
   const docBytes = await readZipEntryLimited(documentEntry, IMPORT_LIMITS.docBytes);
-  if (docBytes.length > IMPORT_LIMITS.docBytes) throw new Error("doc.jsonが大きすぎます。");
+  if (docBytes.length > IMPORT_LIMITS.docBytes) throw new Error(tr("doc.json exceeds the size limit."));
   const doc = validateImportedDoc(await decodePortableDoc(jsonText(docBytes), IMPORT_LIMITS.docBytes));
   const root = documentEntry.name.replace(/_tsumu\/doc\.json$/i, "");
   const parent = documentEntry.name.slice(0, documentEntry.name.lastIndexOf("/") + 1);
   // Asset paths are read from the archive's explicit mapping file.
   const mapEntry = zip.file(parent + "assets.json");
-  if (!mapEntry) throw new Error("ZIPに_tsumu/assets.jsonがありません。");
+  if (!mapEntry) throw new Error(tr("The ZIP is missing _tsumu/assets.json."));
   const metadata = jsonText(await readZipEntryLimited(mapEntry, IMPORT_LIMITS.docBytes));
   if (!isImportObject(metadata) || metadata.version !== 1 ||
       !isImportObject(metadata.assets)) {
-    throw new Error("ZIPのアセット対応表が不正です。");
+    throw new Error(tr("The ZIP asset manifest is invalid."));
   }
   const mapped = metadata.assets;
   if (new Set(Object.values(mapped)).size !== Object.keys(mapped).length ||
       Object.keys(mapped).length !== Object.keys(doc.assets).length ||
       Object.keys(mapped).some((id) => !Object.hasOwn(doc.assets, id) ||
         typeof mapped[id] !== "string" || !pathOK(mapped[id]))) {
-    throw new Error("ZIPのアセット対応表が不正です。");
+    throw new Error(tr("The ZIP asset manifest is invalid."));
   }
   const assets = new Map<string, Uint8Array>();
   const warnings: string[] = [];
   for (const [id, original] of Object.entries(doc.assets)) {
     const location = mapped[id];
     if (typeof location !== "string" || !pathOK(location)) {
-      throw new Error("ZIPのアセット対応表が不正です。");
+      throw new Error(tr("The ZIP asset manifest is invalid."));
     }
     const entry = zip.file(root + location);
     if (!entry) {
-      if (!original.dataUrl) warnings.push("ZIPにアセットがありません: " + original.name);
+      if (!original.dataUrl) warnings.push(tr("The ZIP is missing an asset: {name}", { name: original.name }));
       continue;
     }
     const n = zipEntrySize(entry);
     if (n !== null && n > IMPORT_LIMITS.assetBytes) {
-      warnings.push("サイズが大きいためアセットを取り込めません: " + original.name);
+      warnings.push(tr("The asset is too large to import: {name}", { name: original.name }));
       continue;
     }
     try {
@@ -129,7 +130,7 @@ export async function parseSiteImport(
       assets.set(id, contents);
     } catch (error) {
       if (!(error instanceof ZipEntryTooLargeError)) throw error;
-      warnings.push("サイズが大きいためアセットを取り込めません: " + original.name);
+      warnings.push(tr("The asset is too large to import: {name}", { name: original.name }));
     }
   }
   return { doc, assets, warnings };
@@ -146,12 +147,12 @@ export async function restoreImportAssets(
   let number = 0, embeddedBytes = 0;
   const countEmbedded = (url?: string) => {
     embeddedBytes += url?.length ?? 0;
-    if (embeddedBytes > IMPORT_LIMITS.docBytes) throw new Error("編集データが容量上限を超えています。");
+    if (embeddedBytes > IMPORT_LIMITS.docBytes) throw new Error(tr("The edit data exceeds the size limit."));
   };
   const assets = Object.entries(doc.assets);
   for (const [id, asset] of assets) {
     number++;
-    progress("アセットを復元中… " + number + " / " + assets.length);
+    progress(tr("Restoring assets… {number} / {total}", { number, total: assets.length }));
     const archived = imported.assets.get(id);
     let bytes = archived;
     if (!bytes && isEmbeddedAssetUrl(asset.dataUrl)) {
@@ -173,7 +174,7 @@ export async function restoreImportAssets(
           ...(result.path ? { dataUrl: undefined } : { path: undefined }),
         };
       } catch (e) {
-        warnings.push("アセットを保存できませんでした: " + asset.name + " (" + String(e instanceof Error ? e.message : e) + ")");
+        warnings.push(tr("Could not save {name} ({reason})", { name: asset.name, reason: String(e instanceof Error ? e.message : e) }));
         // The manifest bytes take precedence over an older embedded copy.
         if (archived) delete asset.dataUrl;
         delete asset.path;
@@ -186,7 +187,7 @@ export async function restoreImportAssets(
       continue;
     }
     delete asset.dataUrl;
-    if (!bytes) warnings.push("アセットを取得できませんでした: " + asset.name);
+    if (!bytes) warnings.push(tr("Could not retrieve the asset: {name}", { name: asset.name }));
     // Do not point at an unrelated asset key in the destination installation.
     if (asset.path) delete asset.path;
   }

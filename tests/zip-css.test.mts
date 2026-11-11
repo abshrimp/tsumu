@@ -190,7 +190,7 @@ test("real ZIP import rejects unsupported CSS encodings and excessive CSS withou
         const result = await readHtmlZip(await zip.generateAsync({ type: "uint8array" }));
         for (const a of result.assets) doc.assets[a.id] = a;
         doc.pages[doc.pageOrder[0]].rawHtml = result.html;
-      }, /UTF-8|CSS/);
+      }, /UTF-8|ZIP stylesheets/);
       assert.deepEqual(doc, before);
     }
     assert.equal(uploads, 0, "preflight must reject invalid CSS before any asset upload");

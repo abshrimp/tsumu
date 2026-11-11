@@ -153,7 +153,7 @@ export function raiseOverCrispSvg(doc: SiteDoc): void {
 function scriptReference(ctx: JsxContext, token: string, raw: boolean): string {
   const base = ctx.varsExpr ?? "vars";
   const name = codeLiteral(token), head = codeLiteral(token.split(".")[0]);
-  if (ctx.liveNames.has(token.split(".")[0])) return `{ name: ${name} }`;
+  if (ctx.isLive(token)) return `{ name: ${name} }`;
   ctx.usesLookup = true;
   const value = raw
     ? `lookupVar({ ...${base} }, ${name}) ?? null`
@@ -196,7 +196,7 @@ export function scriptsAttr(
       if (!hasVars(str)) return str;
       const fn = kind === "url" ? "interpolateUrl" : "interpolate";
       // 画面上の変数は {名前} のまま、文字としての「{」は「\{」のまま渡し、ランタイムが置き換える
-      const keep = { ...keepTokens(str, ctx.liveNames), [KEEP_ESCAPES]: true };
+      const keep = { ...keepTokens(str, ctx.isLive), [KEEP_ESCAPES]: true };
       const base = ctx.varsExpr ?? "vars";
       const vars = `{ ...${base}, ...${codeLiteral(keep)} }`;
       exprs.push(`${fn}(${codeLiteral(str)}, ${vars})`);
@@ -204,13 +204,14 @@ export function scriptsAttr(
     },
     false,
     skip,
-    (name, item) => {
+    (name, item, usage) => {
       if (item && !ctx.inTemplate) return undefined;
       if (ctx.inTemplate) {
         exprs.push(scriptReference(ctx, name, true));
         return `__script_raw_ref_${exprs.length - 1}__`;
       }
-      if (ctx.liveNames.has(name.split(".")[0])) return undefined;
+      // Edits to a nested list do not change the length of its containing array.
+      if (ctx.isLive(usage === "length" ? name + ".length" : name)) return undefined;
       ctx.usesLookup = true;
       exprs.push(`lookupVar(${ctx.varsExpr ?? "vars"}, ${codeLiteral(name)}) ?? null`);
       return `__script_var_${exprs.length - 1}__`;
@@ -219,8 +220,11 @@ export function scriptsAttr(
   if (!compiled.length) return "";
   // Server-side list lengths can be sent as scalars. Never serialize a whole
   // fetched array just to compute its length after a click.
-  const useScalarLengthFallback = (steps: Array<Record<string, unknown>>) => {
+  const prepareServerFallbacks = (steps: Array<Record<string, unknown>>) => {
     for (const step of steps) {
+      // An immutable sibling can share its root with a partially hydrated list.
+      // A row-local input still takes precedence over this server fallback.
+      if (step.kind === "transform" && !ctx.inTemplate && "raw" in step) step.serverSource = true;
       if (step.kind === "transform" && (step.transform as { kind?: string } | undefined)?.kind === "length" &&
           typeof step.raw === "string") {
         const match = /^__script_var_([0-9]+)__$/.exec(step.raw);
@@ -231,11 +235,11 @@ export function scriptsAttr(
           delete step.raw;
         }
       }
-      if (Array.isArray(step.then)) useScalarLengthFallback(step.then as Array<Record<string, unknown>>);
-      if (Array.isArray(step.else)) useScalarLengthFallback(step.else as Array<Record<string, unknown>>);
+      if (Array.isArray(step.then)) prepareServerFallbacks(step.then as Array<Record<string, unknown>>);
+      if (Array.isArray(step.else)) prepareServerFallbacks(step.else as Array<Record<string, unknown>>);
     }
   };
-  for (const script of compiled) useScalarLengthFallback(script.steps as Array<Record<string, unknown>>);
+  for (const script of compiled) prepareServerFallbacks(script.steps as Array<Record<string, unknown>>);
   const json = codeLiteral(compiled);
   if (!exprs.length) return ` data-scripts={${codeLiteral(json)}}`;
   ctx.usesInterpolate = true;

@@ -310,3 +310,20 @@ test("page script writes update nested data and preserve existing literal dotted
   assert.equal(Object.hasOwn(vars, "settings.enabled"), false);
   assert.equal(vars["literal.key"], 1);
 });
+
+test("preview removes from the latest fetched list and preserves sibling fields on nested writes", async () => {
+  const { SCRIPT_RUNTIME } = await import("../lib/script-runtime");
+  const { listRuntimeDom } = await import("./helpers/list-runtime-dom");
+  const state = { data: { rows: ["sample"], title: "Sample" } };
+  const action = [{ trigger: "click", steps: [
+    { kind: "remove-list-item", mode: "key", list: "data.rows", value: "0" },
+  ] }];
+  const dom = listRuntimeDom(`<button id="act" data-scripts='${JSON.stringify(action)}'>Remove</button>`,
+    `(${SCRIPT_RUNTIME})({ ...env, getPageData: () => state }).install(document)`, { state });
+  state.data = { rows: ["full one", "full two", "full three"], title: "Current" };
+  await dom.click("act");
+  assert.deepEqual(JSON.parse(JSON.stringify(dom.vars.data)), { rows: ["full two", "full three"], title: "Current" });
+  await dom.click("act");
+  assert.deepEqual(JSON.parse(JSON.stringify(dom.vars.data)), { rows: ["full three"], title: "Current" });
+  assert.deepEqual(state.data.rows, ["full one", "full two", "full three"]);
+});

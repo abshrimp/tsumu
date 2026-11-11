@@ -4,6 +4,7 @@ import { assetSrc } from "../lib/assets";
 import { buildClipPayload, mergeClipDeps } from "../lib/clip-transfer";
 import { validSiteDoc } from "../lib/doc-tree";
 import { generateProject } from "../lib/generator";
+import { htmlZipSource } from "../lib/html-zip-source";
 import { importedAssetPath } from "../lib/generator/imported-assets";
 import { buildPagePayload, applyPagePayload } from "../lib/page-transfer";
 import { createInitialDoc, makeCode } from "../lib/presets";
@@ -118,4 +119,88 @@ test("copies without ZIP scripts still dedupe identical image bytes across archi
   const payload = buildClipPayload(doc, { nodes: [code], rootIds: [code.id] });
   assert.equal(mergeClipDeps(target, payload).assetIds.get("picture"), "existing");
   assert.deepEqual(Object.keys(target.assets), ["existing"]);
+});
+
+test("copied raw ZIP pages keep their archive paths and remap destination asset IDs", () => {
+  const source = createInitialDoc();
+  const picture = asset("picture", "images/logo.png");
+  source.assets = { picture };
+  const page = source.pages[source.pageOrder[0]];
+  page.rawHtml = '<img src="images/logo.png">';
+  page.htmlZip = { path: "index.html", assetIds: [picture.id] };
+  const payload = buildPagePayload(source, [page.id]);
+
+  const target = createInitialDoc();
+  target.assets = {
+    picture: { ...asset("picture", "images/other.png"), path: "assets/other" },
+    alias: { ...picture, id: "alias", zip: undefined },
+  };
+  const original = structuredClone(target.assets);
+  applyPagePayload(target, payload);
+  const copied = target.pages[target.pageOrder.at(-1)!];
+  const [id] = copied.htmlZip!.assetIds;
+  assert.notEqual(id, picture.id);
+  assert.deepEqual(target.assets[id], { ...picture, id });
+  assert.deepEqual(target.assets.picture, original.picture);
+  assert.deepEqual(target.assets.alias, original.alias);
+  assert.equal(copied.rawHtml, page.rawHtml);
+  assert.equal(htmlZipSource(copied.rawHtml!, copied.htmlZip, target.assets, a => a.path!),
+    '<img src="assets/picture">');
+  // A second copy reuses the destination ID assigned on the first transfer.
+  const assets = structuredClone(target.assets);
+  applyPagePayload(target, payload);
+  assert.deepEqual(target.assets, assets);
+  assert.deepEqual(target.pages[target.pageOrder.at(-1)!].htmlZip!.assetIds, [id]);
+  assert.deepEqual(page.htmlZip.assetIds, [picture.id]);
+});
+
+test("explicit page copies retain local ZIP scripts and data without changing clipboard acceptance", () => {
+  const source = createInitialDoc(), page = source.pages[source.pageOrder[0]];
+  const module: Asset = { ...asset("entry", "main.js"), path: undefined,
+    dataUrl: "data:text/javascript;base64,ZXhwb3J0IHt9Ow==" };
+  const data: Asset = { ...asset("json", "config.json"), path: undefined, mimeType: "application/json",
+    dataUrl: "data:application/json;base64,e30=" };
+  source.assets = { entry: module, json: data };
+  page.rawHtml = '<script type="module" src="main.js"></script>';
+  page.htmlZip = { path: "index.html", assetIds: ["entry", "json"] };
+  const payload = buildPagePayload(source, [page.id]);
+  const direct = createInitialDoc();
+  direct.assets = {};
+  mergeClipDeps(direct, payload.deps);
+  assert.deepEqual(direct.assets, {});
+
+  const dest = createInitialDoc();
+  dest.assets.entry = asset("entry", "different.js");
+  applyPagePayload(dest, payload);
+  const copied = dest.pages[dest.pageOrder.at(-1)!];
+  const [entryId, jsonId] = copied.htmlZip!.assetIds;
+  assert.notEqual(entryId, "entry");
+  assert.deepEqual(dest.assets[entryId], { ...module, id: entryId });
+  assert.deepEqual(dest.assets[jsonId], data);
+  const project = generateProject(dest);
+  assert.equal(project.binaries[importedAssetPath(module)!], "ZXhwb3J0IHt9Ow==");
+  assert.equal(project.binaries[importedAssetPath(data)!], "e30=");
+  assert.ok(Object.values(project.files).some(file => file.includes("_imports/zip_page/main.js")));
+  assert.ok(validSiteDoc(dest));
+});
+
+test("page copy fails before mutation if a required ZIP member is missing or disallowed", () => {
+  const source = createInitialDoc(), page = source.pages[source.pageOrder[0]];
+  source.assets = { first: asset("first", "picture.png"), second: asset("second", "main.js") };
+  page.rawHtml = '<script src="main.js"></script>';
+  page.htmlZip = { path: "index.html", assetIds: ["first", "second"] };
+  const original = buildPagePayload(source, [page.id]);
+  const dest = createInitialDoc();
+  dest.assets.second = asset("second", "unrelated.js");
+  const before = structuredClone(dest);
+  for (const problem of ["missing", "html-name", "xml-path", "wrong-media"]) {
+    const p = structuredClone(original);
+    const member = p.deps.assets.second;
+    if (problem === "missing") delete p.deps.assets.second;
+    if (problem === "html-name") member.name = "page.html";
+    if (problem === "xml-path") member.zip!.path = "page.xml";
+    if (problem === "wrong-media") member.dataUrl = "data:text/html;base64,PGI+";
+    assert.throws(() => applyPagePayload(dest, p), /Asset references are invalid/);
+    assert.deepEqual(dest, before);
+  }
 });

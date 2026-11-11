@@ -1,3 +1,4 @@
+import { tr } from "./i18n";
 import JSZip from "jszip";
 import { IMPORT_LIMITS } from "./site-import-format";
 
@@ -9,7 +10,7 @@ export function zipEntrySize(entry: JSZip.JSZipObject): number | null {
   return emptyEntries.has(entry) ? 0 : null;
 }
 
-const invalid = () => new Error("ZIPのファイル一覧が不正です。");
+const invalid = () => new Error(tr("The ZIP file directory is invalid."));
 
 function member(view: DataView, pos: number, directory: number, centralEnd: number, prefix: number) {
   const u16 = (i: number) => view.getUint16(i, true);
@@ -106,12 +107,12 @@ export async function openImportZip(bytes: Uint8Array, maxFiles: number): Promis
   if (start < 0 || offset > start) throw invalid();
   // Allow explicit directory records in addition to the format's file limit.
   const maxRecords = maxFiles * 4;
-  if (records > maxRecords) throw new Error("ZIP内のファイルが多すぎます。");
+  if (records > maxRecords) throw new Error(tr("The ZIP contains too many files."));
   const members: ReturnType<typeof member>[] = [];
   let pos = start;
   while (pos < centralEnd) {
     if (pos + 46 > centralEnd || u32(pos) !== 0x02014b50) throw invalid();
-    if (members.length >= maxRecords) throw new Error("ZIP内のファイルが多すぎます。");
+    if (members.length >= maxRecords) throw new Error(tr("The ZIP contains too many files."));
     const m = member(view, pos, start, centralEnd, start - offset);
     members.push(m);
     pos = m.next;
@@ -137,7 +138,7 @@ export async function openImportZip(bytes: Uint8Array, maxFiles: number): Promis
     trailer.setUint32(16, offset, true);
   }
   const zip = await JSZip.loadAsync(input);
-  if (Object.keys(zip.files).length !== records) throw new Error("ZIPに重複したファイルパスがあります。");
+  if (Object.keys(zip.files).length !== records) throw new Error(tr("The ZIP contains duplicate file paths."));
   for (const entry of Object.values(zip.files)) {
     if (!entry.dir && (entry as { _data?: unknown })._data instanceof Promise) emptyEntries.add(entry);
   }

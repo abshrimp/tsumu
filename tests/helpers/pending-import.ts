@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { build, transformSync } from "esbuild";
 import { useEditor } from "../../lib/store";
 import * as editorStore from "../../lib/store";
-import { readHtmlZip } from "../../lib/html-zip";
+import { applyHtmlZipPage, readHtmlZip } from "../../lib/html-zip";
 import * as assets from "../../lib/assets";
 
 const require = createRequire(resolve("package.json"));
@@ -60,7 +60,7 @@ export function importCallbacks(kind: "image" | "font" | "html" | "style" | "bac
       if (name.endsWith("/use-document-confirmation")) return evaluate("lib/use-document-confirmation.ts");
       if (name.endsWith("/use-pending-import")) return evaluate("lib/use-pending-import.ts");
       if (name.endsWith("/store")) return { ...editorStore, useEditor: Object.assign((select: (s: ReturnType<typeof useEditor.getState>) => unknown) => select(useEditor.getState()), { getState: useEditor.getState, subscribe: useEditor.subscribe }) };
-      if (name.endsWith("/html-zip")) return { readHtmlZip: readZip };
+      if (name.endsWith("/html-zip")) return { applyHtmlZipPage, readHtmlZip: readZip };
       if (name.endsWith("/assets")) return { ...assets, uploadAsset: upload };
       if (name.endsWith("/controls")) return { useInspector: inspector, InspectorCtx: { Provider: "inspector" } };
       if (name.endsWith("/dialog")) return {

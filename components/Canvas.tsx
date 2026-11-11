@@ -8,7 +8,7 @@ import FrameStage from "./FrameStage";
 import { CommentLayer } from "./Comments";
 import { useEditor, type ParentRef } from "../lib/store";
 import { useHtmlPreview } from "./canvas/useHtmlPreview";
-import { keyOfItem, sameKey, setVarPath, varNamesAt, varSamplesAt } from "../lib/data";
+import { keyOfItem, sameKey, varNamesAt, varSamplesAt } from "../lib/data";
 import { findVarQuery, varQueryEnd, isSlugPage, isVarListShortcut, matchVarNames } from "../lib/vars";
 import { editableText, selectionOffsets, setEditable } from "../lib/editable";
 import { fieldDefaults, fieldValuePatch } from "../lib/fields";
@@ -159,6 +159,7 @@ export default function Canvas() {
     slugVal,
     plan,
     fieldVarNodes,
+    fetchedVars,
     pageVars,
     refreshData,
     setActivePage,
@@ -435,6 +436,7 @@ export default function Canvas() {
   // プレビュー: スクリプトを書き出しサイトと同じランタイムで動かす
   const scriptEnvRef = useRef<ScriptEnv>({});
   scriptEnvRef.current = {
+    getPageData: () => fetchedVars,
     touch: (el) => {
       el.dataset.tglTouched = "1";
     },
@@ -476,12 +478,8 @@ export default function Canvas() {
       openPage: (st) => scriptEnvRef.current.openPage?.(st),
       openUrl: (url, newTab) => scriptEnvRef.current.openUrl?.(url, newTab),
       setValue: (id, v) => scriptEnvRef.current.setValue?.(id, v) ?? false,
-      setVar: (name, v) =>
-        setClientValues((prev) => {
-          const next = { ...prev };
-          setVarPath(next, name, v);
-          return next;
-        }),
+      getPageData: () => scriptEnvRef.current.getPageData?.() ?? {},
+      setVar: (root, value) => setClientValues((prev) => ({ ...prev, [root]: value })),
       // エディタ自身の保存と混ざらないよう、プレビューのストレージは別のキーにする
       storePrefix: "site-preview:",
     };
@@ -1081,9 +1079,11 @@ export default function Canvas() {
               setCtxMenu({ x: e.clientX, y: e.clientY, nodeId });
             }}
           >
-            {mode === "preview" && !editingComp && page?.pageScripts && (
+            {mode === "preview" && !editingComp && page && (
               // 「このページ」のスクリプト（データの読み込み以外）を動かす目印
               <span
+                key={page.id}
+                data-page-body={page.id}
                 hidden
                 {...(() => {
                   const attrs: Record<string, unknown> = {};

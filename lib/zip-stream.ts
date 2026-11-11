@@ -1,9 +1,10 @@
+import { tr } from "./i18n";
 import type JSZip from "jszip";
 
 /** An archive entry exceeded the maximum allowed bytes while being decompressed. */
 export class ZipEntryTooLargeError extends Error {
   constructor() {
-    super("ZIP展開後のデータが大きすぎます。");
+    super(tr("The ZIP expands beyond the size limit."));
   }
 }
 

@@ -42,3 +42,29 @@ export function appendAssetSuffix(url: string, suffix: string): string {
   }
   return url + (suffix.startsWith("?") && url.includes("?") ? `&${suffix.slice(1)}` : suffix);
 }
+
+// Keep externally based references external. Resolve a local base inside the
+// archive without interpreting relative URLs against the editor origin.
+export function archiveBaseUrl(htmlPath: string, href: string | undefined | null): URL | undefined {
+  if (href) {
+    try {
+      const text = href.trim();
+      const value = new URL(/^[\\/]{2}/.test(text) ? "https:" + text : text, new URL(htmlPath.split("/").map(encodeURIComponent).join("/"), "file:///"));
+      if (["http:", "https:"].includes(value.protocol) ||
+          (value.protocol === "file:" && !/^[a-z][a-z0-9+.-]*:/i.test(href.trim()))) return value;
+    } catch { /* Invalid bases use the HTML entry's directory. */ }
+  }
+}
+
+export function archiveResolver(htmlPath: string, base: URL | undefined, urls: Map<string, string>) {
+  return (raw: string): string => {
+    const ref = raw.trim();
+    if (!base || !ref || /^(?:[a-z][a-z0-9+.-]*:|#|\/\/)/i.test(ref)) return resolveZipReference(ref, htmlPath, urls);
+    let url: URL;
+    try { url = new URL(ref, base); } catch { return raw; }
+    if (url.protocol !== "file:") return url.href;
+    const path = url.pathname + url.search + url.hash;
+    const target = resolveZipReference(path, htmlPath, urls);
+    return target === path ? raw : target;
+  };
+}
