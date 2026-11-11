@@ -15,14 +15,14 @@ const isNested = (v: unknown) => v != null && typeof v === "object";
 
 /** The public type system has only Value and List. */
 function kindOf(v: unknown, note?: string): string {
-  if (v === undefined) return note ? "" : tr("見本なし");
-  if (v && typeof v === "object") return tr("リスト・{length}項目", { length: Object.keys(v).length });
-  return tr("値");
+  if (v === undefined) return note ? "" : tr("No sample");
+  if (v && typeof v === "object") return trc("list_length_items_variant_1", "List · {length} items", { length: Object.keys(v).length });
+  return tr("Value");
 }
 
 /** 中の子要素（配列は先頭5件まで） */
 function childrenOf(v: unknown): [key: string, label: string, value: unknown][] {
-  if (Array.isArray(v)) return v.slice(0, 5).map((x, i) => [String(i), tr("{p1}番目", { p1: i + 1 }), x]);
+  if (Array.isArray(v)) return v.slice(0, 5).map((x, i) => [String(i), tr("#{p1}", { p1: i + 1 }), x]);
   if (v && typeof v === "object") return Object.entries(v).map(([k, x]) => [k, k, x]);
   return [];
 }
@@ -100,7 +100,7 @@ function Row({
           <button
             type="button"
             className={`vx-chev${open ? " is-open" : ""}`}
-            aria-label={open ? tr("閉じる") : tr("中を開く")}
+            aria-label={open ? tr("Close") : trc("expand_variant_1", "Expand")}
             aria-expanded={open}
             onClick={(e) => {
               e.stopPropagation();
@@ -174,15 +174,15 @@ export default function VarExplorer({
         return !roots.has(root) && (g.key === "item" || !itemRoots.has(root));
       })),
     }));
-    if (local.length) gs.unshift({ key: "item", label: tr("くり返し中の項目"), vars: Object.fromEntries(local.map((name) => [name, undefined])) });
+    if (local.length) gs.unshift({ key: "item", label: tr("Current loop item"), vars: Object.fromEntries(local.map((name) => [name, undefined])) });
     const known = new Set(gs.flatMap((g) => Object.keys(g.vars)));
     const extra = (extraKey ? extraKey.split("\n") : []).filter((n) => !known.has(n) && !roots.has(n.split(".")[0]) && !itemRoots.has(n.split(".")[0]));
     if (extra.length) {
       gs.push({
         key: "script",
-        label: tr("スクリプトで作る変数（サイトを動かしたときに値が決まる）"),
+        label: tr("Variables set by scripts (their values are set at runtime)"),
         vars: Object.fromEntries(extra.map((n) => [n, undefined])),
-        notes: Object.fromEntries(extra.map((n) => [n, tr("動かしたときに値が入ります")])),
+        notes: Object.fromEntries(extra.map((n) => [n, tr("Set when the script runs")])),
       });
     }
     return gs;
@@ -231,10 +231,10 @@ export default function VarExplorer({
         if (e.key === "Escape") onClose();
       }}
     >
-      <div className="modal vx" role="dialog" aria-label={tr("変数を探す")} data-se-popover="">
+      <div className="modal vx" role="dialog" aria-label={tr("Browse variables")} data-se-popover="">
         <div className="vx-head">
-          <h2>{tr("変数を探す")}</h2>
-          <button type="button" className="icon-btn" aria-label={tr("閉じる")} onClick={onClose}>
+          <h2>{tr("Browse variables")}</h2>
+          <button type="button" className="icon-btn" aria-label={tr("Close")} onClick={onClose}>
             <X size={16} />
           </button>
         </div>
@@ -243,7 +243,7 @@ export default function VarExplorer({
           <input
             autoFocus
             value={query}
-            placeholder={tr("変数名・値で検索")}
+            placeholder={tr("Search by name or value")}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
               if (!results.length) return;
@@ -261,7 +261,7 @@ export default function VarExplorer({
         <div className={`vx-body${q ? " is-search" : ""}`} ref={listRef}>
           {!groups.length ? (
             <p className="vx-empty">
-              {tr("この要素の位置で使える変数がありません。スクリプトの「ページを開いたとき」でデータを取得すると、ここに表示されます。")}
+              {tr("No variables are available here. Fetch data in the page's \"When the page opens\" script and it will appear here.")}
             </p>
           ) : q ? (
             results.length ? (
@@ -281,7 +281,7 @@ export default function VarExplorer({
                 </div>
               ))
             ) : (
-              <p className="vx-empty">{tr("「{q}」に一致する変数はありません", { q: query.trim() })}</p>
+              <p className="vx-empty">{tr("No variables match \"{q}\"", { q: query.trim() })}</p>
             )
           ) : (
             groups.map((g, groupIndex) => (
@@ -304,17 +304,17 @@ export default function VarExplorer({
           )}
         </div>
         <div className="vx-foot">
-          {context === "value" && <span>{tr("クリックで挿入します。リストは左の矢印で中身を開けます。")}</span>}
+          {context === "value" && <span>{tr("Click to insert. Use the arrow to expand lists.")}</span>}
           {hasAdvanced && (
             <button
               type="button"
               className={`btn btn-sm${advanced ? " is-on" : ""}`}
               aria-pressed={advanced}
-              data-tip={tr("入力欄のチェック・無効・文字数などの状態も出します")}
+              data-tip={tr("Also show field states such as disabled, length and index")}
               onClick={() => setAdvanced((v) => !v)}
             >
               <SlidersHorizontal size={12} />
-              {advanced ? tr("詳細を隠す") : tr("詳細を表示")}
+              {advanced ? tr("Hide advanced") : tr("Show advanced")}
             </button>
           )}
         </div>

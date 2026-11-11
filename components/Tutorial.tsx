@@ -81,13 +81,13 @@ interface TutorialStep {
 const ALL_STEPS: TutorialStep[] = [
   {
     placement: "center",
-    chapter: tr("ハンズオン・チュートリアル"),
-    title: tr("練習ページを作りながら、考え方ごと覚えます"),
-    body: tr("ページ作成・文章・レイアウト・デザイン・リンク・スマホ対応までを、実際に操作しながら進めます。各ステップには「なぜその操作をするのか」も添えてあるので、手順だけでなく理由も一緒に確かめてください。"),
+    chapter: tr("Hands-on tutorial"),
+    title: tr("Learn the concepts by building a practice page"),
+    body: tr("You'll go hands-on through creating a page, text, layout, design, links and mobile. Each step also explains why you do it, so you learn the reasoning, not just the steps."),
     bullets: [
-      tr("操作が終わると、自動で次へ進みます（左右の矢印キーでも移動できます）。"),
-      tr("作るページは非公開なので、公開サイトには出ません。途中でやめても残ります。"),
-      tr("所要時間は約10分です。"),
+      tr("When you finish a step, it moves on automatically (you can also use the left and right arrow keys)."),
+      tr("The page you make is unpublished, so it won't appear on your live site. It stays even if you stop partway."),
+      tr("It takes about 10 minutes."),
     ],
   },
 
@@ -95,55 +95,55 @@ const ALL_STEPS: TutorialStep[] = [
   {
     target: "left-tab-pages",
     placement: "right",
-    chapter: tr("ページを用意する"),
-    title: tr("左パネルの「ページ」を開きます"),
-    body: tr("サイトはページの集まりです。ページの追加・並べ替え・公開状態は、ここでまとめて管理します。"),
-    why: tr("要素は必ずどこかのページに置きます。いまあるページを使わずに練習用のページを新しく作れば、失敗しても本番の内容には影響しません。"),
+    chapter: tr("Set up a page"),
+    title: tr("Open Pages in the left panel"),
+    body: tr("A site is a collection of pages. Add, reorder and publish pages here."),
+    why: tr("Before adding elements, you need a page to put them on. Practicing on a new page means mistakes won't affect your real content."),
     task: "open-pages",
-    taskLabel: tr("「ページ」タブを開く"),
+    taskLabel: tr("Open the Pages tab"),
   },
   {
     target: "add-page-button",
     placement: "right",
-    chapter: tr("ページを用意する"),
-    title: tr("「ページを追加」を押します"),
-    body: tr("空のページが追加され、自動でそのページに切り替わります。"),
-    why: tr("空のページには自分で置いた要素しかないので、それぞれが何をしているのかを確かめながら進められます。"),
+    chapter: tr("Set up a page"),
+    title: tr("Click \"Add page\""),
+    body: tr("An empty page is added and opened automatically."),
+    why: tr("Starting from an empty page lets you see what each element does as you build."),
     task: "create-page",
-    taskLabel: tr("新しいページを追加する"),
+    taskLabel: tr("Add a new page"),
     prepare: { leftTab: "pages" },
   },
   {
     target: "tutorial-page-publish-checkbox",
     placement: "left",
-    chapter: tr("ページを用意する"),
-    title: tr("「このページを公開する」をオフにします"),
-    body: tr("右パネルに、いま開いているページの設定が出ています。チェックを外してください。"),
-    why: tr("作りかけのページを公開サイトに出さないためです。非公開にしたページは、公開ボタンを押しても公開サイトに含まれません。下書き中のページにも使えます。"),
+    chapter: tr("Set up a page"),
+    title: tr("Turn off \"Publish this page\""),
+    body: tr("The right panel shows the settings for the current page. Uncheck the box."),
+    why: tr("This keeps an unfinished page off your live site. Unpublished pages aren't exported when you publish, so you can experiment freely. It's handy for drafts too."),
     task: "unpublish-page",
-    taskLabel: tr("公開チェックを外して非公開にする"),
+    taskLabel: tr("Uncheck it to unpublish"),
     prepare: { clearSelection: true, openSection: "tutorial-page-section" },
   },
   {
     target: "tutorial-page-name",
     placement: "left",
-    chapter: tr("ページを用意する"),
-    title: tr("ページ名を「練習ページ」にします"),
-    body: tr("名前欄へ「練習ページ」と入力し、Enterを押してください。"),
-    why: tr("ページ名は、エディタの中でページを見分けるための名前です。ページが増えても、名前を見れば何のページかすぐ分かります（ブラウザのタブに出るタイトルは「検索・シェア」で別に設定します）。"),
+    chapter: tr("Set up a page"),
+    title: tr("Name the page \"Practice page\""),
+    body: tr("Type \"Practice page\" in the Name field and press Enter."),
+    why: tr("The page name is for telling pages apart in the editor (the title in browser tabs is set separately under \"Search & sharing\"). Clear names keep things easy as pages pile up."),
     task: "name-page",
-    taskLabel: tr("名前を「練習ページ」にする"),
+    taskLabel: tr("Name it \"Practice page\""),
     prepare: { clearSelection: true, openSection: "tutorial-page-section" },
   },
   {
     target: "tutorial-page-slug",
     placement: "left",
-    chapter: tr("ページを用意する"),
-    title: tr("URLを「{slug}」にします"),
-    body: tr("URL欄へ半角で「{slug}」と入力し、Enterを押してください。公開すると /{slug} でこのページが開きます。"),
-    why: tr("URLは、訪問者がこのページを開くときのアドレスです。内容が分かる短い英単語にしておくと、人に伝えやすく、検索エンジンにもページの内容が伝わりやすくなります。"),
+    chapter: tr("Set up a page"),
+    title: trc("set_the_url_to_slug_variant_1", "Set the URL to \"{slug}\""),
+    body: tr("Type \"{slug}\" in the URL field and press Enter. Once published, this page opens at /{slug}."),
+    why: tr("The URL is the address visitors go to. A short word describing the content is easy to share and helps search engines understand the page."),
     task: "slug-page",
-    taskLabel: tr("URLを「{slug}」にする"),
+    taskLabel: tr("Set the URL to \"{slug}\""),
     prepare: { clearSelection: true, openSection: "tutorial-page-section" },
   },
 
@@ -151,154 +151,154 @@ const ALL_STEPS: TutorialStep[] = [
   {
     target: "left-tab-add",
     placement: "right",
-    chapter: tr("要素を置く"),
-    title: tr("左パネルの「追加」を開きます"),
-    body: tr("文字・画像・ボタンなど、ページを作る部品（要素）はここから置きます。"),
-    why: tr("ページは、文字やボタンなどの要素を組み合わせて作ります。新しい要素は、いま選んでいる要素のすぐ後ろ（ボックスを選んでいるときはその中）に入ります。入る場所は上部の「挿入先」で確認できます。"),
+    chapter: tr("Add elements"),
+    title: tr("Open Add in the left panel"),
+    body: tr("Add the building blocks (elements) of a page, like text, images and buttons, from here."),
+    why: tr("Everything on a page is a combination of elements. New elements go after the selected element (or inside it, if it's a box). Check \"Insert into\" at the top to see where it'll go."),
     task: "open-add",
-    taskLabel: tr("「追加」タブを開く"),
+    taskLabel: tr("Open the Add tab"),
   },
   {
     target: "add-element-heading",
     placement: "right",
-    chapter: tr("要素を置く"),
-    title: tr("「見出し」を押します"),
-    body: tr("練習ページに見出しが入り、そのまま選ばれた状態になります。"),
-    why: tr("見出しは、そのページが何についてのページかを示します。見た目が大きいだけでなく、検索エンジンや読み上げソフトも見出しを手がかりにページの内容をつかみます。"),
+    chapter: tr("Add elements"),
+    title: tr("Click \"Heading\""),
+    body: tr("A heading is added to the practice page and selected."),
+    why: tr("Headings describe what the page is about. Beyond looking big, search engines and screen readers read them as the page's structure. Starting with a heading makes the page's purpose clear."),
     task: "add-heading",
-    taskLabel: tr("見出しを追加する"),
+    taskLabel: tr("Add a heading"),
     prepare: { leftTab: "add" },
   },
   {
     target: "selected-node",
     placement: "left",
-    chapter: tr("要素を置く"),
-    title: tr("見出しをダブルクリックして書き換えます"),
-    body: tr("「はじめてのページ」と入力し、文字の外側をクリックして確定してください。"),
-    why: tr("キャンバス上で直接書き換えると、実際の文字の大きさや改行される位置を見ながら文章を調整できます。"),
+    chapter: tr("Add elements"),
+    title: tr("Double-click the heading to edit it"),
+    body: tr("Type \"My first page\" and click outside the text to confirm."),
+    why: tr("You edit directly on the canvas, so you can see the actual size and line breaks as you write."),
     task: "edit-heading",
-    taskLabel: tr("「はじめてのページ」と入力する"),
+    taskLabel: tr("Type \"My first page\""),
   },
   {
     target: "style-typography",
     placement: "left",
-    chapter: tr("要素を置く"),
-    title: tr("右パネルで文字サイズを40pxにします"),
-    body: tr("「テキスト」のサイズ欄に40と入力し、Enterを押してください。"),
-    why: tr("見出しを本文より大きくしておくと、どこが大事なのかが一目で分かります。このように「キャンバスで要素を選び、右パネルで変える」のが、このエディタの基本の操作です。"),
+    chapter: tr("Add elements"),
+    title: tr("Set the font size to 40px in the right panel"),
+    body: tr("Enter 40 in the Size field under Text and press Enter."),
+    why: tr("Making the heading larger than the body text shows what matters at a glance. \"Select on the canvas, change in the right panel\" is the basic flow of this editor."),
     task: "style-heading",
-    taskLabel: tr("文字サイズを40pxにする"),
+    taskLabel: tr("Set the font size to 40px"),
     prepare: { rightTab: "style" },
   },
   {
     target: "add-element-text",
     placement: "right",
-    chapter: tr("要素を置く"),
-    title: tr("見出しを選んだまま「テキスト」を押します"),
-    body: tr("見出しのすぐ後ろに本文が入ります。"),
-    why: tr("新しい要素は、選んでいる要素のすぐ後ろに入ります。追加する前に入れたい場所の要素を選んでおけば、あとから並べ替えずに済みます。"),
+    chapter: tr("Add elements"),
+    title: tr("With the heading selected, click \"Text\""),
+    body: tr("Body text is added right after the heading."),
+    why: tr("Where new elements go depends on what's selected. Selecting the spot first saves you from reordering later."),
     task: "add-text",
-    taskLabel: tr("テキストを追加する"),
+    taskLabel: tr("Add text"),
     prepare: { leftTab: "add" },
   },
   {
     target: "selected-node",
     placement: "left",
-    chapter: tr("要素を置く"),
-    title: tr("本文を書き換えます"),
-    body: tr("ダブルクリックして「このページはチュートリアルで作りました。」と入力し、外側をクリックして確定してください。"),
-    why: tr("見出しで「何のページか」を、本文で「詳しい内容」を伝えます。このように役割を分けると、読みやすいページになります。"),
+    chapter: tr("Add elements"),
+    title: tr("Edit the body text"),
+    body: tr("Double-click, type \"I made this page in the tutorial.\" and click outside to confirm."),
+    why: tr("Headings say what the page is; body text gives the details. That split is the basis of a readable page."),
     task: "edit-text",
-    taskLabel: tr("指定された本文を入力する"),
+    taskLabel: tr("Enter the given text"),
   },
 
   /* ---------- レイアウト ---------- */
   {
     placement: "center",
-    chapter: tr("レイアウトの考え方"),
-    title: tr("並べ方は「親」が決めます"),
-    body: tr("要素を横に並べたい・中央に寄せたいときは、並べたい要素を「ボックス（親）」に入れ、親の設定で並べ方を決めます。子を1つずつ数値で動かすより、画面幅が変わっても崩れにくいからです。"),
+    chapter: tr("How layout works"),
+    title: trc("the_parent_decides_the_layout_variant_1", "The parent decides the layout"),
+    body: tr("To place elements side by side or center them, put them in a box (the parent) and set the layout on the parent. It holds up better across screen widths than moving each child by numbers."),
     bullets: [
-      tr("フロー … 子をどの向きに並べるか（縦・横）"),
-      tr("配置 … 親の中のどこへ寄せるか"),
-      tr("余白 … 要素の内側（内側余白）と外側（外側余白）のすき間"),
+      tr("Flow … which direction children are arranged (vertical or horizontal)"),
+      tr("Alignment … where in the parent they're placed"),
+      tr("Spacing … the gap inside (padding) and outside (margin) an element"),
     ],
   },
   {
     target: "add-element-box",
     placement: "right",
-    chapter: tr("レイアウト"),
-    title: tr("「ボックス」を追加します"),
-    body: tr("本文の後ろに、空のボックスが入ります。"),
-    why: tr("ボックスは、ほかの要素をまとめて入れる箱です。中に入れた要素の並べ方を決めたり、まとめて背景を付けたりできます。"),
+    chapter: tr("Layout"),
+    title: trc("add_a_box_variant_1", "Add a box"),
+    body: tr("An empty box is added after the body text."),
+    why: tr("A box is a container that groups content. It's the base for arranging its elements or giving them a background."),
     task: "add-box",
-    taskLabel: tr("ボックスを追加する"),
+    taskLabel: tr("Add a box"),
     prepare: { leftTab: "add" },
   },
   {
     target: "add-element-button",
     placement: "right",
-    chapter: tr("レイアウト"),
-    title: tr("ボックスの中にボタンを追加します"),
-    body: tr("ボックスを選んだ状態で「ボタン」を押してください。上部の挿入先が「ボックスの中」になっています。"),
-    why: tr("ボックスを選んだまま追加すると、要素はボックスの中に入ります。このとき、ボックスを「親」、中の要素を「子」と呼びます。レイヤーパネルでは、ボタンがボックスより一段内側に表示されます。"),
+    chapter: tr("Layout"),
+    title: trc("add_a_button_inside_the_box_variant_1", "Add a button inside the box"),
+    body: tr("With the box selected, click \"Button\". \"Insert into\" at the top now says inside the box."),
+    why: tr("Adding with a parent selected puts the new element inside it (as a child). In the Layers panel, you'll see the button nested one level inside the box."),
     task: "add-first-child",
-    taskLabel: tr("ボックスの中へボタンを追加する"),
+    taskLabel: tr("Add a button inside the box"),
     prepare: { leftTab: "add" },
   },
   {
     target: "add-element-button",
     placement: "right",
-    chapter: tr("レイアウト"),
-    title: tr("もう1つボタンを追加します"),
-    body: tr("同じボックスの中に2つ目のボタンを入れてください。いまは縦に並びます。"),
-    why: tr("ボックスの中の要素は、最初は縦に並びます（垂直フロー）。並び方の変化が分かるようにボタンを2つにしておき、次のステップでボックスの設定だけで横並びに変えてみます。"),
+    chapter: tr("Layout"),
+    title: tr("Add another button"),
+    body: tr("Add a second button in the same box. For now they stack vertically."),
+    why: tr("Boxes start out vertical. You'll need two buttons to see in the next step how the parent's setting alone changes the arrangement."),
     task: "add-second-child",
-    taskLabel: tr("2つ目のボタンを追加する"),
+    taskLabel: tr("Add a second button"),
     prepare: { leftTab: "add" },
   },
   {
     target: "style-layout",
     placement: "left",
-    chapter: tr("レイアウト"),
-    title: tr("ボックスを「水平フロー」にします"),
-    body: tr("「レイアウト」のフローで、右向きの矢印を押してください。"),
-    why: tr("ボタン自体は何も変えていないのに、ボックスの設定だけで横並びになりました。並び方を変えたいときは、中の要素（子）ではなく、それを囲むボックス（親）を選びます。"),
+    chapter: tr("Layout"),
+    title: tr("Set the box to horizontal flow"),
+    body: tr("Under Layout, click the right arrow in Flow."),
+    why: tr("You didn't touch the buttons, yet the parent's setting put them side by side. To change an arrangement, select the parent, not the children. Remember this and layout gets easy."),
     task: "flow-box",
-    taskLabel: tr("水平フローにして子要素を横に並べる"),
+    taskLabel: tr("Use horizontal flow to put children side by side"),
     prepare: { rightTab: "style", openSection: "style-layout" },
   },
   {
     target: "style-layout",
     placement: "left",
-    chapter: tr("レイアウト"),
-    title: tr("子要素を中央に寄せます"),
-    body: tr("「配置」の3×3のボタンで、真ん中を押してください。"),
-    why: tr("フローは「どの向きに並べるか」、配置は「ボックスの中のどこに寄せるか」を決めます。数値で位置を合わせると画面幅が変わったときにずれますが、中央寄せにしておけば常に真ん中に収まります。"),
+    chapter: tr("Layout"),
+    title: tr("Center the children"),
+    body: tr("Click the middle of the 3×3 grid under Alignment."),
+    why: tr("Flow sets the direction; alignment sets where things sit inside the parent. Centered content stays centered even when the screen or content changes (positioning by numbers would drift)."),
     task: "align-box",
-    taskLabel: tr("配置を中央揃えにする"),
+    taskLabel: tr("Center the alignment"),
     prepare: { rightTab: "style", openSection: "style-layout" },
   },
   {
     target: "style-spacing",
     placement: "left",
-    chapter: tr("レイアウト"),
-    title: tr("ボタンの内側余白を左右32px・上下16pxにします"),
-    body: tr("1つ目のボタンが選ばれています。「余白」の内側余白に、左右32・上下16を入力してください。"),
-    why: tr("内側余白は、要素の内側のすき間（文字と枠の間）です。ボタンの場合は見た目が大きくなるだけでなく、押せる範囲も広がるので押しやすくなります。"),
+    chapter: tr("Layout"),
+    title: tr("Set the button's padding to 32px left/right and 16px top/bottom"),
+    body: tr("The first button is selected. Under Spacing, enter 32 for left/right padding and 16 for top/bottom."),
+    why: tr("Padding is the space inside an element, between its content and its edge. On buttons it also enlarges the clickable area, making them easier to press."),
     task: "padding-button",
-    taskLabel: tr("内側余白を左右32px・上下16pxにする"),
+    taskLabel: tr("Set padding to 32px left/right and 16px top/bottom"),
     prepare: { rightTab: "style", openSection: "style-spacing" },
   },
   {
     target: "style-spacing",
     placement: "left",
-    chapter: tr("レイアウト"),
-    title: tr("外側余白を左右16pxにします"),
-    body: tr("外側余白の左右に16を入力してください。"),
-    why: tr("外側余白は、要素の外側のすき間（隣の要素との間）です。ボタンの大きさは変わらず、2つのボタンの間隔だけが広がります。要素そのものを大きくしたいなら内側余白、隣との間をあけたいなら外側余白を使います。"),
+    chapter: tr("Layout"),
+    title: trc("set_the_margin_to_16px_left_ri_variant_1", "Set the margin to 16px left/right"),
+    body: tr("Enter 16 for the left/right margin."),
+    why: tr("Margin is the space outside an element, between it and its neighbors. The button stays the same size; only the gap between the buttons grows. Use padding to grow the inside and margin to add space between."),
     task: "margin-button",
-    taskLabel: tr("外側余白を左右16pxにする"),
+    taskLabel: tr("Set the margin to 16px left/right"),
     prepare: { rightTab: "style", openSection: "style-spacing" },
   },
 
@@ -306,34 +306,34 @@ const ALL_STEPS: TutorialStep[] = [
   {
     target: "style-position",
     placement: "left",
-    chapter: tr("自由な位置"),
-    title: tr("ボタンの位置を「カスタム」にします"),
-    body: tr("「位置」でカスタムを押してください。"),
-    why: tr("「カスタム」は、画像の上に文字を重ねるときなど、要素を並びから外して好きな位置に置きたいときの設定です。便利ですが、ふだんは使いません。その理由を次の2ステップで確かめます。"),
+    chapter: tr("Free positioning"),
+    title: tr("Set the button's position to Custom"),
+    body: tr("Click Custom under Position."),
+    why: tr("This is for elements that should leave the normal flow, like badges or text over an image. The next two steps show why you shouldn't use it all the time."),
     task: "custom-button",
-    taskLabel: tr("位置を「カスタム」にする"),
+    taskLabel: tr("Set position to Custom"),
     prepare: { rightTab: "style", openSection: "style-position" },
   },
   {
     target: "style-position",
     placement: "left",
-    chapter: tr("自由な位置"),
-    title: tr("XとYを20pxにして動かします"),
-    body: tr("Xに20、Yに20を入力してください。"),
-    why: tr("数値で好きな位置に動かせますが、このボタンはボックスの並びから外れます（もう1つのボタンが空いた場所に詰めてきたのが分かります）。そのため、画面幅が変わるとほかの要素と重なりやすくなります。"),
+    chapter: tr("Free positioning"),
+    title: tr("Move it by setting X and Y to 20px"),
+    body: tr("Enter 20 for X and 20 for Y."),
+    why: tr("You can move it freely by numbers, but the button no longer takes part in the parent's flow (notice the other button slid over). It can easily overlap other elements when the screen width changes."),
     task: "move-button",
-    taskLabel: tr("Xを20px・Yを20pxにする"),
+    taskLabel: tr("Set X to 20px and Y to 20px"),
     prepare: { rightTab: "style", openSection: "style-position" },
   },
   {
     target: "style-position",
     placement: "left",
-    chapter: tr("自由な位置"),
-    title: tr("位置を「自動」に戻します"),
-    body: tr("「自動」を押すと、ボタンは再び横並びに戻ります。"),
-    why: tr("ふだんは「自動」のまま、並び方はボックス（親）に任せるのが崩れにくいページの作り方です。「カスタム」は、要素を重ねたいときだけ使いましょう。"),
+    chapter: tr("Free positioning"),
+    title: trc("set_position_back_to_auto_variant_1", "Set position back to Auto"),
+    body: tr("Click Auto and the button returns to the row."),
+    why: tr("Keeping things on Auto and letting the parent's flow handle layout is the most robust approach. Use Custom only when you really need to overlap."),
     task: "reset-button-position",
-    taskLabel: tr("位置を「自動」に戻す"),
+    taskLabel: tr("Set position back to Auto"),
     prepare: { rightTab: "style", openSection: "style-position" },
   },
 
@@ -341,23 +341,23 @@ const ALL_STEPS: TutorialStep[] = [
   {
     target: "style-appearance",
     placement: "left",
-    chapter: tr("見た目を整える"),
-    title: tr("ボタンの角を12pxに丸めます"),
-    body: tr("「外見」の角の丸みに12を入力し、Enterを押してください。"),
-    why: tr("角の丸みで、ボタンの印象は大きく変わります。サイト内のボタンの丸みをそろえると、全体に統一感が出ます。"),
+    chapter: tr("Polish the look"),
+    title: tr("Round the button's corners to 12px"),
+    body: tr("Enter 12 for Corner radius under Appearance and press Enter."),
+    why: tr("Corner rounding has a big effect on the feel. Keeping it the same across your site's buttons makes it look consistent."),
     task: "round-button",
-    taskLabel: tr("角の丸みを12pxにする"),
+    taskLabel: tr("Set the corner radius to 12px"),
     prepare: { rightTab: "style", openSection: "style-appearance" },
   },
   {
     target: "style-background",
     placement: "left",
-    chapter: tr("見た目を整える"),
-    title: tr("ボタンの背景色を「#2563eb」にします"),
-    body: tr("「背景」の色に #2563eb を入力し、Enterを押してください。"),
-    why: tr("色の付いたボタンは「ここを押せる」「ここが大事」と伝えます。目立つ色を大事なボタンだけに使うと、本当に見てほしい所がきちんと目立ちます。"),
+    chapter: tr("Polish the look"),
+    title: tr("Set the button's background color to \"#2563eb\""),
+    body: tr("Enter #2563eb for the color under Background and press Enter."),
+    why: tr("A colored button says \"this is an important action you can take.\" Saving a strong (accent) color for key actions makes them stand out."),
     task: "color-button",
-    taskLabel: tr("背景色を #2563eb にする"),
+    taskLabel: tr("Set the background color to #2563eb"),
     prepare: { rightTab: "style", openSection: "style-background" },
   },
 
@@ -365,22 +365,22 @@ const ALL_STEPS: TutorialStep[] = [
   {
     target: "right-tab-settings",
     placement: "left",
-    chapter: tr("動きを付ける"),
-    title: tr("右パネルの「設定」を開きます"),
-    body: tr("ボタンを押したときの動きを付けます。"),
-    why: tr("右パネルは、見た目を変える「スタイル」と、内容や動きを決める「設定」に分かれています。押したときの動きは見た目ではないので、「設定」で決めます。"),
+    chapter: tr("Add interaction"),
+    title: trc("open_settings_in_the_right_pan_variant_1", "Open Settings in the right panel"),
+    body: tr("Now set what happens when the button is clicked."),
+    why: tr("The right panel is split into Style (looks) and Settings (content and behavior). What happens on click isn't about looks, so it's under Settings."),
     task: "open-settings",
-    taskLabel: tr("右パネルの「設定」を開く"),
+    taskLabel: tr("Open Settings in the right panel"),
   },
   {
     target: "settings-link",
     placement: "left",
-    chapter: tr("動きを付ける"),
-    title: tr("押したら別のページが開くようにします"),
-    body: tr("「ページのスクリプトを編集」を開き、「クリックしたとき」をワークスペースへドラッグして、その下に「［ページ］を開く」をつなげます。きっかけの要素はこのボタンになっています。開くページは練習ページ以外を選んでください。"),
-    why: tr("動きは「きっかけ（例：クリックしたとき）」と「動作（例：ページを開く）」を組み合わせて作ります。この組み合わせ方を覚えれば、表示の切り替えやスクロール、データの表示なども同じやり方で作れます。"),
+    chapter: tr("Add interaction"),
+    title: tr("Make it open another page when clicked"),
+    body: tr("Open \"Edit page scripts\", drag \"When clicked\" onto the workspace, and attach \"Open ［page］\" below it. The trigger element is already this button. Choose a page other than the practice page to open."),
+    why: tr("Interactions combine a trigger (like \"When clicked\") with actions (like \"Open page\"). Once you know this pattern, toggling visibility, scrolling and showing data all work the same way."),
     task: "link-button",
-    taskLabel: tr("既存ページへのリンクを設定する"),
+    taskLabel: tr("Link to an existing page"),
     prepare: { rightTab: "settings" },
   },
 
@@ -388,23 +388,23 @@ const ALL_STEPS: TutorialStep[] = [
   {
     target: "breakpoint-{mobileId}",
     placement: "bottom",
-    chapter: tr("スマホに対応する"),
-    title: tr("上部の「{mobile}」を押します"),
-    body: tr("キャンバスが{mobile}の幅に切り替わります。上部に、いまどの画面幅を編集しているかが出ます。"),
-    why: tr("パソコンで作った見た目が、すべての画面幅の基本になります。小さい画面では変えたい所だけを上書きすればよいので、画面幅ごとに作り直す必要はありません。"),
+    chapter: tr("Make it work on phones"),
+    title: tr("Click \"{mobile}\" at the top"),
+    body: tr("The canvas switches to the {mobile} width. The top shows which screen width you're editing."),
+    why: tr("The desktop design is the base for every screen; on smaller screens you override only what needs to change. No need to rebuild for each width."),
     task: "mobile-view",
-    taskLabel: tr("{mobile}の表示に切り替える"),
+    taskLabel: tr("Switch to the {mobile} view"),
     needsBreakpoint: true,
   },
   {
     target: "style-layout",
     placement: "left",
-    chapter: tr("スマホに対応する"),
-    title: tr("{mobile}ではボタンを縦に並べます"),
-    body: tr("{mobile}の表示のまま、ボックスのフローで下向きの矢印を押してください。"),
-    why: tr("狭い画面でボタンを横に並べると窮屈になります。ここで変えた設定は{mobile}の表示にだけ反映されるので、パソコンでは横並びのままです（上部の「パソコン」を押すと確かめられます）。"),
+    chapter: tr("Make it work on phones"),
+    title: tr("Stack the buttons vertically on {mobile}"),
+    body: tr("Still in the {mobile} view, click the down arrow in the box's Flow."),
+    why: tr("Side-by-side buttons get cramped on narrow screens. This change applies only at the {mobile} width, so the desktop row stays as is (switch back to Desktop at the top to check)."),
     task: "mobile-box",
-    taskLabel: tr("{mobile}だけ縦並びにする"),
+    taskLabel: tr("Stack vertically on {mobile} only"),
     prepare: { rightTab: "style", openSection: "style-layout" },
     needsBreakpoint: true,
   },
@@ -413,25 +413,25 @@ const ALL_STEPS: TutorialStep[] = [
   {
     target: "preview",
     placement: "bottom",
-    chapter: tr("仕上がりを確かめる"),
-    title: tr("「プレビュー」を押します"),
-    body: tr("選択枠などが消え、公開したときと同じようにボタンやリンクを操作できます。"),
-    why: tr("編集画面でのクリックは、要素を選ぶための操作です。プレビューではスクリプトも実際に動くので、公開する前に「押したらどうなるか」まで確かめられます。"),
+    chapter: tr("Check the result"),
+    title: tr("Click \"Preview\""),
+    body: tr("Selection outlines disappear, and you can use buttons and links just like on the published site."),
+    why: tr("On the editing canvas, clicking selects elements. In Preview, scripts actually run, so you can check what happens on click before publishing."),
     task: "preview",
-    taskLabel: tr("プレビューへ切り替える"),
+    taskLabel: tr("Switch to Preview"),
   },
   {
     placement: "center",
-    chapter: tr("チュートリアル完了"),
-    title: tr("練習ページが完成しました"),
-    body: tr("ここで使った考え方は、どんなページを作るときも同じです。"),
+    chapter: tr("Tutorial complete"),
+    title: tr("Your practice page is done"),
+    body: tr("The ideas you used here apply to every page you build."),
     bullets: [
-      tr("キャンバスで選んで、右パネルで変える"),
-      tr("並べ方は親で決める（フロー・配置・余白）"),
-      tr("位置のカスタムは、重ねたいときだけ"),
-      tr("動きは「きっかけ」と「動作」の組み合わせ"),
-      tr("スマホでは、変えたい所だけを上書きする"),
-      tr("練習ページを公開したいときは、ページ設定の「このページを公開する」をオンにします"),
+      tr("Select on the canvas, change in the right panel"),
+      tr("The parent decides the layout (flow, alignment, spacing)"),
+      tr("Use custom position only for overlapping"),
+      tr("Interactions are triggers plus actions"),
+      tr("On phones, override only what needs to change"),
+      tr("To publish the practice page, turn on \"Publish this page\" in Page settings"),
     ],
   },
 ];
@@ -499,7 +499,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
     value
       .replaceAll("{slug}", expectedSlug)
       .replaceAll("{mobileId}", mobileBp ?? "")
-      .replaceAll("{mobile}", mobileBp ? BP_INFO[mobileBp]?.label ?? tr("スマホ") : tr("スマホ"));
+      .replaceAll("{mobile}", mobileBp ? BP_INFO[mobileBp]?.label ?? tr("Phone") : tr("Phone"));
   const target = step.target ? formatStepText(step.target) : undefined;
 
   const createdPageId =
@@ -511,13 +511,13 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
     .find((node) => !!node.text && node.text.heading > 0);
   const paragraph = tutorialNodeIds
     .map((id) => doc.nodes[id])
-    .find((node) => node.name === tr("テキスト") && node.text?.heading === 0);
+    .find((node) => node.name === trc("text_variant_1", "Text") && node.text?.heading === 0);
   const tutorialBox = tutorialNodeIds
     .map((id) => doc.nodes[id])
-    .find((node) => node.name === tr("ボックス") && !node.text);
+    .find((node) => node.name === tr("Box") && !node.text);
   const childButtons = (tutorialBox?.children ?? [])
     .map((id) => doc.nodes[id])
-    .filter((node) => node?.name === tr("ボタン"));
+    .filter((node) => node?.name === tr("Button"));
   const button = childButtons[0];
   // 操作に必要な要素を選んだ状態にする（追加は、選んだ要素の後ろ・中に入る）
   const preparedSelectionId =
@@ -552,7 +552,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
       case "unpublish-page":
         return !!tutorialPage?.unpublished;
       case "name-page":
-        return tutorialPage?.name === tr("練習ページ");
+        return tutorialPage?.name === tr("Practice page");
       case "slug-page":
         return tutorialPage?.slug === expectedSlug;
       case "open-add":
@@ -560,7 +560,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
       case "add-heading":
         return !!heading;
       case "edit-heading":
-        return heading?.text?.content.trim() === tr("はじめてのページ");
+        return heading?.text?.content.trim() === tr("My first page");
       case "style-heading":
         return heading?.styles.base?.default?.fontSize === "40px";
       case "add-text":
@@ -568,7 +568,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
       case "edit-text":
         return (
           paragraph?.text?.content.trim() ===
-          tr("このページはチュートリアルで作りました。")
+          tr("I made this page in the tutorial.")
         );
       case "add-box":
         return !!tutorialBox;
@@ -912,8 +912,8 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
         <button
           className="tutorial-close"
           onClick={onClose}
-          aria-label={tr("チュートリアルを終了")}
-          data-tip={tr("終了")}
+          aria-label={tr("End tutorial")}
+          data-tip={trc("end_variant_1", "End")}
         >
           <X size={15} />
         </button>
@@ -924,7 +924,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
           <div className="tutorial-why">
             <Lightbulb size={14} />
             <div>
-              <b>{tr("なぜ？")}</b>
+              <b>{tr("Why?")}</b>
               {formatStepText(step.why)}
             </div>
           </div>
@@ -941,10 +941,10 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
             {taskDone ? <CheckCircle2 size={15} /> : <Circle size={15} />}
             <span>
               {taskDone
-                ? tr("操作完了")
+                ? trc("done_variant_2", "Done")
                 : step.taskLabel
                   ? formatStepText(step.taskLabel)
-                  : tr("操作してください")}
+                  : tr("Your turn")}
             </span>
           </div>
         )}
@@ -974,7 +974,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
           {index > 0 && (
             <button className="btn" onClick={() => setIndex((value) => value - 1)}>
               <ChevronLeft size={14} />
-              {tr("戻る")}
+              {tr("Back")}
             </button>
           )}
           {!step.task && (
@@ -986,11 +986,11 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
               {finish ? (
                 <>
                   <Check size={14} />
-                  {tr("完了")}
+                  {tr("Done")}
                 </>
               ) : (
                 <>
-                  {index === 0 ? tr("始める") : tr("次へ")}
+                  {index === 0 ? tr("Start") : tr("Next")}
                   <ChevronRight size={14} />
                 </>
               )}
