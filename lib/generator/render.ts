@@ -358,7 +358,7 @@ ${indent}</div>`;
       // 枠の元の実寸・縦横比は CSS カスタムプロパティで保持する（空の SVG は不要）。
       // クリックで display:block に変更されても画像が消えないよう、グリッドには依存しない。
       const { width: w, height: h } = crisp;
-      return `${indent}<span${idAttr}\n${indent}  className=${jsxString("crisp-svg " + cls)}\n${indent}  style={{ ["--crisp-svg-width"]: "${w}px", ["--crisp-svg-ratio"]: "${w} / ${h}" }}\n${indent}>\n${indent}  <Image\n${indent}    ${srcAttr}\n${indent}    alt=${jsxString(node.image.alt)}\n${indent}    width={${w * 2}}\n${indent}    height={${h * 2}}${priority(indent + "    ")}\n${indent}  />\n${indent}</span>`;
+      return `${indent}<span${idAttr}\n${indent}  className=${jsxString("crisp-svg " + cls)}\n${indent}  style={{ ["--crisp-svg-width"]: "${w}px", ["--crisp-svg-ratio"]: "${w} / ${h}" } as import("react").CSSProperties}\n${indent}>\n${indent}  <Image\n${indent}    ${srcAttr}\n${indent}    alt=${jsxString(node.image.alt)}\n${indent}    width={${w * 2}}\n${indent}    height={${h * 2}}${priority(indent + "    ")}\n${indent}  />\n${indent}</span>`;
     }
     // 実際の大きさが分からない画像（読み込む前など）でも、next/image の width と height は必須
     return `${indent}<Image${idAttr}\n${indent}  ${srcAttr}\n${indent}  alt=${jsxString(node.image.alt)}\n${indent}  width={${width}}\n${indent}  height={${height}}\n${indent}  className=${jsxString(cls)}${priority(indent + "  ")}\n${indent}/>`;

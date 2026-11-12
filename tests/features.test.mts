@@ -376,6 +376,7 @@ test("shadowed SVG images are drawn at 2x and positioned siblings stay on top of
   assert.match(page, /className="crisp-svg [^"]*"/);
   assert.match(page, /\["--crisp-svg-width"\]: "120px"/);
   assert.match(page, /\["--crisp-svg-ratio"\]: "120 \/ 40"/);
+  assert.match(page, /\} as import\("react"\)\.CSSProperties\}/);
   assert.doesNotMatch(page, /<svg aria-hidden="true"/);
   assert.match(page, /width=\{240\}\s+height=\{80\}/);
   assert.match(files["app/globals.css"], /transform: scale\(0\.5\)/);
