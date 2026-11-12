@@ -433,15 +433,24 @@ export function OpEditor({
 export function CondEditor({
   cond,
   onChange,
+  renderPathMenu,
 }: {
   cond: ScriptCond;
   onChange: (c: ScriptCond) => void;
+  renderPathMenu: (root: Record<string, unknown>, path: string, onPick: (path: string) => void) => ReactNode;
 }) {
-  const { samples } = useContext(Ctx);
+  const { samples, variableIndex } = useContext(Ctx);
+  const variableOptions = useMemo(() => {
+    const names = variableIndex?.names ?? [];
+    return Object.fromEntries([
+      ...Object.entries(samples).filter(([name]) => !name.startsWith("#")),
+      ...names.filter((name) => !Object.hasOwn(samples, name)).map((name) => [name, undefined] as const),
+    ]);
+  }, [samples, variableIndex]);
   const subject = cond.subject;
   const op = cond.op ?? "eq";
   const isVar = cond.subject === "var";
-  // 比べるもの: 要素（値・チェック・表示など）か、変数（{変数} と文字を混ぜて書ける）
+  // 比較元は単一の変数参照を選び、比較値は文字列と変数を自由に組み合わせられる。
   const kindSelect = (
     <select
       className="se-in"
@@ -466,14 +475,14 @@ export function CondEditor({
           text="{left} {cond}"
           parts={{
             left: (
-              <TextIn
-                value={cond.left ?? ""}
-                placeholder={tr("{variable}")}
-                width={96}
-                vars
-                valueContext="value"
-                onCommit={(v) => onChange({ ...cond, ...changeIfVariableLeft(cond, v, samples) })}
-              />
+              renderPathMenu(
+                variableOptions,
+                singleValueReference(cond.left ?? "") ?? "",
+                (path) => onChange({
+                  ...cond,
+                  ...changeIfVariableLeft(cond, path ? `{${path}}` : "", samples),
+                }),
+              )
             ),
             cond: (
               <OpEditor
