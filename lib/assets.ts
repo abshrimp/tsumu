@@ -140,6 +140,37 @@ function svgViewBoxSize(svg: string): { width: number; height: number } | null {
 }
 
 /** SVG画像の実際の内容に基づいて影・ぼかしを判定する。保存先パス単位で結果を再利用する。 */
+/** 同じアセットへの並行取得は共有する。 */
+const svgAnalysisInFlight = new Map<string, Promise<SvgEffectAnalysis | null>>();
+
+async function analyzeAssetSvg(asset: Asset): Promise<SvgEffectAnalysis | null> {
+  const src = assetSrc(asset);
+  if (!src) return null;
+  const path = asset.path;
+  if (path) {
+    const cached = await cachedSvgEffect(path);
+    if (cached) return cached;
+    const ongoing = svgAnalysisInFlight.get(path);
+    if (ongoing) return ongoing;
+  }
+  const pending = (async () => {
+    try {
+      const res = await fetchWithRetry(src);
+      if (!res.ok) return null;
+      const svg = await res.text();
+      const analysis: SvgEffectAnalysis = { svgFilter: svgUsesBlurOrShadow(svg), ...(svgViewBoxSize(svg) ?? {}) };
+      if (path) cacheSvgEffect(path, analysis);
+      return analysis;
+    } catch {
+      return null; // 一時的な取得失敗は記録しない。次回再試行できる。
+    }
+  })();
+  if (!path) return pending; // 埋め込み data URL の読み込みはネットワークに接続しない
+  svgAnalysisInFlight.set(path, pending);
+  try { return await pending; }
+  finally { if (svgAnalysisInFlight.get(path) === pending) svgAnalysisInFlight.delete(path); }
+}
+
 export async function detectSvgFilters(
   assets: Record<string, Asset>
 ): Promise<Record<string, Pick<Asset, "svgFilter"> & Partial<Pick<Asset, "width" | "height">>>> {
