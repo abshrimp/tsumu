@@ -284,7 +284,7 @@ On the home screen, click **Import** or drop a file onto the page to create a ne
 | A `doc.json` | The site is restored. Assets embedded as data URLs are uploaded. |
 | An HTML file, or a zip of a website | Every HTML page is converted into editable elements. The zip's other files are uploaded as assets and the HTML's paths are rewritten. |
 
-If you drop a ZIP without editing data onto the home screen, Tsumu alerts you before converting its HTML. Warnings about assets that could not be restored appear once the new site opens.
+If you drop a ZIP without editing data onto the home screen, Tsumu alerts you before converting its HTML. Warnings about assets that could not be restored appear once the new site opens. If the connection drops during a server import and Tsumu cannot confirm the save, check the home screen for the new site before importing again.
 
 In the editor, a page's settings can also load an HTML file or a zip into that page. A normal page converts the HTML into editable elements, asking before it replaces the page's current elements. An HTML page uses the HTML as is. From a zip, `index.html` is loaded first.
 

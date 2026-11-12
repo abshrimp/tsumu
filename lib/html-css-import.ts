@@ -108,14 +108,13 @@ export function expandZipCss(
   const unresolved: string[] = [];
   let size = 0;
 
-  const resolveImport = (url: string, asset?: Asset): Asset | undefined => {
+  const resolveImport = (url: string, relatedId?: string): Asset | undefined => {
     const protocol = /^tsumu-zip-css:([^?#]+)/i.exec(url);
     if (protocol) {
       try { return byId.get(decodeURIComponent(protocol[1])); }
       catch { return undefined; }
     }
-    const related = zipStylesheet(asset)?.references.find((ref) => ref.url === url);
-    if (related) return byId.get(related.assetId);
+    if (relatedId) return byId.get(relatedId);
     return bySrc.get(url);
   };
 
@@ -123,11 +122,29 @@ export function expandZipCss(
     if (stack.size > 20 || size > ZIP_CSS_LIMITS.work) {
       throw new Error("The stylesheet dependency graph is too complex.");
     }
+    const references = new Map((zipStylesheet(asset)?.references ?? []).map((ref) => [ref.url, ref]));
+    // Rewrite each sheet's own declarations before inserting its imports.
+    // Text already expanded from a child belongs to a different directory.
     let result = "", from = 0;
+    const append = (part: string) => {
+      if (part.length > ZIP_CSS_LIMITS.output - result.length) throw new Error("Expanded CSS is too large.");
+      result += part;
+    };
+    const rewriteOwnUrls = (source: string) => {
+      if (!references.size || !source) return source;
+      return rewriteCssAssetUrls(source, (url) => {
+        const ref = references.get(url);
+        if (!ref) return undefined;
+        const dep = byId.get(ref.assetId);
+        if (!dep || zipStylesheet(dep)) return undefined;
+        const src = assetSrc(dep);
+        return src ? appendAssetSuffix(src, ref.suffix) : undefined;
+      }, ZIP_CSS_LIMITS.output - result.length);
+    };
     for (const statement of findImports(css)) {
-      result += css.slice(from, statement.start);
+      append(rewriteOwnUrls(css.slice(from, statement.start)));
       from = statement.end;
-      const target = resolveImport(statement.url, asset);
+      const target = resolveImport(statement.url, references.get(statement.url)?.assetId);
       const sheet = zipStylesheet(target);
       const conditions = importConditions(statement.media);
       if (!sheet || !conditions) {
@@ -142,22 +159,13 @@ export function expandZipCss(
       const inner = expand(sheet.source, target, new Set(stack).add(target!.id));
       const layered = conditions.layer === undefined ? inner :
         `@layer${conditions.layer ? " " + conditions.layer : ""} {\n${inner}\n}`;
-      result += conditions.media && conditions.media.toLowerCase() !== "all"
+      append(conditions.media && conditions.media.toLowerCase() !== "all"
         ? `@media ${conditions.media} {\n${layered}\n}\n`
-        : layered + "\n";
+        : layered + "\n");
     }
-    result += css.slice(from);
-    const references = new Map((zipStylesheet(asset)?.references ?? []).map((r) => [r.url, r] as const));
-    result = rewriteCssAssetUrls(result, (url) => {
-      const ref = references.get(url);
-      if (!ref) return undefined;
-      const dep = byId.get(ref.assetId);
-      if (!dep || zipStylesheet(dep)) return undefined;
-      const src = assetSrc(dep);
-      return src ? appendAssetSuffix(src, ref.suffix) : undefined;
-    }, ZIP_CSS_LIMITS.output);
+    append(rewriteOwnUrls(css.slice(from)));
     size += result.length;
-    if (result.length > ZIP_CSS_LIMITS.output || size > ZIP_CSS_LIMITS.work) {
+    if (size > ZIP_CSS_LIMITS.work) {
       throw new Error("Expanded CSS is too large.");
     }
     return result;

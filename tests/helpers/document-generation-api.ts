@@ -13,7 +13,6 @@ import { createInitialDoc } from "../../lib/presets";
 import { isDocPatch } from "../../lib/doc-patch";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../../lib/api-json";
 import { IMPORT_LIMITS, validateImportedDoc } from "../../lib/site-import-format";
-import { readTextLimited, TooLargeError } from "../../lib/safe-fetch";
 import { userMessage } from "../../lib/errors";
 
 class NextResponse extends Response {
@@ -122,7 +121,7 @@ export async function setup(t: TestContext) {
   const shared = {
     ...sites, ...docStorage, ...services, NextResponse, recordActivity, isDocPatch,
     JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited,
-    IMPORT_LIMITS, validateImportedDoc, readTextLimited, TooLargeError, userMessage,
+    IMPORT_LIMITS, validateImportedDoc, userMessage,
     newSiteId: () => "destination",
     getDb: async () => db, dbConfigured: () => true, requireAuth: async () => null, sessionUser: async () => null,
     serverTr: async () => (value: string) => value,

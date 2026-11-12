@@ -8,7 +8,6 @@ import { DocTooLargeError, InvalidDocPatchError, validateDocValue } from "../lib
 import { isDocPatch, type DocPatch } from "../lib/doc-patch";
 import { userMessage } from "../lib/errors";
 import { createInitialDoc } from "../lib/presets";
-import { readTextLimited, TooLargeError } from "../lib/safe-fetch";
 import { IMPORT_LIMITS, validateImportedDoc } from "../lib/site-import-format";
 import { DEFAULT_BRANCH, DEFAULT_PREVIEW_BRANCH, isSiteId, normalizeSiteInput } from "../lib/sites";
 import { StructuredDocumentStore, type DocumentSqlStorage, type SiteSaveResult, type SiteSnapshot } from "../lib/structured-document-store";
@@ -58,7 +57,7 @@ function fixture(options: {
   const injected: Record<string, unknown> = {
     NextResponse, userMessage, readJsonLimited, JsonBodyTooLargeError, JsonContentTypeError,
     DocTooLargeError, InvalidDocPatchError, validateDocValue, isDocPatch,
-    readTextLimited, TooLargeError, IMPORT_LIMITS, validateImportedDoc,
+    IMPORT_LIMITS, validateImportedDoc,
     DEFAULT_BRANCH, DEFAULT_PREVIEW_BRANCH, isSiteId, normalizeSiteInput,
     serverTr: async () => options.translate ?? ((value: string) => value),
     requireAuth: async () => { calls.push("auth"); return options.denied ?? null; },
@@ -275,6 +274,17 @@ test("auth, missing storage, invalid input, and absent sites retain early return
     assert.equal((await absent[method](req())).status, 404);
     assert.ok(!absent.calls.includes("save"));
     assert.ok(!absent.calls.includes("insert"));
+  }
+  for (const [name, value, status] of [
+    ["Content-Type", "text/plain", 415],
+    ["Content-Length", "invalid", 400],
+    ["Content-Length", String(IMPORT_LIMITS.docBytes + 1025), 413],
+  ] as const) {
+    const create = fixture();
+    const req = copyRequest();
+    req.headers.set(name, value);
+    assert.equal((await create.POST(req)).status, status);
+    assert.deepEqual(create.calls, ["auth", "configured"]);
   }
   const badImport = fixture();
   const imported = await badImport.POST(copyRequest({ name: "Import", importId: "0123456789", initialDoc: {} }));

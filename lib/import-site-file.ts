@@ -1,4 +1,5 @@
 import { tr } from "./i18n";
+import { createDocPatch } from "./doc-patch";
 import { withImportUploads } from "./import-uploads";
 import { emptyDest, localSiteIdInUse, loadLocalSites, saveLocalSites, withLocalSiteListLock } from "./site";
 import { createBrowserDoc, deleteBrowserDoc } from "./browser-doc-storage";
@@ -39,10 +40,9 @@ async function localWrite(doc: string, name: string): Promise<string> {
   }
 }
 
-async function serverWrite(doc: SiteDoc, raw: string, uploads: string[]): Promise<string> {
+async function serverWrite(doc: SiteDoc, uploads: string[]): Promise<string> {
   const id = newSiteId();
-  // 応答が失われても ID は分かる。サーバーは、サイトと版1の文書を、
-  // 同じトランザクションで排他的に追加する。
+  // 応答が失われても、指定した ID で初版の保存を確認できる。
   const response = await fetch("/api/sites", {
     method: "POST", credentials: "same-origin", redirect: "error", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name: doc.siteName, importId: id, initialDoc: doc }),
@@ -53,7 +53,8 @@ async function serverWrite(doc: SiteDoc, raw: string, uploads: string[]): Promis
     throw new Error(data?.error || tr("Could not create the site."));
   }
   const saved = await fetch("/api/doc?site=" + id, { credentials: "same-origin", redirect: "error" }).then(res => res.ok ? res.json() : null).catch(() => null);
-  if (saved?.exists && JSON.stringify(saved.doc) === raw) return id;
+  // DocumentRoom は保存した行から文書を組み直すため、設定や ID の並びは変わり得る。
+  if (saved?.exists && saved.doc && createDocPatch(doc, saved.doc)?.length === 0) return id;
   // 通信やプロキシの失敗は、トランザクションが取り消されたことの証明にはならない。
   // 処理中のサイトや、すでに編集されたサイトが使うかもしれない、アップロードしたバイト列は削除しない。
   uploads.length = 0;
@@ -97,7 +98,7 @@ export async function createSiteFromFile(
       throw new Error(tr("The edit data exceeds the size limit."));
     }
     const id = mode === "server"
-      ? await serverWrite(doc, raw, paths)
+      ? await serverWrite(doc, paths)
       : await localWrite(raw, doc.siteName);
     try {
       window.sessionStorage.setItem(importWarningsKey(id), JSON.stringify(warnings));
