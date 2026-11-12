@@ -4657,6 +4657,8 @@ input.se-in {
 
 .se-ghost .se-stack {
   position: static;
+  /* Frozen widths are outer widths, including the 1px borders. */
+  box-sizing: border-box;
 }
 
 .se-ghost-item {
