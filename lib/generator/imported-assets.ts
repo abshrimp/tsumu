@@ -1,4 +1,4 @@
-import { assetSrc } from "../assets";
+import { isPortableOutputPath } from "./output-paths";
 import { zipCssUrl, zipStylesheet } from "../zip-css";
 import type { Asset } from "../types";
 
@@ -14,17 +14,14 @@ export function importedAssetPath(asset: Asset): string | null {
   if (!zip || zip.version !== 1) return null;
   if (typeof zip.group !== "string" || !/^[A-Za-z0-9_-]{1,100}$/.test(zip.group)) return null;
   const path = zip.path;
-  if (typeof path !== "string" || !path || path.length > 600 || path.includes("\\") || path.includes("\0") ||
-      path.startsWith("/") || /[?#%]/.test(path) ||
-      !path.split("/").every((part) =>
-        !!part && part !== "." && part !== ".." &&
-        /^[A-Za-z0-9._~-]+$/.test(part))) return null;
+  if (typeof path !== "string" || path.length > 600 ||
+      !/^[\p{L}\p{N}\p{M} ._~@+/-]+$/u.test(path) || !isPortableOutputPath(path)) return null;
   return `public/assets/_imports/${zip.group}/${path}`;
 }
 
 export function importedAssetUrl(asset: Asset): string | null {
   const path = importedAssetPath(asset);
-  return path ? "/" + path.slice("public/".length) : null;
+  return path ? "/" + path.slice("public/".length).split("/").map(encodeURIComponent).join("/") : null;
 }
 
 export function isZipJavascript(asset: Asset): boolean {
@@ -33,7 +30,13 @@ export function isZipJavascript(asset: Asset): boolean {
 }
 
 /** Resolve the page's ZIP member before identical stored bytes from other archives are considered. */
-export function htmlZipExportSource(asset: Asset): string {
-  if (isZipJavascript(asset)) return importedAssetUrl(asset) ?? assetSrc(asset);
-  return zipStylesheet(asset) ? zipCssUrl(asset.id) : assetSrc(asset);
+export function htmlZipExportUrl(asset: Asset, names: Map<string, string>): string {
+  const name = names.get(asset.id);
+  if (!name) return "";
+  const alias = isZipJavascript(asset) && importedAssetUrl(asset);
+  return alias || "/assets/" + name;
+}
+
+export function htmlZipExportSource(asset: Asset, names: Map<string, string>): string {
+  return zipStylesheet(asset) ? zipCssUrl(asset.id) : htmlZipExportUrl(asset, names);
 }

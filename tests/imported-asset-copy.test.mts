@@ -160,9 +160,11 @@ test("explicit page copies retain local ZIP scripts and data without changing cl
     dataUrl: "data:text/javascript;base64,ZXhwb3J0IHt9Ow==" };
   const data: Asset = { ...asset("json", "config.json"), path: undefined, mimeType: "application/json",
     dataUrl: "data:application/json;base64,e30=" };
-  source.assets = { entry: module, json: data };
+  const audio: Asset = { ...asset("audio", "voice.ogg"), path: undefined, mimeType: "application/octet-stream",
+    dataUrl: "data:application/octet-stream;base64,AQID" };
+  source.assets = { entry: module, json: data, audio };
   page.rawHtml = '<script type="module" src="main.js"></script>';
-  page.htmlZip = { path: "index.html", assetIds: ["entry", "json"] };
+  page.htmlZip = { path: "index.html", assetIds: ["entry", "json", "audio"] };
   const payload = buildPagePayload(source, [page.id]);
   const direct = createInitialDoc();
   direct.assets = {};
@@ -173,10 +175,11 @@ test("explicit page copies retain local ZIP scripts and data without changing cl
   dest.assets.entry = asset("entry", "different.js");
   applyPagePayload(dest, payload);
   const copied = dest.pages[dest.pageOrder.at(-1)!];
-  const [entryId, jsonId] = copied.htmlZip!.assetIds;
+  const [entryId, jsonId, audioId] = copied.htmlZip!.assetIds;
   assert.notEqual(entryId, "entry");
   assert.deepEqual(dest.assets[entryId], { ...module, id: entryId });
   assert.deepEqual(dest.assets[jsonId], data);
+  assert.deepEqual(dest.assets[audioId], audio);
   const project = generateProject(dest);
   assert.equal(project.binaries[importedAssetPath(module)!], "ZXhwb3J0IHt9Ow==");
   assert.equal(project.binaries[importedAssetPath(data)!], "e30=");

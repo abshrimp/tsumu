@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createRequire } from "node:module";
 import { transformSync } from "esbuild";
 import { generateProject } from "../lib/generator";
+import { previewDataVars } from "../lib/data";
 import { fetchRequestOf } from "../lib/fetch-request";
 import { makeBox, makeText } from "../lib/presets";
 import { publishedComponentList } from "./helpers/component-list-export";
@@ -168,7 +169,7 @@ test("mutating a fetched list preserves sibling text, other lists and conditions
     { id: "count", kind: "transform", source: "data", into: "count", transform: { kind: "length" } },
     { id: "read", kind: "transform", source: "data.0.heading", into: "heading", transform: { kind: "field", key: "name" } },
     { id: "if", kind: "if", conditions: [{ subject: "var", target: "", left: "{heading}", op: "eq", value: "Reports", and: true },
-      { subject: "var", target: "", left: "{count}", op: "eq", value: "1", and: true }],
+      { subject: "var", target: "", left: "{count}", op: "eq", value: "2", and: true }],
       cond: { subject: "var", target: "", left: "{data.0.status}", op: "eq", value: "open" },
       then: [{ id: "ok", kind: "open-url", url: "/open", newTab: true }] },
   ]);
@@ -178,7 +179,7 @@ test("mutating a fetched list preserves sibling text, other lists and conditions
   doc.pages.p.children.push("title", "related");
   const html = await publishedComponentList(doc, "app/page.tsx", [{
     title: "Catalogue", rows: ["A", "B"], related: [{ label: "X", extra: "unreferenced-field" }], status: "open", heading: { name: "Reports" }, private: "unreferenced-field",
-  }]);
+  }, { private: "unreferenced-field" }]);
   assert.doesNotMatch(html, /unreferenced-field/);
   const urls: string[] = [];
   const dom = listRuntimeDom(html, generateProject(doc).files["public/scripts.js"], {
@@ -193,3 +194,57 @@ test("mutating a fetched list preserves sibling text, other lists and conditions
   assert.deepEqual(visible("#title"), ["Catalogue"]);
   assert.deepEqual(urls, ["/open"]);
 });
+
+test("Next length counts both fetched records and new keys in a browser-edited record", async () => {
+  const doc = fetchedListDoc([
+    { id: "count-record", kind: "transform", source: "data.0.static", into: "before", transform: { kind: "length" } },
+    { id: "write-key", kind: "set-var", into: "data.0.mutable.added", value: "1" },
+    { id: "count-edited", kind: "transform", source: "data.0.mutable", into: "after", transform: { kind: "length" } },
+  ]);
+  doc.nodes.counts = { ...makeText("{before}/{after}"), id: "counts", attrId: "counts" };
+  doc.pages.p.children.push("counts");
+  const html = await publishedComponentList(doc, "app/page.tsx", [{
+    static: { label: "private-immutable-field", enabled: true }, mutable: { original: true }, rows: [],
+  }]);
+  assert.doesNotMatch(html, /private-immutable-field/);
+  const dom = listRuntimeDom(html, generateProject(doc).files["public/scripts.js"]);
+  await dom.click("act");
+  assert.equal(dom.active("#counts")[0].textContent, "2/2");
+});
+
+test("preview and generated Next page load update the parent record for nested destinations", async () => {
+  const doc = fetchedListDoc([]);
+  const sample = [{ value: "loaded" }];
+  doc.pages.p.pageScripts![0].steps = [
+    { id: "record", kind: "set-var", into: "record", value: '{"keep":"old"}' },
+    { id: "field", kind: "set-var", into: "record.label", value: "new" },
+    { id: "request", kind: "fetch", as: "record.rows", url: "https://example.com/catalogue", preview: { sample } },
+    { id: "transform", kind: "transform", source: "record.rows", into: "record.count", transform: { kind: "length" } },
+    { id: "out", kind: "transform", source: "record", into: "output", transform: { kind: "stringify" } },
+  ];
+  doc.pages.p.children = ["result"];
+  doc.nodes.result = { ...makeText("{output}"), id: "result", attrId: "result" };
+  const expected = { keep: "old", label: "new", rows: sample, count: 1 };
+  assert.deepEqual(JSON.parse(String(previewDataVars(doc, "p").output)), expected);
+  const html = await publishedComponentList(doc, "app/page.tsx", sample);
+  const dom = listRuntimeDom(html, "");
+  assert.deepEqual(JSON.parse(dom.active("#result")[0].textContent), expected);
+});
+
+for (const [target, reference] of [["data.1.rows", "data.-1.rows.0"], ["data.-1.rows", "data.1.rows.0"]]) {
+  test(`editing ${target} updates the fetched last item at ${reference}`, async () => {
+    const doc = fetchedListDoc([
+      { id: "remove", kind: "remove-list-item", list: target, mode: "key", value: "0" },
+    ]);
+    doc.nodes.tail = { ...makeText(`{${reference}}`), id: "tail", attrId: "tail" };
+    doc.pages.p.children.push("tail");
+    const html = await publishedComponentList(doc, "app/page.tsx", [
+      { rows: ["A"], private: "unreferenced-field" }, { rows: ["B", "C"], private: "unreferenced-field" },
+    ]);
+    assert.doesNotMatch(html, /unreferenced-field/);
+    const dom = listRuntimeDom(html, generateProject(doc).files["public/scripts.js"]);
+    assert.equal(dom.active("#tail")[0].textContent, "B");
+    await dom.click("act");
+    assert.equal(dom.active("#tail")[0].textContent, "C");
+  });
+}

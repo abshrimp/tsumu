@@ -211,7 +211,7 @@ export function scriptsAttr(
         return `__script_raw_ref_${exprs.length - 1}__`;
       }
       // Edits to a nested list do not change the length of its containing array.
-      if (ctx.isLive(usage === "length" ? name + ".length" : name)) return undefined;
+      if (ctx.isLive(name, usage)) return undefined;
       ctx.usesLookup = true;
       exprs.push(`lookupVar(${ctx.varsExpr ?? "vars"}, ${codeLiteral(name)}) ?? null`);
       return `__script_var_${exprs.length - 1}__`;
@@ -230,7 +230,7 @@ export function scriptsAttr(
         const match = /^__script_var_([0-9]+)__$/.exec(step.raw);
         if (match) {
           const sourceExpr = exprs[Number(match[1])];
-          exprs.push(`((v) => Array.isArray(v) ? v.length : undefined)(${sourceExpr})`);
+          exprs.push(`((v) => v !== null && typeof v === "object" ? Object.keys(v).length : undefined)(${sourceExpr})`);
           step.serverValue = `__script_var_${exprs.length - 1}__`;
           delete step.raw;
         }

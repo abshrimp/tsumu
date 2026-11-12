@@ -614,10 +614,14 @@ export default function PagePanel() {
                 const reader = new FileReader();
                 reader.onload = async () => {
                   await waitForGesture(request);
-                  if (request.current()) updatePage(page.id, {
-                    rawHtml: String(reader.result ?? ""),
-                    ...(page.htmlZip ? { htmlZip: undefined } : {}),
-                  });
+                  if (request.current()) {
+                    const source = String(reader.result ?? "");
+                    if (source.trim()) {
+                      updatePage(page.id, { rawHtml: source, htmlZip: undefined });
+                    } else {
+                      setZipMessage(tr("The file is empty."));
+                    }
+                  }
                   request.finish();
                 };
                 reader.onerror = reader.onabort = () => request.finish();

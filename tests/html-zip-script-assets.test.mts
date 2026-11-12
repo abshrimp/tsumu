@@ -179,3 +179,36 @@ test("single HTML embeds media referenced from classic and module ZIP scripts", 
   assert.ok(html.includes("/* ../assets/MENU-2.png */"));
   assert.ok(html.includes('{"draft":"../assets/MENU-2.png"}'));
 });
+
+test("ZIP markup selects its own exported file when stored URLs share bytes or a prefix", () => {
+  const { doc } = fixture();
+  const page = doc.pages[doc.pageOrder[0]];
+  const assets = [
+    stored("first", "short.png", "short.png"),
+    stored("first-long", "long.png", "long.png"),
+    { ...stored("alias", "alias.png", "copy.png"), path: "assets/first" },
+  ];
+  doc.assets = Object.fromEntries(assets.map(a => [a.id, a]));
+  page.htmlZip!.assetIds = assets.map(a => a.id);
+  page.rawHtml = '<img src="short.png?v=1#icon"><source srcset="long.png 1x, copy.png 2x">';
+  const next = JSON.parse(/^const html = (.*);$/m.exec(generateProject(doc).files["app/route.ts"])![1]);
+  const flat = generateExportProject(doc, "html").files["index.html"];
+  for (const [html, prefix] of [[next, "/"], [flat, "./"]]) {
+    assert.ok(html.includes('src="' + prefix + 'assets/short.png?v=1#icon"'), html);
+    assert.ok(html.includes('srcset="' + prefix + 'assets/long.png 1x, ' + prefix + 'assets/alias.png 2x"'), html);
+  }
+});
+
+test("single HTML embeds ZIP audio with a generic stored media type", async t => {
+  const { doc } = fixture();
+  const page = doc.pages[doc.pageOrder[0]];
+  const clip = { ...stored("clip", "voice.ogg", "voice.ogg"), mimeType: "application/octet-stream" };
+  doc.assets = { clip };
+  page.htmlZip!.assetIds = ["clip"];
+  page.rawHtml = '<script>new Audio("voice.ogg?v=1#sample")</script>';
+  t.mock.method(globalThis, "fetch", async () => new Response(new Uint8Array([1, 2, 3]), {
+    headers: { "Content-Type": "application/octet-stream" },
+  }));
+  const project = await prepareExportProject(doc, "single-html");
+  assert.match(project.files["index.html"], /new Audio\("data:audio\/ogg;base64,AQID#sample"\)/);
+});

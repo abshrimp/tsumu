@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { test } from "node:test";
 import { generateLocaleSources } from "../scripts/sync-locales.mjs";
 import { LANGUAGES, isLang, pickLang } from "../lib/lang";
@@ -29,6 +31,24 @@ test("adding only a translation file registers its language and its on-demand lo
   assert.match(generated.loadersSource, /"fr": \(\) => import\("\.\/fr"\)/);
   assert.match(generated.loadersSource, /"pt-br": \(\) => import\("\.\/pt-BR"\)/);
   assert.doesNotMatch(generated.loadersSource, /import\("\.\/en"\)/);
+});
+
+test("match browser preferences to the most specific registered locale", async (t) => {
+  const root = mkdtempSync(join(tmpdir(), "tsumu-locale-lookup-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, "locales"));
+  writeFileSync(join(root, "package.json"), '{"type":"module"}');
+  const generated = generateLocaleSources(["ja.ts", "zh.ts", "zh-Hant.ts", "pt-BR.ts", "he.ts"]);
+  writeFileSync(join(root, "locales", "languages.generated.ts"), generated.languagesSource);
+  copyFileSync(new URL("../lib/lang.ts", import.meta.url), join(root, "lang.ts"));
+  const { pickLang, langOfRequest } = await import(pathToFileURL(join(root, "lang.ts")).href);
+  assert.equal(pickLang(["zh-Hant-TW", "en"]), "zh-hant");
+  assert.equal(pickLang(["zh-Hans-CN"]), "zh");
+  assert.equal(pickLang(["pt-BR-u-nu-latn"]), "pt-br");
+  assert.equal(pickLang(["broken tag", "iw-IL"]), "he");
+  assert.equal(langOfRequest(new Request("https://example.test", {
+    headers: { "accept-language": "pt-BR-u-nu-latn, en;q=0.8" },
+  })), "pt-br");
 });
 
 test("invalid and duplicate language files are rejected during discovery", () => {

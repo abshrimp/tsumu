@@ -78,7 +78,7 @@ function hasSelfRedirect(page: Page, earlierRedirects: Page[]): boolean {
   });
 }
 
-export function runChecks(doc: SiteDoc): CheckResult[] {
+export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckResult[] {
   const results: CheckResult[] = [];
   const routes = new Map<string, { name: string; conditions: string; shareable: boolean }[]>();
   const published = doc.pageOrder.filter((pid) => !doc.pages[pid].unpublished);
@@ -125,7 +125,7 @@ export function runChecks(doc: SiteDoc): CheckResult[] {
       message: tr("No pages to publish (all pages are unpublished)"),
     });
   } else if (
-    !published.some(
+    requireHomePage && !published.some(
       (pid) => doc.pages[pid].slug.replace(/^\/+|\/+$/g, "") === ""
     )
   ) {

@@ -115,6 +115,15 @@ test("removing by position uses zero-based indices and closes array gaps", () =>
   }
 });
 
+test("page-load list edits write back to the list selected through a last-item reference", () => {
+  const vars = { data: [{ rows: ["first"] }, { rows: ["A", "B"] }] };
+  assert.equal(run([
+    { id: "remove", kind: "remove-list-item", list: "data.-1.rows", mode: "key", value: "0" },
+    { id: "append", kind: "set-list-item", list: "data.-1.rows", key: "", value: "C" },
+  ], vars), true);
+  assert.deepEqual(vars.data, [{ rows: ["first"] }, { rows: ["B", "C"] }]);
+});
+
 test("dictionary removal accepts own keys or matching values without prototype traversal", () => {
   const initial = JSON.parse('{"__proto__":7,"constructor":8,"a":2,"b":"2","c":null}');
   const vars: Record<string, unknown> = { entries: initial };
