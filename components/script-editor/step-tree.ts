@@ -41,7 +41,7 @@ export function listIn(script: PageScript, list: string, createMissing = false):
   if (list === "root") return script.steps;
   const [sid, branch] = branchOf(list);
   const owner = findBranchOwner(script.steps, sid);
-  if (!owner) return null;
+  if (!owner || !("then" in owner)) return null;
   if (owner.kind === "if" && branch === "else") {
     return owner.else ?? (createMissing ? (owner.else = []) : null);
   }
