@@ -328,10 +328,13 @@ export default function PublishModal({
     setSite(site);
     setPhase("busy");
     setProgress("");
-    // 重いファイル生成やアセット検査を始める前に、進捗表示を確実に描画する。
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => window.setTimeout(resolve, 0));
-    });
+    // ブラウザーでは重いファイル生成の前に進捗表示を描画する。
+    // Node のユニットテストではブラウザー用 API を呼ばない。
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => window.setTimeout(resolve, 0));
+      });
+    }
     // 公開中に編集されても、実際に公開した内容で公開済み判定する
     let target = doc;
     try {
