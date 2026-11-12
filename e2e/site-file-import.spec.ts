@@ -70,6 +70,28 @@ test("ZIP file picker imports an editable site with original asset IDs", async (
   expect((await getLocalSite(page)).list).toHaveLength(1);
 });
 
+
+test("ZIP without doc.json alerts before converting HTML on homepage drop", async ({ page }) => {
+  await localMode(page);
+  const zip = new JSZip().file("index.html", "<!doctype html><html><body><h1>Converted page</h1></body></html>");
+  const bytes = await zip.generateAsync({ type: "nodebuffer" });
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
+  await page.evaluate((data) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([new Uint8Array(data)], "plain-site.zip", { type: "application/zip" }));
+    document.querySelector(".home-main")!.dispatchEvent(new DragEvent("drop", {
+      bubbles: true, cancelable: true, dataTransfer: transfer,
+    }));
+  }, Array.from(bytes));
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("ZIPに編集データが見つかりませんでした。HTMLを変換して読み込みます。");
+  expect((await getLocalSite(page)).list).toHaveLength(0);
+  await dialog.getByRole("button", { name: "OK" }).click();
+  await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
+  expect((await getLocalSite(page)).list).toHaveLength(1);
+});
+
 test("dropping a JSON file imports a new editable site", async ({ page }) => {
   await localMode(page);
   const doc = fixture();
