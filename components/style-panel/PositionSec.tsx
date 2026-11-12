@@ -385,7 +385,7 @@ export function MainSizeField({
     >
       <NumField
         value={fill ? undefined : (info.value ?? "auto")}
-        units={["px", "%"]}
+        units={prop === "height" ? ["px", "%", "vh", "dvh", "rem"] : ["px", "%"]}
         pre={pre}
         placeholder={fill ? tr("Fill") : "auto"}
         title={fill ? tr("Filling the parent's remaining space (enter a number to fix the size)") : undefined}
@@ -414,6 +414,80 @@ export function MainSizeField({
         >
           {prop === "width" ? <MoveHorizontal size={12} /> : <MoveVertical size={12} />}
         </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * 高さの意図を選ぶ補助UI。ドキュメントには従来のCSS値だけを書き込み、
+ * プリセット固有のデータや旧形式との互換処理は持たない。
+ */
+export function HeightModeControl({ axis }: { axis: "main" | "cross" }) {
+  const insp = useInspector();
+  const height = insp.get("height").value;
+  const minHeight = insp.get("minHeight").value;
+  const grow = insp.get("flexGrow").value;
+  const fill = axis === "main" && !!grow && parseFloat(grow) > 0;
+  const mode = fill ? "fill"
+    : minHeight === "100dvh" && (!height || height === "auto") ? "screen"
+    : !height || height === "auto" ? "auto"
+    : height === "100%" ? "parent"
+    : /^\\d+(?:\\.\\d+)?px$/.test(height) ? "fixed"
+    : "custom";
+
+  const clear = (p: string) => explicitDefault(insp, p);
+  const onChange = (next: string) => {
+    if (next === "custom") return;
+    const props: Record<string, string | null> = {
+      height: next === "fixed" ? (mode === "fixed" ? height! : "300px")
+        : next === "parent" ? "100%"
+        : clear("height"),
+    };
+    // 画面の最低高さを使う設定だけを解除。他の手動指定は維持する。
+    if (next === "screen") props.minHeight = "100dvh";
+    else if (minHeight === "100dvh") props.minHeight = clear("minHeight");
+    if (axis === "main") {
+      if (next === "fill") {
+        Object.assign(props, { flexGrow: "1", flexShrink: "1", flexBasis: "0%", height: null, minHeight: "0" });
+      } else {
+        Object.assign(props, {
+          flexGrow: clear("flexGrow"),
+          flexShrink: next === "fixed" ? "0" : clear("flexShrink"),
+          flexBasis: clear("flexBasis"),
+        });
+        if (minHeight === "0") props.minHeight = clear("minHeight");
+      }
+    }
+    insp.set(props);
+  };
+
+  return (
+    <div className="stack" style={{ gap: 5 }}>
+      <label className="lbl" htmlFor="height-behavior">{tr("Height behavior")}</label>
+      <select
+        id="height-behavior"
+        className="input"
+        value={mode}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={tr("Height behavior")}
+      >
+        <option value="auto">{tr("Fit content")}</option>
+        <option value="fixed">{tr("Fixed height")}</option>
+        <option value="parent">{tr("Match parent height")}</option>
+        <option value="screen">{tr("At least screen height")}</option>
+        {axis === "main" && <option value="fill">{tr("Fill remaining height")}</option>}
+        {mode === "custom" && <option value="custom">{tr("Custom value")}</option>}
+      </select>
+      {mode === "parent" && (
+        <span className="muted" style={{ fontSize: 11 }}>
+          {tr("100% height needs a parent with a defined height. Otherwise it may behave like automatic height.")}
+        </span>
+      )}
+      {mode === "screen" && (
+        <span className="muted" style={{ fontSize: 11 }}>
+          {tr("The element can grow taller when its content needs more space.")}
+        </span>
       )}
     </div>
   );
