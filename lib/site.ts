@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * ブラウザ側のサイトの扱い: いま開いているサイト（/sites/<id>）、サイトごとのブラウザ保存のキー、
- * D1 が無いときにブラウザ内へ保存するサイトの一覧
+ * ブラウザ側でのサイトの扱い: いま開いているサイト（/sites/<id>）、サイトごとのブラウザの保存のキー、
+ * D1 が無いときにブラウザの中に保存するサイトの一覧
  */
 
 import {
@@ -16,7 +16,7 @@ import { storageKey } from "./storage-keys";
 import { withLocalSiteListLock } from "./local-site-lock";
 export { withLocalSiteListLock };
 
-/** いま開いているサイトのID（エディタの URL /sites/<id> から。エディタの外では空） */
+/** いま開いているサイトの ID（エディタの URL /sites/<id> から読む。エディタの外では空） */
 export function currentSiteId(): string {
   if (typeof window === "undefined") return "";
   const m = /^\/sites\/([^/]+)/.exec(window.location.pathname);
@@ -24,17 +24,17 @@ export function currentSiteId(): string {
   return isSiteId(id) ? id : "";
 }
 
-/** サイトを編集する画面のURL（/sites/<id>） */
+/** サイトを編集する画面の URL（/sites/<id>） */
 export function sitePath(id: string): string {
   return `/sites/${encodeURIComponent(id)}`;
 }
 
-/** サイトごとのブラウザ保存のキー */
+/** サイトごとのブラウザの保存のキー */
 export function siteKey(key: string, id: string = currentSiteId()): string {
   return `${key}:${id}`;
 }
 
-/** サイトごとに分けて保存しているキー（サイトを消すときに一緒に消す） */
+/** サイトごとに分けて保存しているキー（サイトを消すときに、一緒に消す） */
 export const SITE_SCOPED_KEYS = [
   storageKey("published-v1"),
   storageKey("published-hash-v1"),
@@ -48,7 +48,7 @@ export const SITE_SCOPED_KEYS = [
 export function siteApi(path: string, params: Record<string, string | number> = {}): string {
   const q = new URLSearchParams({ site: currentSiteId() });
   for (const [k, v] of Object.entries(params)) q.set(k, String(v));
-  // D1 が無いときは、ブラウザ内に保存した公開先を一緒に送る（D1 があればサーバーは使わない）
+  // D1 が無いときは、ブラウザの中に保存した公開先を一緒に送る（D1 があれば、サーバーはこれを使わない）
   if (path.startsWith("/api/publish")) {
     const dest = localDest();
     if (dest) q.set("dest", JSON.stringify(dest));
@@ -62,24 +62,24 @@ export function sitePublishFields(): { site: string; dest?: SiteDest } {
   return { site: currentSiteId(), ...(dest ? { dest } : {}) };
 }
 
-/* ---------- D1 が無いときの、ブラウザ内のサイト一覧 ---------- */
+/* ---------- D1 が無いときの、ブラウザの中のサイトの一覧 ---------- */
 
 const LOCAL_SITES_KEY = storageKey("sites-v1");
 
-/** Document ID collisions are independently rejected by IndexedDB. */
+/** 文書の ID の衝突は、IndexedDB の側でも別に拒否する。 */
 export function localSiteIdInUse(id: string, list: SiteRecord[]): boolean {
   return list.some(site => site.id === id) || isLocalSiteDeleted(id);
 }
 
-/** 明示的なローカルサイト削除の記録。古いタブの一覧保存や掃除で消さない。 */
+/** ブラウザ内のサイトを明示的に削除したことの記録。古いタブでの一覧の保存や後始末では消さない。 */
 export const LOCAL_SITE_DELETED_KEY = storageKey("site-deleted-v1");
 
-/** 一覧の不在とは区別する。読めない場合は削除と決めつけず、呼び出し元へ失敗を返す。 */
+/** 一覧に無いこととは区別する。記録を読めない場合は削除と決めつけず、呼び出し元に失敗を返す。 */
 export function isLocalSiteDeleted(id: string = currentSiteId()): boolean {
   return window.localStorage.getItem(siteKey(LOCAL_SITE_DELETED_KEY, id)) !== null;
 }
 
-/** 確認済みの削除だけで呼ぶ。記録の保存を確定点とし、以降の一覧の圧縮はベストエフォート。 */
+/** 削除を確認した後にだけ呼ぶ。記録の保存を確定の時点とし、その後の一覧の整理は、できる範囲で行う。 */
 export function deleteLocalSite(id: string): void {
   const list = loadLocalSites({ strict: true });
   if (!list.some(s => s.id === id) && !isLocalSiteDeleted(id)) throw new Error("Local site missing");
@@ -87,7 +87,7 @@ export function deleteLocalSite(id: string): void {
   saveLocalSites(list.filter(s => s.id !== id));
 }
 
-/** 表示時は読めない一覧を空として扱う。変更時は既存の一覧を壊さないよう失敗を通知する。 */
+/** 表示するときは、読めない一覧を空として扱う。変更するときは、既存の一覧を壊さないよう失敗を知らせる。 */
 export function loadLocalSites({ strict = false }: { strict?: boolean } = {}): SiteRecord[] {
   try {
     const list = JSON.parse(window.localStorage.getItem(LOCAL_SITES_KEY) ?? "[]") as SiteRecord[];
@@ -111,7 +111,7 @@ export function saveLocalSites(list: SiteRecord[]): boolean {
   }
 }
 
-/** いま開いているサイトの最終編集時刻を、ブラウザ内のサイト一覧に記録する */
+/** いま開いているサイトの最終編集時刻を、ブラウザの中のサイトの一覧に記録する */
 export function touchLocalSite(at = Date.now()): void {
   const id = currentSiteId();
   void withLocalSiteListLock(() => {
@@ -121,7 +121,7 @@ export function touchLocalSite(at = Date.now()): void {
   }).catch(() => { /* Updating the timestamp is best effort; the document was already saved. */ });
 }
 
-/** ブラウザ内に保存した、いま開いているサイトの公開先（無ければ null） */
+/** ブラウザの中に保存した、いま開いているサイトの公開先（無ければ null） */
 function localDest(): SiteDest | null {
   if (typeof window === "undefined") return null;
   const site = loadLocalSites().find((s) => s.id === currentSiteId());

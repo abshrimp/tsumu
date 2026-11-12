@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import type { ActivityUser } from "./activity";
 
-/** サーバーの設定状況（/api/status） */
+/** サーバーの設定の状況（/api/status） */
 export interface ServerStatus {
-  /** Google認証を使っているか（false ならログインなしで開ける） */
+  /** Google 認証を使っているか（false なら、ログインなしで開ける） */
   auth: boolean;
   /** サーバーの保存先（Cloudflare の D1、または TSUMU_DATA_DIR の SQLite）があるか */
   db: boolean;
@@ -13,14 +13,14 @@ export interface ServerStatus {
   assets: boolean;
   /** アセットを削除したとき、サーバーのファイルをどうするか（保存先が無ければ null） */
   assetDeletion?: AssetDeletion | null;
-  /** ログインしている人（Google認証を使っていなければ null） */
+  /** ログインしている人（Google 認証を使っていなければ null） */
   user?: ActivityUser | null;
 }
 
 /**
- * immediate: すぐ削除する（Node.js・Docker。ほかのサイトが使っていれば残す）。
- * scheduled: days 日後に削除する（Cloudflare。それまでに元に戻すか、ほかのサイトが使っていれば残す）。
- * kept: 削除しない（Cloudflare で ASSET_GC_ENABLED が未設定）。
+ * immediate: すぐに削除する（Node.js・Docker。他のサイトが使っていれば残す）。
+ * scheduled: days 日後に削除する（Cloudflare。それまでに元に戻すか、他のサイトが使っていれば残す）。
+ * kept: 削除しない（Cloudflare で ASSET_GC_ENABLED が未設定のとき）。
  */
 export type AssetDeletion =
   | { mode: "immediate" }
@@ -39,14 +39,14 @@ function loadServerStatus(): Promise<ServerStatus | null> {
 }
 
 /**
- * 読み込み済みの設定状況（まだなら null）。クリックの処理など、待たずに読む場所で使う。
- * 確認ダイアログは操作の直後に出す必要があるため、ここで通信を待たない
+ * 読み込み済みの設定の状況（まだなら null）。クリックの処理など、待たずに読む場所で使う。
+ * 確認のダイアログは操作の直後に表示する必要があるため、ここで通信を待たない
  */
 export function serverStatusSnapshot(): ServerStatus | null {
   return loaded;
 }
 
-/** 設定状況を1回だけ取りに行く（読み込み中・失敗時は null） */
+/** 設定の状況を1回だけ取得する（読み込み中や失敗したときは null） */
 export function useServerStatus(): ServerStatus | null {
   const [status, setStatus] = useState<ServerStatus | null>(null);
   useEffect(() => {

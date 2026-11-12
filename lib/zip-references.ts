@@ -1,4 +1,4 @@
-/** Resolve archive-relative asset references without changing external or missing URLs. */
+/** アーカイブからの相対的なアセットの参照を解決する。外部の URL や見つからない URL は変えない。 */
 export function resolveZipReference(value: string, htmlPath: string, urls: Map<string, string>): string {
   if (!value || /^(?:[a-z][a-z\d+.-]*:|#|\/\/)/i.test(value)) return value;
   const suffixAt = value.search(/[?#]/);
@@ -26,12 +26,12 @@ export function resolveZipReference(value: string, htmlPath: string, urls: Map<s
     }
   }
   if (!mapped) return value;
-  // Asset proxy URLs already have a path query. Keep archive query parameters
-  // separate from that path, and preserve the complete query and fragment.
+  // アセットのプロキシの URL は、すでにパスを示すクエリを持つ。アーカイブのクエリのパラメーターは
+  // そのパスと分けて扱い、クエリとフラグメントは完全な形で残す。
   return appendAssetSuffix(mapped, suffix);
 }
 
-/** The asset identity and suffix are kept separate, including when a dependency is deduplicated. */
+/** アセットの識別子と末尾は分けて持つ。依存するものの重複を除くときも同じ。 */
 export function zipDependency(value: string, path: string, ids: Map<string, string>) {
   const mapped = resolveZipReference(value, path, ids);
   if (mapped === value) return undefined;
@@ -39,7 +39,7 @@ export function zipDependency(value: string, path: string, ids: Map<string, stri
   return { assetId: suffixAt < 0 ? mapped : mapped.slice(0, suffixAt), suffix: suffixAt < 0 ? "" : mapped.slice(suffixAt) };
 }
 
-/** Queries on data URLs would become CSS/image bytes; cache-busting queries have no role there. */
+/** data URL に付けたクエリは、CSS や画像のバイト列の一部になってしまう。キャッシュを避けるためのクエリは、そこでは役に立たない。 */
 export function appendAssetSuffix(url: string, suffix: string): string {
   if (url.startsWith("data:")) {
     const hash = suffix.indexOf("#");
@@ -48,8 +48,8 @@ export function appendAssetSuffix(url: string, suffix: string): string {
   return url + (suffix.startsWith("?") && url.includes("?") ? `&${suffix.slice(1)}` : suffix);
 }
 
-// Keep externally based references external. Resolve a local base inside the
-// archive without interpreting relative URLs against the editor origin.
+// 外部を基準とする参照は、外部のまま保つ。ローカルの基準はアーカイブの中で解決し、
+// 相対 URL をエディタのオリジンを基準に解釈することはしない。
 export function archiveBaseUrl(htmlPath: string, href: string | undefined | null): URL | undefined {
   if (href) {
     try {

@@ -33,7 +33,7 @@ try {
   if (!html.includes("Alpha") || !html.includes("Beta") || !html.includes("Reusable")) {
     throw new Error("SSR omitted a list row or reusable component: " + html.slice(0, 3500));
   }
-  // Native template delimiters entered as ordinary text must never execute.
+  // 普通の文字として入力したネイティブのテンプレートの区切り記号は、決して実行させない。
   const literal = "Literal {1 + 2} and {{ 3 + 4 }}";
   if (!html.includes(literal) && !html.includes(literal.replaceAll("{", "&#123;").replaceAll("}", "&#125;"))) {
     throw new Error("SSR interpreted authored text as template expressions:\n" + html.slice(0, 5000));

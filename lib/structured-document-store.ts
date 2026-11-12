@@ -1,7 +1,7 @@
 /**
- * One site's document stored as independently writable SQLite rows.
- * This is the sole Cloudflare document layout: per-entry JSON and an
- * atomic document revision, with no format-dependent decoding.
+ * 1つのサイトの文書を、それぞれ別に書き込める SQLite の行として保存する。
+ * Cloudflare での文書の保存の形は、これだけ。項目ごとの JSON と、不可分に更新する
+ * 文書の版を持ち、形式によって変わるデコードは無い。
  */
 import { applyDocPatch, isDocPatch, type DocPatch } from "./doc-patch";
 import { hasValidChildren, validDocNodeShape, validSiteDoc } from "./doc-tree";
@@ -21,7 +21,7 @@ export type SiteSaveResult =
 type Bucket = "pages" | "nodes" | "assets" | "components";
 const buckets: Bucket[] = ["pages", "nodes", "assets", "components"];
 const bucketsSet = new Set<string>(buckets);
-const MAX_ROW_BYTES = 7_000_000; // DO SQLite limit is 8 MB per row/value.
+const MAX_ROW_BYTES = 7_000_000; // Durable Object の SQLite の上限は、1行・1つの値あたり 8 MB。
 const SCHEMA_TABLES = [
   "document_meta", "document_entries", "document_schema", "document_state",
   "document_backup_meta", "document_backup_chunks",
@@ -78,13 +78,13 @@ function serializedBucket(doc: SiteDoc, bucket: Bucket): Map<string, string> {
 }
 
 /**
- * All revision checks and row updates occur within a synchronous SQLite
- * transaction. No await can interleave one editor's changes with another's.
+ * 版の確認と行の更新は、すべて同期的な SQLite のトランザクションの中で行う。
+ * await を挟まないため、ある編集者の変更の途中に、別の編集者の変更が割り込むことは無い。
  */
 export class StructuredDocumentStore {
   constructor(private readonly storage: DocumentSqlStorage) {
-    // Statements that may write are rejected outright once the DO write quota is
-    // exhausted, so an initialized room must wake with reads only.
+    // Durable Object の書き込みの上限に達すると、書き込む可能性のある文はすべて拒否される。
+    // そのため、初期化済みのルームは、読み取りだけで起動できなければならない。
     if (!this.initialized()) this.initialize();
     if (Number(this.query("SELECT version FROM document_schema WHERE id=1")[0]?.version) !== 1) {
       throw new Error("Unsupported document storage schema");
@@ -95,7 +95,7 @@ export class StructuredDocumentStore {
     const tables = new Set(this.query("SELECT name FROM sqlite_master WHERE type='table'").map((row) => String(row.name)));
     const schema = tables.has("document_schema")
       ? this.query("SELECT version FROM document_schema WHERE id=1")[0] : undefined;
-    // 未対応のスキーマには、欠けたテーブルや初期行の補完も行わない。
+    // 対応していないスキーマには、欠けたテーブルや初期の行を補うこともしない。
     if (schema && Number(schema.version) !== 1) {
       throw new Error("Unsupported document storage schema");
     }
@@ -119,7 +119,7 @@ export class StructuredDocumentStore {
     return this.storage.sql.exec(sql, ...params).toArray();
   }
 
-  /** Deletion is permanent for this generation; a reused site ID gets a new DO. */
+  /** この世代の削除は取り消せない。サイトの ID を使い回すと、新しい Durable Object を使う。 */
   private sealed(): boolean {
     return Number(this.query("SELECT sealed FROM document_state WHERE id=1")[0]?.sealed) === 1;
   }
@@ -156,9 +156,9 @@ export class StructuredDocumentStore {
   }
 
   /**
-   * Keep the previous day's final snapshot before the first edit of a new UTC
-   * day. Snapshot data is chunked so even a 6MB+ document respects the DO's
-   * 8MB row limit. Seven weekday slots are rotated, not stored indefinitely.
+   * UTC で新しい日の最初の編集の前に、前日の最後のスナップショットを残す。
+   * スナップショットのデータは分割して保存するため、6MB を超える文書でも、
+   * Durable Object の1行 8MB の上限に収まる。曜日ごとの7つの枠を順に使い回し、いつまでも溜めることはしない。
    */
   private preservePreviousDay(savedAt: number, now: number): void {
     if (savedAt >= Math.floor(now / 86_400_000) * 86_400_000) return;
@@ -171,8 +171,8 @@ export class StructuredDocumentStore {
     this.query("DELETE FROM document_backup_chunks WHERE day=?", day);
     this.query("INSERT INTO document_backup_meta(day,saved_at,bytes) VALUES(?,?,?) ON CONFLICT(day) DO UPDATE SET saved_at=excluded.saved_at,bytes=excluded.bytes",
       day, savedAt, bytes);
-    // Never split a UTF-16 surrogate pair: SQLite text conversion would
-    // replace isolated halves and corrupt emoji in the restored JSON.
+    // UTF-16 のサロゲートペアは、決して分けない。SQLite の文字列の変換で片方だけの値が
+    // 置き換えられ、復元した JSON の絵文字が壊れてしまうため。
     for (let i = 0, index = 0; i < previous.body.length; index++) {
       let end = Math.min(i + 250_000, previous.body.length);
       if (end < previous.body.length) {
@@ -204,8 +204,8 @@ export class StructuredDocumentStore {
   }
 
   /**
-   * Rows written are the metered DO resource, so a full bucket replacement
-   * touches only entries whose serialized body actually changed.
+   * 料金がかかる Durable Object のリソースは、書き込んだ行の数。そのため、まとまりの全体を
+   * 置き換えるときも、直列化した中身が実際に変わった項目だけに書き込む。
    */
   private syncBucket(bucket: Bucket, next: Map<string, string>): void {
     const existing = new Map(this.query("SELECT entry_id,body FROM document_entries WHERE bucket=?", bucket)
@@ -268,9 +268,9 @@ export class StructuredDocumentStore {
   }
 
   /**
-   * Fast path: changes to already existing nodes that preserve tree ownership.
-   * All structural mutations use complete validation, but still update only
-   * the changed SQLite rows rather than replacing the entire document.
+   * 速い経路: ツリーの親子関係を変えない、既存のノードへの変更。
+   * 構造を変える変更はすべて完全に検証するが、その場合も文書全体は置き換えず、
+   * 変わった SQLite の行だけを更新する。
    */
   patch(patch: DocPatch, base: string): SiteSaveResult {
     if (!isDocPatch(patch)) throw new Error("不正なリクエスト");
@@ -364,7 +364,7 @@ export class StructuredDocumentStore {
     });
   }
 
-  /** A completed delete cannot be undone by any delayed RPC invocation. */
+  /** 完了した削除は、遅れて届いた RPC の呼び出しでも取り消せない。 */
   erase(): void {
     this.storage.transactionSync(() => {
       this.query("UPDATE document_state SET sealed=1 WHERE id=1");

@@ -1,7 +1,7 @@
 /**
- * Predicate rules shared by the editor, pre-render evaluation and published scripts.
- * Keep this function self-contained: the browser runtime embeds its source.
- * Lists expose own enumerable key/value pairs, but preserve their JSON shape.
+ * エディタ、描画前の評価、公開したスクリプトで共有する条件の判定の規則。
+ * この関数は自己完結させる。ブラウザのランタイムが、このソースをそのまま埋め込む。
+ * リストは、自身の列挙可能なキーと値の組を示すが、JSON の形は保つ。
  */
 export function matchesValueCondition(left: unknown, operator: string, right: unknown): boolean {
   const owns = (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key);
@@ -14,13 +14,13 @@ export function matchesValueCondition(left: unknown, operator: string, right: un
     return Number.isFinite(n) ? n : undefined;
   };
   const same = (a: unknown, b: unknown, depth = 0): boolean => {
-    // Non-finite numbers are not valid JSON values; never treat infinity as
-    // an equal or contained script value just because JS says it is equal.
+    // 有限でない数値は、JSON の値として正しくない。JS で等しいとされるからといって、
+    // 無限大を、等しい値や含まれる値として扱うことは決してしない。
     if (typeof a === "number" && !Number.isFinite(a) ||
         typeof b === "number" && !Number.isFinite(b)) return false;
     if (a === b) return true;
-    // Compare numbers and booleans with their exact text forms, without JS ==.
-    // Preserve null, missing values, scalar-kind differences, and numeric spelling.
+    // 数値と真偽値は、JS の == を使わず、正確な文字の形で比べる。
+    // null、値が無いこと、単一の値の種類の違い、数値の書き方は区別したまま保つ。
     if (typeof a === "string" && (typeof b === "boolean" ||
         (typeof b === "number" && Number.isFinite(b)))) return a === String(b);
     if (typeof b === "string" && (typeof a === "boolean" ||
@@ -68,11 +68,11 @@ export function matchesValueCondition(left: unknown, operator: string, right: un
 }
 
 /**
- * Remove list entries without mutating the input. Arrays close the gap after
- * positional deletion; dictionaries retain their original keys.
- * Returns undefined when the operation cannot change the list.
+ * 入力を書き換えずに、リストの項目を取り除く。配列では、位置で削除した後の隙間を詰め、
+ * 辞書（オブジェクト）では元のキーを保つ。
+ * 操作でリストが変わらない場合は undefined を返す。
  *
- * Keep this function self-contained: browser and server exports embed its source.
+ * この関数は自己完結させる。ブラウザ用とサーバー用の書き出しが、このソースをそのまま埋め込む。
  */
 export function removeListItem(
   source: unknown,
@@ -89,7 +89,7 @@ export function removeListItem(
     if (typeof selection !== "string" && typeof selection !== "number") return undefined;
     const key = String(selection);
     if (Array.isArray(source)) {
-      // Only a genuine zero-based index is accepted, never a negative/sparse slot.
+      // 受け付けるのは、0 から数える正しいインデックスだけ。負の位置や、まばらな位置は決して受け付けない。
       if (!/^(0|[1-9][0-9]*)$/.test(key)) return undefined;
       const index = Number(key);
       if (!Number.isSafeInteger(index) || index >= source.length) return undefined;
@@ -119,7 +119,7 @@ export function removeListItem(
   return removed ? result : undefined;
 }
 
-/** Infer only unambiguous JSON literals. Other text remains text. */
+/** あいまいさの無い JSON のリテラルだけを推定する。それ以外の文字は、文字のまま残す。 */
 export function parseValueLiteral(text: string): unknown {
   const source = text.trim();
   if (source === "true" || source === "false" || source === "null" ||
@@ -131,10 +131,10 @@ export function parseValueLiteral(text: string): unknown {
   return text;
 }
 
-/** Budget the expanded JSON shape without serializing shared subtrees. */
+/** 共有している部分木を直列化せずに、展開した JSON の形の大きさを見積もって制限する。 */
 export function withinScriptValueLimit(value: unknown): boolean {
-  // The fetch transports also cap JSON responses at 5 MiB. This counts string
-  // code units and container overhead, bounding expansion before serialization.
+  // 取得の処理も、JSON の応答を 5 MiB までに制限している。ここでは、文字列のコード単位と
+  // 入れ物の分の大きさを数え、直列化する前に展開の大きさを抑える。
   const limit = 5 * 1024 * 1024;
   if (value === undefined || value === null) return true;
   if (typeof value !== "object") {
@@ -154,7 +154,7 @@ export function withinScriptValueLimit(value: unknown): boolean {
     }
     const cached = sizes.get(item);
     if (cached) return depth + cached.height <= 64 ? cached : { cost: Infinity, height: 0 };
-    // A reference to an active ancestor is a cycle.
+    // たどっている途中の祖先への参照は、循環になる。
     sizes.set(item, { cost: Infinity, height: 0 });
     if (Array.isArray(item) && item.length > limit) return { cost: Infinity, height: 0 };
     let cost = Array.isArray(item) ? 2 + item.length : 2;
@@ -172,14 +172,14 @@ export function withinScriptValueLimit(value: unknown): boolean {
   return measure(value, 0).cost <= limit;
 }
 
-/** 変数に値を入れる（"記事.tags" のような入れ子は、元の値を変えずに途中を複製して入れる） */
+/** 変数に値を入れる（"記事.tags" のような入れ子は、元の値を変えずに、途中を複製して入れる） */
 export function setVarPath(vars: Record<string, unknown>, name: string, value: unknown,
   accept?: (candidate: unknown) => boolean, editingList = false): string | undefined {
   if (typeof name !== "string" || !name) return undefined;
   const owns = (obj: object, key: string | number) =>
     Object.prototype.hasOwnProperty.call(obj, key);
-  // Object.defineProperty writes __proto__ as a normal own key, not as a
-  // prototype mutation. Only own keys may shadow a path.
+  // Object.defineProperty は、__proto__ をプロトタイプの変更ではなく、通常の自身のキーとして書く。
+  // 位置を覆えるのは、自身のキーだけ。
   const write = (key: string, next: unknown) => {
     if (accept && !accept(next)) return undefined;
     Object.defineProperty(vars, key, { value: next, writable: true, enumerable: true, configurable: true });
@@ -193,10 +193,10 @@ export function setVarPath(vars: Record<string, unknown>, name: string, value: u
     if (!keys.length) return value;
     const [k, ...rest] = keys;
     if (Array.isArray(cur)) {
-      // A nested array path must update an existing slot or append one item.
-      // Never turn a list into a dictionary or construct a sparse million-slot
-      // list from an accidental index (set-list-item follows the same rule).
-      // A list edit writes back to the same list it read via the last-item alias.
+      // 入れ子の配列の位置への書き込みでは、既存の枠を更新するか、1件を末尾に加える。
+      // リストを辞書に変えたり、誤ったインデックスから百万の枠を持つまばらなリストを
+      // 作ったりは決してしない（set-list-item も同じ規則に従う）。
+      // リストの編集では、最後の項目を指す別名で読んだ同じリストに書き戻す。
       const lastItem = editingList && k === "-1";
       if (!lastItem && !/^(0|[1-9][0-9]*)$/.test(k)) { invalidPath = true; return cur; }
       const index = lastItem ? cur.length - 1 : Number(k);

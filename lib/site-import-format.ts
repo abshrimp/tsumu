@@ -23,7 +23,7 @@ export function isImportObject(input: unknown): input is Record<string, unknown>
   return !!input && typeof input === "object" && !Array.isArray(input);
 }
 
-/** Import-specific SVG checks complement the same node shape accepted by save. */
+/** 取り込み専用の SVG の検査で、保存と同じノードの形の検査を補う。 */
 function validImportedNode(value: unknown): boolean {
   if (!validDocNodeShape(value)) return false;
   const icon = isImportObject(value) ? value.icon : undefined;
@@ -31,7 +31,7 @@ function validImportedNode(value: unknown): boolean {
     (isImportObject(icon) && isSafeImportedSvg(icon.svg as string));
 }
 
-/** Reject malformed archives before writing any site or uploading any asset. */
+/** サイトを書き込んだり、アセットをアップロードしたりする前に、不正なアーカイブを拒否する。 */
 export function validateImportedDoc(value: unknown): SiteDoc {
   if (!isImportObject(value)) throw new Error(tr("This file does not contain editable site data."));
   const doc = value;
@@ -79,8 +79,8 @@ export function validateImportedDoc(value: unknown): SiteDoc {
       throw new Error(tr("Asset IDs or references are invalid."));
     }
   }
-  // A document accepted by import must also be accepted by persistence when
-  // reopened. Check every reference before the import creates a site or assets.
+  // 取り込みで受け付けた文書は、開き直したときに保存でも受け付けられなければならない。
+  // 取り込みでサイトやアセットを作る前に、すべての参照を確かめる。
   const assetRefValid = (ref: unknown): boolean =>
     !isImportObject(ref) || ref.assetId === undefined ||
     (typeof ref.assetId === "string" && Object.hasOwn(doc.assets as Record<string, unknown>, ref.assetId));
@@ -119,7 +119,7 @@ export function validateImportedDoc(value: unknown): SiteDoc {
       throw new Error(tr("Page folder references are invalid."));
     }
   }
-  // Full saves, cache recovery and imports must agree on structural validity.
+  // 全体の保存、キャッシュからの復旧、取り込みで、構造が正しいかの判定をそろえる。
   if (!validSiteDoc(doc)) throw new Error(tr("The document structure or references are invalid."));
   return value as unknown as SiteDoc;
 }

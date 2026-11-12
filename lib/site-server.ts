@@ -11,7 +11,7 @@ import {
   type SiteDest,
 } from "./sites";
 
-/** リクエストのサイトID（?site= や本文の site。必須） */
+/** リクエストのサイトの ID（?site= か、本文の site。必須） */
 export async function siteIdOf(value: unknown): Promise<string | NextResponse> {
   if (isSiteId(value)) return value;
   const tr = await serverTr();
@@ -19,13 +19,13 @@ export async function siteIdOf(value: unknown): Promise<string | NextResponse> {
 }
 
 /**
- * サイトの公開先。D1 があればそこから読む。
- * D1 が無いとき（サイトの一覧をブラウザ内に保存しているとき）は、ブラウザから送られた公開先を使う
+ * サイトの公開先。D1 があれば、D1 から読む。
+ * D1 が無いとき（サイトの一覧をブラウザの中に保存しているとき）は、ブラウザから送られた公開先を使う
  */
 export async function siteDestOf(siteId: string, clientDest?: unknown): Promise<(SiteDest & { roomKey?: string | null }) | NextResponse> {
   if (dbConfigured()) {
     const db = await getDb();
-    // 公開先と世代を対応付け、途中で作り直されたサイトの記録を更新しない。
+    // 公開先と世代を対応付け、途中で作り直されたサイトの記録を更新しないようにする。
     const roomKey = db.backend === "d1" ? await getSiteRoomKey(db, siteId) : undefined;
     const site = roomKey === null ? null : await getSite(db, siteId, roomKey);
     if (site) return { ...site, roomKey };

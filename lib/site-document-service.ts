@@ -10,9 +10,9 @@ import {
 } from "./doc-storage";
 
 /**
- * The site ID is a public identifier; the per-creation room key is private to
- * storage routing. Cloudflare uses row-structured DO SQLite, Node uses SQLite.
- * Neither backend reads data from the other backend's storage representation.
+ * サイトの ID は公開される識別子で、作成ごとのルームのキーは、保存先の振り分けにだけ使う非公開の値。
+ * Cloudflare では行の構造を持つ Durable Object の SQLite を、Node.js では SQLite を使う。
+ * どちらの保存先も、もう一方の保存先の表現からデータを読まない。
  */
 interface DocumentStub {
   getSnapshot(): Promise<CurrentDoc | null>;
@@ -33,7 +33,7 @@ function cloudNamespace(): DocumentNamespace | null {
   try {
     env = getCloudflareContext().env as unknown as Record<string, unknown>;
   } catch {
-    return null; // Node/Docker environment
+    return null; // Node.js・Docker の環境
   }
   if (env.DB && !env.DOC_STORE) throw new Error("DOC_STORE binding is required");
   return (env.DOC_STORE as DocumentNamespace | undefined) ?? null;
@@ -53,12 +53,12 @@ async function forSite(db: Db, siteId: string): Promise<DocumentTarget> {
   const namespace = cloudNamespace();
   if (!namespace) return { kind: "local" };
   const roomKey = await getSiteRoomKey(db, siteId);
-  // A deleted Cloudflare generation must never fall back to local storage.
+  // 削除した Cloudflare の世代を、決してローカルの保存先で代わりに扱わない。
   if (!roomKey) return { kind: "missing" };
   return { kind: "room", stub: namespace.get(namespace.idFromName(roomKey)), roomKey };
 }
 
-/** Revalidate the generation after an awaited RPC; a deleted site is not visible. */
+/** 待機した RPC の後で、世代を確かめ直す。削除したサイトは見えない。 */
 async function unchangedGeneration(db: Db, siteId: string, roomKey: string): Promise<boolean> {
   return await getSiteRoomKey(db, siteId) === roomKey;
 }
@@ -88,7 +88,7 @@ export async function readSiteDocumentMeta(db: Db, siteId: string):
   return row ? { rev: String(row.rev), savedAt: Number(row.saved_at) } : null;
 }
 
-/** Fence conflict snapshots as reads; timestamp writes remain advisory after a commit. */
+/** 競合のスナップショットは読み取りとして世代で守る。コミットした後の時刻の書き込みは、参考の情報にとどまる。 */
 async function finishSave(db: Db, siteId: string, roomKey: string | null, result: SaveDocResult):
   Promise<SaveDocResult> {
   if (roomKey && result.kind === "conflict") {
@@ -98,18 +98,18 @@ async function finishSave(db: Db, siteId: string, roomKey: string | null, result
   try {
     if (!await recordSiteSavedAt(db, siteId, roomKey, result.savedAt)) return { kind: "missing" };
   } catch {
-    // The document commit succeeded; do not misreport it as an unsuccessful save.
+    // 文書のコミットは成功している。保存に失敗したと誤って報告しない。
   }
   return result;
 }
 
-/** サーバー内の通知用。HTTP応答やWebSocketメッセージには、この包みを渡さない。 */
+/** サーバーの中の通知用。HTTP の応答や WebSocket のメッセージには、この包みを渡さない。 */
 export interface ServerDocumentMutation {
   result: SaveDocResult;
   roomKey: string | null;
 }
 
-/** 保存先の世代を必要としない呼び出し元には、従来どおり保存結果だけを返す。 */
+/** 保存先の世代を必要としない呼び出し元には、保存の結果だけを返す。 */
 export async function saveSiteDocument(db: Db, siteId: string, raw: string, base: string | null, expectedRoomKey?: string):
   Promise<SaveDocResult> {
   return (await saveSiteDocumentWithTarget(db, siteId, raw, base, expectedRoomKey)).result;
@@ -146,15 +146,15 @@ export async function patchSiteDocumentWithTarget(db: Db, siteId: string, patch:
   return { result: finished, roomKey: finished.kind === "saved" ? roomKey : null };
 }
 
-/** Seal and clear an obsolete generation, including its daily backups. */
+/** 使われなくなった世代を封じて消す（日ごとのバックアップを含む）。 */
 export async function eraseSiteDocument(roomKey: string | null): Promise<void> {
   if (roomKey) await byKey(roomKey)?.eraseDocument();
 }
 
 /**
- * Deletions are queued within the D1 site-delete transaction. Failed DO
- * cleanup is retried on subsequent site-list requests; the old key is never
- * reusable even if cleanup is temporarily unavailable.
+ * 削除は、D1 でサイトを削除するトランザクションの中でキューに入れる。Durable Object の
+ * 後始末に失敗したときは、次にサイトの一覧が要求されたときに再試行する。後始末が一時的に
+ * できなくても、古いキーを再び使うことは無い。
  */
 export async function cleanupAbandonedDocuments(db: Db, limit = 3): Promise<void> {
   if (db.backend !== "d1") return;
@@ -166,7 +166,7 @@ export async function cleanupAbandonedDocuments(db: Db, limit = 3): Promise<void
     const key = String(row.room_key);
     try {
       const stub = byKey(key);
-      if (!stub) return; // missing binding: retain tombstone queue
+      if (!stub) return; // バインディングが無い: 削除の記録のキューを残す
       await stub.eraseDocument();
       await db.execute({
         sql: "DELETE FROM document_room_cleanup WHERE room_key=?",

@@ -48,7 +48,7 @@ import { sameDocContent, shareUnchangedDoc } from "./doc-share";
 const PUBLISHED_KEY = siteKey(storageKey("published-v1"));
 const PUBLISHED_HASH_KEY = siteKey(storageKey("published-hash-v1"));
 const ACTIVE_PAGE_KEY = siteKey(storageKey("active-page-v1"));
-/** 前回の編集位置（選択・デバイス・倍率・タブなど）。次に開いたときに戻す */
+/** 前回の編集の位置（選択・デバイス・倍率・タブなど）。次に開いたときに戻す */
 const UI_KEY = siteKey(storageKey("ui-v1"));
 const HISTORY_LIMIT = 100;
 
@@ -58,7 +58,7 @@ export type RightTab = "style" | "settings";
 
 const LEFT_TABS: LeftTab[] = ["layers", "add", "pages", "assets", "site"];
 
-/** 前回の編集位置として保存する項目 */
+/** 前回の編集の位置として保存する項目 */
 interface SavedUi {
   selection: string | null;
   selectedIds: string[];
@@ -85,7 +85,7 @@ function pickUi(s: SavedUi): SavedUi {
   };
 }
 
-/** 保存した編集位置を、今のドキュメントで有効なものだけ読み戻す */
+/** 保存した編集の位置のうち、今の文書で有効なものだけを読み戻す */
 function loadUi(doc: SiteDoc): Partial<SavedUi> {
   if (typeof window === "undefined") return {};
   try {
@@ -119,7 +119,7 @@ function loadUi(doc: SiteDoc): Partial<SavedUi> {
 }
 export type CloudState = "checking" | "synced" | "saving" | "local" | "error";
 
-/** 公開済みかどうかの判定用に、ドキュメント内容のハッシュ（FNV-1a）を返す */
+/** 公開済みかどうかを判定するため、文書の内容のハッシュ（FNV-1a）を返す */
 export function docFingerprint(doc: SiteDoc): string {
   const text = JSON.stringify(doc);
   let h = 0x811c9dc5;
@@ -147,11 +147,11 @@ export function findParentOf(doc: SiteDoc, nodeId: string): ParentRef | null {
 
 type ParentIndex = Map<string, { ref: ParentRef; position: number }>;
 
-/** Build once per operation; mutable updateDoc drafts must never share a cached index. */
+/** 操作ごとに1回作る。updateDoc の書き換え用の下書きどうしで、キャッシュした索引を決して共有しない。 */
 export function indexParents(doc: SiteDoc): ParentIndex {
   const parents: ParentIndex = new Map();
   const add = (children: string[], ref: ParentRef) => children.forEach((id, position) => {
-    // Match findParentOf's page-first, then node insertion-order precedence.
+    // findParentOf と同じく、ページを先に、次にノードを追加した順に優先する。
     if (!parents.has(id)) parents.set(id, { ref, position });
   });
   for (const page of Object.values(doc.pages)) add(page.children, { kind: "page", id: page.id });
@@ -171,7 +171,7 @@ function indexedAncestors(parents: ParentIndex, nodeId: string): string[] {
   return out.reverse();
 }
 
-/** Selected descendants move/copy with their nearest selected ancestor. */
+/** 選んだ子孫は、最も近い選んだ祖先と一緒に移動・コピーする。 */
 function selectedRoots(ids: readonly string[], parents: ParentIndex): string[] {
   const selected = new Set(ids);
   return [...selected].filter((id) =>
@@ -179,20 +179,20 @@ function selectedRoots(ids: readonly string[], parents: ParentIndex): string[] {
   );
 }
 
-/** nodeId がいずれかのコンポーネントのマスターに属しているか */
+/** nodeId が、どれかのコンポーネントのマスターに属しているか */
 export function componentOf(doc: SiteDoc, nodeId: string): string | null {
   const components = Object.values(doc.components ?? {});
   if (!components.length) return null;
 
   const ancestors = new Set([nodeId, ...indexedAncestors(indexParents(doc), nodeId)]);
-  // Keep the established component-order precedence for nested master roots.
+  // 入れ子のマスターのルートでは、これまでと同じコンポーネントの順の優先順位を保つ。
   for (const comp of components) {
     if (ancestors.has(comp.rootId)) return comp.id;
   }
   return null;
 }
 
-/** Visit selected subtrees in document order, including overlapping selections only once. */
+/** 選んだ部分木を文書の順にたどる。重なる選択も1回だけ扱う。 */
 export function collectSubtreeIds(doc: SiteDoc, roots: readonly string[]): Set<string> {
   const ids = new Set<string>();
   const pending = [...roots].reverse();
@@ -212,14 +212,14 @@ export function collectDescendants(doc: SiteDoc, nodeId: string): string[] {
 }
 
 /**
- * compIds のコンポーネントと、その中で（入れ子も含めて）使っているコンポーネントのID。
+ * compIds のコンポーネントと、その中で（入れ子も含めて）使っているコンポーネントの ID。
  * コンポーネントの中に自分自身を入れると無限に入れ子になるため、その判定に使う
  */
 export function componentsReachable(doc: SiteDoc, compIds: Iterable<string>): Set<string> {
   const out = new Set<string>();
   const pending = [...compIds];
-  // Component graphs can be far deeper than ordinary node trees. Avoid
-  // recursion even when every component in the document is individually valid.
+  // コンポーネントのグラフは、通常のノードのツリーよりはるかに深くなりうる。文書の中の
+  // コンポーネントがそれぞれ正しくても、再帰呼び出しは使わない。
   for (let cid = pending.pop(); cid !== undefined; cid = pending.pop()) {
     const comp = doc.components?.[cid];
     if (!comp || out.has(cid)) continue;
@@ -232,7 +232,7 @@ export function componentsReachable(doc: SiteDoc, compIds: Iterable<string>): Se
   return out;
 }
 
-/** Moving/inserting an instance into a master cannot make it render itself. */
+/** インスタンスをマスターの中へ移動・挿入しても、そのマスターが自分自身を描画するようにはならないことを確かめる。 */
 function canPlaceComponentNodes(
   doc: SiteDoc,
   parent: ParentRef,
@@ -259,7 +259,7 @@ function canPlaceComponentNodes(
 }
 
 /**
- * 複製したページのURL。「[slug]」の区切りに文字を足すと使えないURLになるため、
+ * 複製したページの URL。「[slug]」の区切りに文字を足すと使えない URL になるため、
  * その手前の区切りに -copy を付ける（products/[slug] → products-copy/[slug]）
  */
 export function copySlug(slug: string, n: number): string {
@@ -274,7 +274,7 @@ export function copySlug(slug: string, n: number): string {
   return slug ? `${suffix}/${slug}` : suffix;
 }
 
-/** 「ページ 3」「page-3」のように、ほかのページと重ならない名前とURLにする */
+/** 「ページ 3」「page-3」のように、他のページと重ならない名前と URL にする */
 export function uniquePageNaming(
   doc: SiteDoc,
   name: (n: number) => string,
@@ -288,7 +288,7 @@ export function uniquePageNaming(
   return { name: name(n), slug: slug(n) };
 }
 
-/** 親から順の祖先ノードID（ページ直下の要素なら空） */
+/** 親から順に並べた祖先のノードの ID（ページの直下の要素なら空） */
 export function ancestorsOf(doc: SiteDoc, nodeId: string): string[] {
   return indexedAncestors(indexParents(doc), nodeId);
 }
@@ -327,7 +327,7 @@ function validSelectedIds(doc: SiteDoc, ids: string[]): string[] {
   return ids.filter((id) => id === BODY_NODE_ID || !!doc.nodes[id]);
 }
 
-/** パネルからの変更を適用する要素（複数選択中で nodeId を含むなら選択中の全要素） */
+/** パネルからの変更を適用する要素（複数選択中で nodeId を含むなら、選択中のすべての要素） */
 function targetIdsFor(selectedIds: string[], nodeId: string): string[] {
   return selectedIds.length > 1 && selectedIds.includes(nodeId)
     ? selectedIds
@@ -371,21 +371,21 @@ export function insertPointFor(
   return { parent, index: childrenOf(doc, parent).indexOf(selected.id) + 1 };
 }
 
-// Per-tab baseline. A stale tab cannot overwrite a document from another tab.
+// タブごとの基準。古いタブが、別のタブの文書を上書きすることはできない。
 let lastKnownBrowserRaw: string | null = null;
 let browserSnapshotUnavailable = false;
 let browserHydration: Promise<void> | null = null;
-// Preferences refer to the persisted document, not the temporary starter doc.
+// 設定は、一時的な初期の文書ではなく、保存した文書を基準にする。
 let browserPositionReady = false;
 
-/** 前回開いていたページ。削除済みなら先頭ページへ安全に戻す */
+/** 前回開いていたページ。削除されていれば、先頭のページに戻す */
 function loadActivePageId(doc: SiteDoc): string {
   if (typeof window !== "undefined") {
     try {
       const saved = window.localStorage.getItem(ACTIVE_PAGE_KEY);
       if (saved && doc.pages[saved]) return saved;
     } catch {
-      // localStorageが利用できない場合は先頭ページを使う
+      // localStorage を使えない場合は、先頭のページを使う
     }
   }
   return doc.pageOrder[0];
@@ -393,31 +393,31 @@ function loadActivePageId(doc: SiteDoc): string {
 
 export interface EditorStore {
   doc: SiteDoc;
-  /** 文書の読み替えで更新する非永続ID。非同期処理を別文書へ持ち越さない。 */
+  /** 文書を読み替えるときに更新する、保存しない ID。非同期の処理を、別の文書へ持ち越さないために使う。 */
   documentSession: number;
   past: SiteDoc[];
   future: SiteDoc[];
-  /** Undo/Redo・文書の置き換えで進む。通常の編集・共同編集では変えない。 */
+  /** 元に戻す・やり直す操作と、文書の置き換えで進む。通常の編集や共同編集では変えない。 */
   historyRevision: number;
   activePageId: string;
   selection: string | null;
-  /** 選択中の全要素。selection はこの配列内の主選択（最後に選んだ要素） */
+  /** 選択中のすべての要素。selection は、この配列の中の主選択（最後に選んだ要素） */
   selectedIds: string[];
   breakpoint: Breakpoint;
-  /** キャンバスのカスタム画面幅（null = ブレークポイントの表示幅） */
+  /** キャンバスのカスタムの画面幅（null = ブレークポイントの表示幅） */
   customWidth: number | null;
   styleState: StyleState;
   mode: EditorMode;
   leftTab: LeftTab;
   editingText: string | null;
-  /** 0 = 自動フィット */
+  /** 0 = 自動で合わせる */
   zoom: number;
-  /** 動的ページのプレビューに使うアイテムのインデックス */
+  /** 動的なページのプレビューに使う項目のインデックス */
   previewIndex: number;
   setPreviewIndex: (i: number) => void;
   savedAt: number | null;
   publishedAt: number | null;
-  /** 最後に公開したドキュメントの docFingerprint */
+  /** 最後に公開した文書の docFingerprint */
   publishedFingerprint: string | null;
   cloudState: CloudState;
   cloudSavedAt: number | null;
@@ -425,33 +425,33 @@ export interface EditorStore {
   cloudError: string | null;
 
   select: (id: string | null) => void;
-  /** Shiftクリック用: 要素を現在の選択へ追加、選択済みなら解除 */
+  /** Shift を押しながらのクリック用: 要素を今の選択に加え、選択済みなら選択を外す */
   toggleSelection: (id: string) => void;
-  /** 選択中の要素の親を選択する（ページ直下なら body） */
+  /** 選択中の要素の親を選ぶ（ページの直下なら body） */
   selectParent: () => void;
-  /** 複数の要素をまとめて選択する（primary = 主選択） */
+  /** 複数の要素をまとめて選ぶ（primary = 主選択） */
   selectMany: (ids: string[], primary: string) => void;
-  /** 選択中の要素と同じ階層の要素をすべて選択（未選択ならページ直下をすべて） */
+  /** 選択中の要素と同じ階層の要素をすべて選ぶ（何も選んでいなければ、ページの直下をすべて選ぶ） */
   selectAll: () => void;
   setBreakpoint: (bp: Breakpoint) => void;
-  /** カスタム幅を設定（対応するブレークポイントへ自動で切替える） */
+  /** カスタムの幅を設定する（対応するブレークポイントへ自動で切り替える） */
   setCustomWidth: (w: number | null) => void;
   setStyleState: (s: StyleState) => void;
   setMode: (m: EditorMode) => void;
   setLeftTab: (t: LeftTab) => void;
-  /** アセットパネルで目立たせて表示するアセット（表示し終えたら null に戻す） */
+  /** アセットのパネルで目立たせて表示するアセット（表示し終えたら null に戻す） */
   revealAssetId: string | null;
-  /** アセットパネルを開いて、そのアセットまでスクロールして目立たせる */
+  /** アセットのパネルを開き、そのアセットまでスクロールして目立たせる */
   revealAsset: (id: string | null) => void;
   setEditingText: (id: string | null) => void;
-  /** テキスト編集中に選択された部分範囲（スタイル変更時のspan分割に使う） */
+  /** テキストの編集中に選んだ部分の範囲（スタイルを変えるときの span の分割に使う） */
   textSel: { nodeId: string; start: number; end: number; text: string } | null;
   setTextSel: (sel: EditorStore["textSel"]) => void;
   /**
-   * テキストの一部をspanとして切り出す。親はテキスト情報（見出しレベル）を
-   * 保持したまま before / 対象 / after のspan子要素に分割される。
-   * props を渡すと、切り出したspanへ現在の (bp, state) でスタイルを適用する。
-   * 成功時は新しいspanのIDを返す（1回のundoで戻せる）
+   * テキストの一部を span として切り出す。親はテキストの情報（見出しのレベル）を
+   * 保ったまま、before / 対象 / after の span の子要素に分かれる。
+   * props を渡すと、切り出した span に、現在の (bp, state) でスタイルを適用する。
+   * 成功したときは、新しい span の ID を返す（1回の「元に戻す」で戻せる）
    */
   splitTextSpan: (
     nodeId: string,
@@ -462,16 +462,16 @@ export interface EditorStore {
   ) => string | null;
   setZoom: (z: number) => void;
   markSaved: () => void;
-  /** 公開したドキュメントの内容ハッシュ（docFingerprint）と日時を記録する */
+  /** 公開した文書の内容のハッシュ（docFingerprint）と日時を記録する */
   markPublished: (fingerprint: string) => void;
   setCloud: (state: CloudState, savedAt?: number, error?: string) => void;
-  /** サーバーから取得したドキュメントで置き換える（履歴はリセット） */
+  /** サーバーから取得した文書で置き換える（履歴はリセットする） */
   replaceDoc: (doc: SiteDoc) => void;
-  /** バックアップ・公開済みの版の内容に戻す（「元に戻す」で戻せる。サーバーにも保存される） */
+  /** バックアップや公開済みの版の内容に戻す（「元に戻す」で戻せる。サーバーにも保存する） */
   restoreDoc: (doc: SiteDoc) => void;
   /**
-   * 他の編集者の変更（WebSocket・ポーリングで受け取ったもの）を取り込む。
-   * 選択・表示ページ・編集中コンポーネントを可能な限り維持する
+   * 他の編集者の変更（WebSocket やポーリングで受け取ったもの）を取り込む。
+   * 選択・表示中のページ・編集中のコンポーネントを、できる限り保つ
    */
   applyRemoteDoc: (doc: SiteDoc, patchHint?: { baseDoc: SiteDoc; patch: DocPatch }) => void;
 
@@ -480,45 +480,45 @@ export interface EditorStore {
   setInsertMode: (m: InsertMode) => void;
 
   clipboard: ClipPayload | null;
-  /** 要素をコピーする（複数選択中で nodeId を含むなら選択中の全要素）。切り取りでは unlockedOnly で削除対象に合わせる。 */
+  /** 要素をコピーする（複数選択中で nodeId を含むなら、選択中のすべての要素）。切り取りでは unlockedOnly で、削除する対象に合わせる。 */
   copyNode: (nodeId: string, opts?: { unlockedOnly?: boolean }) => void;
   /**
-   * クリップボードの内容を、挿入先の設定（中へ / 後ろへ）に従って選択位置に貼り付け（未選択ならページ末尾）。
-   * external を渡すと、ほかのサイト（タブ）でコピーした要素を、使っているアセット・コンポーネントごと貼り付ける
+   * クリップボードの内容を、挿入先の設定（中へ / 後ろへ）に従って選択した位置に貼り付ける（何も選んでいなければページの末尾）。
+   * external を渡すと、他のサイト（タブ）でコピーした要素を、使っているアセットやコンポーネントと一緒に貼り付ける
    */
   pasteClipboard: (external?: ClipPayload) => void;
 
   /**
-   * 開いているスクリプト画面（null = 閉じている）。
-   * focusNodeId = 要素の設定から開いた要素 / focusScriptId = 開いたときに選んで見せるスクリプト
+   * 開いているスクリプトの画面（null = 閉じている）。
+   * focusNodeId = 要素の設定から開いたときの要素 / focusScriptId = 開いたときに選んで見せるスクリプト
    */
   scriptEditor: { focusNodeId: string | null; focusScriptId?: string } | null;
   openScriptEditor: (
     opts: { focusNodeId: string | null; focusScriptId?: string } | null
   ) => void;
 
-  /** 右パネルのタブ（要素を選んでいるとき） */
+  /** 右のパネルのタブ（要素を選んでいるとき） */
   rightTab: RightTab;
   setRightTab: (t: RightTab) => void;
 
-  /** 編集中のコンポーネントID（nullならページ編集） */
+  /** 編集中のコンポーネントの ID（null ならページを編集している） */
   editingComponentId: string | null;
   setEditingComponent: (id: string | null) => void;
-  /** ノードをコンポーネント化し、元の位置をインスタンスに置き換える */
+  /** ノードをコンポーネントにし、元の位置をインスタンスに置き換える */
   createComponent: (nodeId: string) => void;
   /** ボックスをテンプレートにしたリストを作り、元の位置をリストに置き換える */
   createList: (nodeId: string) => void;
-  /** インスタンスをマスターの複製（通常のノード）に展開する */
+  /** インスタンスを、マスターの複製（通常のノード）に展開する */
   detachInstance: (nodeId: string) => void;
   insertInstance: (componentId: string) => void;
   deleteComponent: (componentId: string) => void;
 
   checkpoint: () => void;
   /**
-   * ドラッグでの数値変更など、続けて起きる変更を1つの「元に戻す」にまとめる。
-   * beginGesture 〜 endGesture の間の updateDoc は履歴を積まない（最初の変更前だけを積む）。
-   * beginGestureの戻り値で自分の操作だけを終了する。endGestureは全操作を終了する。
-   * 非同期の配置は、全ての連続編集が終わってから別の履歴として適用する。
+   * ドラッグでの数値の変更など、続けて起きる変更を1つの「元に戻す」にまとめる。
+   * beginGesture から endGesture までの間の updateDoc は履歴を積まない（最初の変更の前だけを積む）。
+   * beginGesture の戻り値で、自分の操作だけを終える。endGesture は、すべての操作を終える。
+   * 非同期の配置は、すべての連続した編集が終わってから、別の履歴として適用する。
    */
   gestureActive: boolean;
   beginGesture: () => () => void;
@@ -526,11 +526,11 @@ export interface EditorStore {
   undo: () => void;
   redo: () => void;
 
-  /** history: 省略時 true。transient操作は checkpoint() を先に呼び history:false で更新する */
+  /** history: 省略すると true。一時的な操作では、先に checkpoint() を呼び、history: false で更新する */
   updateDoc: (fn: (doc: SiteDoc) => void, opts?: { history?: boolean }) => void;
-  /** Commit scripts without copying unrelated document branches. */
+  /** 関係の無い文書の枝をコピーせずに、スクリプトを確定する。 */
   updatePageScripts: (pageId: string, nodeIds: string[], views: PageScript[]) => void;
-  /** 中断した読み込みのファイルだけを、Undo/Redoを壊さず全履歴にも残す。 */
+  /** 中断した読み込みのファイルだけを、元に戻す・やり直す操作を壊さずに、すべての履歴に残す。 */
   retainUploadedAssets: (assets: Asset[]) => void;
 
   setStyleProps: (
@@ -540,13 +540,13 @@ export interface EditorStore {
   ) => void;
   updateNode: (nodeId: string, patch: Partial<DocNode>) => void;
   /**
-   * 複数選択中で nodeId がその中にあれば選択中の全要素、そうでなければ nodeId だけに fn を適用する
-   * （スタイルパネルからの変更を一括で反映するため。1回のundoで戻せる）
+   * 複数選択中で nodeId がその中にあれば選択中のすべての要素に、そうでなければ nodeId だけに fn を適用する
+   * （スタイルのパネルからの変更を、まとめて反映するため。1回の「元に戻す」で戻せる）
    */
   updateTargets: (nodeId: string, fn: (node: DocNode) => void) => void;
-  /** いま表示中のデバイス（と、それより小さい画面）で表示／非表示を切り替える */
+  /** いま表示中のデバイス（と、それより小さい画面）で、表示と非表示を切り替える */
   toggleHiddenHere: (nodeId: string) => void;
-  /** 指定したデバイスだけ表示／非表示を切り替える */
+  /** 指定したデバイスだけで、表示と非表示を切り替える */
   setHiddenAt: (nodeId: string, bp: Breakpoint, hide: boolean) => void;
   insertNodes: (
     nodes: DocNode[],
@@ -557,17 +557,17 @@ export interface EditorStore {
   deleteNode: (nodeId: string) => void;
   /**
    * 複数の要素をまとめて削除する（1回の「元に戻す」で戻せる）。
-   * ロック中・body は除き、選んだ要素の中にある要素は親ごと消える
+   * ロック中の要素と body は除き、選んだ要素の中にある要素は、親と一緒に消える
    */
   deleteNodes: (nodeIds: string[]) => void;
   duplicateNode: (nodeId: string) => void;
   /**
-   * 複数の要素をそれぞれの後ろへまとめて複製し、複製を選ぶ（1回の「元に戻す」で戻せる）。
-   * 選んだ要素の中にある要素は親ごと複製される
+   * 複数の要素を、それぞれの後ろにまとめて複製し、複製を選ぶ（1回の「元に戻す」で戻せる）。
+   * 選んだ要素の中にある要素は、親と一緒に複製される
    */
   duplicateNodes: (nodeIds: string[]) => void;
   moveNode: (nodeId: string, parent: ParentRef, index: number) => void;
-  /** 複数の要素を並び順のまま parent の index の位置へまとめて移動する */
+  /** 複数の要素を、並び順のまま parent の index の位置へまとめて移動する */
   moveNodes: (nodeIds: string[], parent: ParentRef, index: number) => void;
 
   setActivePage: (id: string) => void;
@@ -576,29 +576,29 @@ export interface EditorStore {
    * folderId を渡すと、そのフォルダの中に作る
    */
   addPage: (folderId?: string) => void;
-  /** ページ一覧のフォルダを作り、そのIDを返す（URLには関係しない、エディタ上の整理） */
+  /** ページの一覧のフォルダを作り、その ID を返す（URL には関係しない、エディタの上での整理） */
   addPageFolder: () => string;
   renamePageFolder: (folderId: string, name: string) => void;
-  /** フォルダを消す（中のページは消さず、フォルダの外へ出す） */
+  /** フォルダを消す（中のページは消さず、フォルダの外に出す） */
   deletePageFolder: (folderId: string) => void;
   /**
-   * ページをフォルダへ入れる・出す（folderId = null でフォルダの外）。
-   * before / after のページの前後へ並べ、指定が無ければそのフォルダの末尾へ
+   * ページをフォルダに入れる・出す（folderId = null でフォルダの外）。
+   * before / after のページの前後に並べ、指定が無ければ、そのフォルダの末尾に置く
    */
   placePage: (
     pageId: string,
     folderId: string | null,
     anchor?: { before?: string; after?: string }
   ) => void;
-  /** フォルダを並べ替える（index は移動前の並びでの位置） */
+  /** フォルダを並べ替える（index は、移動する前の並びでの位置） */
   moveFolder: (folderId: string, index: number) => void;
   duplicatePage: (id: string) => void;
   deletePage: (id: string) => void;
   /** 複数のページをまとめて削除する（1回の「元に戻す」で戻せる。最後の1ページは残す） */
   deletePages: (ids: string[]) => void;
   /**
-   * 複数のページを並び順のままフォルダへ入れる・出す（folderId = null でフォルダの外）。
-   * anchor のページの前後へ並べ、指定が無ければそのフォルダの末尾へ
+   * 複数のページを、並び順のままフォルダに入れる・出す（folderId = null でフォルダの外）。
+   * anchor のページの前後に並べ、指定が無ければ、そのフォルダの末尾に置く
    */
   movePagesToFolder: (
     ids: string[],
@@ -610,7 +610,7 @@ export interface EditorStore {
   resetDoc: () => void;
 }
 
-/** ページのURL変更に合わせて、リンク・スクリプト・転送先に直接入力されたURLを書き換える */
+/** ページの URL の変更に合わせて、リンク・スクリプト・転送先に直接入力した URL を書き換える */
 function retargetPageUrls(
   doc: SiteDoc,
   before: { id: string; slug: string; query?: string },
@@ -640,7 +640,7 @@ function retargetPageUrls(
   }
 }
 
-/** テキスト編集中なら確定（blur）させ、入力内容を履歴に載せてから undo / redo する */
+/** テキストの編集中なら確定（blur）させ、入力した内容を履歴に載せてから、元に戻す・やり直す */
 function commitActiveTextEdit() {
   if (typeof document === "undefined") return;
   const el = document.activeElement;
@@ -649,16 +649,16 @@ function commitActiveTextEdit() {
 
 export const useEditor = create<EditorStore>((set, get) => {
   const initialDoc = createInitialDoc();
-  // 保存した編集位置のブレークポイントを確かめるため、先にサイトの設定を反映する
+  // 保存した編集の位置のブレークポイントを確かめるため、先にサイトの設定を反映する
   applyBreakpoints(initialDoc);
   const savedUi = loadUi(initialDoc);
   /**
-   * checkpoint() で記録した変更前の状態。実際に変更が入った時点で履歴へ積む
-   *（クリックだけでドラッグしなかった場合などに、空の履歴や redo の消失を作らない）
+   * checkpoint() で記録した、変更前の状態。実際に変更が入った時点で履歴に積む
+   *（クリックだけでドラッグしなかった場合などに、空の履歴を作ったり、やり直しの履歴を消したりしない）
    */
   let pendingBase: SiteDoc | null = null;
 
-  // 開いているページに置かれていないマスターも、複製先のID重複チェックに含める。
+  // 開いているページに置かれていないマスターも、複製先の ID の重複の確認に含める。
   const refreshEditorClones = (
     doc: SiteDoc, clones: DocNode[], replacing?: { rootId: string; attrId?: string }
   ) => {
@@ -676,23 +676,23 @@ export const useEditor = create<EditorStore>((set, get) => {
     };
   };
 
-  /** Publish an edit and its undo checkpoint together, including to subscribers. */
+  /** 編集と、その「元に戻す」の時点を、購読者への通知も含めて一緒に反映する。 */
   const commitDoc = (next: SiteDoc, opts?: { history?: boolean }) => {
     const current = get();
     if (next === current.doc) return;
     const snapshot = opts?.history === false || current.gestureActive
       ? pendingBase
       : current.doc;
-    // Consume the pending checkpoint before notifying synchronous subscribers,
-    // which may themselves edit the document or start another gesture.
+    // 同期的な購読者に知らせる前に、保留中の時点を使い切る。
+    // 購読者自身が文書を編集したり、別の操作を始めたりすることがあるため。
     set({ doc: next, ...(snapshot ? historyFor(snapshot) : {}) });
   };
 
   /**
-   * Node-only edits are the most frequent editor operation. Clone only the
-   * affected nodes, preserving all other document branches and undo snapshots.
-   * A full structuredClone + whole-document JSON comparison on every pointer
-   * move made large pages disproportionately slow.
+   * ノードだけの編集は、エディタで最も頻繁に起きる操作。影響を受けるノードだけを複製し、
+   * 文書の他の枝と、元に戻すためのスナップショットはすべてそのまま保つ。
+   * ポインターが動くたびに structuredClone と文書全体の JSON の比較をしていたときは、
+   * 大きなページで極端に遅くなっていた。
    */
   const updateNodes = (
     ids: readonly string[],
@@ -706,7 +706,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       if (!original) continue;
       const draft = structuredClone(original);
       change(draft);
-      // Do not create a history entry, invalidate redo, or rerender for no-ops.
+      // 何も変わらない操作では、履歴を作らず、やり直しの履歴も消さず、描画もし直さない。
       if (JSON.stringify(draft) !== JSON.stringify(original)) changed.set(id, draft);
     }
     if (!changed.size) return;
@@ -832,7 +832,7 @@ export const useEditor = create<EditorStore>((set, get) => {
     setMode: (m) => set({ mode: m, editingText: null, textSel: null }),
     setLeftTab: (t) => set({ leftTab: t }),
     revealAsset: (id) => set(id ? { leftTab: "assets", revealAssetId: id } : { revealAssetId: null }),
-    // 編集を始めるときは古い部分選択を破棄する（編集中に選択し直せば更新される）
+    // 編集を始めるときは、古い部分の選択を捨てる（編集中に選び直せば更新される）
     setEditingText: (id) =>
       set((s) => ({
         editingText: id,
@@ -847,12 +847,12 @@ export const useEditor = create<EditorStore>((set, get) => {
       const node = doc.nodes[nodeId];
       if (!node?.text || node.children.length) return null;
       const content = node.text.content;
-      // 古い範囲を同じ文字列の別の出現位置へ移さない。
+      // 古い範囲を、同じ文字列が別に現れる位置へ移さない。
       if (
         !Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > content.length ||
         content.slice(start, end) !== text
       ) return null;
-      if (start <= 0 && end >= content.length) return null; // 全選択は分割不要
+      if (start <= 0 && end >= content.length) return null; // すべてを選んでいれば、分割は要らない
       if (start >= end) return null;
       if (ancestorsOf(doc, nodeId).length + 2 > MAX_NODE_DEPTH) return null;
 
@@ -905,7 +905,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         window.localStorage.setItem(PUBLISHED_KEY, String(now));
         window.localStorage.setItem(PUBLISHED_HASH_KEY, fingerprint);
       } catch {
-        // 保存失敗しても公開自体は成功しているので無視
+        // 記録の保存に失敗しても、公開そのものは成功しているため無視する
       }
       set({ publishedAt: now, publishedFingerprint: fingerprint });
     },
@@ -919,7 +919,7 @@ export const useEditor = create<EditorStore>((set, get) => {
 
     replaceDoc: (doc) => {
       pendingBase = null;
-      // 文書をまたぐ連続編集は終了し、次の編集に新しい履歴を作る。
+      // 文書をまたぐ連続した編集は終え、次の編集では新しい履歴を作る。
       get().endGesture();
       const currentPageId = get().activePageId;
       set({
@@ -931,7 +931,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         activePageId: doc.pages[currentPageId]
           ? currentPageId
           : loadActivePageId(doc),
-        // 前回の編集位置を戻したあとにサーバーの内容へ置き換えても、残っている要素の選択は保つ
+        // 前回の編集の位置を戻した後にサーバーの内容に置き換えても、残っている要素の選択は保つ
         selection: validSelection(doc, get().selection),
         selectedIds: validSelectedIds(doc, get().selectedIds),
         editingComponentId:
@@ -951,7 +951,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       set({
         ...historyFor(current),
         doc,
-        // 履歴は残しつつ、復元前の非同期処理や一時入力は引き継がない。
+        // 履歴は残すが、復元する前の非同期の処理や一時的な入力は引き継がない。
         documentSession: get().documentSession + 1,
         historyRevision: get().historyRevision + 1,
         activePageId: doc.pages[get().activePageId] ? get().activePageId : doc.pageOrder[0],
@@ -971,9 +971,9 @@ export const useEditor = create<EditorStore>((set, get) => {
       set((s) => {
         const selectedIds = validSelectedIds(doc, s.selectedIds);
         const selection = validSelection(doc, s.selection);
-        // A live node-only patch can rebase a checkpoint without rebuilding
-        // the entire document tree. If a gesture or history entry involves a
-        // structural conflict, retain the existing full three-way merge.
+        // 同時編集で届いた、ノードだけの差分なら、文書のツリー全体を作り直さずに履歴の時点を
+        // 付け替えられる。操作中の時点や履歴の項目が構造の競合を含む場合は、これまでどおり
+        // 完全な3方向マージを使う。
         const rebase = patchHint?.baseDoc === s.doc
           ? (snap: SiteDoc) => rebaseNodePatch(s.doc, doc, snap, patchHint.patch) ?? mergeDocs(s.doc, doc, snap)
           : (snap: SiteDoc) => mergeDocs(s.doc, doc, snap);
@@ -982,11 +982,11 @@ export const useEditor = create<EditorStore>((set, get) => {
         try {
           past = s.past.map(rebase);
           future = s.future.map(rebase);
-          // Keep a pending gesture checkpoint in sync so its first real edit
-          // remains undoable and never rolls back a collaborator's change.
+          // 操作中の保留した時点も同じように付け替え、その最初の実際の編集を元に戻せるようにする。
+          // 共同編集者の変更を巻き戻すことは無い。
           if (pendingBase) pendingBase = rebase(pendingBase);
         } catch {
-          // マージできない場合は安全側に倒して履歴を破棄
+          // マージできない場合は、安全な側に倒して履歴を捨てる
           pendingBase = null;
         }
         return {
@@ -1030,7 +1030,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       // 祖先も選ばれている要素は、祖先のコピーに含まれる
       const parents = indexParents(doc);
       const rootIds = sortInTreeOrder(selectedRoots(targets, parents), parents);
-      // 取り消し・削除でコピー元が消えても、同じタブから貼り付けられるよう依存も控える。
+      // 取り消しや削除でコピー元が消えても、同じタブから貼り付けられるよう、依存するものも控えておく。
       const clipboard = buildClipPayload(doc, {
         nodes: rootIds.flatMap((root) =>
           collectDescendants(doc, root).map((id) => structuredClone(doc.nodes[id]))
@@ -1040,7 +1040,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       set({ clipboard });
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("tsumu-internal-copy"));
-        // ほかのサイトでも貼り付けられるよう、OS のクリップボードにも書く
+        // 他のサイトでも貼り付けられるよう、OS のクリップボードにも書く
         writeClipPayload(clipboard);
       }
     },
@@ -1075,7 +1075,7 @@ export const useEditor = create<EditorStore>((set, get) => {
           name: node.name,
           rootId: nodeId,
         };
-        // 元の位置をインスタンスに差し替え（マスターはnodesに残る）
+        // 元の位置をインスタンスに差し替える（マスターは nodes に残る）
         const list =
           parent.kind === "page"
             ? d.pages[parent.id].children
@@ -1145,7 +1145,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       if (!inst || !comp || !parent || !doc.nodes[comp.rootId]) return;
       const parentDepth = parent.kind === "page" ? 0 : ancestorsOf(doc, parent.id).length + 1;
       if (parentDepth + maxSubtreeDepth(doc.nodes, [comp.rootId]) > MAX_NODE_DEPTH) return;
-      // マスターを複製して通常ノード化
+      // マスターを複製して、通常のノードにする
       const idMap = new Map<string, string>();
       const clones: DocNode[] = [];
       const cloneTree = (id: string): string => {
@@ -1164,7 +1164,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       root.locked = inst.locked;
       const hiddenOn = [...new Set([...(root.hiddenOn ?? []), ...(inst.hiddenOn ?? [])])];
       root.hiddenOn = hiddenOn.length ? hiddenOn : undefined;
-      // 使用箇所のIDはそのまま引き継ぎ、複製したマスター内の参照も合わせる。
+      // 使用箇所の ID はそのまま引き継ぎ、複製したマスターの中の参照もそれに合わせる。
       refreshEditorClones(doc, clones, {
         rootId: newRootId, attrId: inst.attrId,
       });
@@ -1185,8 +1185,8 @@ export const useEditor = create<EditorStore>((set, get) => {
       const comp = doc.components?.[componentId];
       if (!comp) return;
       const instanceId = genId("node");
-      // ページの要素を選んでいれば、ほかの要素の追加と同じくその中（入れられなければ後ろ）へ。
-      // コンポーネントの編集中は、ページの末尾へ置いてページ編集に戻る
+      // ページの要素を選んでいれば、他の要素の追加と同じく、その中（入れられなければ後ろ）に置く。
+      // コンポーネントの編集中は、ページの末尾に置いて、ページの編集に戻る
       let parent: ParentRef = { kind: "page", id: activePageId };
       let index: number | undefined;
       const sel = !editingComponentId && selection ? doc.nodes[selection] : null;
@@ -1220,7 +1220,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const comp = doc.components?.[componentId];
       if (!comp) return;
       get().updateDoc((d) => {
-        // 全インスタンスを削除
+        // すべてのインスタンスを削除する
         for (const [id, n] of Object.entries(d.nodes)) {
           if (n.type === "instance" && n.componentId === componentId) {
             const p = findParentOf(d, id);
@@ -1235,7 +1235,7 @@ export const useEditor = create<EditorStore>((set, get) => {
             delete d.nodes[id];
           }
         }
-        // マスターのノードを削除
+        // マスターのノードを削除する
         for (const id of collectDescendants(d, comp.rootId)) {
           delete d.nodes[id];
         }
@@ -1265,7 +1265,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const newRootIds = clip.rootIds.map((id) => idMap.get(id)!);
 
       const { selection, doc, activePageId, editingComponentId } = get();
-      // 貼り付け先のページで ID属性が重ならないように付け替える（中のスクリプトの参照も合わせる）
+      // 貼り付け先のページで ID 属性が重ならないように付け替える（中のスクリプトの参照も合わせる）
       refreshEditorClones(doc, clones);
       const editingComp = editingComponentId
         ? doc.components?.[editingComponentId]
@@ -1276,14 +1276,14 @@ export const useEditor = create<EditorStore>((set, get) => {
         editingComp ? { kind: "node", id: editingComp.rootId } : { kind: "page", id: activePageId },
         get().insertMode
       );
-      // コピー単体が保存可能でも、置き先の深さを足すと保存上限を超える場合がある。
+      // コピーしたもの単体では保存できても、置き先の深さを足すと、保存の上限を超える場合がある。
       const parentDepth = parent.kind === "page" ? 0 : ancestorsOf(doc, parent.id).length + 1;
       if (parentDepth + maxSubtreeDepth(Object.fromEntries(clones.map(n => [n.id, n])), newRootIds) > MAX_NODE_DEPTH) {
         void showAlert(tr("Can't paste here"));
         return;
       }
-      // 追加予定の依存を隔離したmapへ解決する。既存マスターの再利用まで含めて検査し、
-      // 拒否された貼り付けではアセット・履歴を含む文書全体を変更しない。
+      // 追加する予定の依存するものを、切り離した map に解決する。既存のマスターを使い回す場合まで含めて検査し、
+      // 貼り付けを拒否したときは、アセットや履歴を含む文書全体を変更しない。
       const prepared = {
         ...doc, nodes: { ...doc.nodes }, assets: { ...doc.assets },
         ...(doc.components ? { components: { ...doc.components } } : {}),
@@ -1296,7 +1296,7 @@ export const useEditor = create<EditorStore>((set, get) => {
           node.componentId = deps.componentIds.get(node.componentId) ?? node.componentId;
         }
       }
-      // コンポーネントの中へ、そのコンポーネント自身（を含むインスタンス）は入れない（無限に入れ子になる）
+      // コンポーネントの中には、そのコンポーネント自身（を含むインスタンス）を入れない（無限に入れ子になる）
       const host = parent.kind === "node" ? componentOf(doc, parent.id) : null;
       if (host) {
         const pasted = clones.flatMap((n) =>
@@ -1311,7 +1311,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         }
       }
       get().updateDoc((d) => {
-        // 同じタブでも、コピー後の取り消し・削除で失われた依存を戻す。残っているマスターは優先する。
+        // 同じタブでも、コピーした後の取り消しや削除で失われた依存するものを戻す。残っているマスターを優先する。
         d.assets = prepared.assets;
         if (prepared.components) d.components = prepared.components;
         if (prepared.customFonts) d.customFonts = prepared.customFonts;
@@ -1329,7 +1329,7 @@ export const useEditor = create<EditorStore>((set, get) => {
     gestureActive: false,
     beginGesture: () => {
       const owner = Symbol();
-      // 同時に操作している別の欄の開始で、最初の変更前を上書きしない。
+      // 同時に操作している別の欄の開始で、最初の変更の前の状態を上書きしない。
       if (!gestureOwners.size) get().checkpoint();
       gestureOwners.add(owner);
       if (!get().gestureActive) set({ gestureActive: true });
@@ -1343,16 +1343,16 @@ export const useEditor = create<EditorStore>((set, get) => {
       if (get().gestureActive) set({ gestureActive: false });
     },
     checkpoint: () => {
-      // Editor updates never mutate an existing snapshot, so a reference is
-      // sufficient; cloning the entire document at drag start causes a pause.
+      // エディタの更新は既存のスナップショットを決して書き換えないため、参照を持つだけで足りる。
+      // ドラッグを始めるときに文書全体を複製すると、動作が一瞬止まる。
       pendingBase = get().doc;
     },
 
     undo: () => {
       commitActiveTextEdit();
       pendingBase = null;
-      // 履歴を移動した後のpointermoveを、古い操作の履歴なし更新にしない。
-      // 所有者も破棄し、遅れて届くpointerupが新しい操作を終えないようにする。
+      // 履歴を移動した後の pointermove を、古い操作の履歴なしの更新として扱わない。
+      // 所有者も捨て、遅れて届いた pointerup が新しい操作を終えないようにする。
       get().endGesture();
       const { doc } = get();
       const past = [...get().past];
@@ -1395,8 +1395,8 @@ export const useEditor = create<EditorStore>((set, get) => {
     redo: () => {
       commitActiveTextEdit();
       pendingBase = null;
-      // 履歴を移動した後のpointermoveを、古い操作の履歴なし更新にしない。
-      // 所有者も破棄し、遅れて届くpointerupが新しい操作を終えないようにする。
+      // 履歴を移動した後の pointermove を、古い操作の履歴なしの更新として扱わない。
+      // 所有者も捨て、遅れて届いた pointerup が新しい操作を終えないようにする。
       get().endGesture();
       const { doc } = get();
       const future = [...get().future];
@@ -1445,8 +1445,8 @@ export const useEditor = create<EditorStore>((set, get) => {
       const current = get().doc;
       const draft = structuredClone(current);
       fn(draft);
-      // 変わっていないページ・要素は編集前の参照のまま残す（履歴・差分保存・マージが変わった分だけを扱う）。
-      // 内容が同じなら current そのものが返るので、ドラッグ中の参照と履歴の起点もそのまま残る
+      // 変わっていないページと要素は、編集前の参照のまま残す（履歴・差分の保存・マージが、変わった分だけを扱えるようにする）。
+      // 内容が同じなら current そのものが返るため、ドラッグ中の参照と履歴の起点もそのまま残る
       const next = shareUnchangedDoc(current, draft);
       if (next === current) return;
       commitDoc(next, opts);
@@ -1467,7 +1467,7 @@ export const useEditor = create<EditorStore>((set, get) => {
           ? { ...doc, assets: { ...doc.assets, ...Object.fromEntries(missing) } }
           : doc;
       };
-      // checkpointを消費せず、その後のジェスチャーをUndoしてもファイルは残す。
+      // checkpoint を使い切らない。その後の操作を元に戻しても、ファイルは残す。
       if (pendingBase) pendingBase = retain(pendingBase);
       set((s) => ({
         doc: retain(s.doc),
@@ -1483,7 +1483,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         const bpStyles = (node.styles[breakpoint] ??= {});
         const map = (bpStyles[styleState] ??= {});
         for (const [k, v] of Object.entries(props)) {
-          // 空文字は「未設定」として消す（空の値が設定済みの色だけ付けて残らないように）
+          // 空文字は「未設定」として消す（空の値で、設定済みを示す色だけが付いて残らないようにする）
           if (v === null || v === "") delete map[k];
           else map[k] = v;
         }
@@ -1531,7 +1531,7 @@ export const useEditor = create<EditorStore>((set, get) => {
     },
 
     deleteNode: (nodeId) => {
-      // コンポーネントのマスタールートは deleteComponent 経由で消す
+      // コンポーネントのマスターのルートは、deleteComponent を通して消す
       const comp = Object.values(get().doc.components ?? {}).find(
         (c) => c.rootId === nodeId
       );
@@ -1579,7 +1579,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         if (ids[0]) get().deleteNode(ids[0]);
         return;
       }
-      // コンポーネントのマスタールートは個別の確認が要るため、通常の削除からは外す
+      // コンポーネントのマスターのルートは個別の確認が要るため、通常の削除からは外す
       const compRoots = new Set(Object.values(doc.components ?? {}).map((c) => c.rootId));
       const targets = ids.filter((id) => !compRoots.has(id));
       // 祖先も選ばれている要素は、祖先の削除で一緒に消える
@@ -1618,7 +1618,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         return copy.id;
       };
       const pairs = roots.map((id) => ({ from: id, copy: cloneTree(id) }));
-      // 複製のID属性が元と重ならないように付け替える（中のスクリプトの参照も合わせる）
+      // 複製の ID 属性が元と重ならないように付け替える（中のスクリプトの参照も合わせる）
       refreshEditorClones(doc, clones);
       get().updateDoc((d) => {
         for (const c of clones) d.nodes[c.id] = c;
@@ -1637,17 +1637,17 @@ export const useEditor = create<EditorStore>((set, get) => {
 
     moveNodes: (nodeIds, parent, index) => {
       const doc = get().doc;
-      // ドラッグ中の削除・同時編集で移動先が無くなったら、元の構造を保つ。
+      // ドラッグ中の削除や同時編集で移動先が無くなったら、元の構造を保つ。
       if (parent.kind === "page" ? !doc.pages[parent.id] : !doc.nodes[parent.id]) return;
-      // ロック中・マスターのルート（親を持たない）は移動できない。重複選択も1回だけ扱う。
+      // ロック中の要素と、マスターのルート（親を持たない）は移動できない。重なる選択も1回だけ扱う。
       const parents = indexParents(doc);
       const movable = [...new Set(nodeIds)].filter((id) => doc.nodes[id] && !doc.nodes[id].locked && parents.has(id));
-      // 選択した要素の子孫は親ごと動くので個別には動かさない
+      // 選んだ要素の子孫は親と一緒に動くため、個別には動かさない
       const ids = selectedRoots(movable, parents);
       if (!ids.length) return;
       const selected = new Set(ids);
       const ancestors = parent.kind === "node" ? indexedAncestors(parents, parent.id) : [];
-      // 自分自身・子孫への移動を禁止
+      // 自分自身や子孫への移動は許さない
       if (parent.kind === "node" &&
           (selected.has(parent.id) || ancestors.some((id) => selected.has(id)))) return;
       const parentDepth = parent.kind === "page" ? 0 : ancestors.length + 1;
@@ -1656,7 +1656,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       sortInTreeOrder(ids, parents);
       get().updateDoc((d) => {
         const toList = childrenOf(d, parent);
-        // 挿入位置より前から抜ける要素の分だけ位置を詰める
+        // 挿入する位置より前から抜ける要素の数だけ、位置を詰める
         const i = index - toList.slice(0, index).filter((id) => selected.has(id)).length;
         for (const id of ids) {
           const from = parents.get(id)?.ref;
@@ -1668,7 +1668,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       });
     },
 
-    // ページを開いたら、コンポーネントの編集を終えてそのページを表示する
+    // ページを開いたら、コンポーネントの編集を終えて、そのページを表示する
     setActivePage: (id) =>
       set({
         activePageId: id,
@@ -1682,7 +1682,7 @@ export const useEditor = create<EditorStore>((set, get) => {
 
     addPage: (folderId) => {
       const id = genId("page");
-      // ページを消したあとでも、既存のページと名前・URLが重ならない番号にする
+      // ページを消した後でも、既存のページと名前や URL が重ならない番号にする
       const { name, slug } = uniquePageNaming(
         get().doc,
         (n) => tr(NEW_PAGE_NAME, { n }),
@@ -1692,7 +1692,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       const activeId = get().activePageId;
       get().updateDoc((doc) => {
         const active = doc.pages[activeId];
-        // フォルダの指定がなければ、開いているページと同じフォルダに入れる
+        // フォルダの指定が無ければ、開いているページと同じフォルダに入れる
         const folder =
           folderId === undefined
             ? active?.folderId
@@ -1769,7 +1769,7 @@ export const useEditor = create<EditorStore>((set, get) => {
           at = order.indexOf(anchor.after);
           if (at >= 0) at += 1;
         } else {
-          // 同じフォルダ（フォルダの外ならフォルダの外）の最後のページの後ろ
+          // 同じフォルダ（フォルダの外なら、フォルダの外）の最後のページの後ろ
           for (let i = order.length - 1; i >= 0; i--) {
             if ((d.pages[order[i]]?.folderId ?? null) === (page.folderId ?? null)) {
               at = i + 1;
@@ -1811,7 +1811,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       };
       const newChildren = src.children.map(cloneTree);
       const id = genId("page");
-      // 2回目以降の複製でもURLが重ならないよう「-copy-2」のように番号を付ける
+      // 2回目以降の複製でも URL が重ならないよう、「-copy-2」のように番号を付ける
       const { name, slug } = uniquePageNaming(
         doc,
         (n) => (n > 1 ? tr("{name} copy {n}", { name: src.name, n }) : tr("{name} copy", { name: src.name })),
@@ -1827,7 +1827,7 @@ export const useEditor = create<EditorStore>((set, get) => {
           slug,
           children: newChildren,
         };
-        // タイトルは複製元のまま持たせ、初めてページ名を確定したときにその名前にする
+        // タイトルは複製元のまま持たせ、初めてページ名を確定したときに、その名前にする
         d.pages[id].titlePending = true;
         d.pageOrder.splice(d.pageOrder.indexOf(pageId) + 1, 0, id);
       });
@@ -1839,7 +1839,7 @@ export const useEditor = create<EditorStore>((set, get) => {
     deletePages: (pageIds) => {
       const { doc } = get();
       const ids = new Set(pageIds.filter((id) => doc.pageOrder.includes(id)));
-      // ページが1つも無くならないよう、全部選んでいても先頭の1ページは残す
+      // ページが1つも無くならないよう、すべてを選んでいても、先頭の1ページは残す
       if (ids.size >= doc.pageOrder.length) ids.delete(doc.pageOrder.find((id) => !ids.has(id)) ?? doc.pageOrder[0]);
       if (!ids.size) return;
       get().updateDoc((d) => {
@@ -1852,7 +1852,7 @@ export const useEditor = create<EditorStore>((set, get) => {
           delete d.pages[pageId];
         }
         d.pageOrder = d.pageOrder.filter((p) => !ids.has(p));
-        // 削除ページを指すリンクを掃除
+        // 削除したページを指すリンクを取り除く
         for (const n of Object.values(d.nodes)) {
           if (n.link?.kind === "page" && n.link.pageId && ids.has(n.link.pageId)) {
             n.link = null;
@@ -1881,7 +1881,7 @@ export const useEditor = create<EditorStore>((set, get) => {
           if (target) d.pages[id].folderId = target;
           else delete d.pages[id].folderId;
         }
-        // anchor の前後、無ければ移動先（フォルダ / フォルダの外）の最後のページの後ろへ、並び順のまま入れる
+        // anchor の前後に、無ければ移動先（フォルダ / フォルダの外）の最後のページの後ろに、並び順のまま入れる
         let at = anchor?.before
           ? rest.indexOf(anchor.before)
           : anchor?.after && rest.includes(anchor.after)
@@ -1926,19 +1926,19 @@ export const useEditor = create<EditorStore>((set, get) => {
         activePageId: doc.pageOrder[0],
         selection: null,
         selectedIds: [],
-        // 消えたコンポーネントの編集・スクリプト画面は閉じる
+        // 消えたコンポーネントの編集とスクリプトの画面は閉じる
         editingComponentId: null,
         editingText: null,
         textSel: null,
         scriptEditor: null,
       });
     },
-    // 前回の編集位置（初期値より後に置いて上書きする）
+    // 前回の編集の位置（初期値より後に置いて上書きする）
     ...savedUi,
   };
 });
 
-// ページ切替だけでなく、追加・複製・削除・リセットによる表示ページの変更も記憶する。
+// ページの切り替えだけでなく、追加・複製・削除・リセットによる表示中のページの変更も記憶する。
 if (typeof window !== "undefined") {
   let rememberedPageId = useEditor.getState().activePageId;
   useEditor.subscribe((state) => {
@@ -1948,12 +1948,12 @@ if (typeof window !== "undefined") {
     try {
       window.localStorage.setItem(ACTIVE_PAGE_KEY, rememberedPageId);
     } catch {
-      // 保存できなくても編集操作は続けられる
+      // 保存できなくても、編集の操作は続けられる
     }
   });
 }
 
-// ブレークポイントの幅はドキュメントの設定に合わせる（画面の描画より先に反映する）
+// ブレークポイントの幅は、文書の設定に合わせる（画面を描画するより先に反映する）
 {
   let applied = useEditor.getState().doc;
   applyBreakpoints(applied);
@@ -1967,7 +1967,7 @@ if (typeof window !== "undefined") {
   });
 }
 
-// 編集位置（選択・デバイス・倍率・タブ・開いている画面）を記憶し、次に開いたときに戻す
+// 編集の位置（選択・デバイス・倍率・タブ・開いている画面）を記憶し、次に開いたときに戻す
 if (typeof window !== "undefined") {
   let last = JSON.stringify(pickUi(useEditor.getState()));
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -1981,13 +1981,13 @@ if (typeof window !== "undefined") {
       try {
         window.localStorage.setItem(UI_KEY, last);
       } catch {
-        // 保存できなくても編集操作は続けられる
+        // 保存できなくても、編集の操作は続けられる
       }
     }, 200);
   });
 }
 
-/** Load the browser document before cloud reconciliation or the first autosave. */
+/** サーバーとの突き合わせや最初の自動保存より前に、ブラウザの文書を読み込む。 */
 export function hydrateBrowserDoc(): Promise<void> {
   browserHydration ??= (async () => {
     try {
@@ -2006,18 +2006,18 @@ export function hydrateBrowserDoc(): Promise<void> {
       browserPositionReady = true;
       useEditor.setState(position);
     } catch (error) {
-      // Never overwrite a document that could not be loaded.
+      // 読み込めなかった文書は、決して上書きしない。
       browserSnapshotUnavailable = true;
       console.error("[Tsumu] Failed to load browser document", error);
     } finally {
-      // A later cloud load can still provide a usable editor after cache failure.
+      // キャッシュの読み込みに失敗しても、後でサーバーから読み込めば、エディタは使える。
       browserPositionReady = true;
     }
   })();
   return browserHydration;
 }
 
-/** Autosave with an atomic revision check across browser tabs. */
+/** ブラウザのタブをまたいで、版を不可分に確かめながら自動保存する。 */
 export async function persistDoc(doc: SiteDoc): Promise<LocalSaveResult> {
   try {
     const blocked = localSaveBlock();
@@ -2026,8 +2026,8 @@ export async function persistDoc(doc: SiteDoc): Promise<LocalSaveResult> {
     const json = JSON.stringify(doc);
     const result = await writeBrowserDoc(currentSiteId(), json, lastKnownBrowserRaw);
     if (result === "conflict") return "error";
-    // IndexedDB has committed, even if the following deletion-marker read
-    // fails. Keep its baseline so a later edit or Undo can safely retry.
+    // 続く削除の記録の読み取りに失敗しても、IndexedDB への書き込みは確定している。
+    // 基準を保ち、後の編集や「元に戻す」で安全に再試行できるようにする。
     const changed = lastKnownBrowserRaw !== json;
     lastKnownBrowserRaw = json;
     const deleted = localSaveBlock();

@@ -1,15 +1,15 @@
 import { tr } from "./i18n";
 import type JSZip from "jszip";
 
-/** An archive entry exceeded the maximum allowed bytes while being decompressed. */
+/** アーカイブの項目を展開している途中で、許される最大のバイト数を超えた。 */
 export class ZipEntryTooLargeError extends Error {
   constructor() {
     super(tr("The ZIP expands beyond the size limit."));
   }
 }
 
-// JSZip exposes internalStream at runtime, but the installed type declaration
-// does not include this streaming API. Keep its surface explicitly typed here.
+// JSZip は実行時に internalStream を公開しているが、インストールされた型の宣言には、
+// このストリームの API が含まれていない。ここで、その使う部分の型を明示する。
 interface ZipByteStream {
   on(event: "data", callback: (chunk: Uint8Array) => void): ZipByteStream;
   on(event: "error", callback: (error: Error) => void): ZipByteStream;
@@ -18,14 +18,14 @@ interface ZipByteStream {
   resume(): ZipByteStream;
 }
 
-// ZIP stores the standard CRC-32 of the uncompressed bytes. Validate only the
-// bounded members being consumed; eager CRC checking would inflate the entire ZIP.
+// ZIP は、展開後のバイト列の標準の CRC-32 を保存している。検証するのは、上限の範囲で
+// 実際に読む項目だけ。先に CRC を確かめると、ZIP 全体を展開することになる。
 const crcTable = Uint32Array.from({ length: 256 }, (_, n) => {
   for (let bit = 0; bit < 8; bit++) n = (n >>> 1) ^ (n & 1 ? 0xedb88320 : 0);
   return n;
 });
 
-/** Stop decompression as soon as its *actual* output exceeds the limit. */
+/** *実際の* 出力が上限を超えた時点で、すぐに展開を止める。 */
 export function readZipEntryLimited(entry: JSZip.JSZipObject, maxBytes: number): Promise<Uint8Array<ArrayBuffer>> {
   return consumeZipEntry(entry, maxBytes, true);
 }

@@ -1,16 +1,16 @@
 /**
  * opennextjs-cloudflare を、自分の D1・KV の ID が入った設定で動かす。
- * 使う設定は次の順に決める:
+ * 使う設定は、次の順に決める:
  *   1. 環境変数 WRANGLER_CONFIG で指定したファイル
- *   2. wrangler.local.jsonc（手元のデプロイ用。Git 管理外）
+ *   2. wrangler.local.jsonc（手元からのデプロイ用。Git の管理外）
  *   3. wrangler.jsonc をもとに作る wrangler.generated.jsonc。
  *      環境変数 D1_DATABASE_ID・KV_NAMESPACE_ID（Cloudflare Workers Builds のビルド変数）があれば
- *      プレースホルダを置き換え、無いものはバインディングごと外す。
- *      保存先の構成が揃わない場合、ブラウザ内の保存に切り替える
+ *      プレースホルダーを置き換え、無いものはバインディングごと外す。
+ *      保存先の構成がそろわない場合は、ブラウザの中の保存に切り替える
  *
  *   node scripts/cloudflare.mjs build
  *   node scripts/cloudflare.mjs deploy
- *   node scripts/cloudflare.mjs preview   （ローカルで起動。クラウドのプレビューは scripts/cloudflare-preview.mjs）
+ *   node scripts/cloudflare.mjs preview   （ローカルで起動する。クラウドでのプレビューは scripts/cloudflare-preview.mjs）
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -21,7 +21,7 @@ const GENERATED = "wrangler.generated.jsonc";
 const D1_PLACEHOLDER = "<YOUR_D1_DATABASE_ID>";
 const KV_PLACEHOLDER = "<YOUR_KV_NAMESPACE_ID>";
 
-/** JSONC のコメントと末尾のカンマを取り除いて読む（文字列の中はそのまま） */
+/** JSONC のコメントと末尾のコンマを取り除いて読む（文字列の中はそのまま） */
 export function parseJsonc(src) {
   let out = "";
   for (let i = 0; i < src.length; i++) {
@@ -42,14 +42,14 @@ export function parseJsonc(src) {
   return JSON.parse(out.replace(/"(?:\\.|[^"\\])*"|,(\s*[}\]])/g, (match, closing) => closing ?? match));
 }
 
-/** The server document store requires D1, KV and the SQLite Durable Object. */
+/** サーバーの文書の保存先には、D1・KV と、SQLite を使う Durable Object が必要。 */
 export function storageBindings(config) {
   const db = (config.d1_databases ?? []).find(b => b.binding === "DB");
   const kv = (config.kv_namespaces ?? []).find(b => b.binding === "ASSETS_KV");
   const doc = (config.durable_objects?.bindings ?? []).some(
     b => b.name === "DOC_STORE" && b.class_name === "DocumentRoom" && !b.script_name && !b.environment
   );
-  // The document store must be a live, SQLite-backed Durable Object export.
+  // 文書の保存先は、SQLite を使う、実際に動く Durable Object のエクスポートでなければならない。
   const docExport = config.exports?.DocumentRoom;
   const exportedClass = docExport?.type === "durable-object" &&
     docExport.storage === "sqlite" &&
@@ -63,7 +63,7 @@ export function storageBindings(config) {
   };
 }
 
-/** An incomplete server configuration is a browser-only deployment. */
+/** サーバーの設定がそろっていなければ、ブラウザの中にだけ保存するデプロイになる。 */
 export function normalizeStorageConfig(config) {
   const bindings = storageBindings(config);
   const server = bindings.db && bindings.kv && bindings.doc;
@@ -74,7 +74,7 @@ export function normalizeStorageConfig(config) {
   return { config: normalized, mode: "browser" };
 }
 
-/** Preserve any storage binding used by the active Worker version. */
+/** 動いている Worker の版が使っている保存先のバインディングは、すべて残す。 */
 export function assertNoStorageDowngrade(currentBindings, nextConfig) {
   if (!Array.isArray(currentBindings)) throw new Error("Cannot inspect deployed Worker bindings");
   const next = storageBindings(nextConfig);
@@ -97,7 +97,7 @@ function wranglerJson(args) {
   });
   if (proc.status !== 0) {
     const message = [proc.stdout, proc.stderr].filter(Boolean).join("\n");
-    // An explicitly absent Worker is a new installation, not a downgrade.
+    // Worker が存在しないとはっきり分かる場合は、新しいインストールで、保存先を減らすことにはならない。
     if (/worker(?: script)? (?:does not exist|not found)|script not found|code:? 10007/i.test(message))
       return null;
     throw new Error("Cannot verify existing Worker storage; deployment aborted. " + message);
@@ -106,7 +106,7 @@ function wranglerJson(args) {
   catch { throw new Error("Cannot parse Wrangler deployment inspection output; deployment aborted."); }
 }
 
-/** Read the live version, not merely local files, before a browser-only deployment. */
+/** ブラウザの中にだけ保存するデプロイの前に、ローカルのファイルだけでなく、動いている版を読む。 */
 export function assertRemoteStorageContinuity(config, configPath) {
   if (storageBindings(config).db && storageBindings(config).kv && storageBindings(config).doc) return;
   if (typeof config.name !== "string" || !config.name.trim())
@@ -127,7 +127,7 @@ export function assertRemoteStorageContinuity(config, configPath) {
   }
 }
 
-/** Workers Builds chooses the connected Worker, which may differ from this project's default name. */
+/** Workers Builds は接続した Worker を選ぶ。その名前は、このプロジェクトの既定の名前と違うことがある。 */
 export function resolveWorkerName(configuredName, env = process.env) {
   const override = env.WRANGLER_CI_OVERRIDE_NAME;
   if (override === undefined || override === "") return configuredName;
@@ -137,7 +137,7 @@ export function resolveWorkerName(configuredName, env = process.env) {
   return override;
 }
 
-/** Resolve the same configuration for building and production deployments. */
+/** ビルドと本番へのデプロイで、同じ設定を選ぶ。 */
 export function wranglerConfigPath({ deploy = false } = {}) {
   const explicit = process.env.WRANGLER_CONFIG || (existsSync("wrangler.local.jsonc") ? "wrangler.local.jsonc" : null);
   const source = explicit ?? "wrangler.jsonc";
@@ -161,15 +161,15 @@ export function wranglerConfigPath({ deploy = false } = {}) {
   }
   const { config: finalConfig, mode } = normalizeStorageConfig(config);
   if (mode === "browser") console.warn("Server storage is incomplete; using browser-only storage.");
-  // Keep custom configs in place when complete so relative paths still resolve correctly.
+  // 独自の設定がそろっていれば、相対パスが正しく解決されるよう、その場所のまま使う。
   if (explicit && mode === "server" && !nameOverridden) return source;
-  // For a custom config in a different directory, keep generated paths relative to that directory.
+  // 別のディレクトリにある独自の設定では、生成するファイルのパスを、そのディレクトリからの相対に保つ。
   const generated = explicit ? join(dirname(source), GENERATED) : GENERATED;
   writeFileSync(generated, JSON.stringify(finalConfig, null, "\t") + "\n");
   return generated;
 }
 
-/** Prevent command-line overrides from bypassing the production binding audit. */
+/** コマンドラインでの上書きで、本番のバインディングの検査を迂回させない。 */
 export function assertSafeDeployArgs(args) {
   for (const arg of args) {
     if (arg === "--" ||
