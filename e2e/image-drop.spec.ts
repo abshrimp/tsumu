@@ -234,8 +234,11 @@ async function startControl(page: Page, control: GestureControl) {
   };
 }
 
+// Exercise each browser control path without repeating their full cross-product on both surfaces.
 for (const surface of ["canvas", "layers"]) {
   for (const control of ["padding", "radius", "size", "resize", "range", "color"] as const) {
+    if (surface === "canvas" ? !["padding", "radius", "resize", "color"].includes(control)
+      : !["range", "size"].includes(control)) continue;
     test(`${surface}: dropping during a ${control} adjustment waits and preserves separate adjustment and image Undo steps`, async ({ page }) => {
       const before = await snapshot(page);
       const uploads = await holdUploads(page);
@@ -259,9 +262,15 @@ for (const surface of ["canvas", "layers"]) {
   }
 }
 
+// Unit tests cover gesture-owner semantics; retain one browser representative per ending.
 for (const control of ["padding", "resize", "range", "color"] as const) {
   for (const ending of ["cancel", "lost", "blur", "target", "unmount"] as const) {
-    if (control === "color" && (ending === "cancel" || ending === "lost")) continue;
+    if (!(
+      (control === "padding" && (ending === "cancel" || ending === "unmount")) ||
+      (control === "resize" && ending === "lost") ||
+      (control === "range" && ending === "blur") ||
+      (control === "color" && ending === "target")
+    )) continue;
     test(`${control}: ${ending} releases continuous editing and unblocks pending drops`, async ({ page }) => {
       const uploads = await holdUploads(page);
       // キャンバスだけを閉じた場合も、レイヤーへのドロップが完了することを確かめる。

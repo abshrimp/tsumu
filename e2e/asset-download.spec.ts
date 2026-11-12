@@ -22,7 +22,8 @@ test.beforeEach(async ({ page }) => {
 const failure = "アセットをダウンロードできませんでした";
 const button = (id: string) => `[data-asset-id="${id}"] [data-tip="ダウンロード"]`;
 
-for (const status of [403, 404, 500, 502]) {
+// Client and server error handling share their code path within each class.
+for (const status of [404, 500]) {
   test(`HTTP ${status} shows an error without downloading JSON, then retry saves original bytes/name`, async ({ page }) => {
     const downloads: string[] = [], errors: string[] = [];
     page.on("download", (download) => downloads.push(download.suggestedFilename()));

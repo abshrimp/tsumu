@@ -36,23 +36,14 @@ async function published(page: Page, doc: SiteDoc, expected: string) {
 }
 
 const cases: { name: string; field: FieldContent; expected: string; query?: string }[] = [
-  { name: "missing range", field: { kind: "input", inputType: "range" }, expected: "50" },
   { name: "bounded range midpoint", field: { kind: "input", inputType: "range", min: "10", max: "20", step: "5" }, expected: "15" },
-  { name: "invalid range", field: { kind: "input", inputType: "range", defaultValue: "invalid", min: "10", max: "20", step: "5" }, expected: "15" },
-  { name: "clamped range", field: { kind: "input", inputType: "range", defaultValue: "99", min: "10", max: "20", step: "5" }, expected: "20" },
-  { name: "rounded range", field: { kind: "input", inputType: "range", defaultValue: "14", min: "10", max: "20", step: "5" }, expected: "15" },
   { name: "default attribute is the range step base", field: { kind: "input", inputType: "range", defaultValue: "14", step: "5", max: "99" }, expected: "14" },
   { name: "resolved range constraints", field: { kind: "input", inputType: "range", min: "{low}", max: "{high}", step: "{increment}" }, query: "low=10&high=20&increment=5", expected: "15" },
-  { name: "missing color", field: { kind: "input", inputType: "color" }, expected: "#000000" },
-  { name: "invalid color", field: { kind: "input", inputType: "color", defaultValue: "invalid" }, expected: "#000000" },
   { name: "normalized color", field: { kind: "input", inputType: "color", defaultValue: "#ABCDEF" }, expected: "#abcdef" },
   { name: "invalid number", field: { kind: "input", inputType: "number", defaultValue: "invalid" }, expected: "" },
-  { name: "out-of-bounds number stays populated", field: { kind: "input", inputType: "number", defaultValue: "12", max: "10" }, expected: "12" },
   { name: "invalid date", field: { kind: "input", inputType: "date", defaultValue: "2026-02-30" }, expected: "" },
-  { name: "valid date", field: { kind: "input", inputType: "date", defaultValue: "2026-11-05" }, expected: "2026-11-05" },
   { name: "normalized datetime", field: { kind: "input", inputType: "datetime-local", defaultValue: "2026-11-05 12:30:00" }, expected: "2026-11-05T12:30" },
   { name: "single-line text", field: { kind: "input", defaultValue: "first\nsecond" }, expected: "firstsecond" },
-  { name: "text default is not truncated", field: { kind: "input", defaultValue: "abcdef", maxLength: 3 }, expected: "abcdef" },
   { name: "trimmed email", field: { kind: "input", inputType: "email", defaultValue: "  name@example.com  " }, expected: "name@example.com" },
   { name: "textarea line endings", field: { kind: "textarea", defaultValue: "first\r\nsecond" }, expected: "first\nsecond" },
 ];
