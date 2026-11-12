@@ -72,12 +72,12 @@ npm run dev
 
 ## 公開とデプロイ
 
-Tsumuから公開（push）するには GitHub リポジトリを作成し、**Contents: Read and write** 権限を持つ fine-grained トークンを `GITHUB_TOKEN` に設定して、サイトの設定から公開先を選択します。ZIP の書き出しにはトークンは不要です。
+Tsumu から公開（push）するには、公開先の GitHub リポジトリを作成し、そのリポジトリに **Contents: Read and write** 権限を持つ fine-grained トークンを `GITHUB_TOKEN` に設定します。サイトの設定で公開先のリポジトリを選択してください。ZIP の書き出しにはトークンは不要です。
 
 エディタは **Cloudflare Workers**・**Node.js**・**Docker** で動作します。サーバーに保存するには、Cloudflare では D1・Durable Objects・KV、Node.js・Docker では `TSUMU_DATA_DIR` を設定します。サーバーの保存先がない場合、編集データはブラウザ内だけに保存されます。
 
 > [!IMPORTANT]
-> インターネットに公開する場合は Google ログインを設定してください。`npm run dev` はログインを省略し、`ALLOW_ANONYMOUS=true` の場合も URL を知っている人なら誰でも編集・公開できます。匿名アクセスはローカル環境か隔離されたデモに限って使用してください。
+> エディタをインターネットに公開する前に、[Google ログイン](docs/user-guide.ja.md#googleログイン)を設定してください。ログインが未設定の場合、`npm run dev` または `ALLOW_ANONYMOUS=true` で起動すると、アクセスできる人は誰でも編集でき、GitHub トークンが設定されていれば公開もできます。
 
 デプロイ手順、認証、出力形式、環境変数、バックアップ、制限事項は[詳細ガイド](docs/user-guide.ja.md)を参照してください。
 
@@ -85,7 +85,7 @@ Tsumuから公開（push）するには GitHub リポジトリを作成し、**C
 
 - [詳細ガイド](docs/user-guide.ja.md) · [English](docs/user-guide.md)
 - [設計](ARCHITECTURE.ja.md) · [環境変数](.env.example)
-- [コントリビュート](CONTRIBUTING.ja.md) · [セキュリティ](SECURITY.md) · [行動規範](CODE_OF_CONDUCT.md)
+- [コントリビュート](CONTRIBUTING.ja.md) · [セキュリティ](SECURITY.ja.md) · [行動規範](CODE_OF_CONDUCT.md)
 
 ## ライセンス
 

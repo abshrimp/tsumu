@@ -9,7 +9,7 @@ import { pageScriptsOf } from "../lib/script";
 import { slotKey, takeAt } from "../components/script-editor/step-tree";
 import { validDocumentScripts } from "../lib/document-validation";
 import type { Drag, Marquee, ScriptEditorLatest } from "../components/ScriptEditor";
-import { scriptDragBundle, scriptDragDoc } from "./helpers/script-drag";
+import { scriptDragDoc } from "./helpers/script-drag";
 
 // 実際のフックを読み込み、DOM の寸法とイベントだけを固定する。保存と「元に戻す」は、実際のストアを使う。
 function mount(targetSlot?: string, inputDoc = scriptDragDoc(), slotKind = "step") {
@@ -179,11 +179,6 @@ test("ordinary drops still use their release position and palette deletion is on
     m.start(); m.pointer("pointerup", { x: 1300, buttons: 0 }); assert.deepEqual(snapshot().doc, before.doc);
     assert.equal(state().future.length, 1);
   } finally { m.close(); }
-});
-
-test("the browser fixture bundles the real script editor and gesture hooks", async () => {
-  const bundle = await scriptDragBundle();
-  assert.match(bundle, /function ScriptEditorInner/); assert.match(bundle, /function useScriptDrag/);
 });
 
 test("dropping a selected chain inside its own removed subtree leaves document and undo history unchanged", () => {

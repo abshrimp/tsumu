@@ -11,7 +11,7 @@ import type {
   StyleState,
 } from "./types";
 import { BODY_NODE_ID } from "./types";
-import { NEW_PAGE_NAME, renamePage, setPageTitle } from "./pageTitle";
+import { newPageName, renamePage, setPageTitle } from "./pageTitle";
 import { createInitialDoc, genId } from "./presets";
 import { canContainElements } from "./tags";
 import {
@@ -1685,7 +1685,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       // ページを消した後でも、既存のページと名前や URL が重ならない番号にする
       const { name, slug } = uniquePageNaming(
         get().doc,
-        (n) => tr(NEW_PAGE_NAME, { n }),
+        newPageName,
         (n) => `page-${n}`,
         get().doc.pageOrder.length + 1
       );

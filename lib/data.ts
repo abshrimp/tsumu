@@ -1319,9 +1319,7 @@ export function findItemsCandidates(json: unknown): ItemsCandidate[] {
   const walk = (value: unknown, path: string, depth: number) => {
     if (Array.isArray(value)) {
       // リストには文字・数値・真偽値も「値」として並べられる。空でも、取得した後に使える。
-      if (!value.length || toListItems(value).length) {
-        out.push({ path, count: value.length });
-      }
+      out.push({ path, count: value.length });
       return;
     }
     if (depth >= 3 || !value || typeof value !== "object") return;

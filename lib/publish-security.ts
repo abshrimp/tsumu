@@ -1,5 +1,9 @@
 import type { SiteDoc } from "./types";
 
+const credentialKey = "api[-_]?key|secret|(?:access|auth|refresh|id)[-_]?token|client[-_]?secret|password|passwd|token";
+const sensitiveKey = new RegExp(`^(?:${credentialKey})$`, "i");
+const bodyKey = new RegExp(`"(?:${credentialKey})"\\s*:\\s*"([^"]+)"`, "ig");
+
 /**
  * GitHub への公開では、編集可能な doc.json 全体もコミットする。認証情報を含む取得の設定を、
  * 公開されているかもしれないリポジトリに、気づかないうちに入れてはいけない。
@@ -10,9 +14,7 @@ import type { SiteDoc } from "./types";
 export function hasPublishCredentials(doc: SiteDoc): boolean {
   const seen = new WeakSet<object>();
   const header = /^(?:authorization|proxy-authorization|cookie|set-cookie|api[-_]?key|x-api[-_]?key|x-auth[-_]?token|x-client[-_]?secret|x[-_]?token|x[-_]?secret)$/i;
-  const sensitiveKey = /^(?:api[-_]?key|secret|access[-_]?token|auth[-_]?token|client[-_]?secret|password|passwd|token)$/i;
-  const bodyKey = /"(?:api[-_]?key|secret|access[-_]?token|auth[-_]?token|client[-_]?secret|password|passwd|token)"\s*:\s*"([^"]+)"/ig;
-  const reference = /^\{[^{}\s]+\}$/;
+  const reference = /^(?:\{[^{}\s"'<>`]+\}|\[slug\])$/;
   const literal = (value: string) => !!value.trim() && !reference.test(value.trim());
 
   function containsParam(source: string, includeKey: boolean): boolean {
@@ -33,11 +35,13 @@ export function hasPublishCredentials(doc: SiteDoc): boolean {
     if (object.kind === "fetch") {
       const url = String(object.url ?? "");
       try {
-        const target = new URL(url);
-        if (target.username || target.password) return true;
+        // 相対 URL も同じ規則で検査するための基準で、ここには接続しない。
+        const target = new URL(url, "https://example.invalid/");
+        if (target.username || target.password || (target.search && containsParam(target.search, true))) return true;
       } catch {
-        if (/^https?:\/\/[^/\s@]+@/i.test(url)) return true;
+        if (/^(?:https?:)?\/\/[^/\s@]+@/i.test(url)) return true;
       }
+      // 未完成の URL、フラグメント、埋め込まれた URL のクエリも調べる。
       if (url.split(/[?#]/).slice(1).some(part => containsParam(part, true))) return true;
       const headers = Array.isArray(object.headers) ? object.headers : [];
       if (headers.some((item) => {

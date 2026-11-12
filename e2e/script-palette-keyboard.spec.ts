@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { scriptKeyboardBundle } from "../tests/helpers/script-keyboard";
 
 let bundle: string;
-test.beforeAll(async () => { bundle = await scriptKeyboardBundle({ localized: true }); });
+test.beforeAll(async () => { bundle = await scriptKeyboardBundle(); });
 const snapshot = (page: Page) => page.evaluate(() => {
   const { doc, past, future } = (window as any).scriptKeyboardEditor.getState();
   return { doc, past, future };
