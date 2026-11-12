@@ -36,6 +36,7 @@ function fixture({ conflict = false, missingHead = false, asset = false, documen
   } };
   const mocks: Record<string, any> = {
     react: hooks,
+    "../lib/use-escape-to-close": { useEscapeToClose() {} },
     "../lib/store": { useEditor, docFingerprint: () => "published" },
     "./HelpCenter": {}, "./controls": {},
     "../lib/dialog": { showConfirm: (message: string) => new Promise<boolean>(resolve => { confirmations.push(message); confirm = resolve; waiting = true; }) },

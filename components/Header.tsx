@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { signOut } from "next-auth/react";
 import {
   CircleHelp,
@@ -35,190 +35,25 @@ import { closeHelp, toggleHelp, useHelp } from "../lib/help";
 import { useServerStatus } from "../lib/status";
 import { toggleAi, useAi, useAiAvailability } from "./AiChat";
 import { toggleCommentMode, useComments } from "../lib/comment-store";
-import PublishModal, { CheckList, docWithSvgFilters, HistoryModal, useEscapeToClose } from "./PublishModal";
-import { showAlert, showPrompt } from "../lib/dialog";
+import { useEscapeToClose } from "../lib/use-escape-to-close";
+import SafeBoundary from "./SafeBoundary";
+import { showPrompt } from "../lib/dialog";
 import { BP_INFO, BP_ORDER, breakpointForWidth, DEVICE_WIDTHS, parseNumeric } from "../lib/style";
-import { runChecks, type CheckResult } from "../lib/generator/checks";
-import { exportProjectZip } from "../lib/exportZip";
-import { exportLimitations, exportScopeDoc, DEFAULT_EXPORT_OPTIONS, EXPORT_FRAMEWORK_OPTIONS, type ExportFormat, type ExportLanguage, type ExportStyle, type ExportScope, type ExportOptions } from "../lib/export-formats";
 import { BpIcon, Dropdown, NumField, Seg } from "./controls";
-import { userMessage } from "../lib/errors";
-import { getLang, LANGS, setLang, tr, trNodes, type Lang } from "../lib/i18n";
+import { getLang, LANGS, setLang, tr, type Lang } from "../lib/i18n";
 
-function ExportModal({ onClose }: { onClose: () => void }) {
-  const doc = useEditor((s) => s.doc);
-  const activePageId = useEditor((s) => s.activePageId);
-  const selectedNodeId = useEditor((s) => s.selection);
-  const [busy, setBusy] = useState(false);
-  const [format, setFormat] = useState<ExportFormat>(DEFAULT_EXPORT_OPTIONS.framework);
-  const [language, setLanguage] = useState<ExportLanguage>(DEFAULT_EXPORT_OPTIONS.language);
-  const [style, setStyle] = useState<ExportStyle>(DEFAULT_EXPORT_OPTIONS.style);
-  const [scope, setScope] = useState<ExportScope>(DEFAULT_EXPORT_OPTIONS.scope);
-  const options: ExportOptions = {
-    framework: format, language, style, scope,
-    pageId: activePageId,
-    nodeId: selectedNodeId ?? undefined,
-  };
-  const checks = useMemo<CheckResult[]>(() => {
-    const compatibility = exportLimitations(doc, options);
-    let scoped: typeof doc | null = null;
-    try {
-      scoped = exportScopeDoc(doc, options);
-    } catch {
-      // The scope error is already included in the compatibility list.
-    }
-    return [
-      ...(scoped ? runChecks(scoped, { requireHomePage: scope === "project" }) : []),
-      ...compatibility.map((message): CheckResult => ({ level: "error", message })),
-    ];
-  }, [doc, activePageId, selectedNodeId, format, language, style, scope]);
-  const hasError = checks.some((check) => check.level === "error");
-  useEscapeToClose(onClose, !busy);
+const ExportModal = lazy(() => import("./ExportModal"));
+const PublishModal = lazy(() => import("./PublishModal"));
+const HistoryModal = lazy(() => import("./PublishModal").then((m) => ({ default: m.HistoryModal })));
 
-  const description = format === "html"
-    ? tr("Download a ZIP with ready-to-use HTML, CSS, JavaScript and images. Extract it and open index.html in your browser. No npm or build step is needed.")
-    : format === "single-html"
-      ? tr("Download one HTML file with embedded images, fonts, CSS and JavaScript. Multiple pages cannot be exported at the same time.")
-      : trNodes("Export as a {framework} project. After extracting the files, run {cmd} to start.", {
-          framework: tr(EXPORT_FRAMEWORK_OPTIONS.find((item) => item.value === format)?.label ?? "Next.js"),
-          cmd: <span className="kbd">npm install && npm run dev</span>,
-        });
-
+function ModalLoading({ onClose }: { onClose: () => void }) {
+  useEscapeToClose(onClose);
   return (
-    <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
-      <div className="modal export-modal" onClick={(event) => event.stopPropagation()}>
-        <h2>{tr("Export code")}</h2>
-        <p className="modal-desc">{description}</p>
-
-        <fieldset className="export-options" disabled={busy}>
-          <div className="export-option">
-            <div className="export-option-label">{tr("Framework")}</div>
-            <Dropdown
-              value={format}
-              options={EXPORT_FRAMEWORK_OPTIONS.map((option) => ({ ...option, label: tr(option.label) }))}
-              onChange={(value) => {
-                setFormat(value as ExportFormat);
-                if (value === "single-html" && scope === "project") setScope("page");
-                if (value === "html" || value === "single-html") {
-                  setLanguage("javascript");
-                  setStyle("css");
-                }
-              }}
-              style={{ width: "100%" }}
-              title={tr("Framework")}
-            />
-          </div>
-          <div className="export-option-grid">
-            <div className="export-option">
-              <div className="export-option-label">{tr("Language")}</div>
-              <Dropdown
-                value={language}
-                options={format === "html" || format === "single-html"
-                  ? [{ value: "javascript", label: "JavaScript" }]
-                  : [
-                      { value: "typescript", label: "TypeScript" },
-                      { value: "javascript", label: "JavaScript" },
-                    ]}
-                onChange={(value) => setLanguage(value as ExportLanguage)}
-                style={{ width: "100%" }}
-                title={tr("Language")}
-              />
-            </div>
-            <div className="export-option">
-              <div className="export-option-label">{tr("Style")}</div>
-              <Dropdown
-                value={style}
-                options={format === "html" || format === "single-html"
-                  ? [{ value: "css", label: "CSS" }]
-                  : [
-                      { value: "css", label: "CSS" },
-                      { value: "css-modules", label: "CSS Modules" },
-                      { value: "tailwind", label: "Tailwind CSS" },
-                    ]}
-                onChange={(value) => setStyle(value as ExportStyle)}
-                style={{ width: "100%" }}
-                title={tr("Style")}
-              />
-            </div>
-          </div>
-          <div className="export-option">
-            <div className="export-option-label">{tr("Export scope")}</div>
-            <Dropdown
-              value={scope}
-              options={[
-                { value: "component", label: tr("Selected component") },
-                { value: "page", label: tr("Current page") },
-                ...(format === "single-html" ? [] : [{ value: "project", label: tr("Entire project") }]),
-              ]}
-              onChange={(value) => setScope(value as ExportScope)}
-              style={{ width: "100%" }}
-              title={tr("Export scope")}
-            />
-          </div>
-        </fieldset>
-        {style === "tailwind" && (
-          <p className="hint export-note">
-            {tr("Tailwind utilities are available. Tsumu-generated CSS remains included to preserve your design.")}
-          </p>
-        )}
-        {scope === "component" && (
-          <p className="hint export-note">
-            {tr("Exports the selected element and its descendants as a standalone page.")}
-          </p>
-        )}
-        {(format === "html" || format === "single-html") && (
-          <p className="hint export-note">
-            {tr("The HTML format provides ready-to-open files, so language is JavaScript and styling is CSS.")}
-          </p>
-        )}
-        {(format === "html" || format === "single-html") && (
-          <p className="hint export-note">
-            {tr("Fetching external data requires the API to allow CORS. file:// has restrictions, so test on localhost or a similar environment.")}
-          </p>
-        )}
-        {format === "single-html" && (
-          <p className="hint export-note">
-            {tr("External APIs and embedded videos still require an internet connection. If external images cannot be embedded, import them into the asset library and retry.")}
-          </p>
-        )}
-        {format !== "single-html" && (
-          <p className="hint export-note">
-            {scope === "project"
-              ? tr("The ZIP contains the site’s complete editable source (_tsumu/doc.json). Publish only the generated website files, not its editable data, to a public host.")
-              : tr("The ZIP contains the editable source for the exported scope (_tsumu/doc.json). Publish only the generated website files, not its editable data, to a public host.")}
-          </p>
-        )}
-        <CheckList checks={checks} onClose={onClose} />
-
-        <div className="modal-actions">
-          <button className="btn" disabled={busy} onClick={onClose}>
-            {tr("Cancel")}
-          </button>
-          <button
-            className="btn btn-primary"
-            disabled={hasError || busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                const missing = await exportProjectZip(await docWithSvgFilters(), options);
-                onClose();
-                if (missing.length) {
-                  void showAlert(
-                    tr("These images weren't found in storage, so they were left out of the zip (they may have been deleted).\n{p1}", { p1: missing.join("\n") }),
-                    { title: tr("Downloaded without some images") }
-                  );
-                }
-              } catch (error) {
-                const title = format === "single-html" ? tr("Could not generate the HTML file") : tr("Couldn't create the zip");
-                void showAlert(userMessage(error, title), { title });
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            <Download size={13} />
-            {busy ? tr("Generating…") : format === "single-html" ? tr("Download HTML") : tr("Download zip")}
-          </button>
+    <div>
+      <div className="modal-backdrop" onClick={onClose}>
+        <div className="modal" onClick={(e) => e.stopPropagation()}>
+          <div className="pub-loading" role="status"><LoaderCircle size={18} />{tr("Loading…")}</div>
+          <div className="modal-actions"><button className="btn" onClick={onClose}>{tr("Cancel")}</button></div>
         </div>
       </div>
     </div>
@@ -332,7 +167,32 @@ export default function Header({
   panels: { l: boolean; r: boolean };
   onTogglePanel: (side: "l" | "r") => void;
 }) {
-  const doc = useEditor((s) => s.doc);
+  const pages = useEditor((s) => s.doc.pages);
+  const pageOrder = useEditor((s) => s.doc.pageOrder);
+  const folders = useEditor((s) => s.doc.pageFolders);
+  const loadingScreen = useEditor((s) => s.doc.loadingScreen);
+  const pageOptions = useMemo(() => {
+    const folderNames = new Map(folders?.map((folder) => [folder.id, folder.name]));
+    const options = pageOrder.map((id) => {
+      const page = pages[id];
+      const folder = page.folderId && folderNames.get(page.folderId);
+      return {
+        value: id,
+        label: page.unpublished ? tr("{name} (unpublished)", { name: page.name }) : page.name,
+        desc: `${folder ? folder + " · " : ""}/${page.slug}`,
+        icon: <FileText size={13} />,
+      };
+    });
+    if (loadingScreen?.enabled && loadingScreen.pageId && pages[loadingScreen.pageId]) {
+      options.unshift({
+        value: loadingScreen.pageId,
+        label: tr("Loading screen"),
+        desc: tr("Site-wide"),
+        icon: <LoaderCircle size={13} />,
+      });
+    }
+    return options;
+  }, [pages, pageOrder, folders, loadingScreen]);
   const activePageId = useEditor((s) => s.activePageId);
   const setActivePage = useEditor((s) => s.setActivePage);
   const breakpoint = useEditor((s) => s.breakpoint);
@@ -341,8 +201,8 @@ export default function Header({
   const setCustomWidth = useEditor((s) => s.setCustomWidth);
   const mode = useEditor((s) => s.mode);
   const setMode = useEditor((s) => s.setMode);
-  const past = useEditor((s) => s.past);
-  const future = useEditor((s) => s.future);
+  const canUndo = useEditor((s) => s.past.length > 0);
+  const canRedo = useEditor((s) => s.future.length > 0);
   const undo = useEditor((s) => s.undo);
   const redo = useEditor((s) => s.redo);
   const zoom = useEditor((s) => s.zoom);
@@ -377,6 +237,12 @@ export default function Header({
     open(true);
   };
 
+  const closeDeferredModal = () => {
+    setExporting(false);
+    setPublishing(false);
+    setHistoryOpen(false);
+  };
+
   return (
     <header className="hdr">
       <div className="hdr-group">
@@ -399,33 +265,7 @@ export default function Header({
         <div className="hdr-page" data-tutorial="pages">
           <Dropdown
             value={activePageId}
-            options={[
-              ...(doc.loadingScreen?.enabled &&
-              doc.loadingScreen.pageId &&
-              doc.pages[doc.loadingScreen.pageId]
-                ? [
-                    {
-                      value: doc.loadingScreen.pageId,
-                      label: tr("Loading screen"),
-                      desc: tr("Site-wide"),
-                      icon: <LoaderCircle size={13} />,
-                    },
-                  ]
-                : []),
-              ...doc.pageOrder.map((id) => ({
-                value: id,
-                label: doc.pages[id].unpublished
-                  ? tr("{name} (unpublished)", { name: doc.pages[id].name })
-                  : doc.pages[id].name,
-                // フォルダに入れているページは、フォルダ名も添える
-                desc: `${
-                  doc.pageFolders?.find((f) => f.id === doc.pages[id].folderId)?.name
-                    ? `${doc.pageFolders.find((f) => f.id === doc.pages[id].folderId)!.name} · `
-                    : ""
-                }/${doc.pages[id].slug}`,
-                icon: <FileText size={13} />,
-              })),
-            ]}
+            options={pageOptions}
             onChange={setActivePage}
             menuWidth={200}
           />
@@ -434,7 +274,7 @@ export default function Header({
         <button
           className="icon-btn"
           data-tutorial="undo"
-          disabled={!past.length}
+          disabled={!canUndo}
           onClick={undo}
           aria-label={tr("Undo")}
           data-tip={tr("Undo")} data-tip-kbd="⌘Z"
@@ -443,7 +283,7 @@ export default function Header({
         </button>
         <button
           className="icon-btn"
-          disabled={!future.length}
+          disabled={!canRedo}
           onClick={redo}
           aria-label={tr("Redo")}
           data-tip={tr("Redo")} data-tip-kbd="⇧⌘Z"
@@ -663,18 +503,24 @@ export default function Header({
         )}
       </div>
 
-      {exporting && <ExportModal onClose={() => setExporting(false)} />}
       {logoutOpen && <LogoutModal onClose={() => setLogoutOpen(false)} />}
-      {publishing && (
-        <PublishModal
-          onClose={() => setPublishing(false)}
-          onOpenHistory={() => {
-            setPublishing(false);
-            setHistoryOpen("site");
-          }}
-        />
+      {(exporting || publishing || historyOpen) && (
+        <SafeBoundary onClose={closeDeferredModal}>
+          <Suspense fallback={<ModalLoading onClose={closeDeferredModal} />}>
+            {exporting && <ExportModal onClose={() => setExporting(false)} />}
+            {publishing && (
+              <PublishModal
+                onClose={() => setPublishing(false)}
+                onOpenHistory={() => {
+                  setPublishing(false);
+                  setHistoryOpen("site");
+                }}
+              />
+            )}
+            {historyOpen && <HistoryModal initialTab={historyOpen} onClose={() => setHistoryOpen(false)} />}
+          </Suspense>
+        </SafeBoundary>
       )}
-      {historyOpen && <HistoryModal initialTab={historyOpen} onClose={() => setHistoryOpen(false)} />}
       {settingsOpen && (
         <SettingsModal onClose={() => setSettingsOpen(false)} />
       )}

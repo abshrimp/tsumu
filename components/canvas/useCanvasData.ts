@@ -6,10 +6,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useEditor, type EditorMode } from "../../lib/store";
 import {
-  type ListOp,
   idVarNodesOf,
   nodeTextTemplate,
-  pageDataSteps,
+  preparePreviewData,
   pagePlan,
   previewDataVars,
   primaryDataStep,
@@ -96,11 +95,24 @@ export function useCanvasData({
   const refreshRequest = useRef(0);
   const refreshController = useRef<AbortController | null>(null);
 
+  const { plan, previewPlan, fieldVarNodes, textVarNodes } = useMemo(() => {
+    const nodes = idVarNodesOf(doc, activePageId);
+    const plan = pagePlan(doc, activePageId, nodes);
+    return {
+      plan,
+      previewPlan: preparePreviewData(doc, activePageId, plan.steps),
+      fieldVarNodes: nodes.filter((n) => n.type === "field"),
+      textVarNodes: nodes.filter((n) => n.type !== "field"),
+    };
+  }, [doc, activePageId]);
   /** [slug]のプレビュー値・プレビューバーの基準になるデータ（スクリプトで取得するもの） */
-  const primary = page ? primaryDataStep(doc, page.id) : null;
+  const primary = useMemo(
+    () => primaryDataStep(doc, activePageId, plan.steps),
+    [doc, activePageId, plan],
+  );
   const candidates = useMemo(
-    () => (page ? primaryCandidates(doc, page.id, liveSamples) : null),
-    [doc, page, liveSamples]
+    () => (page ? primaryCandidates(doc, page.id, liveSamples, previewPlan) : null),
+    [doc, page, liveSamples, previewPlan]
   );
   const primaryFindBy = candidates?.field || undefined;
   const primaryItems = candidates?.items ?? [];
@@ -137,40 +149,15 @@ export function useCanvasData({
                   )
                 : liveTotals,
             vars: { ...pageQueryVars(page.query), ...fieldValues },
-          })
+          }, previewPlan)
         : {},
-    [doc, page, previewIndex, slugNotFound, slugVal, liveSamples, liveTotals, fullData, mode, fieldValues]
-  );
-
-  /* ID付きテキスト要素の内容 → {ID} 変数（リスト内は項目ごとのため除外） */
-  const textVarNodes = useMemo(
-    () => (page ? idVarNodesOf(doc, page.id).filter((n) => n.type !== "field") : []),
-    [doc, page]
-  );
-
-  const plan = useMemo(
-    () =>
-      page
-        ? pagePlan(doc, page.id)
-        : {
-            steps: [],
-            serverIds: new Set<string>(),
-            clientVars: new Set<string>(),
-            listOps: new Map<string, ListOp[]>(),
-          },
-    [doc, page]
+    [doc, page, previewPlan, previewIndex, slugNotFound, slugVal, liveSamples, liveTotals, fullData, mode, fieldValues]
   );
 
   const fetchedVars = useMemo(() => Object.fromEntries(plan.steps.flatMap(step =>
     step.kind === "fetch" && step.as && Object.hasOwn(dataVars, step.as)
       ? [[step.as, dataVars[step.as]]] : []
   )), [plan, dataVars]);
-
-  /* ID付きの入力欄 → まだ入力していない欄の {ID} は最初の値（初期値・チェック） */
-  const fieldVarNodes = useMemo(
-    () => (page ? idVarNodesOf(doc, page.id).filter((n) => n.type === "field") : []),
-    [doc, page]
-  );
 
   const pageVars = useMemo(() => {
     const known = {
@@ -207,7 +194,7 @@ export function useCanvasData({
       const totals: Record<string, Record<string, number>> = {};
       const full: Record<string, unknown> = {};
       await Promise.all(
-        pageDataSteps(doc, page.id).map(async (st) => {
+        plan.steps.map(async (st) => {
           if (st.kind !== "fetch" || !st.url.trim()) return;
           try {
             const res = await fetch("/api/fetch-json", {
@@ -239,7 +226,7 @@ export function useCanvasData({
         setRefreshing(false);
       }
     }
-  }, [page, doc, slugVal, pageVars]);
+  }, [page, plan, slugVal, pageVars]);
 
   // プレビューを始めたら、ページのデータを全件で取り直す（見本は先頭だけのため）
   const refreshRef = useRef(refreshData);

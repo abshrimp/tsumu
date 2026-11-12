@@ -64,11 +64,29 @@ test("one-character edits touch one element row and rev, not 7,000 rows", () => 
   queries.length = 0;
   assert.equal(store.patch(patch, "1").kind, "saved");
   assert.ok(queries.some(sql => sql.startsWith("UPDATE document_entries SET body")));
+  assert.ok(!queries.some(sql => /^UPDATE document_meta .*props=/i.test(sql)));
   assert.ok(!queries.some(sql => sql.startsWith("SELECT bucket,entry_id,body FROM document_entries")));
   assert.ok(!queries.some(sql => sql === "DELETE FROM document_entries"));
   assert.equal(store.meta()?.rev, "2");
   assert.deepEqual(JSON.parse(store.snapshot()!.body), next);
+  queries.length = 0;
+  assert.equal(store.patch(patch, "2").kind, "saved");
+  assert.equal(entryWrites(queries).length, 0, "repeated node values only advance the revision");
+  assert.equal(store.meta()?.rev, "3");
   sqlite.close();
+});
+
+test("UTF-8 row limits distinguish ASCII and multibyte content at the same string length", () => {
+  const { store, sqlite } = database();
+  try {
+    const doc = createInitialDoc();
+    doc.customHeadHtml = "a".repeat(2_400_000);
+    assert.equal(store.replace(JSON.stringify(doc), null).kind, "saved");
+    assert.throws(() => store.patch([
+      { path: ["customHeadHtml"], value: "漢".repeat(2_400_000) },
+    ], "1"), /1項目が大きすぎます/);
+    assert.equal(store.meta()?.rev, "1");
+  } finally { sqlite.close(); }
 });
 
 test("stale revisions conflict without applying a partial document update", () => {
@@ -284,6 +302,20 @@ test("bucket-level patches rewrite only the changed rows of that bucket", () => 
   queries.length = 0;
   assert.equal(store.patch([{ path: ["nodes"], value: next.nodes }], "1").kind, "saved");
   assert.equal(entryWrites(queries).length, 1);
+  assert.ok(!queries.some(sql => /^UPDATE document_meta .*props=/i.test(sql)));
   assert.deepEqual(JSON.parse(store.snapshot()!.body), next);
   sqlite.close();
+});
+
+test("adding and removing an empty components bucket persists its presence", () => {
+  const { store, sqlite } = database();
+  try {
+    const doc = createInitialDoc();
+    delete doc.components;
+    store.replace(JSON.stringify(doc), null);
+    assert.equal(store.patch([{ path: ["components"], value: {} }], "1").kind, "saved");
+    assert.deepEqual(JSON.parse(store.snapshot()!.body).components, {});
+    assert.equal(store.patch([{ path: ["components"], remove: true }], "2").kind, "saved");
+    assert.deepEqual(JSON.parse(store.snapshot()!.body), doc);
+  } finally { sqlite.close(); }
 });

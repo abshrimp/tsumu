@@ -199,9 +199,9 @@ export default function Canvas() {
   const autoCompRef = useRef(autoComp);
   autoCompRef.current = autoComp;
 
-  const varNamesFor = useCallback(
-    (nodeId: string): string[] => varNamesAt(doc, activePageId, nodeId),
-    [doc, activePageId]
+  const editingVarNames = useMemo(
+    () => editingText ? varNamesAt(doc, activePageId, editingText) : [],
+    [doc, activePageId, editingText]
   );
   // 値の見本は候補を出している間だけ計算する
   const autoCompOpen = !!autoComp;
@@ -223,10 +223,9 @@ export default function Canvas() {
         setAutoComp(null);
         return;
       }
-      const names = varNamesFor(editingText);
       const before = editableText(el).slice(0, off[0]);
-      const query = findVarQuery(before, names, manual);
-      const matches = query ? matchVarNames(names, query).slice(0, 50) : [];
+      const query = findVarQuery(before, editingVarNames, manual);
+      const matches = query ? matchVarNames(editingVarNames, query).slice(0, 50) : [];
       if (!query || !shouldShowVarSuggest(query, matches, true)) {
         setAutoComp(null);
         return;
@@ -243,7 +242,7 @@ export default function Canvas() {
         explore: true,
       });
     },
-    [editingText, varNamesFor]
+    [editingText, editingVarNames]
   );
 
   const insertVar = useCallback((name: string) => {

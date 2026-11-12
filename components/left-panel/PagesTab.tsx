@@ -5,7 +5,7 @@
  */
 
 import { isEnterKey } from "../../lib/keys";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   Folder,
   FolderOpen,
@@ -21,6 +21,7 @@ import {
   EyeOff,
   FileInput,
 } from "lucide-react";
+import type { PageFolder } from "../../lib/types";
 import { useEditor } from "../../lib/store";
 import { useDocumentConfirmation } from "../../lib/use-document-confirmation";
 import { Icon } from "../icons";
@@ -34,6 +35,7 @@ import { storageKey } from "../../lib/storage-keys";
 
 /* ============ ページ ============ */
 
+const EMPTY_FOLDERS: PageFolder[] = [];
 /** 閉じているフォルダ（ブラウザごとに覚える。ほかの編集者の表示には影響しない） */
 const FOLDERS_CLOSED_KEY = storageKey("page-folders-closed-v1");
 
@@ -59,7 +61,10 @@ type PageDrop =
 
 export function PagesTab() {
   const confirmDeletion = useDocumentConfirmation("page-deletion");
-  const doc = useEditor((s) => s.doc);
+  const pages = useEditor((s) => s.doc.pages);
+  const pageOrder = useEditor((s) => s.doc.pageOrder);
+  const folders = useEditor((s) => s.doc.pageFolders ?? EMPTY_FOLDERS);
+  const loadingScreen = useEditor((s) => s.doc.loadingScreen);
   const activePageId = useEditor((s) => s.activePageId);
   const setActivePage = useEditor((s) => s.setActivePage);
   const addPage = useEditor((s) => s.addPage);
@@ -91,18 +96,23 @@ export function PagesTab() {
   const [copyIds, setCopyIds] = useState<string[] | null>(null);
   const autoScroll = useDragAutoScroll();
 
-  const folders = doc.pageFolders ?? [];
-  const folderIds = new Set(folders.map((f) => f.id));
-  const folderOf = (pageId: string) => {
-    const f = doc.pages[pageId]?.folderId;
-    return f && folderIds.has(f) ? f : null;
+  const { loose, byFolder } = useMemo(() => {
+    const loose: string[] = [];
+    const byFolder = new Map<string, string[]>();
+    for (const folder of folders) byFolder.set(folder.id, []);
+    for (const id of pageOrder) {
+      const folder = pages[id]?.folderId;
+      const group = folder ? byFolder.get(folder) : undefined;
+      (group ?? loose).push(id);
+    }
+    return { loose, byFolder };
+  }, [folders, pageOrder, pages]);
+  const folderOf = (id: string) => {
+    const folder = pages[id]?.folderId;
+    return folder && byFolder.has(folder) ? folder : null;
   };
-  const loose = doc.pageOrder.filter((id) => !folderOf(id));
-  const inFolder = (folderId: string) => doc.pageOrder.filter((id) => folderOf(id) === folderId);
   const loadingPage =
-    doc.loadingScreen?.enabled && doc.loadingScreen.pageId
-      ? doc.pages[doc.loadingScreen.pageId]
-      : null;
+    loadingScreen?.enabled && loadingScreen.pageId ? pages[loadingScreen.pageId] : null;
 
   const toggleFolder = (id: string, open?: boolean) =>
     setClosed((prev) => {
@@ -118,7 +128,7 @@ export function PagesTab() {
     });
 
   // 開いているページを含むフォルダは開いておく（ページを選んだのに見えない、とならないように）
-  const activeFolder = doc.pages[activePageId]?.folderId;
+  const activeFolder = pages[activePageId]?.folderId;
   useEffect(() => {
     if (activeFolder && closed.has(activeFolder)) toggleFolder(activeFolder, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -133,9 +143,9 @@ export function PagesTab() {
     if (!drag || !drop) return;
     if (drag.kind === "page") {
       // 選んでいるページをつかんだら、選んだページをまとめて動かす
-      if (livePicked.length > 1 && livePicked.includes(drag.id)) {
+      if (livePicked.length > 1 && pickedIds.has(drag.id)) {
         if (drop.kind === "page") {
-          if (livePicked.includes(drop.id)) return;
+          if (pickedIds.has(drop.id)) return;
           movePagesToFolder(livePicked, folderOf(drop.id), drop.after ? { after: drop.id } : { before: drop.id });
         } else if (drop.kind === "folder") {
           movePagesToFolder(livePicked, drop.id);
@@ -169,7 +179,12 @@ export function PagesTab() {
   };
 
   // 消えたページは選択から外す（ほかの人の削除・元に戻すなど）
-  const livePicked = picked.filter((id) => doc.pages[id] && doc.pageOrder.includes(id));
+  const livePicked = useMemo(() => {
+    if (!picked.length) return picked;
+    const ordered = new Set(pageOrder);
+    return picked.filter((id) => pages[id] && ordered.has(id));
+  }, [picked, pages, pageOrder]);
+  const pickedIds = useMemo(() => new Set(livePicked), [livePicked]);
   const selecting = picking || livePicked.length > 0;
   const endPicking = () => {
     setPicked([]);
@@ -177,18 +192,17 @@ export function PagesTab() {
     pickAnchor.current = null;
   };
 
-  // 画面に並んでいる順（閉じたフォルダの中も含む。範囲選択に使う）
-  const visibleOrder = [...loose, ...folders.flatMap((f) => inFolder(f.id))];
-
   /** 行のクリック: ⌘/Ctrl で1件ずつ、Shift で範囲を選ぶ。選択モード中は普通のクリックでも選ぶ */
   const clickPage = (e: React.MouseEvent, id: string) => {
     const toggle = e.metaKey || e.ctrlKey || (selecting && !e.shiftKey);
     if (e.shiftKey) {
+      // The selection follows display order, including pages in closed folders.
+      const visibleOrder = loose.concat(Array.from(byFolder.values()).flat());
       const from = pickAnchor.current ?? activePageId;
       const a = visibleOrder.indexOf(from);
       const b = visibleOrder.indexOf(id);
       const range = a < 0 || b < 0 ? [id] : visibleOrder.slice(Math.min(a, b), Math.max(a, b) + 1);
-      setPicked((prev) => [...new Set([...prev.filter((p) => doc.pages[p]), ...range])]);
+      setPicked((prev) => [...new Set([...prev.filter((p) => pages[p]), ...range])]);
       pickAnchor.current ??= from;
       return;
     }
@@ -213,7 +227,7 @@ export function PagesTab() {
   const bulkDelete = async () => {
     const ids = livePicked;
     if (!ids.length) return;
-    const all = ids.length >= doc.pageOrder.length;
+    const all = ids.length >= pageOrder.length;
     if (
       !(await confirmDeletion(() => showConfirm(
         all
@@ -244,9 +258,9 @@ export function PagesTab() {
 
   /** 右クリックしたページの操作。選んでいるページの上で開いたときは、選んでいるページすべてに効く */
   const pageMenuItems = (id: string): CtxMenuItem[] => {
-    const ids = livePicked.length > 1 && livePicked.includes(id) ? livePicked : [id];
+    const ids = livePicked.length > 1 && pickedIds.has(id) ? livePicked : [id];
     const many = ids.length > 1;
-    const allUnpublished = ids.every((x) => doc.pages[x]?.unpublished);
+    const allUnpublished = ids.every((x) => pages[x]?.unpublished);
     const close = () => setCtx(null);
     const run = (fn: () => void) => () => {
       close();
@@ -309,9 +323,9 @@ export function PagesTab() {
         label: many ? tr("Delete {n} pages", { n: ids.length }) : tr("Delete"),
         icon: <Trash2 size={14} />,
         danger: true,
-        disabled: doc.pageOrder.length <= 1,
+        disabled: pageOrder.length <= 1,
         onClick: run(async () => {
-          const all = ids.length >= doc.pageOrder.length;
+          const all = ids.length >= pageOrder.length;
           if (
             await confirmDeletion(() => showConfirm(
               all
@@ -320,7 +334,7 @@ export function PagesTab() {
               {
                 title: many
                   ? tr("Delete {n} pages?", { n: all ? ids.length - 1 : ids.length })
-                  : tr("Delete page \"{name}\"?", { name: doc.pages[id]?.name ?? "" }),
+                  : tr("Delete page \"{name}\"?", { name: pages[id]?.name ?? "" }),
                 okLabel: tr("Delete"),
                 danger: true,
               }
@@ -335,7 +349,7 @@ export function PagesTab() {
   };
 
   const pageRow = (id: string, nested: boolean) => {
-    const p = doc.pages[id];
+    const p = pages[id];
     const over = drop?.kind === "page" && drop.id === id && drag?.kind === "page" && drag.id !== id;
     return (
       <div
@@ -343,11 +357,11 @@ export function PagesTab() {
         className={`page-row${id === activePageId ? " is-on" : ""}${
           p.unpublished ? " is-unpublished" : ""
         }${
-          drag?.kind === "page" && (drag.id === id || (livePicked.includes(drag.id) && livePicked.includes(id)))
+          drag?.kind === "page" && (drag.id === id || (pickedIds.has(drag.id) && pickedIds.has(id)))
             ? " is-dragging"
             : ""
-        }${nested ? " is-nested" : ""}${livePicked.includes(id) ? " is-picked" : ""}`}
-        aria-selected={selecting ? livePicked.includes(id) : undefined}
+        }${nested ? " is-nested" : ""}${pickedIds.has(id) ? " is-picked" : ""}`}
+        aria-selected={selecting ? pickedIds.has(id) : undefined}
         style={
           {
             position: "relative",
@@ -391,7 +405,7 @@ export function PagesTab() {
           <input
             type="checkbox"
             className="page-pick"
-            checked={livePicked.includes(id)}
+            checked={pickedIds.has(id)}
             aria-label={tr("Select \"{name}\"", { name: p.name })}
             onClick={(e) => e.stopPropagation()}
             onChange={() => {
@@ -429,7 +443,7 @@ export function PagesTab() {
           >
             <Icon name="copy" size={12} />
           </button>
-          {doc.pageOrder.length > 1 && (
+          {pageOrder.length > 1 && (
             <button
               className="row-act is-danger"
               data-tip={tr("Delete")}
@@ -529,7 +543,7 @@ export function PagesTab() {
         </div>
       ) : (
       <div className="pages-toolbar">
-        <span className="pages-count">{doc.pageOrder.length}{tr("Pages")}</span>
+        <span className="pages-count">{pageOrder.length}{tr("Pages")}</span>
         <button
           className="icon-btn"
           aria-label={tr("Select pages")}
@@ -591,10 +605,10 @@ export function PagesTab() {
           )}
           {loose.map((id) => pageRow(id, false))}
           {folders.map((f) => {
-            const pages = inFolder(f.id);
+            const pages = byFolder.get(f.id)!;
             const isClosed = closed.has(f.id);
             const target = drop?.kind === "folder" && drop.id === f.id ? drop.pos : null;
-            const hasActive = pages.includes(activePageId);
+            const hasActive = isClosed && activeFolder === f.id && pages.includes(activePageId);
             return (
               <div key={f.id} className="page-folder">
                 <div
@@ -718,7 +732,7 @@ export function PagesTab() {
           })}
         </div>
       </div>
-      {ctx && doc.pages[ctx.id] && (
+      {ctx && pages[ctx.id] && (
         <ContextMenu x={ctx.x} y={ctx.y} items={pageMenuItems(ctx.id)} onClose={() => setCtx(null)} />
       )}
       {copyIds && <CopyToSiteModal pageIds={copyIds} onClose={() => setCopyIds(null)} />}

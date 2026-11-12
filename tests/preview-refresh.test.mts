@@ -357,3 +357,20 @@ test("an obsolete response is skipped before JSON parsing", async () => {
   assert.equal(m.render().refreshing, true);
   m.unmount();
 });
+
+test("preview variable copies follow same-page script edits and Undo", () => {
+  const m = mount("design");
+  try {
+    assert.equal(m.render().pageVars.copied, undefined);
+    const state = useEditor.getState();
+    state.updateNode("result", { scripts: [{
+      id: "click-copy", trigger: "click", pos: { x: 0, y: 0 },
+      steps: [{ id: "copy", kind: "set-var", value: "{response.label}", into: "copied" }],
+    }] });
+    assert.equal(m.render().pageVars.copied, "home saved");
+    state.undo();
+    assert.equal(m.render().pageVars.copied, undefined);
+  } finally {
+    m.unmount();
+  }
+});
