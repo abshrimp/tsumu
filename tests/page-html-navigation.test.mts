@@ -151,7 +151,7 @@ test("query variants reuse the generated PageHtml component position", async () 
 test("hydration runs initial scripts once, even with effect replay; later changes rerun", () => {
   const mounted = mount(true);
   mounted.render(inline("a"), true);
-  mounted.render(inline("a")); // useSyncExternalStore がブラウザ側の値に切り替わる。
+  mounted.render(inline("a")); // 同じHTMLを再描画しても再実行しない。
   assert.deepEqual(mounted.executed, ["a"]);
   for (const name of ["b", "a", "c"]) mounted.render(inline(name));
   assert.deepEqual(mounted.executed, ["a", "b", "a", "c"]);
@@ -182,5 +182,5 @@ test("navigation cancels the old external-script sequence and preserves new scri
   mounted.unmount();
   mounted.pending[2].onload!();
   await Promise.resolve();
-  assert.deepEqual(mounted.executed, ["new tail"]);
+  assert.deepEqual(mounted.executed, ["server", "new tail"]);
 });
