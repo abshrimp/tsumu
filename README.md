@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>Design freely. Build openly.</strong><br>
-  An open-source, no-code website editor.
+  An open-source no-code website editor.
 </p>
 
 <p align="center">
@@ -23,22 +23,20 @@
   <img src="docs/screenshots/en/editor.png" alt="Tsumu's visual website editor">
 </p>
 
-Tsumu lets you design websites on a canvas and export or publish them as standard projects. The generated sites run **without Tsumu**, so you can host them anywhere and continue editing the code yourself.
+Tsumu lets you create websites with intuitive actions such as dragging and dropping, without writing code. You can export or publish them as standard projects, so you can host them anywhere and edit the code **without depending on Tsumu**.
 
 ## Features
 
-- **Visual editing:** Flexbox and grid layouts, responsive styles, hover and custom states, animations, and reusable components.
-- **No-code scripts:** Combine “when → do” blocks for clicks, input, visibility changes, conditions, and list operations.
-- **External data:** Fetch JSON from APIs, display lists, and generate detail pages such as `/news/[slug]`.
-- **Import:** Restore Tsumu ZIP files or `doc.json`, or convert existing HTML and website ZIPs into editable elements.
-- **Flexible output:** Export Next.js, React, Vue, Nuxt, SvelteKit, HTML, or single-file HTML, with TypeScript or JavaScript and a choice of CSS, CSS Modules, or Tailwind CSS.
-- **GitHub publishing:** Push generated code to a repository for each site, keep production and preview branches separate, and preserve files added by hand.
-- **Pre-publish checks and rollback:** Detect broken links, missing image alt text, heading-order issues, and mobile layout problems. Restore earlier published versions.
-- **Real-time collaboration:** Merge changes property by property, leave comments on the canvas, and view edit and publish activity.
-- **Optional AI editing:** Describe page changes in plain language. Supports Claude, Gemini, OpenAI, and compatible APIs.
-- **Multiple sites:** Keep each site's editing data and publishing repository separate, and copy pages or elements between sites.
-- **Self-hosting:** Run on Cloudflare Workers, Node.js, or Docker, configuring external services only as needed.
-- **Help and languages:** Built-in tutorials, illustrated Q&A, guided tours, and English/Japanese UI.
+- **Visual editing:** Edit styles, hover states, other state changes, and animations without prior web development knowledge.
+- **No-code scripts:** Build JavaScript by intuitively assembling blocks.
+- **External data:** Fetch and use JSON from APIs.
+- **Import:** Import Tsumu projects, existing HTML, and websites as editable elements.
+- **Flexible output:** Export to Next.js, React, Vue, Nuxt, SvelteKit, or HTML, with a choice of TypeScript, JavaScript, and CSS formats.
+- **GitHub publishing:** Publish to GitHub with one click, including support for production and preview branches.
+- **Real-time collaboration:** Edit together with others and leave comments.
+- **Optional AI editing:** Describe the changes you want in plain language to edit pages.
+- **Self-hosting:** Run on Cloudflare Workers, Node.js, or Docker.
+- **Help and languages:** Built-in tutorials, illustrated Q&A, and on-screen guides.
 
 ## Screenshots
 
