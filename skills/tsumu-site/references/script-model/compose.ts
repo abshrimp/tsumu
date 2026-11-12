@@ -3,7 +3,6 @@
  */
 export type NumericOperation = "add" | "subtract" | "multiply" | "divide" | "remainder";
 export type SortDirection = "asc" | "desc";
-export type ValueOperandType = "text" | "number" | "boolean" | "null" | "variable";
 
 export type ValueTransform =
   | { readonly kind: "field"; readonly key: string }
@@ -12,7 +11,6 @@ export type ValueTransform =
   | { readonly kind: "math"; readonly operation: NumericOperation; readonly operand: number | string; readonly operandType: "number" | "variable" }
   | { readonly kind: "split" | "join"; readonly separator: string }
   | { readonly kind: "replace"; readonly find: string; readonly replacement: string; readonly regex: boolean }
-  | { readonly kind: "sort"; readonly field: string; readonly direction: SortDirection }
-  | { readonly kind: "append"; readonly operand: string; readonly operandType: ValueOperandType };
+  | { readonly kind: "sort"; readonly field: string; readonly direction: SortDirection };
 
 export type ValueTransformKind = ValueTransform["kind"];
