@@ -15,7 +15,7 @@ test("filter field type hints retain singleton arrays and distinguish records", 
   assert.equal(filterFieldKind("物販"), "scalar");
   assert.equal(filterFieldKind(undefined), "unknown");
   assert.deepEqual(filterFieldOperators(categories), ["has-key", "empty", "eq"]);
-  assert.deepEqual(filterFieldOperators(categories["出展カテゴリ"]), ["contains", "empty", "eq"]);
+  assert.deepEqual(filterFieldOperators(categories["出展カテゴリ"]), ["contains", "contains-any", "empty", "eq"]);
   assert.equal(filterFieldOperators(undefined), undefined);
 });
 
@@ -41,4 +41,14 @@ test("record-key and singleton-list membership comparisons use existing shared r
   assert.equal(matchesValueCondition(categories, "empty", ""), false);
   assert.equal(matchesValueCondition({}, "empty", ""), true);
   assert.equal(matchesValueCondition(categories, "eq", JSON.parse(JSON.stringify(categories))), true);
+});
+
+
+test("contains-any matches overlapping list values and rejects disjoint values", () => {
+  assert.equal(matchesValueCondition(["物販", "展示"], "contains-any", ["飲食", "展示"]), true);
+  assert.equal(matchesValueCondition(["物販", "展示"], "contains-any", ["飲食"]), false);
+  assert.equal(matchesValueCondition(["物販", "展示"], "contains-any", "飲食, 物販"), true);
+  assert.equal(matchesValueCondition([], "contains-any", ["物販"]), false);
+  assert.equal(matchesValueCondition(["物販"], "contains-any", []), false);
+  assert.equal(matchesValueCondition([{ id: 1 }], "contains-any", [{ id: "1" }]), true);
 });
