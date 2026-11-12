@@ -1,4 +1,4 @@
-/** エディタのテスト実行だけに使う値の確認。公開サイトの補間方法は変えない。 */
+/** エディタのテスト実行だけで使う値の確認。公開サイトでの値の差し込み方は変えない。 */
 import { sendsBody, type FetchOptions } from "./fetch-request";
 import { extractVars, lookupVar, type Vars } from "./vars";
 
@@ -12,7 +12,7 @@ export function fetchPreviewInputs(url: string, options: FetchOptions, vars: Var
     const value = lookupVar(vars, name);
     return {
       name, value,
-      // null やまとまりを URL の空文字にせず、そのテストで使う値を求める。
+      // null やオブジェクトを URL の空文字にせず、そのテストで使う値を求める。
       missing: value === undefined || (text.has(name) && (value === null || typeof value === "object")),
     };
   });

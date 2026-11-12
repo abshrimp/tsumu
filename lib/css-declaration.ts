@@ -1,8 +1,8 @@
 /**
- * Validate one authored style-map CSS declaration before it enters a generated
- * stylesheet or an inline <style> element. Keep quoted strings, functions,
- * data: URLs and CSS custom properties; reject tokens that can escape a rule.
- * This utility is shared-ready for the Canvas and export generators.
+ * 書かれたスタイルの CSS の宣言を1つ検証してから、生成するスタイルシートや
+ * インラインの <style> 要素に入れる。引用符で囲んだ文字列・関数・data: の URL・
+ * CSS のカスタムプロパティは残し、ルールの外へ抜け出せる字句は拒否する。
+ * キャンバスと書き出しの両方の生成処理で共有できるようにしてある。
  */
 export function safeCssPropertyName(input: unknown): string | null {
   if (typeof input !== "string" ||
@@ -16,7 +16,7 @@ export function safeCssDeclarationValue(input: unknown): input is string {
   let quote = "", comment = false, depth = 0;
   for (let i = 0; i < input.length; i++) {
     const char = input[i], next = input[i + 1];
-    // An HTML style-element end tag is parsed by HTML even inside CSS quotes.
+    // HTML の style 要素の終了タグは、CSS の引用符の中にあっても HTML として解釈される。
     if (char === "<" && /^<\/style\b/i.test(input.slice(i, i + 12))) return false;
     if (comment) {
       if (char === "*" && next === "/") { comment = false; i++; }
@@ -37,15 +37,15 @@ export function safeCssDeclarationValue(input: unknown): input is string {
   return !quote && !comment && depth === 0;
 }
 
-/** A CSS declaration used after property/asset processing. */
+/** プロパティとアセットの処理を終えた後に使う、CSS の宣言。 */
 export function safeCssDeclaration(name: unknown, value: unknown): string | null {
   const prop = safeCssPropertyName(name);
   if (!prop || !safeCssDeclarationValue(value)) return null;
   return prop + ": " + value + ";";
 }
 
-/** Allow valid keyframe selectors and nested declaration content only.
- * A closing brace at keyframe top level would escape the enclosing @keyframes.
+/** 有効なキーフレームのセレクターと、入れ子の宣言の中身だけを許す。
+ * キーフレームの最上位に閉じ波括弧があると、囲んでいる @keyframes の外へ抜け出してしまう。
  */
 export function safeCssKeyframesBody(input: unknown): input is string {
   if (typeof input !== "string" || input.length > 1_000_000) return false;

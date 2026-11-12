@@ -52,9 +52,9 @@ function optionsOf(options: ExportFormat | ExportOptions): ExportOptions {
 }
 
 /**
- * Partial exports must not contain other pages' editable nodes or unrelated
- * assets. Reusing the complete SiteDoc in an exported ZIP exposes unpublished
- * content and uploaded media even though the generated code has one page.
+ * 一部だけを書き出す場合は、他のページの編集可能なノードや無関係なアセットを含めてはいけない。
+ * 書き出す ZIP に SiteDoc 全体を入れると、生成したコードが1ページ分だけでも、
+ * 非公開の内容やアップロードしたメディアが外に出てしまう。
  */
 function prunePartialDoc(doc: SiteDoc): SiteDoc {
   const nodes: SiteDoc["nodes"] = Object.create(null);
@@ -91,10 +91,10 @@ function prunePartialDoc(doc: SiteDoc): SiteDoc {
   return { ...scoped, assets };
 }
 
-/** A selected node must actually be reachable from the selected page.
- * Checking only that its ID exists can export content from an unrelated or
- * unpublished page when the selection is stale (or supplied programmatically).
- * Component instances are traversed because their masters are valid selections.
+/** 選択したノードは、選択したページから実際にたどれなければならない。
+ * ID が存在するかだけを確かめると、選択が古い場合（またはプログラムから渡された場合）に、
+ * 無関係なページや非公開のページの内容を書き出してしまう。
+ * マスターも正しい選択の対象になるため、コンポーネントのインスタンスもたどる。
  */
 function pageContainsNode(doc: SiteDoc, page: SiteDoc["pages"][string], target: string): boolean {
   const pending = [...(page.children ?? [])];
@@ -115,16 +115,15 @@ function pageContainsNode(doc: SiteDoc, page: SiteDoc["pages"][string], target: 
   return false;
 }
 
-/** Export a page or selection without editing the source site. */
+/** 元のサイトを変えずに、ページや選択した範囲を書き出す。 */
 export function exportScopeDoc(doc: SiteDoc, options: ExportOptions): SiteDoc {
   if (options.scope === "project") return doc;
   const page = options.pageId && Object.prototype.hasOwnProperty.call(doc.pages, options.pageId)
     ? doc.pages[options.pageId] : undefined;
   if (!page) throw new Error(tr("Select a page to export."));
   if (options.scope === "page") {
-    // An explicitly selected page can be exported even when it is excluded
-    // from whole-project publication. Otherwise the ZIP contains no page
-    // markup despite having a valid selected page.
+    // 明示的に選んだページは、プロジェクト全体の公開から除外されていても書き出せる。
+    // そうしないと、選んだページが正しくても、ZIP にページのマークアップが入らない。
     return prunePartialDoc({ ...doc, pages: { [page.id]: { ...page, unpublished: false } },
       pageOrder: [page.id] });
   }
@@ -160,7 +159,7 @@ function publishedPages(doc: SiteDoc) {
   return doc.pageOrder.map((id) => doc.pages[id]).filter((page) => page && !page.unpublished);
 }
 
-/** Return concise unsupported feature names; the UI shows one shared explanation. */
+/** 対応していない機能の名前を短く返す。画面では、共通の説明を1つだけ表示する。 */
 export function exportLimitations(
   doc: SiteDoc,
   request: ExportFormat | ExportOptions,
@@ -172,10 +171,10 @@ export function exportLimitations(
   } catch (e) {
     return [(e as Error).message];
   }
-  // An SSR-only fetch does not make a hardcoded token private: generated
-  // source and the editable doc.json in ZIP archives both contain the value.
-  // Apply the same fail-closed policy to every export format, including direct
-  // generator calls and GitHub Push, without changing editor fetch behavior.
+  // サーバー側だけで取得しても、埋め込んだトークンは秘密にならない。生成したソースと、
+  // ZIP の中の編集可能な doc.json の両方に値が含まれるため。
+  // エディタでの取得の動作は変えずに、生成処理を直接呼ぶ場合や GitHub への公開も含め、
+  // すべての出力形式で同じく、安全側に倒して拒否する。
   const pages = publishedPages(doc);
   const metadataHeaders = pages.some((page) => pagePlan(doc, page.id).steps.some(
     (step) => step.kind === "fetch" && (step.headers ?? []).some((header) =>
@@ -185,9 +184,9 @@ export function exportLimitations(
     return [tr("The fetch settings contain credentials, a secret API key, or an unsupported internal-service header. Even server-side Next.js output can expose these values in generated source files or the editable ZIP. Remove sensitive values and use server environment variables or a secure API proxy.")];
   }
   if (options.framework === "nextjs") {
-    // Route handlers for imported HTML cannot share a Next.js path with
-    // page.tsx. Multiple imported HTML pages also overwrite one another's
-    // route.ts silently; query parameters do not distinguish build routes.
+    // 取り込んだ HTML のルートハンドラーは、page.tsx と同じ Next.js のパスを使えない。
+    // 取り込んだ HTML のページが複数あると、互いの route.ts を黙って上書きしてしまう。
+    // クエリの違いでは、ビルド時のルートを区別できない。
     const routeKinds = new Map<string, { imported: number; regular: number }>();
     for (const page of pages) {
       if (page.redirectTo !== undefined || page.rewriteTo !== undefined) continue;
@@ -214,8 +213,8 @@ export function exportLimitations(
     reasons.push(tr("Imported HTML pages cannot be safely converted to React components. Export to HTML to keep the original markup."));
   }
   if (["html", "single-html"].includes(options.framework)) {
-    // A query variant cannot share its output with an imported HTML document,
-    // because imported documents are opaque and may contain arbitrary scripts.
+    // 取り込んだ文書は中身を解釈できず、任意のスクリプトを含むことがあるため、
+    // クエリ違いのページと、取り込んだ HTML の文書で出力を共有できない。
     const grouped = new Map<string, typeof pages>();
     for (const page of pages) {
       const key = page.slug.replace(/^\/+|\/+$/g, "");
@@ -233,8 +232,8 @@ export function exportLimitations(
     reasons.push(tr("Custom scripts at the end of the body execute at a different time during navigation. Export to HTML or move the scripts into framework-specific code."));
   }
   if (["vue", "nuxt", "sveltekit"].includes(options.framework)) {
-    // Native components currently render page nodes only. Dropping authored
-    // custom <head>, footer, or per-page markup would silently alter the site.
+    // 今のところ、フレームワーク固有のコンポーネントはページのノードしか描画しない。書かれた
+    // カスタムの <head>、フッター、ページごとのマークアップを落とすと、サイトが黙って変わってしまう。
     if (!!doc.customHeadHtml?.trim() || !!doc.customBodyEndHtml?.trim() ||
       pages.some((page) => !!page.customTopHtml?.trim() || !!page.customEndHtml?.trim())) {
       reasons.push(tr("Custom HTML is omitted from this framework format. Export to Next.js or HTML."));
@@ -262,7 +261,7 @@ export function exportLimitations(
   return reasons;
 }
 
-/** Synchronous generator for tests and normal TS/CSS code output. */
+/** テストと、通常の TS / CSS のコードの出力に使う、同期的な生成処理。 */
 export function generateExportProject(
   doc: SiteDoc,
   request: ExportFormat | ExportOptions = "nextjs",
@@ -270,7 +269,7 @@ export function generateExportProject(
 ): GeneratedProject {
   const options = optionsOf(request);
   const scoped = exportScopeDoc(doc, options);
-  // Reject unsafe output *before* rendering secret-bearing values into source.
+  // 秘密を含む値をソースに描き出す *前に*、安全でない出力を拒否する。
   const limitations = exportLimitations(scoped, { ...options, scope: "project" });
   if (limitations.length) {
     throw new Error(tr("This export format does not yet support these features:") + "\n" + limitations.join("\n"));
@@ -289,7 +288,7 @@ export function generateExportProject(
   return styled;
 }
 
-/** Preserve only the ZIP dependencies reachable from the selected page or component. */
+/** 選んだページやコンポーネントからたどれる ZIP の依存ファイルだけを残す。 */
 export async function prepareExportScopeDoc(doc: SiteDoc, options: ExportOptions): Promise<SiteDoc> {
   const scoped = exportScopeDoc(doc, options);
   if (scoped !== doc && Object.keys(scoped.assets).length) {
@@ -300,8 +299,8 @@ export async function prepareExportScopeDoc(doc: SiteDoc, options: ExportOptions
 }
 
 /**
- * Common ZIP / GitHub Push pipeline: identical output files for both actions.
- * The preview branch retains non-indexing protections even without Next.js.
+ * ZIP での書き出しと GitHub への公開で共通の処理。どちらの操作でも、同じファイルを出力する。
+ * テスト公開のブランチでは、Next.js 以外でも、検索エンジンに載せないための保護を保つ。
  */
 export async function prepareExportProject(
   doc: SiteDoc,

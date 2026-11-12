@@ -4,7 +4,7 @@ import { SITE_EDIT_METADATA_INTERVAL_MS } from "./sites";
 
 /**
  * サイトの編集・公開の記録（D1 の site_activity テーブル）。
- * 人ごと・種類ごとに最後の時刻だけを持つ（右下の「保存」「公開」にホバーしたときに出す）
+ * 人ごと・種類ごとに最後の時刻だけを持つ（右下の「保存」「公開」にホバーしたときに表示する）
  */
 
 export type ActivityKind = "edit" | "publish" | "publish-test";
@@ -35,11 +35,11 @@ export const RECENT_MS = 10 * 60 * 1000;
 const clip = (v: unknown, max: number): string | null =>
   typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null;
 
-/** ヘッダー・メッセージで受け取った値を、記録できる形にそろえる（壊れていれば null） */
+/** ヘッダーやメッセージで受け取った値を、記録できる形にそろえる（壊れていれば null） */
 export function parseActivityUser(raw: unknown): ActivityUser | null {
   if (!raw || typeof raw !== "object") return null;
   const u = raw as Record<string, unknown>;
-  // The full email is also the comment owner and collaboration identity.
+  // メールアドレス全体は、コメントの持ち主と同時編集での本人の識別にも使う。
   const email = typeof u.email === "string" ? u.email.toLowerCase() : null;
   if (!isValidEmail(email)) return null;
   const image = clip(u.image, 500);
@@ -59,11 +59,11 @@ export async function recordActivity(
   at = Date.now(),
   expectedRoomKey?: string | null
 ): Promise<void> {
-  // 保存した世代と同じ行だけに、存在確認と記録を一つのSQLで行う。
+  // 保存した世代と同じ行に対してだけ、存在の確認と記録を1つの SQL で行う。
   const fenced = db.backend === "d1" && expectedRoomKey !== undefined;
-  // The D1 edit hover history is approximate, not the authoritative savedAt.
-  // A conditional upsert throttles writes atomically across Worker instances.
-  // Keep publishing activity immediate and Node/Docker history unchanged.
+  // D1 での編集のホバー用の履歴はおおよその値で、正となる savedAt ではない。
+  // 条件付きの upsert で、Worker のインスタンスをまたいでも書き込みの頻度を原子的に抑える。
+  // 公開の記録はすぐに書き込み、Node.js・Docker の履歴の扱いは変えない。
   const minInterval = kind === "edit" && db.backend === "d1"
     ? SITE_EDIT_METADATA_INTERVAL_MS : 0;
   const u = user ?? { email: "", name: null, image: null };
@@ -77,7 +77,7 @@ export async function recordActivity(
       args: [siteId, kind, u.email, u.name, u.image, at, siteId, ...(fenced ? [siteId, expectedRoomKey ?? null] : []), minInterval],
     });
   } catch {
-    // 記録は表示のためだけなので、失敗しても無視する
+    // 記録は表示のためだけのものなので、失敗しても無視する
   }
 }
 

@@ -1,5 +1,5 @@
 /**
- * ページ1枚分のファイル（page.tsx と、URLの値で切り替えるページ）の書き出し
+ * ページ1枚分のファイル（page.tsx と、URL の値で切り替えるページ）の書き出し
  */
 
 import type { DocNode, Page, ScriptStep, SiteDoc } from "../types";
@@ -39,7 +39,7 @@ import { parseValueLiteral } from "../value-semantics";
 
 export { normalizeQuery } from "../vars";
 
-/** Shared by the page imports and the project file emitter. */
+/** ページの import と、プロジェクトのファイルの出力で共有する。 */
 export function writesNestedPageValue(step: ScriptStep): boolean {
   return (step.kind === "fetch" ? step.as : "into" in step ? step.into : "")?.includes(".") ?? false;
 }
@@ -69,9 +69,9 @@ export function indexQueryVariants(pages: readonly Page[]) {
 }
 
 /**
- * 同じURLをクエリで分けたページの振り分け（page.tsx）。
+ * 同じ URL をクエリで分けたページの振り分け（page.tsx）。
  * クエリが一致するページのうち、条件の多いものを表示する。
- * どれにも一致しなければクエリなしのページ、なければ先頭のページ。
+ * どれにも一致しなければクエリの無いページを、それも無ければ先頭のページを表示する。
  */
 export function queryDispatcherFile(queries: (string | undefined)[]): string {
   const imports = queries
@@ -142,7 +142,7 @@ export function generatePageFile(
   const page = doc.pages[pageId];
   const slug = page.slug.replace(/^\/+|\/+$/g, "");
   const isSlugPg = slug.includes("[slug]");
-  // not-found.tsx は params / searchParams / metadata を持てない
+  // not-found.tsx は params・searchParams・metadata を持てない
   const nf = !!opts.notFound;
   ctx.usesImage = false;
   ctx.usesLink = false;
@@ -163,19 +163,19 @@ export function generatePageFile(
   const loads = nf ? [] : plan.steps.filter((st) => st.kind !== "fetch" || st.url.trim());
   const fetchedRoots = new Set(loads.flatMap(step => step.kind === "fetch" && step.as ? [step.as.split(".")[0]] : []));
   const seedPaths = new Set([...plan.clientListTargets].filter(path => fetchedRoots.has(path.split(".")[0])));
-  // Existing browser-owned variable roots include array aliases such as -1.
-  // Narrow only fetched roots, whose untouched siblings remain on the server.
+  // ブラウザが持つ既存の変数のルートには、-1 のような配列の別名も含まれる。
+  // 絞り込むのは取得したルートだけで、手を付けていない隣の値はサーバーに残す。
   for (const root of plan.clientVars) if (!fetchedRoots.has(root)) writes.add(root);
   const isLivePath = matchVariableWrites(writes, plan.clientAssignmentPaths);
   ctx.isLive = (name, usage) => {
     if (!isLivePath(name, usage)) return false;
-    // When a script explicitly reads a parent of a mutable fetched list, it
-    // needs the parent record/array with its original structure and fields.
+    // 書き換えられる取得したリストの親をスクリプトが明示的に読む場合は、
+    // 元の構造と項目を持った親のオブジェクトや配列が必要になる。
     if (fetchedRoots.has(name.split(".")[0])) seedPaths.add(name);
     return true;
   };
 
-  // リストを含む部品は、ページごとの配列・項目・ブラウザ変数のスコープで展開する。
+  // リストを含む部品は、ページごとの配列・項目・ブラウザの変数の範囲で展開する。
   ctx.inlineComponents = new Set(Object.values(doc.components ?? {})
     .filter((comp) => hasListsInside(doc, comp.rootId)).map((comp) => comp.id));
   // 部品の中も含むリストと、ページを開いたときに取得するデータ
@@ -209,8 +209,8 @@ export function generatePageFile(
   const rendered = page.children
     .map((id) => renderNode(ctx, id, "      ", true))
     .join("\n");
-  // ページ専用コード（先頭 / 末尾）。display:contents でレイアウトに影響させない。
-  // 計測タグなど動くスクリプトがあれば、ページ遷移で表示したときにも動かす（PageHtml）
+  // ページ専用のコード（先頭 / 末尾）。display: contents でレイアウトに影響させない。
+  // 計測タグなど動くスクリプトがあれば、ページの遷移で表示したときにも動かす（PageHtml）
   const htmlFrag = (html: string) => {
     if (!RUNNABLE_SCRIPT.test(html)) {
       return `      <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: ${codeLiteral(html)} }} />`;
@@ -218,14 +218,14 @@ export function generatePageFile(
     ctx.usesPageHtml = true;
     return `      <PageHtml html={${codeLiteral(html)}} staticHtml={${codeLiteral(deferRunnableScripts(html))}} />`;
   };
-  // Imported HTML snippets may refer to assets in Tsumu's temporary storage.
-  // Rewrite their paths to the bundled export so they work after deployment.
+  // 取り込んだ HTML の断片は、Tsumu の一時的な保存先のアセットを参照していることがある。
+  // デプロイした後も動くよう、そのパスを書き出したアセットに書き換える。
   const topHtml = page.customTopHtml?.trim()
     ? cssValue(doc, "rawHtml", page.customTopHtml.trim(), ctx.assetNames) : "";
   const endHtml = page.customEndHtml?.trim()
     ? cssValue(doc, "rawHtml", page.customEndHtml.trim(), ctx.assetNames) : "";
   const pageScripts = nf ? "" : scriptsAttr(ctx, { scripts: page.pageScripts }, plan.serverIds);
-  // A parent already contains all of its descendants; emit its value once.
+  // 親はすべての子孫を含んでいるため、その値は1回だけ出力する。
   const fetchedListTargets = [...seedPaths].filter(path => {
     for (let end = path.indexOf("."); end >= 0; end = path.indexOf(".", end + 1)) {
       if (seedPaths.has(path.slice(0, end))) return false;
@@ -332,9 +332,9 @@ ${body}
 `;
   }
 
-  /* ---- データを使うページ: 一定時間ごとに作り直す（ISR）か、毎リクエスト取得 ---- */
+  /* ---- データを使うページ: 一定時間ごとに作り直す（ISR）か、リクエストのたびに取得する ---- */
 
-  // URL のクエリをサーバー側で使うページ（検索フォームの送信先など）は作り置きできない
+  // URL のクエリをサーバー側で使うページ（検索フォームの送信先など）は、作り置きできない
   const revalidate = nf ? 0 : dataRevalidateOf(doc);
   const cacheable =
     revalidate > 0 && !pageHasSearchForm(doc, pageId) && !pageReadsQuery(doc, pageId, plan, idVarNodes);
@@ -346,8 +346,8 @@ ${body}
   const assignData = (name: string, expr: string) => name.includes(".")
     ? `writePageValue(vars, ${codeLiteral(name)}, ${expr});` : `vars[${codeLiteral(name)}] = ${expr};`;
   const helpers: string[] = [];
-  // A partially hydrated array needs its actual length for -1 and its canonical
-  // index for subsequent writes. Send the shape separately from the used fields.
+  // 一部だけを渡した配列にも、-1 のための実際の長さと、その後の書き込みのための
+  // 正規の番号が必要になる。使う項目とは別に、形を送る。
   if (aliasSeeds) helpers.push(`function listSeedEntries(vars: Vars, paths: string[]) {
   const arrays = new Map<string, number>();
   const values = new Map<string, unknown>();
@@ -430,11 +430,11 @@ ${loads
     switch (st.kind) {
       case "fetch": {
         if (!st.as) return "";
-        // メソッド・ヘッダー・本文（キャッシュのキーにするため、文字にして渡す）
+        // メソッド・ヘッダー・本文（キャッシュのキーにするため、文字列にして渡す）
         const init = fetchInitExpr(st);
         const url = `interpolateUrl(${codeLiteral(st.url.trim())}, vars)`;
-        // すべての取得先を接続時・転送時にも検査する。資格情報は変数で決まるホストへ送らない。
-        // 読めないURL（ホストに空白があるなど）は書き出しを止めず、資格情報を送らない側に倒す
+        // すべての取得先を、接続時と転送時にも検査する。資格情報は、変数で決まるホストへは送らない。
+        // 読めない URL（ホストに空白があるなど）でも書き出しは止めず、資格情報を送らない側に倒す
         let origin: string | undefined;
         try {
           origin = !dynamicOrigin(st.url) ? new URL(st.url.trim()).origin : undefined;
@@ -463,7 +463,7 @@ ${loads
         if (from) return "  " + assignData(st.into, `lookupVar(vars, ${codeLiteral(from)}) ?? null`);
         if (!extractVars(st.value).length) {
           const literal = interpolate(st.value, {});
-          // Keep JSON containers (including their own keys) and scalar types on the server.
+          // JSON のまとまり（それ自身のキーも含む）と単一の値の型は、サーバー側に残す。
           const expression = parseValueLiteral(literal) === literal
             ? codeLiteral(literal) : `JSON.parse(${codeLiteral(literal)})`;
           return "  " + assignData(st.into, expression);
@@ -536,7 +536,7 @@ function templateVars(vars: Vars): Vars {
     })
     .join("\n");
 
-  // ページの変数（URLのクエリ → [slug] → ID付きテキスト）。メタデータも同じ値でデータを取得する
+  // ページの変数（URL のクエリ → [slug] → ID 付きのテキスト）。メタデータも同じ値でデータを取得する
   const varsPrep = nf
     ? `  const vars: Vars = Object.create(null);
 ${textVarsPrep ? textVarsPrep + "\n" : ""}`
@@ -551,7 +551,7 @@ ${
 `
       }${isSlugPg ? `  // URLの [slug] は、同じ名前のクエリより優先する\n  const { slug } = await params;\n  vars.slug = slug;\n` : ""}${textVarsPrep ? textVarsPrep + "\n" : ""}`;
 
-  // メタデータ: [slug]ページは最初のデータからタイトルを引く
+  // メタデータ: [slug] のページは、最初のデータからタイトルを引く
   let metaBlock = nf
     ? ""
     : `export const metadata: Metadata = {
@@ -607,8 +607,8 @@ ${dynParts.join("\n")}
     }
   }
 
-  // ページを開いたときのデータを取得（[slug]ページは中心のデータが無ければ404）。
-  // ID付きテキストはデータを使うこともあるため、取得後に作り直す
+  // ページを開いたときのデータを取得する（[slug] のページは、中心のデータが無ければ 404）。
+  // ID 付きのテキストはデータを使うこともあるため、取得した後に作り直す
   const dataPrep = loads.length
     ? [
         "  await loadData(vars);",
@@ -654,7 +654,7 @@ ${body}
 
 /**
  * ページに検索フォームがあるか（コンポーネントの中も見る）。
- * 送信した値は URL のクエリで届くので、ページはアクセスごとに作る
+ * 送信した値は URL のクエリで届くため、ページはアクセスのたびに作る
  */
 function pageHasSearchForm(doc: SiteDoc, pageId: string): boolean {
   const seen = new Set<string>();
@@ -672,21 +672,21 @@ function pageHasSearchForm(doc: SiteDoc, pageId: string): boolean {
   return doc.pages[pageId]?.children.some(walk) ?? false;
 }
 
-/** JSONを取得するページを作り直す間隔（秒。0 = アクセスのたびに取得） */
+/** JSON を取得するページを作り直す間隔（秒。0 = アクセスのたびに取得） */
 function dataRevalidateOf(doc: SiteDoc): number {
   const n = doc.dataRevalidate ?? DEFAULT_DATA_REVALIDATE;
   return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
 }
 
 /**
- * ページを配信する前（サーバー側）に URL のクエリの値を使うか。
- * 使うページはアクセスごとに作る必要があり、作り置き（ISR）にできない
+ * ページを配信する前（サーバー側）に、URL のクエリの値を使うか。
+ * 使うページはアクセスのたびに作る必要があり、作り置き（ISR）にできない
  */
 function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pagePlan>, idVarNodes: DocNode[]): boolean {
   const page = doc.pages[pageId];
   if (Object.keys(pageQueryVars(page.query)).length) return true;
 
-  // ページ内で値が決まる名前（スクリプトで作る変数・ID付きテキスト・[slug]）
+  // ページ内で値が決まる名前（スクリプトで作る変数・ID 付きのテキスト・[slug]）
   const known = new Set<string>(["slug"]);
   const itemKeys = new Set<string>([ITEM_VALUE]);
   const addItemKeys = (v: unknown, inArray: boolean, depth: number) => {
@@ -742,7 +742,7 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
   };
   if (scriptsReadQuery({ scripts: page.pageScripts }, false, plan.serverIds)) return true;
 
-  // サーバー側で動くデータのブロック・リストの絞り込み
+  // サーバー側で動くデータのブロックと、リストの絞り込み
   for (const st of plan.steps) {
     if (
       st.kind === "fetch" &&
@@ -760,7 +760,7 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
       if (op.kind === "filter" && op.conds.some((c) => unknown(c.value, false))) return true;
     }
   }
-  // サーバー側で描く要素（スクリプトはブラウザで動くので対象外）
+  // サーバー側で描画する要素（スクリプトはブラウザで動くため、対象外）
   const seen = new Set<string>();
   const walk = (id: string, inList: boolean): boolean => {
     const n = doc.nodes[id];
@@ -795,8 +795,8 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
 }
 
 /**
- * ページURLから app/ の下のフォルダ名を作る。「_」で始まるフォルダは Next.js では
- * 非公開フォルダ（URLにならない）なので、URLの「_」を表す %5F で始める
+ * ページの URL から、app/ の下のフォルダ名を作る。「_」で始まるフォルダは Next.js では
+ * 非公開のフォルダ（URL にならない）になるため、URL の「_」を表す %5F で始める
  */
 export function routeDir(slug: string): string {
   return slug

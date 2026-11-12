@@ -1,6 +1,6 @@
 import type { ScriptOp } from "./types";
 
-/** A fetch preview is a hint for the editor, not a schema for runtime values. */
+/** 取得したデータのプレビューは、エディタのための手がかりであって、実行時の値の型を決めるものではない。 */
 export type FilterFieldKind = "record" | "array" | "scalar" | "unknown";
 
 export function filterFieldKind(sample: unknown): FilterFieldKind {
@@ -10,7 +10,7 @@ export function filterFieldKind(sample: unknown): FilterFieldKind {
   return "scalar";
 }
 
-/** Only relevant comparisons for structured values. Unknown and scalar values keep all operators. */
+/** 構造を持つ値には、意味のある比較だけを示す。不明な値と単一の値では、すべての比較を残す。 */
 export function filterFieldOperators(sample: unknown): readonly ScriptOp[] | undefined {
   switch (filterFieldKind(sample)) {
     case "record": return ["has-key", "empty", "eq"];
@@ -19,7 +19,7 @@ export function filterFieldOperators(sample: unknown): readonly ScriptOp[] | und
   }
 }
 
-/** Choosing a different JSON kind changes the default predicate without modifying its runtime meaning. */
+/** 別の JSON の種類を選ぶと既定の比較は変わるが、実行時の意味は変えない。 */
 export function filterFieldSelection(
   previous: { field: string; op: ScriptOp; value: string },
   field: string,

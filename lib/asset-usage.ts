@@ -5,8 +5,8 @@ import { importedAssetUrl, isZipJavascript } from "./generator/imported-assets";
 import type { SiteDoc } from "./types";
 
 /**
- * アセットごとの使用箇所数。画像・動画要素、背景などのスタイル、サイト・ページ設定に加え、
- * スクリプトや HTML などに URL・ID が書かれているものも「使用中」として数える
+ * アセットごとの使用箇所の数。画像・動画の要素、背景などのスタイル、サイトとページの設定に加え、
+ * スクリプトや HTML などに URL や ID が書かれているものも「使用中」として数える
  * （未使用の一括削除で消してしまわないよう、判定は控えめにする）。
  */
 export function assetUsage(doc: SiteDoc): Map<string, number> {
@@ -31,7 +31,7 @@ export function assetUsage(doc: SiteDoc): Map<string, number> {
     findCssAssets(page.bodyStyles).forEach(add);
   }
 
-  // それ以外（スクリプト・埋め込みHTMLなど）に URL や ID が書かれていれば使用中とみなす
+  // それ以外（スクリプト・埋め込みの HTML など）に URL や ID が書かれていれば、使用中とみなす
   const { assets: _assets, ...rest } = doc;
   void _assets;
   const text = JSON.stringify(rest);
@@ -42,11 +42,11 @@ export function assetUsage(doc: SiteDoc): Map<string, number> {
     if (text.includes(a.id) || (src && text.includes(src)) || (alias && (text.includes(alias) || text.includes(decodeURIComponent(alias))))) usage.set(a.id, 1);
   }
   for (const id of zipAssetClosure(doc.assets, usage.keys())) if (!usage.has(id)) usage.set(id, 1);
-  // A ZIP JavaScript module can refer to sibling files by relative paths:
-  // import("./chunk.js"), new URL("./image.png", import.meta.url), etc.
-  // These references are in binary JS assets and cannot be inspected here.
-  // Keep the original ZIP group together when one of its scripts is used,
-  // rather than reporting dependencies as "unused" and deleting them.
+  // ZIP の JavaScript のモジュールは、相対パスで隣のファイルを参照できる
+  // （import("./chunk.js")、new URL("./image.png", import.meta.url) など）。
+  // こうした参照はバイナリとして保存した JS のアセットの中にあり、ここでは調べられない。
+  // そのため、ZIP の中のスクリプトが1つでも使われていれば、元の ZIP の一式をまとめて残し、
+  // 依存するファイルを「未使用」として削除しないようにする。
   const activeGroups = new Set(Object.values(doc.assets)
     .filter((asset) => isZipJavascript(asset) && usage.has(asset.id))
     .map((asset) => asset.zip!.group));

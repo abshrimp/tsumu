@@ -1,5 +1,5 @@
 /**
- * カスタムコード（<head> に入れるHTML）を JSX に変換する
+ * カスタムコード（<head> に入れる HTML）を JSX に変換する
  */
 
 import { parseFragment, type DefaultTreeAdapterTypes as Html } from "parse5";
@@ -30,49 +30,48 @@ const HEAD_PLAIN_ATTRS = new Set([
   "property", "rel", "resource", "sizes", "src", "target", "title", "translate", "type", "typeof", "vocab",
 ]);
 
-// HTML の真偽属性は値が空でも "false" でも、存在すれば有効になる。
+// HTML の真偽属性は、値が空でも "false" でも、存在すれば有効になる。
 // React には文字列ではなく boolean を渡す（data-* / aria-* は含めない）。
 const HEAD_BOOLEAN_ATTRS = new Set(["async", "defer", "disabled", "nomodule", "itemscope"]);
 
 /**
  * サイト設定の「head に追加する HTML」を、<head> の子に置く JSX にする。
- * script / style / noscript / title は中身を dangerouslySetInnerHTML で、meta / link / base は属性だけ出す
- * （コメントや、ほかの要素・文字は head に置けないので落とす）
+ * script / style / noscript / title は中身を dangerouslySetInnerHTML で、meta / link / base は属性だけを出力する
+ * （コメントや、他の要素・文字は head に置けないため落とす）
  */
 export function headHtmlToJsx(html: string, indent: string): string {
   const attrsJsx = (attrs: Html.Element["attrs"]) => {
     const out: string[] = [];
-    // Parse attribute values with HTML semantics (full named references,
-    // invalid numeric references and duplicate attributes), then emit them
-    // as literal JSX strings so the compiler cannot decode them a second time.
+    // 属性の値は HTML の規則（すべての名前付き参照、不正な数値参照、重複した属性）で解析し、
+    // コンパイラが二度デコードしないよう、文字どおりの JSX の文字列として出力する。
     for (const { name, value } of attrs) {
       // HTML の children 属性は内容ではない。React に渡すと本文になり、
-      // void 要素や dangerouslySetInnerHTML と併用すると描画が失敗する。
+      // void 要素や dangerouslySetInnerHTML と一緒に使うと描画に失敗する。
       if (name === "children") continue;
-      // style は React では文字列にできない（head の中は表示されないので落とす）。
-      // 属性名は JSX にそのまま書くので、名前の形でないもの（{ や ( を含むなど）も落とす
+      // style は React では文字列にできない（head の中は表示されないため落とす）。
+      // 属性名は JSX にそのまま書くため、名前の形でないもの（{ や ( を含むなど）も落とす
       if (name.startsWith("on") || name === "style" || !/^[a-z][a-z0-9._:-]*$/.test(name)) continue;
       const mapped = Object.hasOwn(HEAD_ATTR_NAMES, name);
       const prop = mapped ? HEAD_ATTR_NAMES[name] : name;
       if (HEAD_BOOLEAN_ATTRS.has(name)) {
-        // disabled は link の HTML 属性だが、React の link 型には含まれていない。
+        // disabled は link の HTML 属性だが、React の link の型には含まれていない。
         out.push(name === "disabled" ? ` {...{ disabled: true }}` : ` ${prop}`);
       } else if (name === "hidden" && value === "") {
-        // hidden は until-found などの文字列値もあるため、値付きの属性は変えない。
+        // hidden には until-found などの文字列の値もあるため、値の付いた属性は変えない。
         out.push(" hidden");
       } else if (mapped || HEAD_PLAIN_ATTRS.has(name) || name.includes("-")) {
         out.push(` ${prop}=${jsxString(value)}`);
       } else {
-        // React の型に無い属性（language・scheme など）は、そのまま書くと型チェックで公開のビルドが止まる。
-        // 展開で渡せば型の検査を受けず、HTML の属性としてそのまま出る
+        // React の型に無い属性（language・scheme など）をそのまま書くと、型チェックで公開のビルドが止まる。
+        // スプレッドで渡せば型の検査を受けず、HTML の属性としてそのまま出力される
         out.push(` {...{ ${codeLiteral(name)}: ${codeLiteral(value)} }}`);
       }
     }
     return out.join("");
   };
   const out: string[] = [];
-  // Use the HTML tokenizer for raw-text/RCDATA boundaries too: a script in
-  // double-escaped state does not end at its first </script> sequence.
+  // raw text や RCDATA の境界にも HTML のトークナイザーを使う。二重にエスケープした状態の
+  // script は、最初の </script> の並びでは終わらない。
   const fragment = parseFragment(html, { sourceCodeLocationInfo: true });
   for (const node of fragment.childNodes) {
     if (!("tagName" in node)) continue;
@@ -80,10 +79,10 @@ export function headHtmlToJsx(html: string, indent: string): string {
     if (["script", "style", "noscript", "title"].includes(tag)) {
       const location = node.sourceCodeLocation;
       if (!location?.startTag) continue;
-      // Keep raw source, not decoded text: title entities must not be decoded
-      // twice, and scripts/styles/noscript content must remain unchanged.
-      // At EOF parse5 can leave the element end at its start tag while its
-      // text child still records the complete source span.
+      // デコードした文字ではなく、元のソースを残す。title の文字参照を二度デコードしてはいけない。
+      // script・style・noscript の中身も変えてはいけない。
+      // ファイルの終わりでは、parse5 が要素の終わりを開始タグの位置に残すことがあるが、
+      // その子のテキストには、ソース全体の範囲が記録されている。
       const bodyEnd = location.endTag?.startOffset ?? node.childNodes.reduce(
         (end, child) => Math.max(end, child.sourceCodeLocation?.endOffset ?? 0), location.endOffset,
       );

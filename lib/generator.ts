@@ -38,19 +38,19 @@ import {
 export interface GeneratedProject {
   /** パス → テキスト内容 */
   files: Record<string, string>;
-  /** パス → base64（dataURL形式のアセット） */
+  /** パス → base64（data URL 形式のアセット） */
   binaries: Record<string, string>;
   /** パス → Workers KV 上のアセットのキー（公開時にサーバーが読み込んでコミットする） */
   remoteAssets: Record<string, string>;
 }
 
-/** 公開先。テストサイトは検索エンジンに載らないよう多重に防御して生成する */
+/** 公開先。テストサイトは、検索エンジンに載らないよう、何重にも防いで生成する */
 export type PublishTarget = "test" | "production";
 
-/** テストサイトの全レスポンスに付けるヘッダー値 */
+/** テストサイトのすべての応答に付けるヘッダーの値 */
 const TEST_ROBOTS_HEADER = "noindex, nofollow, noarchive, nosnippet, noimageindex";
 
-/** テストサイトで403を返すクローラーのUser-Agent（部分一致・大文字小文字無視） */
+/** テストサイトで 403 を返すクローラーの User-Agent（部分一致・大文字小文字を区別しない） */
 const TEST_BLOCKED_BOTS = [
   "bot",
   "crawler",
@@ -78,11 +78,11 @@ export function generateProject(
 ): GeneratedProject {
   // 配信するコードに変数名を出さない（編集中のデータはそのまま）
   doc = obfuscateVarNames(doc);
-  // 複製した doc なので書き換えてよい
+  // 複製した doc なので、書き換えてよい
   unnestLinks(doc);
-  // メディアクエリの幅はサイトのブレークポイント設定から作る
+  // メディアクエリの幅は、サイトのブレークポイントの設定から作る
   applyBreakpoints(doc);
-  // シャドウ付きSVGの画像（crisp-svg）に、前後の位置指定の要素が隠されないようにする
+  // 影付きの SVG の画像（crisp-svg）で、前後の位置を指定した要素が隠れないようにする
   raiseOverCrispSvg(doc);
   const isTest = target === "test";
   const siteLang = siteLangOf(doc);
@@ -98,7 +98,7 @@ export function generateProject(
     usesSearchForm: false,
     usesInterpolate: false,
     usedComponents: new Set(),
-    // 要素のスクリプトと「このページ」のスクリプト（開いたときに表示するなど）で表示する対象
+    // 要素のスクリプトと「このページ」のスクリプト（開いたときに表示するなど）で表示を切り替える対象
     toggleTargets: new Set([
       ...Object.values(doc.nodes).flatMap((n) => scriptTargetIds(n, ["show", "toggle"])),
       ...Object.values(doc.pages).flatMap((p) =>
@@ -126,8 +126,8 @@ export function generateProject(
       destination: page.redirectTo!.trim(),
       statusCode: 301,
     }));
-  // リバースプロキシ: ページURLのまま外部サイトの内容を中継する。
-  // 外部サイトの相対パス（CSS・画像・下層ページ）も届くよう、配下のパスも同じ先へ中継する
+  // リバースプロキシ: ページの URL のまま、外部サイトの内容を中継する。
+  // 外部サイトの相対パス（CSS・画像・下の階層のページ）も届くよう、その配下のパスも同じ先へ中継する
   const fallbackRewrites: { source: string; destination: string }[] = [];
   const rewrites = routedPages
     .filter((page) => page.rewriteTo?.trim())
@@ -140,8 +140,8 @@ export function generateProject(
           source: source === "/" ? "/:proxyPath+" : `${source}/:proxyPath*`,
           destination: `${destination.replace(/\/+$/, "")}/:proxyPath*`,
         };
-        // トップの配下は、ローカルのページ・動的ルート・ファイルが無い場合だけ中継する。
-        // / 自体と既存の非トップのルールは、これまでどおり beforeFiles に残す。
+        // トップの配下は、ローカルのページ・動的なルート・ファイルが無い場合だけ中継する。
+        // / 自体と、トップ以外の既存のルールは、beforeFiles に置く。
         if (source === "/") fallbackRewrites.push(descendants);
         else rules.push(descendants);
       }
@@ -150,7 +150,7 @@ export function generateProject(
 
   const queryVariants = indexQueryVariants(routedPages);
 
-  // ページ（非公開は除外）
+  // ページ（非公開のものは除く）
   let anySearchForm = false;
   let anySmartLink = false;
   for (const pageId of doc.pageOrder) {
@@ -160,7 +160,7 @@ export function generateProject(
     const slug = page.slug.replace(/^\/+|\/+$/g, "");
     const dir = routeDir(slug);
     if (page.rawHtml?.trim()) {
-      // HTMLページ: Route Handler でそのまま配信（script / css込みで動く）
+      // HTMLページ: ルートハンドラーでそのまま配信する（script や css も含めて動く）
       const path = dir ? `app/${dir}/route.ts` : "app/route.ts";
       const source = htmlZipSource(page.rawHtml, page.htmlZip, doc.assets,
         asset => htmlZipExportSource(asset, assetNames));
@@ -179,7 +179,7 @@ export function GET() {
 `;
       continue;
     }
-    // URLが「404」のページは、存在しないURLで表示される not-found.tsx になる
+    // URL が「404」のページは、存在しない URL で表示する not-found.tsx になる
     const routePath =
       slug === "404"
         ? "app/not-found.tsx"
@@ -203,7 +203,7 @@ export function GET() {
     }
   }
 
-  // サイト全体で画面上から値が変わる変数（コンポーネントやローディング画面内のスクリプトで残す）
+  // サイト全体で、画面上から値が変わる変数（コンポーネントやローディング画面の中のスクリプトで残す）
   const siteLiveNames = new Set<string>();
   for (const p of Object.values(doc.pages)) {
     for (const v of pagePlan(doc, p.id).clientVars) siteLiveNames.add(v);
@@ -214,7 +214,7 @@ export function GET() {
 
   const sharedPathIsLive = matchVariableWrites(siteLiveNames);
 
-  // コンポーネント（1コンポーネント = 1ファイル）
+  // コンポーネント（1つのコンポーネントにつき1ファイル）
   for (const comp of Object.values(doc.components ?? {})) {
     const name = componentNames.get(comp.id)!;
     ctx.usesImage = false;
@@ -314,7 +314,7 @@ ${body || "    null"}
     ].filter(Boolean);
     layoutMeta.push(`  icons: { ${icons.join(", ")} },`);
   }
-  // ページ側でopenGraphを出さない場合（[slug]ページ等）のフォールバック
+  // ページ側で openGraph を出さない場合（[slug] のページなど）の代わりの画像
   const defaultOgSrc = imageRefSrc(assetNames, doc.ogImage);
   if (defaultOgSrc) {
     layoutMeta.push(
@@ -328,7 +328,7 @@ ${body || "    null"}
     );
   }
 
-  // PWA: マニフェスト（app/manifest.ts → /manifest.webmanifest）とService Worker
+  // PWA: マニフェスト（app/manifest.ts → /manifest.webmanifest）と Service Worker
   const pwa = doc.pwa?.enabled ? doc.pwa : null;
   const pwaThemeColor = pwa?.themeColor?.trim();
   if (pwa) {
@@ -379,13 +379,13 @@ export default function manifest(): MetadataRoute.Manifest {
     );
   }
 
-  // 「画面に入ったとき」トリガー用のスクリプト
+  // 「画面に入ったとき」のきっかけ用のスクリプト
   const needsInView = Object.values(doc.nodes).some((n) =>
     n.motions?.some((m) => m.trigger === "in-view")
   );
   if (needsInView) files["public/inview.js"] = compactJs(INVIEW_SCRIPT) + "\n";
 
-  // 「スクリプト」の実行ランタイム（使う機能だけ）
+  // 「スクリプト」の実行ランタイム（使う機能だけを含める）
   const needsScripts =
     Object.values(doc.nodes).some(hasRunnableScripts) ||
     usesLiveFields(doc) ||
@@ -393,8 +393,8 @@ export default function manifest(): MetadataRoute.Manifest {
       (p) => !p.unpublished && hasRunnableScripts({ scripts: p.pageScripts })
     );
   if (needsScripts) files["public/scripts.js"] = scriptsFile(doc);
-  // Generated SSR pages share the same pure recipe evaluator as editor and client scripts.
-  // Output plain JavaScript so the emitted function can be compiled without implicit-any errors.
+  // 生成した SSR のページは、エディタとクライアントのスクリプトと同じ純粋な処理の評価器を使う。
+  // 出力する関数を暗黙の any のエラーなしにコンパイルできるよう、プレーンな JavaScript で出力する。
   const publishedSteps = Object.values(doc.pages).filter(page => !page.unpublished)
     .flatMap(page => pagePlan(doc, page.id).steps);
   const needsPurePageControls = publishedSteps.some(needsPageStepRunner);
@@ -725,9 +725,9 @@ a {
     }
   }
 
-  // Keep original relative ZIP paths alongside flattened names for script
-  // module imports and new URL("./asset", import.meta.url) dependencies.
-  // Aliases are only created for ZIP groups containing JavaScript.
+  // スクリプトのモジュールの import や、new URL("./asset", import.meta.url) による依存のために、
+  // 平らにした名前と一緒に、元の ZIP の相対パスも残す。
+  // 別名を作るのは、JavaScript を含む ZIP のグループだけ。
   const scriptGroups = new Set(Object.values(doc.assets)
     .filter(isZipJavascript).map((asset) => asset.zip!.group));
   for (const asset of Object.values(doc.assets)) {
@@ -749,7 +749,7 @@ a {
       .toLowerCase()
       .replace(/[^a-z0-9-]+/g, "-")
       .replace(/^-+|-+$/g, "") || "my-site";
-  // テストサイトは同じリポジトリの別ブランチなので、本番と同じ Worker のプレビュー版になる
+  // テストサイトは同じリポジトリの別のブランチなので、本番と同じ Worker のプレビュー版になる
   const workerName = siteSlug;
 
   files[".nvmrc"] = "26.12.1\n";
@@ -786,7 +786,7 @@ a {
         typescript: "^7.0.2",
         wrangler: "^4.152.0",
       },
-      // Next.js / OpenNext が固定している間接依存も修正版にする。
+      // Next.js や OpenNext が固定している間接的な依存も、修正版にする。
       overrides: {
         next: { postcss: rootPackage.overrides.next.postcss },
         glob: rootPackage.overrides.glob,
@@ -904,14 +904,14 @@ out/
 }
 
 /**
- * テストサイト用の検索エンジン対策。どれか1つが効かなくても他で防げるよう重ねる。
- * - robots.txt で全URLのクロールを禁止
- * - Proxy でクローラーのUser-Agentを403で拒否し、X-Robots-Tag を付与
- * - 静的ファイル（Workers Static Assets から直接配信される分）にも _headers で X-Robots-Tag
- * - レイアウトの robots メタ（generateProject 内）と next.config の headers
+ * テストサイト用の検索エンジン対策。どれか1つが効かなくても他で防げるよう、何重にも設ける。
+ * - robots.txt で、すべての URL のクロールを禁止する
+ * - Proxy で、クローラーの User-Agent を 403 で拒否し、X-Robots-Tag を付ける
+ * - 静的ファイル（Workers Static Assets から直接配信される分）にも、_headers で X-Robots-Tag を付ける
+ * - レイアウトの robots メタ（generateProject の中）と、next.config の headers
  */
 function addTestSiteGuards(files: Record<string, string>) {
-  // ユーザーが作った robots.txt / sitemap のページは公開しない
+  // 利用者が作った robots.txt / sitemap のページは公開しない
   for (const path of Object.keys(files)) {
     if (/^app\/(robots\.txt|sitemap[^/]*\.xml)\//.test(path)) delete files[path];
   }
@@ -944,7 +944,7 @@ export const config = {
 `;
 }
 
-/** data URL の取得と同じく、パーセントエスケープを UTF-8 文字列ではなくバイトとして読む。
+/** data URL の取得と同じく、パーセントエスケープを UTF-8 の文字列ではなくバイトとして読む。
  * Base64 を処理する前にデコードし、URL のフラグメントをファイルから除く。
  */
 function dataUrlBase64(source: string): string | undefined {

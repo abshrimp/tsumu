@@ -1,7 +1,7 @@
 /**
- * Durable Object が無いとき（Node.js・Docker・next dev）の、保存の通知の配り先。
+ * Durable Object が無いとき（Node.js・Docker・next dev）に、保存の通知を配る先。
  * 同じプロセスの中で、サイトごとに購読している接続（/api/collab/events）へ届ける。
- * エディタは1つのプロセスで動かす前提（Node.js・Docker の README を参照）
+ * エディタは1つのプロセスで動かすことが前提（README の Node.js・Docker の節を参照）
  */
 
 import type { DocChangeMessage } from "./collab";
@@ -17,7 +17,7 @@ function listeners(): Map<string, Set<Listener>> {
   return (store.__tsumuCollabListeners ??= new Map());
 }
 
-/** サイトの保存の通知を受け取る。戻り値で購読をやめる */
+/** サイトの保存の通知を受け取る。戻り値を呼ぶと購読をやめる */
 export function subscribeDocUpdates(siteId: string, listener: Listener): () => void {
   const all = listeners();
   let set = all.get(siteId);

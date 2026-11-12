@@ -1,10 +1,10 @@
 import type { FetchHeader, FetchMethod } from "./types";
 import { interpolate, interpolateJson, type Vars } from "./vars";
 
-/** データの取得ブロックで選べるHTTPメソッド */
+/** データの取得ブロックで選べる HTTP のメソッド */
 export const FETCH_METHODS: FetchMethod[] = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 
-/** 取得ブロックの、URL以外のリクエストの設定 */
+/** 取得ブロックの、URL 以外のリクエストの設定 */
 export interface FetchOptions {
   method?: FetchMethod;
   headers?: FetchHeader[];
@@ -30,7 +30,7 @@ export function needsJsonType(o: FetchOptions): boolean {
   );
 }
 
-/** {変数} を値にした、送るリクエストの設定 */
+/** {変数} を値に置き換えた、送るリクエストの設定 */
 export function fetchRequestOf(o: FetchOptions, vars: Vars): FetchRequest | undefined {
   const method = o.method && o.method !== "GET" ? o.method : undefined;
   const headers: Record<string, string> = {};
@@ -48,7 +48,7 @@ export function fetchRequestOf(o: FetchOptions, vars: Vars): FetchRequest | unde
   };
 }
 
-/** 本文が JSON として読めなければ true（{変数} は値が決まるまで分からないため null として確かめる） */
+/** 本文を JSON として読めなければ true を返す（{変数} は値が決まるまで分からないため、null とみなして確かめる） */
 export function bodyJsonError(body: string | undefined): boolean {
   if (!body?.trim()) return false;
   try {

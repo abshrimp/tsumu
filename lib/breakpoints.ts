@@ -8,10 +8,10 @@ import {
 } from "./style";
 import { tr } from "./i18n";
 
-/** 隣のブレークポイントとの最低限の差（px） */
+/** 隣のブレークポイントとの、最低限の幅の差（px） */
 export const BP_MIN_GAP = 20;
 
-/** ブレークポイントを使っている要素の数（スタイル・デバイス別の非表示） */
+/** ブレークポイントを使っている要素の数（スタイルと、デバイスごとの非表示） */
 export function breakpointUsage(doc: SiteDoc, id: Breakpoint): number {
   let n = 0;
   for (const node of Object.values(doc.nodes)) {
@@ -53,7 +53,7 @@ function save(d: SiteDoc, list: BreakpointDef[]) {
   d.breakpoints = same ? undefined : next;
 }
 
-/** 消したブレークポイントのスタイル・非表示設定を取り除く */
+/** 削除したブレークポイントのスタイルと非表示の設定を取り除く */
 function dropUsage(d: SiteDoc, ids: Set<string>) {
   if (!ids.size) return;
   for (const node of Object.values(d.nodes)) {
@@ -69,7 +69,7 @@ function dropUsage(d: SiteDoc, ids: Set<string>) {
   }
 }
 
-/** 名前・幅を変える（幅は隣のブレークポイントとの間に収める） */
+/** 名前と幅を変える（幅は、隣のブレークポイントとの間に収める） */
 export function updateBreakpoint(
   d: SiteDoc,
   id: Breakpoint,
@@ -97,8 +97,8 @@ export function updateBaseWidth(d: SiteDoc, width: number | null) {
 }
 
 /**
- * ブレークポイントを足す。いちばん広くあいている幅の間に置き、
- * その幅を受け持っていた大きい側の「非表示」設定を引き継ぐ（見た目が変わらないように）
+ * ブレークポイントを追加する。最も広く空いている幅の間に置き、
+ * その幅を受け持っていた大きい側の「非表示」の設定を引き継ぐ（見た目が変わらないように）
  */
 export function addBreakpoint(d: SiteDoc): Breakpoint | null {
   const list = normalizeBreakpoints(d.breakpoints);
@@ -120,7 +120,7 @@ export function addBreakpoint(d: SiteDoc): Breakpoint | null {
   let n = list.length + 1;
   const names = new Set(list.map((b) => b.label));
   while (names.has(tr("Width {n}", { n }))) n++;
-  // 今その幅を受け持っているブレークポイント（足す位置のすぐ上）
+  // 今その幅を受け持っているブレークポイント（追加する位置のすぐ上）
   const parent: Breakpoint = best === 0 ? "base" : list[best - 1].id;
   for (const node of Object.values(d.nodes)) {
     if (node.hiddenOn?.includes(parent)) node.hiddenOn = [...node.hiddenOn, id];
@@ -129,15 +129,15 @@ export function addBreakpoint(d: SiteDoc): Breakpoint | null {
   return id;
 }
 
-/** ブレークポイントを消す（そのブレークポイントのスタイルも消える） */
+/** ブレークポイントを削除する（そのブレークポイントのスタイルも消える） */
 export function removeBreakpoint(d: SiteDoc, id: Breakpoint) {
   const list = normalizeBreakpoints(d.breakpoints);
   save(d, list.filter((b) => b.id !== id));
-  // 既定の一覧に戻ったとき（save で undefined）でも、消したIDは使われない
+  // 既定の一覧に戻ったとき（保存すると undefined になる）でも、削除した ID は使われない
   dropUsage(d, new Set([id]));
 }
 
-/** 既定（タブレット / スマホ横向き / スマホ）に戻す。足したブレークポイントのスタイルは消える */
+/** 既定（タブレット / スマホ横向き / スマホ）に戻す。追加したブレークポイントのスタイルは消える */
 export function resetBreakpoints(d: SiteDoc) {
   const keep = new Set(DEFAULT_BREAKPOINTS.map((b) => b.id));
   const removed = normalizeBreakpoints(d.breakpoints)
@@ -148,7 +148,7 @@ export function resetBreakpoints(d: SiteDoc) {
   dropUsage(d, new Set(removed));
 }
 
-/** 既定に戻したときに消える、足したブレークポイント */
+/** 既定に戻したときに消える、追加したブレークポイント */
 export function addedBreakpoints(doc: SiteDoc): BreakpointDef[] {
   const keep = new Set(DEFAULT_BREAKPOINTS.map((b) => b.id));
   return normalizeBreakpoints(doc.breakpoints).filter((b) => !keep.has(b.id));

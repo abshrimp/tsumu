@@ -1,6 +1,6 @@
 import { validAssetSuffix } from "./media-url";
 import { isBreakpointId } from "./breakpoint-id";
-/** Runtime checks for optional persisted fields shared by import, save and PATCH. */
+/** インポート・保存・差分で共通に使う、保存する任意の項目の実行時の検査。 */
 type Check = (value: unknown) => boolean;
 const record = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -48,7 +48,7 @@ function validMotion(value: unknown): boolean {
     optional(value.fillMode, x => choice(x, ["both", "forwards", "backwards", "none"]));
 }
 
-/** Reject malformed editor fields that the primary node/tree checks do not cover. */
+/** ノードとツリーの主な検査では扱わない、不正なエディタの項目を拒否する。 */
 export function validNodeAdditionalFields(node: Record<string, unknown>): boolean {
   return optional(node.customTag, str) && optional(node.componentId, str) &&
     optional(node.customCss, str) && optional(node.htmlClass, str) &&
@@ -127,7 +127,7 @@ function validBreakpoint(value: unknown): boolean {
     nonnegative(value.maxWidth);
 }
 
-/** The same site-level invariants apply to imports, local cache and both stores. */
+/** インポート・ローカルのキャッシュ・両方の保存先に、同じサイト全体の条件を適用する。 */
 export function validSiteAdditionalFields(site: Record<string, unknown>): boolean {
   return ["lang", "siteUrl", "customHeadHtml", "customBodyEndHtml"].every(key =>
     optional(site[key], str)) &&

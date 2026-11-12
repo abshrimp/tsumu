@@ -1,6 +1,6 @@
 import type { ScriptStep, SiteDoc, StyleState } from "./types";
 
-/** User-authored states are scoped to an element, not a new global CSS pseudoclass. */
+/** 利用者が作る状態は要素ごとに適用し、新しいグローバルな CSS の擬似クラスにはしない。 */
 export const CUSTOM_STATE_PREFIX = "custom:";
 export const CUSTOM_STATE_ATTRIBUTE = "data-site-state";
 
@@ -21,13 +21,13 @@ export function customStateName(state: string): string | null {
   return isValidCustomStateName(name) ? name : null;
 }
 
-/** Returns a CSS suffix, or null when a value must never become a selector. */
+/** CSS の接尾辞を返す。セレクターにしてはいけない値なら null を返す。 */
 export function customStateSelector(state: string): string | null {
   const name = customStateName(state);
   return name === null ? null : `[${CUSTOM_STATE_ATTRIBUTE}=${JSON.stringify(name)}]`;
 }
 
-/** All states used by scripts targeting this node, plus previously styled states. */
+/** このノードを対象にするスクリプトが使うすべての状態と、すでにスタイルを付けた状態。 */
 export function customStatesForNode(doc: SiteDoc, nodeId: string): StyleState[] {
   const node = doc.nodes[nodeId];
   if (!node) return [];

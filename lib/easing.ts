@@ -1,6 +1,6 @@
 /**
  * イージング（animation-timing-function / transition-timing-function）の値の読み書き。
- * イージング編集画面のグラフと再生プレビューに使う
+ * イージングの編集画面のグラフと、再生のプレビューに使う
  */
 
 export type Bezier = [number, number, number, number];
@@ -36,7 +36,7 @@ const num = (s: string): number | null => {
   return Number.isFinite(value) ? value : null;
 };
 
-/** 値を読む。グラフで表せない値（linear() など）は null */
+/** 値を読む。グラフで表せない値（linear() など）なら null を返す */
 export function parseEasing(value: string | undefined): Easing | null {
   const v = (value ?? "").trim().toLowerCase();
   if (!v) return { kind: "bezier", b: [...KEYWORDS.ease] };
@@ -48,7 +48,7 @@ export function parseEasing(value: string | undefined): Easing | null {
     const parts = bez[1].split(",").map(num);
     if (parts.length !== 4 || parts.some((p) => p === null)) return null;
     const b = parts as Bezier;
-    // x は 0〜1 の範囲でなければ CSS として無効
+    // x が 0〜1 の範囲に無ければ、CSS として無効
     if (b[0] < 0 || b[0] > 1 || b[2] < 0 || b[2] > 1) return null;
     return { kind: "bezier", b };
   }
@@ -57,7 +57,7 @@ export function parseEasing(value: string | undefined): Easing | null {
     const parts = steps[1].split(",");
     if (parts.length > 2) return null;
     const [countRaw, posRaw] = parts;
-    // CSS <integer> does not accept decimal/exponent number tokens.
+    // CSS の <integer> は、小数や指数の書き方の数値を受け付けない。
     if (!/^[-+]?\d+$/.test(countRaw?.trim() ?? "")) return null;
     const n = num(countRaw ?? "");
     const name = posRaw?.trim();
@@ -74,8 +74,8 @@ export function easingValue(e: Easing): string {
   if (e.kind === "steps") {
     return e.pos === "jump-end" ? `steps(${e.n})` : `steps(${e.n}, ${e.pos})`;
   }
-  // Preserve parsed/input precision. Pointer dragging already rounds its own
-  // coordinates; merely opening and applying must not change the curve.
+  // 読み取った値や入力した値の精度は保つ。ポインターでのドラッグは自身の座標をすでに
+  // 丸めているため、開いて適用するだけで曲線が変わってはいけない。
   const b = e.b;
   for (const [name, kb] of Object.entries(KEYWORDS)) {
     if (kb.every((v, i) => v === b[i])) return name;
@@ -104,7 +104,7 @@ export const EASING_PRESETS: { label: string; value: string; group: "basic" | "s
   { label: "ease-in-out-back", value: "cubic-bezier(0.68, -0.6, 0.32, 1.6)", group: "back" },
 ];
 
-/** 3次ベジェの1軸（始点0・終点1）の、パラメータ s での値 */
+/** 3次ベジェの1つの軸（始点 0・終点 1）の、パラメータ s での値 */
 function axis(p1: number, p2: number, s: number): number {
   const r = 1 - s;
   return 3 * r * r * s * p1 + 3 * r * s * s * p2 + s * s * s;
@@ -122,7 +122,7 @@ export function easeAt(e: Easing, x: number): number {
     return Math.min(step, jumps) / jumps;
   }
   const [x1, y1, x2, y2] = e.b;
-  // 二分法で x(s) = t となる s を探す（x は単調増加なので必ず収束する）
+  // 二分法で x(s) = t となる s を探す（x は単調に増えるため、必ず収束する）
   let lo = 0;
   let hi = 1;
   let s = t;

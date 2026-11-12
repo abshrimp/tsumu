@@ -3,14 +3,14 @@ import type { SiteDoc } from "../types";
 
 export class AiEditConflict extends Error {}
 
-/** updateDoc の中で呼ぶ。途中で失敗したら、どの操作も適用せず履歴にも残さない */
+/** updateDoc の中で呼ぶ。途中で失敗したら、どの操作も適用せず、履歴にも残さない */
 export function applyAiEdits(doc: SiteDoc, context: AiContext, ops: AiOp[]): number {
   const componentId = context.target.rootId
     ? Object.keys(context.doc.components ?? {}).find((id) => context.doc.components?.[id].rootId === context.target.rootId)
     : undefined;
   const current = buildAiContext(doc, { pageId: context.target.pageId, componentId });
   if (JSON.stringify(current.doc) !== JSON.stringify(context.doc)) throw new AiEditConflict("The edited document changed");
-  // AIはツールを何回か呼ぶことがあり、1回につき最大200件の操作を返す
+  // AI はツールを何回か呼ぶことがあり、1回につき最大200件の操作を返す
   if (!Array.isArray(ops) || ops.length > 400) throw new Error("Invalid operations");
   const draft = structuredClone(doc);
   let count = 0;

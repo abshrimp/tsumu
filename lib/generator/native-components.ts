@@ -34,15 +34,15 @@ type Context = {
   level: number;
 };
 
-// Escape SFC delimiters even inside JavaScript string literals. In Vue,
-// interpolation is delimited by {{...}} and raw </script> can end an SFC.
+// JavaScript の文字列リテラルの中でも、SFC の区切りをエスケープする。Vue では、
+// 差し込みは {{...}} で区切られ、そのままの </script> は SFC を終わらせてしまう。
 const q = (value: unknown) => JSON.stringify(value)
   .replace(/</g, "\\u003c").replace(/>/g, "\\u003e")
   .replace(/\{/g, "\\u007b").replace(/\}/g, "\\u007d");
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-// Vue parses {{...}} in text and Svelte parses {...} in text/attributes.
-// Encode braces as HTML entities so authored plain text is never executable.
+// Vue はテキストの中の {{...}} を、Svelte はテキストと属性の中の {...} を解析する。
+// 書かれたプレーンテキストが決して実行されないよう、波括弧を HTML の文字参照にする。
 const staticText = (s: string) => esc(s).replace(/\{/g, "&#123;").replace(/\}/g, "&#125;");
 
 function literal(key: string, value: string | number | undefined | null): string {
@@ -96,10 +96,10 @@ function common(ctx: Context, node: DocNode, className: string): string {
     compiled(ctx, node);
 }
 
-/** Raw user-provided HTML is the only exception to native element templates. */
+/** フレームワーク固有の要素のテンプレートの唯一の例外は、利用者が書いた生の HTML。 */
 function rawNode(ctx: Context, html: string, attrs = ""): string {
   const name = "rawBlock" + ctx.code.length;
-  // Embedded HTML/SVG uses the same exported resources as ordinary media nodes.
+  // 埋め込みの HTML や SVG も、通常のメディアのノードと同じ書き出したリソースを使う。
   ctx.code.push("const " + name + " = " + q(cssValue(ctx.doc, "rawHtml", html, ctx.assets)) + ";");
   if (ctx.vue) return "<div" + attrs + ' v-html="' + name + '"></div>';
   return "<div" + attrs + ">{@html " + name + "}</div>";
@@ -278,7 +278,7 @@ export interface NativeFiles {
   svelteComponents: Record<string, string>;
 }
 
-/** Generate explicit native template trees for every authored page and component. */
+/** 書かれたすべてのページとコンポーネントについて、フレームワーク固有の明示的なテンプレートのツリーを生成する。 */
 export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage): NativeFiles {
   const normalized = obfuscateVarNames(doc);
   unnestLinks(normalized);

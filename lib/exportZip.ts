@@ -10,7 +10,7 @@ import { EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, type ArchiveAssetMap } from ".
 import { zipStylesheet } from "./zip-css";
 import { importedAssetPath } from "./generator/imported-assets";
 
-/** A ZIP's top-level folder is also a filesystem path, not just a download label. */
+/** ZIP の最上位のフォルダ名は、ダウンロードの名前であるだけでなく、ファイルシステム上のパスにもなる。 */
 export function exportDirectoryName(siteName: string): string {
   const name = siteName.toLowerCase()
     .replace(/[^a-z0-9-]+/g, "-")
@@ -20,15 +20,15 @@ export function exportDirectoryName(siteName: string): string {
   return /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/.test(name) ? "_" + name : name;
 }
 
-/** zip を作ってダウンロードさせる。保存先に見つからず同梱できなかったアセットのパスを返す */
+/** ZIP を作ってダウンロードさせる。保存先に見つからず、含められなかったアセットのパスを返す */
 export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | ExportOptions = "nextjs"): Promise<string[]> {
   const options: ExportOptions = typeof request === "string"
     ? { framework: request, language: "typescript", style: "css", scope: "project" }
     : request;
   const editableDoc = await prepareExportScopeDoc(doc, options);
-  // Imported elements that cannot be represented by visual nodes retain their
-  // URLs in custom HTML. Resolve those URLs for the downloadable website while
-  // keeping the editable snapshot bound to its original asset IDs/locations.
+  // 視覚的なノードで表せない取り込んだ要素は、カスタム HTML の中に URL を残している。
+  // ダウンロードするウェブサイトではそれらの URL を解決し、編集可能なスナップショットでは
+  // 元のアセットの ID と保存場所を指したままにする。
   const websiteDoc = structuredClone(editableDoc);
   const assetNames = buildAssetNames(editableDoc);
   for (const node of Object.values(websiteDoc.nodes)) {
@@ -64,14 +64,14 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
     const alias = importedPath ? assetRoot + importedPath.slice("public/assets/".length) : undefined;
     const existingOriginal = alias && (Object.hasOwn(files, alias) ||
       Object.hasOwn(binaries, alias) || Object.hasOwn(remoteAssets, alias));
-    // Website CSS has rewritten URLs. Restoring those bytes under the original
-    // ZIP path breaks script-relative CSS imports on the next export.
-    // Reuse the original alias already emitted for ZIPs containing JavaScript.
+    // ウェブサイトの CSS は URL を書き換えてある。その内容を元の ZIP のパスに戻すと、
+    // 次の書き出しで、スクリプトからの相対的な CSS の読み込みが壊れる。
+    // JavaScript を含む ZIP のためにすでに出力した、元の別名を使い回す。
     const path = stylesheet ? existingOriginal ? alias : "_tsumu/assets/" + name : assetRoot + name;
     archiveAssets.assets[id] = path;
     if (stylesheet && !existingOriginal) originalStylesheets.set(path, asset);
   }
-  // Reserve editable entries before JSZip creates any directories.
+  // JSZip がディレクトリを作る前に、編集用の項目のパスを確保しておく。
   assertGeneratedPaths(project, [EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, ...originalStylesheets.keys()]);
   const zip = new JSZip();
   const root = zip.folder(dirName)!;
@@ -92,8 +92,8 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
   for (const [path, base64] of Object.entries(binaries)) {
     root.file(path, base64, { base64: true });
   }
-  // サーバー上のアセットを取得して同梱（KVはAPIプロキシ経由）。
-  // 一度に取りに行くとサーバーが 503 を返すため、同時に取得する数を絞り、一時的な失敗は取り直す
+  // サーバー上のアセットを取得して含める（KV は API のプロキシを経由する）。
+  // 一度に取得するとサーバーが 503 を返すため、同時に取得する数を絞り、一時的な失敗は取得し直す
   const missing: string[] = [];
   const downloads = new AbortController();
   try {
@@ -109,8 +109,8 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
       root.file(path, await res.arrayBuffer());
     });
   } catch (error) {
-    // Stop active fetches and body reads as well as the pool's queued work.
-    // A stalled sibling cannot delay reporting the original export failure.
+    // 待機中の処理だけでなく、進行中の取得と本文の読み込みも止める。
+    // 止まっている他の処理のために、最初の書き出しの失敗の報告が遅れないようにする。
     downloads.abort(error);
     throw error;
   }
@@ -121,7 +121,7 @@ export async function exportProjectZip(doc: SiteDoc, request: ExportFormat | Exp
   a.href = url;
   a.download = `${dirName}-${options.framework}-${options.language}.zip`;
   a.click();
-  // すぐに破棄すると、Safari などでダウンロードが始まらないことがある
+  // URL をすぐに破棄すると、Safari などでダウンロードが始まらないことがある
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   return missing.sort();
 }

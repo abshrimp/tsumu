@@ -14,7 +14,7 @@ import { otherBrowserDocs } from "./browser-doc-storage";
 
 const MAX_LOCAL_ASSET_BYTES = 2 * 1024 * 1024;
 
-/** アセット一覧からキャンバスへドラッグするときのMIMEタイプ。 */
+/** アセットの一覧からキャンバスへドラッグするときの MIME タイプ。 */
 export const ASSET_DRAG_TYPE = "application/x-tsumu-asset";
 
 function measure(src: string): Promise<{ width: number; height: number }> {
@@ -38,7 +38,7 @@ function readAsDataUrl(file: File): Promise<string> {
 
 /**
  * 画像・動画・音声をアップロードして Asset を返す。
- * サーバー保存（Workers KV）が使えればpath参照、使えなければ dataURL で保持する。
+ * サーバーに保存（Workers KV）できればパスで参照し、できなければ data URL で持つ。
  */
 export async function uploadAsset(file: File): Promise<Asset> {
   if (!/^(image|video|audio)\//.test(file.type)) {
@@ -47,7 +47,7 @@ export async function uploadAsset(file: File): Promise<Asset> {
   return uploadStaticAsset(file);
 }
 
-/** HTML ZIP内のCSS・JS・フォント等を含む静的ファイルをアップロードする。 */
+/** HTML の ZIP に含まれる CSS・JS・フォントなどの静的なファイルをアップロードする。 */
 export async function uploadStaticAsset(file: File): Promise<Asset> {
   let size: { width: number; height: number; svgFilter?: boolean } = {
     width: 0,
@@ -64,7 +64,7 @@ export async function uploadStaticAsset(file: File): Promise<Asset> {
   if (file.type === "image/svg+xml") {
     const svg = await file.text();
     size.svgFilter = hasSvgFilter(svg);
-    // width・height の無いSVGは 0 と測れることがあるので、viewBox から実寸を取る
+    // width・height の無い SVG は大きさが 0 と測られることがあるため、viewBox から実際の大きさを取る
     if (!size.width || !size.height) size = { ...size, ...(svgViewBoxSize(svg) ?? {}) };
   }
 
@@ -79,7 +79,7 @@ export async function uploadStaticAsset(file: File): Promise<Asset> {
       }
       return {
         id: genId("asset"),
-        // 表示名は元のファイル名のまま（日本語も可）。保存先のパスと書き出しのファイル名は別に安全な名前にする
+        // 表示名は元のファイル名のまま（日本語も使える）。保存先のパスと書き出すファイル名には、別に安全な名前を使う
         name: displayName(file.name),
         path: data.path,
         bytes: file.size,
@@ -87,14 +87,14 @@ export async function uploadStaticAsset(file: File): Promise<Asset> {
         ...size,
       };
     }
-    // 503 = サーバー保存未設定 → dataURLへフォールバック。それ以外はエラー表示
+    // 503 = サーバーの保存先が未設定 → data URL で持つ。それ以外はエラーを表示する
     if (res.status !== 503) {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error ?? tr("Couldn't upload ({status})", { status: res.status }));
     }
   } catch (e) {
     if (!(e instanceof TypeError)) throw e;
-    // ネットワークエラーもフォールバック
+    // ネットワークのエラーのときも、data URL で持つ
   }
 
   if (file.size > MAX_LOCAL_ASSET_BYTES) {
@@ -130,7 +130,7 @@ function hasSvgFilter(svg: string): boolean {
   return /<filter[\s>]/i.test(svg);
 }
 
-/** ルートの <svg> の viewBox の幅・高さ（無い・不正なら null） */
+/** ルートの <svg> の viewBox の幅と高さ（無いか不正なら null） */
 function svgViewBoxSize(svg: string): { width: number; height: number } | null {
   const root = /<svg\b[^>]*>/i.exec(svg)?.[0] ?? "";
   const box = /\bviewBox\s*=\s*["']([^"']*)["']/i.exec(root)?.[1];
@@ -139,8 +139,8 @@ function svgViewBoxSize(svg: string): { width: number; height: number } | null {
 }
 
 /**
- * <filter>（シャドウ等）の有無が未判定か、実寸が 0 のSVGアセットを調べる。
- * 戻り値は判定できたアセットIDと結果（実寸は viewBox から取れたときだけ）。iOS Safariのぼやけ対策の対象判定に使う
+ * <filter>（影など）の有無をまだ判定していないか、実際の大きさが 0 の SVG アセットを調べる。
+ * 戻り値は、判定できたアセットの ID と結果（実際の大きさは viewBox から取れたときだけ）。iOS Safari でぼやけるのを防ぐ対象の判定に使う
  */
 export async function detectSvgFilters(
   assets: Record<string, Asset>
@@ -151,7 +151,7 @@ export async function detectSvgFilters(
       (a.svgFilter === undefined || (a.svgFilter && (!a.width || !a.height)))
   );
   const result: Record<string, Pick<Asset, "svgFilter"> & Partial<Pick<Asset, "width" | "height">>> = {};
-  // 一度に取りに行くとサーバーが 503 を返すため、同時に取得する数を絞る
+  // 一度に取得するとサーバーが 503 を返すため、同時に取得する数を絞る
   await mapLimit(pending, ASSET_FETCH_CONCURRENCY, async (asset) => {
     try {
       const src = assetSrc(asset);
@@ -162,16 +162,16 @@ export async function detectSvgFilters(
       const size = !asset.width || !asset.height ? svgViewBoxSize(svg) : null;
       result[asset.id] = { svgFilter: hasSvgFilter(svg), ...(size ?? {}) };
     } catch {
-      // 取得できなければ未判定のまま（次回また調べる）
+      // 取得できなければ未判定のままにする（次の機会にまた調べる）
     }
   });
   return result;
 }
 
-/** アセットを同時に取得する数（多すぎるとサーバーが 503・接続エラーを返す） */
+/** アセットを同時に取得する数（多すぎると、サーバーが 503 や接続エラーを返す） */
 export const ASSET_FETCH_CONCURRENCY = 6;
 
-/** items を最大 limit 件ずつ並行して処理する。失敗後は追加せず、最初の例外をすぐに返す。 */
+/** items を最大 limit 件ずつ並行して処理する。失敗した後は新しく始めず、最初の例外をすぐに返す。 */
 export async function mapLimit<T>(
   items: T[],
   limit: number,
@@ -194,7 +194,7 @@ export async function mapLimit<T>(
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
 }
 
-/** Consume only bounded bytes, including responses with no length or a misleading one. */
+/** 長さを示さない応答や、誤った長さを示す応答も含め、上限までのバイトだけを読む。 */
 export async function readAssetBytes(response: Response, limit: number, message = "Resource exceeds export size limit."): Promise<Uint8Array<ArrayBuffer>> {
   const tooLarge = () => new Error(message);
   if (Number(response.headers.get("content-length")) > limit) {
@@ -215,7 +215,7 @@ export async function readAssetBytes(response: Response, limit: number, message 
       chunks.push(part.value);
     }
   } catch (error) {
-    // Release the consumer even when an unread clone delays upstream cleanup.
+    // 読まれていない複製のために上流の後始末が遅れても、こちらの読み手は解放する。
     void reader?.cancel(error).catch(() => {});
     throw error;
   } finally { reader?.releaseLock(); }
@@ -243,7 +243,7 @@ function retryDelay(milliseconds: number, signal?: AbortSignal | null): Promise<
 }
 
 /**
- * 一時的な失敗（接続エラー・429・5xx）は少し待って取り直す。
+ * 一時的な失敗（接続エラー・429・5xx）は、少し待って取得し直す。
  * 404 などはそのまま返す（呼び出し側で扱う）
  */
 export async function fetchWithRetry(url: string, tries = 3, init?: RequestInit): Promise<Response> {
@@ -267,29 +267,29 @@ export async function fetchWithRetry(url: string, tries = 3, init?: RequestInit)
 
 export { isEmbeddedAssetUrl } from "./site-import-format";
 
-/** アセットの表示用URL */
+/** アセットの表示用の URL */
 export function assetSrc(asset: Asset): string {
   if (asset.path) return `/api/assets/file?path=${encodeURIComponent(asset.path)}`;
   return isEmbeddedAssetUrl(asset.dataUrl) ? asset.dataUrl : "";
 }
 
 /**
- * 画像・動画の要素に持たせる src。ブラウザ内に埋め込んだアセット（dataURL）は要素へ複製せず空にし、
- * 表示するときに assetId から引く（複製すると、使う要素の数だけ編集データが大きくなる）
+ * 画像・動画の要素に持たせる src。ブラウザ内に埋め込んだアセット（data URL）は要素に複製せずに空にし、
+ * 表示するときに assetId から探す（複製すると、使う要素の数だけ編集データが大きくなる）
  */
 export function nodeAssetSrc(asset: Asset): string {
   return asset.path ? assetSrc(asset) : "";
 }
 
-/** 画像・動画の要素の表示用URL（アセットを使っていれば、アセットから引く） */
+/** 画像・動画の要素の表示用の URL（アセットを使っていれば、アセットから探す） */
 export function mediaSrc(doc: SiteDoc, ref: { src: string; assetId?: string; assetSuffix?: string }): string {
   const asset = ref.assetId ? doc.assets[ref.assetId] : undefined;
   return asset ? assetMediaUrl(assetSrc(asset) || ref.src, ref.assetSuffix) : ref.src;
 }
 
 /**
- * 埋め込みアセットを、サーバーに保存したファイルへ置き換える（doc を書き換える）。
- * 要素の src と、背景画像などスタイルの値に入っている dataURL も差し替える
+ * 埋め込んだアセットを、サーバーに保存したファイルに置き換える（doc を書き換える）。
+ * 要素の src と、背景画像などのスタイルの値に入っている data URL も差し替える
  */
 export function replaceEmbeddedAsset(doc: SiteDoc, assetId: string, path: string): void {
   const asset = doc.assets[assetId];
@@ -314,7 +314,7 @@ export function replaceEmbeddedAsset(doc: SiteDoc, assetId: string, path: string
     }
   }
   if (!data) return;
-  // 背景パネルが保存する形式だけを扱い、カスタムCSSの値は書き換えない。
+  // 背景のパネルが保存する形式だけを扱い、カスタム CSS の値は書き換えない。
   for (const page of Object.values(doc.pages)) {
     for (const bp of Object.values(page.bodyStyles ?? {})) {
       for (const styles of Object.values(bp ?? {})) {
@@ -326,7 +326,7 @@ export function replaceEmbeddedAsset(doc: SiteDoc, assetId: string, path: string
   }
 }
 
-/** 埋め込みアセットをサーバーへアップロードする（サーバーに保存できなければ null） */
+/** 埋め込んだアセットをサーバーへアップロードする（サーバーに保存できなければ null を返す） */
 export async function uploadEmbeddedAsset(asset: Asset): Promise<string | null> {
   if (!isEmbeddedAssetUrl(asset.dataUrl)) return asset.path ?? null;
   const blob = await (await fetch(asset.dataUrl)).blob();
@@ -337,8 +337,8 @@ export async function uploadEmbeddedAsset(asset: Asset): Promise<string | null> 
 const ASSET_URL_RE = /(?<![\w/:%~.-])(?:([Hh][Tt][Tt][Pp][Ss]?:\/\/[^/\s"'<>]+|\/\/[^/\s"'<>]+))?\/api\/assets\/file\?path=([A-Za-z0-9%._~-]+)/g;
 
 /**
- * HTMLの中のアセットのURLを、期限付きの署名URLにする（HTMLページのプレビュー用）。
- * プレビューはエディタの権限を使えない別オリジンで表示するため、ログインの Cookie が送られない
+ * HTML の中のアセットの URL を、期限付きの署名付き URL にする（HTMLページのプレビュー用）。
+ * プレビューは、エディタの権限を使えない別オリジンで表示するため、ログインの Cookie が送られない
  */
 const ZIP_CSS_URL_RE = /tsumu-zip-css:([A-Za-z0-9%._~-]+)/g;
 
@@ -370,7 +370,7 @@ export async function withSignedAssetUrls(
   for (const id of reachable) if (assets[id].path) paths.add(assets[id].path!);
   const signed: Record<string, string> = {};
   const list = [...paths];
-  // The endpoint accepts at most 500 paths. Each distinct path is signed exactly once.
+  // このエンドポイントが受け付けるのは、最大500個のパス。異なるパスには、それぞれ1回だけ署名する。
   for (let i = 0; i < list.length; i += 500) {
     options.signal?.throwIfAborted();
     const res = await fetch("/api/assets/sign", {
@@ -460,11 +460,11 @@ export async function downloadAsset(asset: Asset): Promise<void> {
   try {
     response = await fetch(src);
   } catch {
-    // CORS等でレスポンスを取得できない場合だけ、新しいタブで開く。
+    // CORS などで応答を取得できない場合だけ、新しいタブで開く。
     window.open(src, "_blank", "noopener");
     return;
   }
-  // エラー本文を元のファイルとして保存したり、失敗を別タブで隠したりしない。
+  // エラーの本文を元のファイルとして保存したり、失敗を別のタブで隠したりしない。
   if (!response.ok) throw new Error(tr("Could not download the asset."));
   const blob = await response.blob();
   const objectUrl = URL.createObjectURL(blob);
@@ -479,24 +479,24 @@ export async function downloadAsset(asset: Asset): Promise<void> {
 }
 
 /**
- * サーバー上のアセットを削除（dataURL資産は何もしない）。
- * ほかのサイトが同じファイルを使っていれば消さない（Node.js・Docker のサーバーは全サイトを見て確かめる。
- * Cloudflare は D1 にGC候補を登録し、7日後に全サイトを確認したうえで削除する）
+ * サーバー上のアセットを削除する（data URL のアセットでは何もしない）。
+ * 他のサイトが同じファイルを使っていれば消さない（Node.js・Docker のサーバーは、全サイトを調べて確かめる。
+ * Cloudflare は D1 に GC の候補を登録し、猶予期間（既定7日）の後に全サイトを確認してから削除する）
  */
 export async function deleteAssetRemote(asset: Asset): Promise<void> {
   if (!asset.path) return;
   const quoted = `"${asset.path}"`;
-  // The Cloudflare endpoint must receive the delete event to enqueue GC even
-  // when another browser-only site still references the file. Node/Docker
-  // use the browserReferenced flag to preserve their immediate-delete safety.
+  // ブラウザ内だけに保存した別のサイトがそのファイルを参照していても、Cloudflare のエンドポイントは
+  // GC の候補に登録するため、削除の操作を受け取る必要がある。Node.js・Docker では、
+  // browserReferenced の印を使って、その場で削除するときの安全を保つ。
   let browserReferenced = false;
   if (typeof window !== "undefined") {
     try {
       browserReferenced = (await otherBrowserDocs(currentSiteId()))
         .some((raw) => raw.includes(quoted));
     } catch {
-      // An unavailable browser index must not suppress Cloudflare's GC event.
-      // Node/Docker still safely retain the file on this uncertainty.
+      // ブラウザ内の索引が使えなくても、Cloudflare の GC への登録を止めてはいけない。
+      // Node.js・Docker では、分からないときは安全のためにファイルを残す。
       browserReferenced = true;
     }
   }
@@ -505,13 +505,13 @@ export async function deleteAssetRemote(asset: Asset): Promise<void> {
   }), {
     method: "DELETE",
   }).catch(() => {
-    // 削除失敗はドキュメント側から消えれば実害がないため無視
+    // 削除の失敗は、文書から消えていれば実害が無いため、無視する
   });
 }
 
 /**
- * アセット削除時に、背景パネルが設定したページ背景を外す（doc を書き換える）。
- * URL の部分一致で、別のファイルや手書きの複合背景まで削除しない。
+ * アセットを削除したときに、背景のパネルで設定したページの背景を外す（doc を書き換える）。
+ * URL の部分一致で、別のファイルや、手で書いた複数の背景まで削除しない。
  */
 export function removePageAssetBackgrounds(doc: SiteDoc, asset: Asset): void {
   const src = assetSrc(asset);

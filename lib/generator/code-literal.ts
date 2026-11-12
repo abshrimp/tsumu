@@ -1,8 +1,8 @@
 /**
- * Serialize values inserted into generated JS/TSX source.
- * JSON.stringify alone does not protect inline <script> contexts: a literal
- * </script> can terminate the HTML script element before JavaScript executes.
- * Keep the JavaScript value unchanged while removing HTML-significant tokens.
+ * 生成する JS / TSX のソースに入れる値を直列化する。
+ * JSON.stringify だけでは、インラインの <script> の中では守れない。文字どおりの
+ * </script> が、JavaScript が実行される前に HTML の script 要素を終わらせてしまう。
+ * JavaScript としての値は変えずに、HTML で意味を持つ字句だけを取り除く。
  */
 export function codeLiteral(value: unknown): string {
   const json = JSON.stringify(value);

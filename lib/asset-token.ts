@@ -1,12 +1,12 @@
 import { envVar } from "./env";
 
 /**
- * アセットの期限付きURL（ログインの Cookie を送れない場所から読むため）。
- * HTMLページのプレビューは、中のスクリプトがエディタの権限を使えないよう別オリジン（sandbox）で表示する。
- * そこからは Cookie が送られないので、パスごとに署名した期限付きのURLで読ませる
+ * アセットの期限付き URL（ログインの Cookie を送れない場所から読むためのもの）。
+ * HTMLページのプレビューは、中のスクリプトがエディタの権限を使えないよう、別オリジン（sandbox）で表示する。
+ * そこからは Cookie が送られないため、パスごとに署名した期限付きの URL で読ませる
  */
 
-/** 期限（1時間。プレビューを開き直せば作り直す） */
+/** 有効期限（1時間。プレビューを開き直せば作り直す） */
 export const ASSET_TOKEN_TTL = 60 * 60 * 1000;
 
 async function hmacKey(): Promise<CryptoKey | null> {
@@ -33,7 +33,7 @@ function fromB64Url(s: string): Uint8Array<ArrayBuffer> | null {
   }
 }
 
-/** 1リクエスト分の署名を、同じHMAC鍵と期限で発行する。重複パスは署名しない。 */
+/** 1回のリクエスト分の署名を、同じ HMAC の鍵と期限で発行する。重複したパスには署名しない。 */
 export async function signAssetPaths(
   paths: readonly string[],
   now = Date.now(),
@@ -54,7 +54,7 @@ export async function signAssetPaths(
   return tokens;
 }
 
-/** 単一パスの署名。署名の鍵が無い（認証を使っていない）なら null。 */
+/** 1つのパスに署名する。署名の鍵が無い（認証を使っていない）なら null を返す。 */
 export async function signAssetPath(path: string, now = Date.now()): Promise<string | null> {
   return (await signAssetPaths([path], now)).get(path) ?? null;
 }
@@ -66,13 +66,13 @@ export async function verifyAssetToken(
   sig: string | null,
   now = Date.now()
 ): Promise<boolean> {
-  // HMAC-SHA256のBase64URL表現はパディング無しで43文字。巨大・非正規入力を
-  // Base64デコードや鍵インポートに渡さず、公開GETからの過剰な処理を避ける。
+  // HMAC-SHA256 の Base64URL 表記は、パディング無しで43文字。巨大な入力や正規でない入力を
+  // Base64 のデコードや鍵の読み込みに渡さず、公開された GET で過剰な処理が起きないようにする。
   if (!exp || !sig || !/^\d{1,16}$/.test(exp) || !/^[A-Za-z0-9_-]{43}$/.test(sig)) return false;
   const expiry = Number(exp);
   if (!Number.isSafeInteger(expiry) || expiry < now) return false;
   const bytes = fromB64Url(sig);
-  // Base64URLで未使用の末尾2ビットを変えた別表記を受け付けない。
+  // Base64URL で使われない末尾の2ビットを変えただけの、別の表記は受け付けない。
   if (!bytes || toB64Url(bytes.buffer) !== sig) return false;
   const key = await hmacKey();
   if (!key) return false;

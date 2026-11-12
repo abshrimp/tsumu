@@ -2,10 +2,10 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { nodeDatabase } from "./node-storage";
 
 /**
- * Cloudflare D1接続。サイトの一覧・文書DOの世代管理・コメント・許可メールの保存先。
- * SiteDoc本体と日次バックアップはサイト固有のDurable Object内SQLiteに保存する。
- * wrangler.jsonc の DB バインディング経由でアクセスするため、
- * 接続情報の環境変数は不要。next dev 中はローカルのD1シミュレーションが使われる。
+ * Cloudflare D1 への接続。サイトの一覧・文書の Durable Object の世代管理・コメント・許可したメールアドレスの保存先。
+ * SiteDoc の本体と日次バックアップは、サイトごとの Durable Object 内の SQLite に保存する。
+ * wrangler.jsonc の DB バインディングを経由してアクセスするため、
+ * 接続情報の環境変数は不要。next dev の間は、ローカルの D1 の再現が使われる。
  * Cloudflare の外では、TSUMU_DATA_DIR の SQLite を同じ形で使う（lib/node-storage.ts）。
  */
 
@@ -18,13 +18,13 @@ export interface ResultSet {
 }
 
 export interface Db {
-  /** Node/Docker use local SQLite tables for documents and backups. */
+  /** Node.js・Docker では、文書とバックアップをローカルの SQLite のテーブルに保存する。 */
   readonly backend?: "d1" | "sqlite";
   execute(stmt: Stmt): Promise<ResultSet>;
   batch(stmts: Stmt[]): Promise<ResultSet[]>;
 }
 
-/** 使用するD1 APIの最小型（@cloudflare/workers-types の型衝突を避ける） */
+/** 使う D1 の API の最小限の型（@cloudflare/workers-types との型の衝突を避けるため） */
 interface D1Result {
   results: Record<string, unknown>[];
   meta: { changes: number };
@@ -36,7 +36,7 @@ interface D1PreparedStatement {
 }
 
 export interface D1LikeDatabase {
-  /** Present only on the local Node SQLite adapter, never on Cloudflare D1. */
+  /** ローカルの Node.js 用 SQLite アダプターにだけあり、Cloudflare D1 には無い。 */
   readonly __tsumuBackend?: "sqlite";
   prepare(sql: string): D1PreparedStatement;
   batch(stmts: D1PreparedStatement[]): Promise<D1Result[]>;
@@ -72,7 +72,7 @@ function toResultSet(r: D1Result): ResultSet {
 
 const schemaReady = new WeakMap<object, Promise<void>>();
 
-/** Durable Objectなど、Cloudflare bindingを直接持つ処理からDBを取得する。 */
+/** Durable Object など、Cloudflare のバインディングを直接持つ処理から DB を取得する。 */
 export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
   let ready = schemaReady.get(binding);
   if (!ready) {
@@ -89,7 +89,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
             email TEXT PRIMARY KEY,
             added_at INTEGER NOT NULL
           )`,
-          // サイトの一覧と公開先。Cloudflareの文書本体はDocumentRoomに保存する。
+          // サイトの一覧と公開先。Cloudflare では、文書の本体は DocumentRoom に保存する。
           `CREATE TABLE IF NOT EXISTS sites (
             id TEXT PRIMARY KEY,
             name TEXT NOT NULL,
@@ -101,8 +101,8 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
           )`,
-          // Per-creation, unpredictable room identity. Old site IDs never reuse
-          // a deleted site's Durable Object, even after an import with the same ID.
+          // サイトの作成ごとに作る、予測できない部屋の識別子。同じ ID でインポートし直しても、
+          // 古いサイト ID が削除したサイトの Durable Object を使い回すことはない。
           ...(binding.__tsumuBackend === "sqlite" ? [] : [
             `CREATE TABLE IF NOT EXISTS site_document_rooms (
               site_id TEXT PRIMARY KEY,
@@ -113,7 +113,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
               room_key TEXT PRIMARY KEY,
               queued_at INTEGER NOT NULL
             )`,
-            // KV GC candidate tracking, run auditing and resumable inventory.
+            // KV の GC の候補の管理、実行の記録、再開できる棚卸し。
             `CREATE TABLE IF NOT EXISTS asset_gc_candidates (
               path TEXT PRIMARY KEY,
               first_unreferenced_at INTEGER NOT NULL,
@@ -143,18 +143,17 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
               lease_token TEXT
             )`,
             `INSERT OR IGNORE INTO asset_gc_state(id) VALUES(1)`,
-            // Ledger of every object in ASSETS_KV, so storage usage is one D1
-            // query instead of a KV listing (1,000 lists/day on Workers Free).
-            // Uploads add rows, GC deletes remove them, and the weekly KV
-            // inventory backfills older objects and drops vanished ones.
+            // ASSETS_KV のすべてのオブジェクトの台帳。使用量を KV の列挙（Workers の無料プランでは
+            // 1日1,000回まで）ではなく、D1 への1回の問い合わせで求められるようにする。
+            // アップロードで行を追加し、GC の削除で行を消し、週1回の KV の棚卸しで
+            // 古いオブジェクトを補い、消えたオブジェクトを取り除く。
             `CREATE TABLE IF NOT EXISTS asset_objects (
               path TEXT PRIMARY KEY,
               bytes INTEGER,
               uploaded_at INTEGER NOT NULL,
               last_seen_at INTEGER NOT NULL
             )`,
-            // The ledger is complete once an inventory that started after the
-            // ledger existed has listed every key.
+            // 台帳ができた後に始めた棚卸しが、すべてのキーを列挙し終えた時点で、台帳は完全になる。
             `CREATE TABLE IF NOT EXISTS asset_ledger_state (
               id INTEGER PRIMARY KEY CHECK(id=1),
               created_at INTEGER NOT NULL,
@@ -163,7 +162,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
             `INSERT OR IGNORE INTO asset_ledger_state(id,created_at)
               VALUES(1, CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))`,
           ]),
-          // サイト単位で最後にGitHubへ公開した出力形式。D1とNode SQLiteで共通。
+          // サイトごとに、最後に GitHub へ公開した出力形式。D1 と Node.js の SQLite で共通。
           `CREATE TABLE IF NOT EXISTS site_publish_options (
             site_id TEXT PRIMARY KEY,
             framework TEXT NOT NULL,
@@ -211,10 +210,10 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
           )`,
           `CREATE INDEX IF NOT EXISTS comment_messages_site ON comment_messages (site_id)`,
           `CREATE INDEX IF NOT EXISTS comment_messages_thread ON comment_messages (site_id, thread_id, at, id)`,
-          // The schema version is asserted before any document storage is used.
+          // 文書の保存先を使う前に、スキーマのバージョンを確かめる。
           `CREATE TABLE IF NOT EXISTS storage_schema (name TEXT PRIMARY KEY, version INTEGER NOT NULL)`,
           `INSERT OR IGNORE INTO storage_schema(name,version) VALUES('main',1)`,
-          // Local SQLite retains its optional rolling backups.
+          // ローカルの SQLite では、任意の曜日ごとのバックアップを持つ。
           ...(binding.__tsumuBackend === "sqlite" ? [`CREATE TABLE IF NOT EXISTS site_backups (
             site_id TEXT NOT NULL,
             day INTEGER NOT NULL,
@@ -245,7 +244,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
   };
 }
 
-/** スキーマを保証したうえでクライアントを返す */
+/** スキーマを用意したうえで、クライアントを返す */
 export async function getDb(): Promise<Db> {
   const db = d1();
   if (!db) throw new Error("D1バインディング（DB）がありません");

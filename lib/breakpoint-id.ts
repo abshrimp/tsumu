@@ -1,4 +1,4 @@
-/** 既存の幅IDの表記を保ち、通常のオブジェクトの継承プロパティだけを除外する。 */
+/** 既存の幅の ID の表記をそのまま保ち、通常のオブジェクトが継承するプロパティ名だけを除く。 */
 export function isBreakpointId(value: unknown): value is string {
   return typeof value === "string" &&
     !["__proto__", "constructor", "prototype"].includes(value) &&
