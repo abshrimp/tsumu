@@ -187,6 +187,7 @@ test("palette block stays visible when dragged across both conditional branches 
   await expect(elseSlot).toBeVisible();
 
   const paletteBlock = page.locator('[data-tutorial="se-block-wait"]');
+  await paletteBlock.scrollIntoViewIfNeeded();
   const start = (await paletteBlock.boundingBox())!;
   let previous = { x: start.x + 28, y: start.y + 18 };
   await page.mouse.move(start.x + 8, start.y + 8);
