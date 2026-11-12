@@ -11,8 +11,8 @@ import { buildAssetNames } from "../lib/generator/names";
 
 const { parse } = createRequire(import.meta.url)("next/dist/compiled/node-html-parser");
 
-// Adapt the parser to the inert DOM subset used by this no-CSS conversion.
-// ZIP reading, conversion, asset restoration and export all use production code.
+// この CSS を使わない変換で使う、動作しない DOM の一部にパーサーを合わせる。
+// ZIP の読み込み・変換・アセットの復元・書き出しは、すべて本番のコードを使う。
 function parseDocument(html: string) {
   const cache = new WeakMap<object, any>();
   const wrap = (node: any): any => {

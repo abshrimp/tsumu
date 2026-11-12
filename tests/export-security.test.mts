@@ -43,14 +43,14 @@ test("generated Vue and Svelte components never compile authored plain text into
     const source = project.files[path];
     assert.ok(source, path);
     assert.ok(source.includes('src="data:image/png;base64,AQID"'));
-    // Entity-encoded braces are ordinary HTML text, not compiled expressions.
+    // 文字参照で書いた波かっこは普通の HTML の文字で、コンパイルされる式ではない。
     assert.match(source, /Literal &#123;&#123; 3 \+ 4 &#125;&#125; and &#123;1 \+ 2&#125;/);
     assert.doesNotMatch(source, /Literal \{\{/);
     assert.match(source, /Image &#123;1 \+ 2&#125;/);
     if (framework === "sveltekit") {
       const template = project.files["src/app.html"];
-      // Page-specific metadata is inserted by the SSR hook, not compiled into
-      // the static shell. Runtime escaping is exercised in native-page-language.
+      // ページごとのメタデータは、静的な骨組みにコンパイルせず、SSR のフックで挿入する。
+      // 実行時のエスケープは、native-page-language で試す。
       assert.ok(template.includes('lang="%page.language%"'));
       assert.ok(!template.includes('lang="ja" onload="'));
       assert.ok(!template.includes(doc().siteName));
@@ -60,8 +60,8 @@ test("generated Vue and Svelte components never compile authored plain text into
     }
     if (framework === "vue") {
       assert.doesNotMatch(project.files["index.html"], /onload="globalThis/);
-      // The generated server supplies escaped metadata per request; see the
-      // executed server regression in vue-ssr-metadata.test.mts.
+      // 生成したサーバーが、リクエストごとにエスケープしたメタデータを渡す。
+      // vue-ssr-metadata.test.mts で、実際に実行するサーバーの回帰テストを参照。
       assert.match(project.files["index.html"], /lang="<!--page-language-->"/);
       assert.doesNotMatch(project.files["server.mjs"], /req\.headers\.host/);
     }

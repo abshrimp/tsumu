@@ -4,9 +4,9 @@ import { parse, serializeOuter, type DefaultTreeAdapterTypes as Html } from "par
 import { convertHtmlToSite } from "../lib/html-to-site";
 import { generateExportProject } from "../lib/export-formats";
 
-// Use the HTML parser's real namespaces and scripting-disabled noscript trees,
-// as DOMParser does. Only adapt the DOM operations these fixtures require;
-// browser coverage exercises CSSOM and execution of the resulting export.
+// DOMParser と同じく、HTML のパーサーの実際の名前空間と、スクリプトが無効なときの noscript の
+// ツリーを使う。この準備に必要な DOM の操作だけを合わせる。CSSOM と、結果の書き出しの実行は、
+// ブラウザのテストで確かめる。
 function importHtml(source: string) {
   const tree = parse(source, { scriptingEnabled: false });
   class NodeAdapter {
@@ -73,7 +73,7 @@ for (const wrapper of ["noscript", "math"]) {
         "preserve the fallback in its original context");
 
       const output = generateExportProject(doc, "html").files["index.html"];
-      const tree = parse(output); // Published documents have scripting enabled.
+      const tree = parse(output); // 公開した文書では、スクリプトが有効になっている。
       const active: string[] = [];
       const visit = (node: Html.Node) => {
         if ("tagName" in node && node.namespaceURI === "http://www.w3.org/1999/xhtml" &&

@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 
-// Read the authored translation source: the test runner intentionally replaces
-// locale modules with stripped dictionaries for its other test suites.
+// 書かれた翻訳のソースを読む。テストの実行では、他のテストのために、言語のモジュールを
+// 中身を減らした辞書に意図的に置き換えているため。
 const locale = readFileSync("lib/locales/ja.ts", "utf8");
 const definition = (key: string, translated: string) =>
   locale.includes(JSON.stringify(key) + ": " + JSON.stringify(translated));
@@ -24,6 +24,6 @@ test("JSON controls call a key an 項目 without changing the storage-key termin
 test("list labels distinguish array elements from dictionary items", () => {
   assert.equal(definition("List · {length} elements", "リスト・{length}要素"), true);
   assert.equal(definition("list_length_items_variant_1\u0004List · {length} items", "リスト・{length}項目"), true);
-  // Identifiers in previously saved scripts are preserved.
+  // 以前に保存したスクリプトの識別子は、そのまま保たれる。
   assert.equal(locale.includes("{ループ.キー}"), true);
 });

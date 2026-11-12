@@ -47,7 +47,7 @@ test("PWA-off publication retires only a worker owned by the destination manifes
 });
 
 test("path alone, explicit false, and inherited manifest properties cannot establish ownership", () => {
-  // オンからオフにした未公開の文書や別の公開先へのコピーにも、同じ条件を適用する。
+  // オンからオフにした未公開の文書や、別の公開先へのコピーにも、同じ条件を適用する。
   for (const pwa of [undefined, { enabled: false }]) {
     for (const generated of [null, {}, { "public/pwa.js": "registered-elsewhere" }, Object.create({ "public/sw.js": "inherited" })]) {
       const { files, outputPaths } = prepare(pwa, generated);
@@ -66,7 +66,7 @@ test("the serialized generated manifest retains the endpoint across repeated off
   const repeated = prepare(undefined, next);
   assert.equal(repeated.files["public/sw.js"], first.files["public/sw.js"]);
   assert.deepEqual(planPublish(next, next, repeated.outputPaths), { edited: [], clashing: [], kept: {} });
-  // 公開先にファイルが欠けても、所有情報が残っていれば終了用の配信を復元できる。
+  // 公開先でファイルが欠けても、所有の情報が残っていれば、終了用の配信を復元できる。
   assert.ok(repeated.outputPaths.includes("public/sw.js"));
 });
 
@@ -125,7 +125,7 @@ const workerPaths: Record<ExportFormat, string> = {
   sveltekit: "static/sw.js", html: "sw.js", "single-html": "sw.js",
 };
 
-// 実際の書き出し結果を使い、変換元・変換先ごとの配信場所と所有情報を確かめる。
+// 実際の書き出しの結果を使い、変換元と変換先ごとの配信の場所と所有の情報を確かめる。
 for (const previous of Object.keys(workerPaths).filter(format => format !== "single-html") as ExportFormat[]) {
   test(`${previous} PWA retirement uses the destination's served worker path across export formats`, async () => {
     const source = await prepareExportProject({ ...doc, pwa: { enabled: true } }, previous);

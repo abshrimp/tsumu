@@ -46,7 +46,7 @@ for (const format of ["nextjs", "react"] as const) {
     await expect(page.locator("#tag-on")).not.toBeChecked();
     await expect(page.locator("#color")).toHaveValues(["green", "blue"]);
 
-    // 同じDOMを保持した履歴移動でも、URLにない選択を残さない。
+    // 同じ DOM を保ったままの履歴の移動でも、URL に無い選択を残さない。
     await page.evaluate(() => {
       window.history.pushState(null, "", "?tab=products&q=&tag=on&color=red");
       window.dispatchEvent(new PopStateEvent("popstate"));

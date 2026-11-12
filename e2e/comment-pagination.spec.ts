@@ -10,7 +10,7 @@ async function openLargeSite(page: Page, count = 1001) {
   const { site } = await created.json();
   const current = await (await page.request.get(`/api/doc?site=${site.id}`)).json();
   expect((await page.request.put(`/api/doc?site=${site.id}${current.rev ? `&base=${current.rev}` : ""}`, { data: commentTargetDoc() })).ok()).toBeTruthy();
-  // Seed only the disposable database configured in playwright.config.ts. API reads and every UI mutation remain real.
+  // playwright.config.ts で設定した使い捨てのデータベースにだけ、初期のデータを入れる。API の読み取りと UI での変更は、すべて実際のものを使う。
   const db = new DatabaseSync(resolve(".e2e-data/tsumu.db"));
   const id = (n: number) => `paged_${site.id}_${String(n).padStart(4, "0")}`;
   try {
@@ -43,7 +43,7 @@ test("1001 comments remain reachable and paging preserves off-batch reply drafts
   await expect(page.locator(".cm-pagination")).toContainText("全1001件中1件");
   await expect(page.getByRole("button", { name: "新しい一覧", exact: true })).toBeEnabled();
   await page.getByRole("button", { name: "最新の一覧", exact: true }).click();
-  // Navigating between pages preserves an unfinished reply when its thread is reopened.
+  // ページの間を移動しても、スレッドを開き直したときに、書きかけの返信が残っている。
   await page.locator(".cm-item").filter({ has: page.locator(".cm-item-body", { hasText: /^Discussion 1000$/ }) }).click();
   await expect(reply).toHaveValue("Reply across batches");
   await detail(page).getByRole("button", { name: "返信", exact: true }).click();
@@ -66,7 +66,7 @@ test("a new comment draft survives batch navigation and its 1002nd thread opens 
   await page.locator(".cm-catcher").click({ position: { x: 120, y: 120 } });
   const input = detail(page).getByPlaceholder("コメントを書く", { exact: true });
   await input.fill("New discussion after 1001");
-  // Returning to the list and navigating between pages preserves a new comment draft.
+  // 一覧に戻ってページの間を移動しても、新しいコメントの下書きが残っている。
   await detail(page).getByRole("button", { name: "一覧に戻る", exact: true }).click();
   await page.getByRole("button", { name: "最新の一覧", exact: true }).click();
   await page.getByRole("button", { name: "古い一覧", exact: true }).click();

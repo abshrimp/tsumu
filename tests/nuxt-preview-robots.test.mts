@@ -12,8 +12,8 @@ const doc: SiteDoc = {
   },
 };
 
-// Evaluate the emitted config, including the style transform, rather than
-// accepting robots.txt/_headers as evidence of a document-level directive.
+// robots.txt や _headers を文書の単位の指示の証拠とみなさず、
+// スタイルの変換を含め、出力した設定を評価する。
 function configOf(source: string) {
   const module = { exports: {} as { default?: any } };
   const code = transformSync(source, { loader: "ts", format: "cjs" }).code;

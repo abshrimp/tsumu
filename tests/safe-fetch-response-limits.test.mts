@@ -38,7 +38,7 @@ for (const [runtimeName, runtime] of Object.entries(runtimes)) {
       for (const headers of headerCases) {
         let cancelled = false;
         let pulls = 0;
-        // Native fetch exposes decoded bytes; the wire length must not set the limit.
+        // ネイティブの fetch は、デコードしたバイト列を返す。通信上の長さで上限を決めてはならない。
         t.mock.method(globalThis, "fetch", async () => new Response(new ReadableStream({
           pull(controller) { pulls++; controller.enqueue(new Uint8Array(3)); },
           cancel() { cancelled = true; },

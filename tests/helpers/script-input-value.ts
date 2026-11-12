@@ -4,7 +4,7 @@ import { makeBox, makeText } from "../../lib/presets";
 import type { DocNode, FieldContent, ScriptStep, SiteDoc } from "../../lib/types";
 export { publishedSelectDefault as publishedScriptInputValue } from "./select-default";
 
-/** 有効な初期値から始め、ブラウザが書き換える値を実スクリプトで代入する。 */
+/** 有効な初期値から始め、ブラウザが書き換える値を、実際のスクリプトで代入する。 */
 export function scriptInputValueDoc(field: FieldContent, requested: string, restored: string): SiteDoc {
   const actions: [string, string[]][] = [
     ["assign-input", [requested]], ["repeat-input", [requested, requested]],
@@ -33,7 +33,7 @@ export function scriptInputValueDoc(field: FieldContent, requested: string, rest
   };
 }
 
-/** 本物のScriptEditorで動作を編集し、Canvasの入力値と参照表示を確認する。 */
+/** 実際の ScriptEditor で動作を編集し、Canvas の入力値と参照の表示を確かめる。 */
 export async function scriptInputValueBundle(doc: SiteDoc) {
   return (await build({
     stdin: { contents: `

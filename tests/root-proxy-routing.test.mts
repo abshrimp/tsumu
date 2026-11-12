@@ -45,8 +45,8 @@ async function rewritesOf(config: Config) {
   return rewrites;
 }
 
-// ファイルの有無だけを代用し、マッチ・転送先・優先順位はインストール済み Next 本体で検証する。
-// サーバーやブラウザを起動せず、外部へのリクエストも送らない。
+// ファイルの有無だけを代わりに用意し、一致・転送先・優先順位は、インストール済みの Next.js の本体で検証する。
+// サーバーもブラウザも起動せず、外部へのリクエストも送らない。
 async function resolver(config: Config, items = new Map<string, FsOutput>(), dynamicPaths: string[] = []) {
   const rewrites = config.rewrites ? await rewritesOf(config) : { beforeFiles: [] };
   const fsChecker = {
@@ -140,7 +140,7 @@ test("query and fragment destinations remain valid and exact-only for root and n
       assert.ok(descendant.parsedUrl.protocol == null);
     }
   }
-  // クエリの後ろへ単純にパスを足すと、パスでなくクエリ値が変わってしまう。
+  // クエリの後ろに単純にパスを足すと、パスではなくクエリの値が変わってしまう。
   const { parsedDestination } = prepareDestination({ destination: "https://example.com/base?lang=ja/:proxyPath*", params: { proxyPath: ["contact"] }, query: {}, appendParamsToQuery: true });
   assert.equal(parsedDestination.pathname, "/base");
   assert.equal(parsedDestination.query.lang, "ja/contact");
@@ -199,7 +199,7 @@ for (const rootFirst of [true, false]) {
     assert.deepEqual(rewrites.fallback, [{ source: "/:proxyPath+", destination: "https://origin.example/base/:proxyPath*" }]);
     assert.equal(rewrites.beforeFiles.length, 3);
     assert.equal(rewrites.beforeFiles[rootFirst ? 0 : 2].source, "/");
-    // 公開時に残るユーザー作成ファイルや Next の予約エンドポイントも、列挙による除外なしで優先される。
+    // 公開のときに残る利用者が作ったファイルや、Next.js の予約されたエンドポイントも、列挙による除外なしで優先される。
     const items = localItems([
       ["/about", "appFile"], ["/landing", "appFile"], ["/blog/[slug]", "appFile"],
       ["/shop/local", "appFile"], ["/api/ping", "appFile"], ["/manifest.webmanifest", "appFile"],
@@ -218,7 +218,7 @@ for (const rootFirst of [true, false]) {
     const dynamic = await route("/blog/hello");
     assert.equal(dynamic.matchedOutput?.itemPath, "/blog/[slug]");
     assert.equal(dynamic.matchedOutput?.params.slug, "hello");
-    // 存在しない Next リソースは中継できるが、外部 Next アプリ全体の互換性を保証するものではない。
+    // 存在しない Next.js のリソースは中継できるが、外部の Next.js のアプリ全体との互換性を保証するものではない。
     for (const path of ["/", "/contact", "/assets/missing.css", "/hidden", "/hidden-proxy", "/_next/static/chunks/upstream.js", "/_next/data/foreign-build/contact.json"]) {
       const result = await route(path);
       assert.equal(result.parsedUrl.hostname, "origin.example", path);
@@ -240,7 +240,7 @@ for (const rootFirst of [true, false]) {
 }
 
 test("a local dynamic catch-all added to the exported project owns descendants before the root fallback", async () => {
-  // エディタは [slug] だけを許可するが、書き出した Next プロジェクトには catch-all も追加できる。
+  // エディタは [slug] だけを許すが、書き出した Next.js のプロジェクトには catch-all も追加できる。
   const { config } = generated(fixture([page("home", "", { rewriteTo: "https://origin.example/" })]));
   const route = await resolver(config, localItems([["/[...path]", "appFile"]]), ["/[...path]"]);
   for (const path of ["/contact", "/assets/missing.css", "/deep/path"]) {

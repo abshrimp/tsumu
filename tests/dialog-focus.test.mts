@@ -7,9 +7,9 @@ import { transformSync } from "esbuild";
 import { showAlert, showConfirm, showPrompt, useDialogs } from "../lib/dialog";
 import * as dialogs from "../lib/dialog";
 
-// Run the production component/effects and real dialog queue. Only React's
-// renderer and DOM focus/default Tab traversal are modeled here; the matching
-// Playwright suite verifies native focus, propagation and accessible names.
+// 本番のコンポーネント・effect と、実際のダイアログのキューを動かす。ここで模擬するのは、
+// React のレンダラーと、DOM のフォーカス・既定の Tab の移動だけ。対応する Playwright のテストが、
+// ネイティブのフォーカス・伝播・アクセシブルな名前を確かめる。
 function mount() {
   useDialogs.setState({ queue: [] });
   const win = new EventTarget();
@@ -80,7 +80,7 @@ function mount() {
   function key(key: string, init: { shiftKey?: boolean; isComposing?: boolean; keyCode?: number } = {}) {
     const event = Object.assign(new Event("keydown", { cancelable: true }), { key, ...init });
     win.dispatchEvent(event);
-    // Native Tab leaves a portal for the background unless its default is prevented.
+    // ネイティブの Tab は、既定の動作を止めない限り、ポータルから背景へ移る。
     if (key === "Tab" && !event.defaultPrevented) {
       const order = [opener, background, ...targets.values()].filter(target => target.isConnected && !target.disabled);
       const i = order.indexOf(doc.activeElement!);

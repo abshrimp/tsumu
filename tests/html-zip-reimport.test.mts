@@ -77,7 +77,7 @@ test("committing a ZIP media update reuses unshared members without erasing pane
   const before = ids();
   archive.file("font.woff2", "second");
   const staged = await read(assets());
-  // Another page can start using this archive after the upload has completed.
+  // アップロードが完了した後で、別のページがこのアーカイブを使い始めることがある。
   const shared = structuredClone(doc), duplicate = { ...structuredClone(page), id: "copy", slug: "copy" };
   shared.pages.copy = duplicate;
   shared.pageOrder.push("copy");
@@ -105,7 +105,7 @@ test("committing a ZIP media update reuses unshared members without erasing pane
   assert.equal(generateProject(doc).remoteAssets[fontPath], doc.assets[after.get("font.woff2")!].path);
   assert.equal(uploads, 4);
 
-  // Simulate a stale path collision produced before ZIP version separation.
+  // ZIP の版を分ける前にできた、古いパスの衝突を再現する。
   const oldFont = doc.assets[before.get("font.woff2")!];
   oldFont.zip!.group = module.zip!.group;
   const collidingGroup = module.zip!.group;

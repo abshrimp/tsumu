@@ -10,7 +10,7 @@ export function nestedOperationsDoc(component = false, selected = true) {
   const doc = nestedScopeDoc();
   const load = doc.pages.p.pageScripts![0];
   load.pos = { x: 800, y: 20 };
-  // スクリプト画面で選べる名前付き配列。各リストでは項目内の tags を優先する。
+  // スクリプトの画面で選べる、名前付きの配列。各リストでは、項目の中の tags を優先する。
   load.steps.push({ id: "tags-alias", kind: "set-var", value: "{response.0.tags}", into: "tags" });
   doc.nodes.row.children = ["detail"];
   delete doc.nodes.hide; delete doc.nodes.show;
@@ -37,7 +37,7 @@ export function nestedOperationsDoc(component = false, selected = true) {
   return doc;
 }
 
-/** 実際のスクリプト画面で配列を選び、キャンバスで動作させる。 */
+/** 実際のスクリプトの画面で配列を選び、キャンバスで動かす。 */
 export async function nestedOperationsBundle(component = false) {
   return (await build({ stdin: { contents: `
 import React, { useState } from "react";

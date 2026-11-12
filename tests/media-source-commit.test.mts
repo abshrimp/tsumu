@@ -33,7 +33,7 @@ for (const kind of ["video", "audio"] as const) test(`${kind} source only commit
   useEditor.getState().replaceDoc(doc);
   const field = findSource(mod.exports.default({ nodeId: "media" }));
   assert.ok(field);
-  // CommitInput is covered by commit-fields.test.mts for idle blur, remote updates and history replay.
+  // CommitInput については、操作していないときの blur、外からの更新、履歴の再生を、commit-fields.test.mts で確かめる。
   field.props.onBlur?.({ target: { value: "" } });
   assert.deepEqual(useEditor.getState().doc.nodes.media.media, node.media, "untouched empty asset placeholder must preserve the selected asset");
   assert.equal(field.type, CommitInput);

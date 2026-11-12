@@ -11,7 +11,7 @@ test("single HTML never includes untrusted Content-Type as HTML attribute syntax
     remoteAssets: { "assets/remote.png": "assets/upload-id" },
   }, async () => new Response(Uint8Array.from([1, 2, 3]), {
     headers: {
-      // This used to break out of src="data:..." and create an onerror handler.
+      // この値は、src="data:..." から抜け出して、onerror のハンドラーを作ろうとする。
       "Content-Type": 'image/png" onerror="globalThis.__tsumuInjected=1" fake="',
     },
   }));

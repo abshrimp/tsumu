@@ -23,8 +23,8 @@ test("asset GC finds paths in nested doc HTML/CSS and encoded image URLs", () =>
     customHtml: `<img src="/api/assets/file?path=${encodeURIComponent(encodeURIComponent(c))}">`,
   });
   const refs = extractAssetReferences(raw);
-  // Conservatively retaining incidental URL segments (e.g. assets/file in
-  // /api/assets/file) is harmless; losing a real reference is not.
+  // URL の中のたまたまの区切り（/api/assets/file の assets/file など）を控えめに残しても害は無いが、
+  // 実際の参照を失うのは害がある。
   for (const path of [a, b, c]) assert.equal(refs.has(path), true);
   assert.throws(() => extractAssetReferences("{broken"));
 });
@@ -404,7 +404,7 @@ test("deletion stops inside the Workers Free subrequest limit when many sites ar
       get(id) { return { gcAssetReferences: () => { calls++; return f.rooms.get(id).gcAssetReferences(); } }; },
     };
     const report = await runAssetGc({ db, kv, rooms, now, dryRun: false });
-    // Two full scans of 400 sites leave room for only some deletes.
+    // 400 のサイトを2回すべて走査すると、削除できるのは一部だけになる。
     assert.ok(report.deleted > 0 && report.deleted < 300, `deleted ${report.deleted}`);
     assert.ok(calls <= 900, `used ${calls} Cloudflare-service calls`);
     assert.equal(f.stored.size, 300 - report.deleted);
@@ -485,7 +485,7 @@ test("weekly inventory fills the storage ledger and GC deletes keep it in sync",
   try {
     const row = f.sql.prepare("INSERT INTO asset_objects VALUES(?,?,?,?)");
     row.run(key(200, "vanished.png"), 5, now - 200 * day, now - 100 * day);
-    // Uploaded while the scan ran: KV listing may not include it yet.
+    // 走査の間にアップロードされた: KV の一覧には、まだ含まれていないことがある。
     row.run(key(0, "fresh.png"), 9, now + 1, now + 1);
     await runAssetGc({ db: f.db, kv: f.kv, rooms: f.rooms, now, discoverUntracked: true });
     const ledger = () => f.sql.prepare("SELECT path,bytes FROM asset_objects ORDER BY path").all()

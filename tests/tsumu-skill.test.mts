@@ -8,8 +8,8 @@ const read = (relative: string) => readFileSync(new URL("../" + relative, import
 test("the English AI Skill type reference matches the current SiteDoc model", () => {
   const snapshot = read("skills/tsumu-site/references/types.ts");
   const current = read("lib/types.ts");
-  // The snapshot differs from the source in comments only. Avoid depending on
-  // compiler-module interoperability in Node test workers to check that invariant.
+  // スナップショットとソースの違いは、コメントだけ。その性質を確かめるのに、Node.js のテストの
+  // ワーカーでのコンパイラーのモジュールの相互運用に頼らない。
   const normalized = (source: string) => {
     let out = "";
     let i = 0;

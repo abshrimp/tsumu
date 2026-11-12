@@ -45,7 +45,7 @@ test(`component-contained lists: select script arrays, sort, filter, clear and r
   for (const action of listActions) {
     await page.getByRole("button", { name: `Edit ${action}`, exact: true }).click();
     const choice = page.locator(`.se-ws [data-sel-key="step:${action}-step"] button.se-list-choice`);
-    // Choose through the actual popover, not by mutating the saved script.
+    // 保存したスクリプトを書き換えるのではなく、実際のポップオーバーから選ぶ。
     await choice.click();
     const option = page.locator(".se-list-picker").getByRole("option", { name: "tags", exact: true });
     await expect(option).toBeVisible();
@@ -68,7 +68,7 @@ test(`component-contained lists: select script arrays, sort, filter, clear and r
   await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
   expect(await runOperations(page)).toEqual(previewResults);
   expect(await snapshot(page)).toEqual(before);
-  // Generate the document saved through the script editor, including component scripts, and verify the same operations.
+  // スクリプトの画面を通して保存した文書（コンポーネントのスクリプトを含む）から生成し、同じ操作を確かめる。
   await page.setContent(await publishedNestedOperations(before.doc));
   await page.addScriptTag({ content: scriptsFile(before.doc) });
   expect(await runOperations(page)).toEqual(previewResults);

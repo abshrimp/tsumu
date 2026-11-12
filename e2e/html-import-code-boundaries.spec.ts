@@ -62,8 +62,8 @@ for (const archive of [false, true]) {
     const published = await context.newPage();
     const { files } = generateExportProject(doc, "html");
     const origin = "http://tsumu-import.test";
-    // Exercise the published project, including its generated stylesheets.
-    // Loading only index.html while aborting resources hides all exported CSS.
+    // 生成したスタイルシートを含め、公開したプロジェクトを通して動かす。
+    // index.html だけを読み込み、他のリソースを中断すると、書き出した CSS がすべて隠れてしまう。
     await published.route("**/*", route => {
       const url = new URL(route.request().url());
       const path = url.pathname === "/" ? "index.html" : url.pathname.slice(1);

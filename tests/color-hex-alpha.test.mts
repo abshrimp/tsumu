@@ -11,7 +11,7 @@ for (const [value, hex, alpha] of [
   test(`opacity edits retain RGB from ${value}`, () => {
     const parsed = parseColor(value);
     assert.deepEqual(parsed, { hex, alpha });
-    // FillControl's opacity input composes the new alpha with parsed RGB.
+    // FillControl の不透明度の欄は、読み取った RGB と新しいアルファ値を組み合わせる。
     assert.equal(composeColor(parsed.hex, 0.5),
       `rgba(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)}, 0.5)`);
   });

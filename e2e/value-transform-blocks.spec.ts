@@ -553,7 +553,7 @@ test("canvas native select and picker button share the same dropdown appearance"
 });
 
 test("canvas arithmetic options size to the widest label", async ({ page }) => {
-  // Font metric changes during initial loading must not be mistaken for a selection-induced resize.
+  // 最初の読み込みの間のフォントの寸法の変化を、選択による大きさの変化と取り違えてはならない。
   await page.evaluate(async () => { await document.fonts.ready; });
   const box = page.locator('[data-sel-key="step:numeric"]');
   const method = box.getByRole("combobox", { name: "計算方法" });
@@ -581,15 +581,15 @@ test("canvas arithmetic options size to the widest label", async ({ page }) => {
       return { actual: select.getBoundingClientRect().width, required: longest + left + right + borders, right };
     });
     expect(measurements.right).toBe(30);
-    // Reject both clipped labels and unnecessarily wide boxes.
+    // ラベルが切れているものも、必要以上に幅の広い枠も、どちらも不合格にする。
     expect(measurements.actual).toBeGreaterThanOrEqual(measurements.required - 2);
     expect(measurements.actual).toBeLessThanOrEqual(measurements.required + 3);
     const initialWidth = measurements.actual;
     await control.selectOption({ index: 1 });
     await control.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
     const selectedWidth = await control.evaluate((element) => element.getBoundingClientRect().width);
-    // Rounding is browser-dependent, but selecting another option must not resize
-    // the dropdown substantially or make the longest label clip.
+    // 丸め方はブラウザによって違うが、別の選択肢を選んでも、ドロップダウンの幅が
+    // 大きく変わったり、最も長いラベルが切れたりしてはならない。
     expect(selectedWidth).toBeGreaterThanOrEqual(measurements.required - 2);
     expect(selectedWidth).toBeLessThanOrEqual(measurements.required + 3);
     expect(Math.abs(selectedWidth - initialWidth)).toBeLessThanOrEqual(2);

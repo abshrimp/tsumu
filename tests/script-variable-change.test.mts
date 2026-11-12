@@ -97,7 +97,7 @@ test("renaming and exported variable obfuscation update watched variable paths",
   ], [
     { id: "assign", kind: "set-var", into: "stats", value: "{}" },
   ]);
-  // The name-editing flow first renames the producer, then updates references.
+  // 名前の編集の流れでは、まず値を作る側の名前を変え、その後で参照を更新する。
   const producer = doc.nodes.button.scripts![0].steps[0];
   if (producer.kind !== "set-var") throw new Error("expected set-var producer");
   producer.into = "renamed";

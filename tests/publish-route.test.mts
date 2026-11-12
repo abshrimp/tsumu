@@ -10,7 +10,7 @@ import { parsePublishedExportOptions } from "../lib/publish-preferences";
 import { gitBlobRequestBody } from "../lib/github-blob";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
-// 外部通信せず、公開 API が GitHub に渡すツリーを確かめる。
+// 外部とは通信せずに、公開の API が GitHub に渡すツリーを確かめる。
 function fixture(truncated?: boolean, manifestText?: string, documentBlob?: string,
   storedAssets: Record<string, Uint8Array> = {}) {
   class NextResponse extends Response {
@@ -373,7 +373,7 @@ test("editable document uploads reject malformed JSON, invalid UTF-8 and oversiz
 });
 
 test("safe editable uploads and ordinary binary assets retain their exact bytes", async () => {
-  // Documents above the client's inline threshold use this detached upload path.
+  // クライアントがそのまま送る大きさの上限を超える文書は、この別のアップロードの経路を使う。
   const document = Buffer.from(JSON.stringify({ siteName: "Publish", text: "x".repeat(512 * 1024), scripts: [
     { kind: "fetch", url: "https://api.example.test/?api_key=%7Bkey%7D" },
   ] }));

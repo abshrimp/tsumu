@@ -144,7 +144,7 @@ test("condition names are values, including object prototype property names", as
     ["/results?__proto__=last", "variant0"],
     ["/results?constructor=first", "variant2"],
   ]) {
-    // Next と同じく、クエリを自身のプロパティにする（Object.prototype 経由で代入しない）。
+    // Next.js と同じく、クエリを自身のプロパティにする（Object.prototype を通して代入しない）。
     assert.equal((await generatedRoute(generateProject(doc).files)(url)).metadata.title, expected);
     assert.equal(navigate(doc, url), expected);
   }

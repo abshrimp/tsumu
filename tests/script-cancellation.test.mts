@@ -90,7 +90,7 @@ test("a pending action does not resume after leaving and returning to the same p
   h.navigate("a"); h.scan();
   await h.tick();
   assert.equal(h.target.style.display, "");
-  // A newly started action still works after returning.
+  // 戻った後でも、新しく始めた動作は動く。
   h.click(); await h.tick();
   assert.equal(h.target.style.display, "none");
 });
@@ -140,7 +140,7 @@ test("a reused element runs its load script once per page visit", () => {
 
 test("unrelated mutations and removal of the trigger do not cancel same-page actions", async () => {
   const h = harness([wait, hide]);
-  // The page marker stays in place; an unrelated DOM scan is not navigation.
+  // ページの印はそのまま残る。関係の無い DOM の走査は、ページの移動ではない。
   h.removeTrigger(); h.scan(); await h.tick();
   assert.equal(h.target.style.display, "none");
 });

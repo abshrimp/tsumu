@@ -14,7 +14,7 @@ export function pageKindFixture(): SiteDoc {
   };
 }
 
-/** 実際の右パネル・確認ダイアログ・ストアで共同編集との競合を確認する。 */
+/** 実際の右のパネル・確認のダイアログ・ストアで、共同編集との競合を確かめる。 */
 export async function pageKindBundle() {
   return (await build({
     stdin: { contents: `

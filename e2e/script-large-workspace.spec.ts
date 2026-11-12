@@ -24,7 +24,7 @@ test("a 4000-block workspace mounts nearby blocks, scrolls to distant blocks and
   const mounted = () => workspace.locator('[data-sel-key^="step:"]').count();
   expect(await mounted()).toBeLessThan(400);
 
-  // The last block must still be addressable by scrolling over placeholders.
+  // 仮の要素の上をスクロールしても、最後のブロックを扱えなければならない。
   await workspace.locator(".se-virtual-chunk").last().evaluate((el) =>
     el.scrollIntoView({ block: "center" }));
   await expect(workspace.locator('[data-sel-key="step:wait-3999"]')).toBeVisible();
@@ -99,7 +99,7 @@ test("offscreen stacks release focus retention without losing edits or accumulat
   await page.setContent('<html><body><div id="app"></div></body></html>');
   await page.addScriptTag({ content: await scriptDragBundle(doc) });
   const workspace = page.locator(".se-ws");
-  // Each old stack is well outside the observer's overscan before focus leaves.
+  // フォーカスが外れる前に、古い並びはどれも、監視の先読みの範囲から十分に離れている。
   for (const index of [0, 20, 40]) {
     const stack = workspace.locator(`[data-script-id="stack-${index}"]`);
     const field = stack.locator("input.se-in");

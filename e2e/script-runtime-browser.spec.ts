@@ -67,7 +67,7 @@ for (const published of [false, true]) {
       (window as any).__observedForScriptAudit.has(document.getElementById("old"))
     )).toBe(true);
 
-    // The observer may deliver an already queued entry after its old element was detached.
+    // 監視の仕組みは、元の要素が取り外された後に、すでにキューに入った項目を届けることがある。
     await page.evaluate((scripts) => {
       const old = document.getElementById("old")!;
       document.body.innerHTML = '<main data-page-body="b"><div id="banner">B</div><div id="fresh"></div></main>';
@@ -77,7 +77,7 @@ for (const published of [false, true]) {
     await expect(page.locator("#banner")).toBeVisible();
     await expect(page.locator("#banner")).toHaveText("B");
 
-    // A new element on the new page must still receive the legitimate notification.
+    // 新しいページの新しい要素は、正当な通知を引き続き受け取らなければならない。
     await expect.poll(() => page.evaluate(() =>
       (window as any).__observedForScriptAudit.has(document.getElementById("fresh"))
     )).toBe(true);
@@ -153,8 +153,8 @@ for (const published of [false, true]) {
     await install(page, published, entries);
     await page.locator("#owner").hover();
     await expect(page.locator("#menu")).toBeVisible();
-    // Move the pointer directly: locator.hover() may wait for actionability
-    // long enough for the delayed exit to hide a sibling menu.
+    // ポインターを直接動かす。locator.hover() は操作できる状態になるまで待つことがあり、
+    // その間に、遅れて外れる処理が兄弟のメニューを隠してしまう。
     const menu = page.locator("#menu");
     const box = await menu.boundingBox();
     expect(box).not.toBeNull();

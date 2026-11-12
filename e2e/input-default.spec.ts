@@ -78,7 +78,7 @@ test("SettingsPanel edits preserve raw defaults and history while preview respec
   const errors = await setup(page, inputDefaultDoc({ kind: "input", inputType: "number", defaultValue: "12" }));
   const initial = await snapshot(page);
   await setting(page, "初期値").fill("invalid");
-  await toggle(page); // blur commits through the real SettingsPanel
+  await toggle(page); // blur で、実際の SettingsPanel を通して確定する
   await value(page, "");
   const edited = await snapshot(page);
   expect(edited.doc.nodes.entry.field.defaultValue).toBe("invalid");
@@ -97,7 +97,7 @@ test("SettingsPanel edits preserve raw defaults and history while preview respec
   await toggle(page);
   await setting(page, "初期値").fill("30");
   await toggle(page);
-  await value(page, "8", 0); // a new default must not erase the script-owned value
+  await value(page, "8", 0); // 新しい初期値で、スクリプトが設定した値を消してはならない
   const latest = await snapshot(page);
   expect(latest.doc.nodes.entry.field.defaultValue).toBe("30");
   expect(latest.past).toHaveLength(2);

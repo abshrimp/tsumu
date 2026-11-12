@@ -138,8 +138,8 @@ test("reconnecting during a pending gesture preserves Undo/Redo through conflict
     remote.pages[remote.pageOrder[0]].children.pop();
     await persist(original, remote, "1");
 
-    // A reconnecting client still carrying revision 1 receives revision 2
-    // without partially applying its stale write on either backend.
+    // 版 1 のままで接続し直したクライアントは、版 2 を受け取る。どちらの保存先でも、
+    // その古い書き込みが中途半端に適用されることはない。
     const stale = createDocPatch(original, { ...original, siteName: "Stale write" })!;
     const conflicts = [await saveDocPatch(db, "history", stale, "1"), store.patch(stale, "1")];
     for (const conflict of conflicts) {

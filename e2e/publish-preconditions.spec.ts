@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-// Official CI runs native browser coverage; all publication requests are mocked.
-// No GitHub publication or real hosting update occurs.
+// 公式の CI では、ネイティブのブラウザでテストを動かす。公開のリクエストはすべて模擬する。
+// GitHub への公開も、実際のホスティングの更新も行わない。
 for (const drift of ["destination", "head"] as const) {
 test(`${drift} drift fails closed, then reopening requires a fresh plan and confirmation`, async ({ page }) => {
   const errors: string[] = [];
@@ -40,7 +40,7 @@ test(`${drift} drift fails closed, then reopening requires a fresh plan and conf
   await page.locator('[data-tutorial="publish"]').click();
   await page.getByRole("button", { name: "本番に公開", exact: true }).click();
   await expect(page.getByText("GitHub上の変更を上書きしますか？", { exact: true })).toBeVisible();
-  // Exercise each guard independently: the other precondition stays unchanged.
+  // それぞれの確認を独立に試す。もう一方の前提条件は変えない。
   if (drift === "destination") branch = "release";
   else head = fresh;
   await page.getByRole("button", { name: "上書きして公開", exact: true }).click();
@@ -153,7 +153,7 @@ for (const drift of ["destination", "head"] as const) {
     await page.getByRole("button", { name: "サイトを戻す", exact: true }).click();
     await expect(confirmation).toBeVisible();
     expect(rollbacks).toHaveLength(1);
-    // Cancel proves merely reopening or choosing a fresh version cannot publish.
+    // キャンセルすることで、開き直したり新しい版を選んだりしただけでは公開できないことを確かめる。
     await confirmation.getByRole("button", { name: "キャンセル", exact: true }).click();
     await expect(confirmation).toHaveCount(0);
     expect(rollbacks).toHaveLength(1);

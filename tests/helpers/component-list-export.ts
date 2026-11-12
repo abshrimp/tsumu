@@ -22,7 +22,7 @@ export function componentListDoc() {
   return doc;
 }
 
-/** 設定画面から変換し、実際のキャンバスで元に戻す・やり直す・保存後の再読み込みを確かめる。 */
+/** 設定の画面から変換し、実際のキャンバスで、元に戻す・やり直す・保存後の再読み込みを確かめる。 */
 export async function componentListBundle(doc = componentListDoc(), selectedNode = "card") {
   return (await build({ stdin: { contents: `
 import React from "react";
@@ -57,7 +57,7 @@ createRoot(document.getElementById("app")).render(<Example />);
   })).outputFiles[0].text;
 }
 
-/** 生成したページと部品を実行する。データ取得だけを固定し、描画処理は置き換えない。 */
+/** 生成したページと部品を実行する。データの取得だけを固定し、描画の処理は置き換えない。 */
 export async function publishedComponentList(doc: SiteDoc, page = "app/page.tsx", items: readonly unknown[] = nestedScopeItems) {
   const { files } = generateProject(doc), require = createRequire(resolve("package.json")), cache = new Map<string, any>();
   const load = (file: string): any => {
@@ -74,7 +74,7 @@ export async function publishedComponentList(doc: SiteDoc, page = "app/page.tsx"
     }, mod, mod.exports);
     cache.set(file, mod.exports); return mod.exports;
   };
-  // 生成サイトの設定をローカルな Context に渡す。ホストの既定値は変更しない。
+  // 生成したサイトの設定を、ローカルの Context に渡す。ホストの既定値は変えない。
   const config = { exports: {} as any };
   new Function("module", "exports", transformSync(files["next.config.mjs"], { format: "cjs" }).code)(config, config.exports);
   const { ImageConfigContext } = require("next/dist/shared/lib/image-config-context.shared-runtime");

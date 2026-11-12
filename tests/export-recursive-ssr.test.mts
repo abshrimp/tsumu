@@ -94,7 +94,7 @@ test("generated Vue HTTP server rejects invalid request targets before rendering
     };
     await writeFile(join(dir, "dist/server/entry-server.js"),
       "export function render() { return " + JSON.stringify(result) + "; }");
-    // Keep the generated handler intact and let the test select an ephemeral port.
+    // 生成したハンドラーはそのまま保ち、テストが一時的なポートを選べるようにする。
     await writeFile(join(dir, "server.mjs"), source.replace('process.env.NODE_ENV === "production"', "true")
       .replace(/^server\.listen\(.*$/m, "export { server };"));
     const { server } = await import(pathToFileURL(join(dir, "server.mjs")).href);

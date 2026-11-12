@@ -4,8 +4,8 @@ import { generateExportProject } from "../lib/export-formats";
 import { toSingleHtmlProject } from "../lib/generator/single-html";
 import type { SiteDoc } from "../lib/types";
 
-// The response is untrusted; imported text and links must not become
-// active HTML/JavaScript when a generated site loads its page data.
+// 応答は信頼できない。生成したサイトがページのデータを読み込むとき、取り込んだ文字やリンクが
+// 動作する HTML や JavaScript になってはならない。
 const prefix = "/__external_json_security__/";
 const payload = [
   {
@@ -82,9 +82,9 @@ for (const format of ["html", "single-html"] as const) {
       await expect(rows.nth(i).locator("#row-link")).toHaveText("Open " + payload[i].name);
       const href = await rows.nth(i).locator("#row-link").getAttribute("href");
       expect(href).toBeTruthy();
-      // The runtime may percent-encode an unsupported scheme as an inert
-      // same-origin relative path rather than replacing it with "#".
-      // Both are safe; only an executable/navigation-to-attacker URL is a bug.
+      // ランタイムは、対応していないスキームを "#" に置き換える代わりに、パーセントエンコードして、
+      // 害の無い同じオリジンの相対パスにすることがある。
+      // どちらも安全。不具合になるのは、実行できる URL や、攻撃者への移動になる URL だけ。
       if (i === 2) {
         expect(href).toBe("https://example.com/path?q=1");
       } else {

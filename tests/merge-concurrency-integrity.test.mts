@@ -32,10 +32,10 @@ function fixture(): SiteDoc {
   } as SiteDoc;
 }
 const changes: ((doc: SiteDoc) => void)[] = [
-  // Move across pages while the other user may move the sibling.
+  // もう一方の利用者が兄弟を動かすかもしれない間に、ページをまたいで移動する。
   doc => { doc.pages.home.children = []; doc.pages.about.children.push("a"); },
   doc => { doc.pages.about.children = []; doc.pages.home.children.push("b"); },
-  // Opposing ancestor moves are individually valid but can form a cycle when merged.
+  // 逆向きの祖先の移動は、それぞれは正しいが、マージすると循環になることがある。
   doc => { doc.pages.home.children = []; doc.nodes.b.children = ["a"]; },
   doc => { doc.pages.about.children = []; doc.nodes.a.children = ["b"]; },
   doc => { doc.nodes.a.text = { content: "local update", heading: 0 }; },

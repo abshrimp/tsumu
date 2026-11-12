@@ -11,8 +11,8 @@ import { hasPublishCredentials } from "../lib/publish-security";
 import { gitBlobRequestBody } from "../lib/github-blob";
 import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "../lib/api-json";
 
-// Persist Git objects between real rollback, snapshot and publish handlers so
-// ownership errors that only delete files on the next publication are visible.
+// 実際のロールバック・スナップショット・公開のハンドラーの間で Git のオブジェクトを保ち、
+// 次の公開でファイルを削除するだけの所有のエラーも見えるようにする。
 function fixture(target: "production" | "test", manual: files.TreeEntry, historicalSha: string,
   options: { historicalManual?: files.TreeEntry; extraManual?: files.TreeEntry[];
     historicalExtra?: files.TreeEntry[]; historicalGenerated?: Record<string, string>;
@@ -36,7 +36,7 @@ function fixture(target: "production" | "test", manual: files.TreeEntry, histori
     trees.set(id, entries);
     return id;
   };
-  // 再帰取得にはディレクトリも含め、保護サブツリーの置き換えも再現する。
+  // 再帰的な取得にはディレクトリも含め、保護した部分木の置き換えも再現する。
   const recursiveTree = (entries: files.TreeEntry[]) => {
     const directories = new Set<string>();
     for (const entry of entries) {
@@ -97,12 +97,12 @@ function fixture(target: "production" | "test", manual: files.TreeEntry, histori
     if (path === "/git/trees") {
       treeWrites.push(body);
       if (options.failTreeAt === treeWrites.length) return Response.json({}, { status: 503 });
-      // 同じリクエストの親パスと子パスは、削除を含めても重ねない。
+      // 同じリクエストの中の親のパスと子のパスは、削除を含めても重ねない。
       assert.equal(files.conflictingCommitPaths(body.tree.map((entry: files.TreeEntry) => entry.path)), null);
       const result = new Map((body.base_tree ? trees.get(body.base_tree)! : []).map(e => [e.path, e]));
       for (const entry of body.tree) {
         const replaced = [...result.keys()].filter(path => path === entry.path || path.startsWith(`${entry.path}/`));
-        // GitHub は存在しないパスの削除を拒否する。
+        // GitHub は、存在しないパスの削除を拒否する。
         if (entry.sha === null) assert.ok(replaced.length, `cannot delete missing path ${entry.path}`);
         for (const path of replaced) result.delete(path);
         if (entry.sha === null) continue;
@@ -190,7 +190,7 @@ for (const target of ["production", "test"] as const) {
       assert.equal(rollback.status, 200, await rollback.text());
       assert.deepEqual(f.entries().find(e => e.path === path), manual);
 
-      // Exercise the real next preflight and server-side retention logic.
+      // 実際の次の事前確認と、サーバー側でファイルを残す処理を動かす。
       const preflight = await f.send({ action: "tree" });
       assert.equal(preflight.status, 200);
       const snapshot = await preflight.json();
@@ -417,8 +417,8 @@ for (const target of ["production", "test"] as const) {
       assert.equal(f.recorded, 0);
       assert.deepEqual(f.entries().find(entry => entry.path === manual.path), manual);
 
-      // Correct the manifest, then publish twice. Retention must survive both
-      // commits, while generated output from the first one must be removed.
+      // 一覧を正しく直してから、2回公開する。手動で追加したファイルは両方のコミットで残り、
+      // 1回目で書き出したものは取り除かれなければならない。
       const validManifest = files.serializeGeneratedManifest({ "page.html": "page" });
       if (transport === "inline") {
         output[files.GENERATED_MANIFEST_PATH] = validManifest;

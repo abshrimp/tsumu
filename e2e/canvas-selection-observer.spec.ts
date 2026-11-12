@@ -13,14 +13,14 @@ test("selected overlay follows a flow-layout shift without an idle frame polling
   const original = await overlay.boundingBox();
   expect(original).not.toBeNull();
 
-  // Changing an earlier sibling moves "c" without changing "c" itself.
+  // 前の兄弟を変えると、"c" 自身は変えずに "c" が動く。
   await page.evaluate(() =>
     (window as any).canvasMoveEditor.getState().setStyleProps("a", { height: "250px" })
   );
   await expect.poll(async () => (await overlay.boundingBox())?.y ?? 0)
     .toBeGreaterThan(original!.y + 80);
 
-  // ResizeObserver also keeps the selection accurate for direct size changes.
+  // 大きさを直接変えた場合も、ResizeObserver が選択の表示を正確に保つ。
   await page.evaluate(() =>
     (window as any).canvasMoveEditor.getState().setStyleProps("c", { height: "210px" })
   );

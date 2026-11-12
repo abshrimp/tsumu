@@ -1,6 +1,6 @@
 import { scriptDragDoc } from "./script-drag";
 
-/** Both layouts contain exactly 4,000 blocks. */
+/** どちらの配置も、ちょうど 4,000 個のブロックを含む。 */
 export function scriptWorkspaceDoc(layout: "single" | "stacks") {
   const doc = scriptDragDoc();
   const count = layout === "single" ? 1 : 160;

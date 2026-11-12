@@ -199,7 +199,7 @@ async function openColorPicker(page: Page) {
 }
 async function colorInput(page: Page, kind: "range" | "color", value: string, event = "input") {
   await page.locator(`[data-tutorial="style-background"] .color-pop input[type="${kind}"]`).evaluate((element, args) => {
-    // Mirror native input updates via input/change events without calling React's value tracker directly.
+    // React の値の追跡を直接呼ばずに、input と change のイベントを通して、ネイティブの入力の更新を再現する。
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(element, args.value);
     element.dispatchEvent(new Event(args.event, { bubbles: true }));
   }, { value, event });
@@ -264,7 +264,7 @@ for (const control of ["padding", "resize", "range", "color"] as const) {
     if (control === "color" && (ending === "cancel" || ending === "lost")) continue;
     test(`${control}: ${ending} releases continuous editing and unblocks pending drops`, async ({ page }) => {
       const uploads = await holdUploads(page);
-      // Also verify that layer drops finish if only the canvas is closed.
+      // キャンバスだけを閉じた場合も、レイヤーへのドロップが完了することを確かめる。
       await drop(page, "layers"); await uploads.wait(1);
       const gesture = await startControl(page, control);
       await expect.poll(() => gestureActive(page)).toBe(true);
@@ -292,7 +292,7 @@ test("An unchanged native color change and a change-only commit both unblock pen
   await expect.poll(() => gestureActive(page)).toBe(true);
   await uploads.release(0); await settleGesture(page);
   expect((await snapshot(page)).doc.pages.p.children).toHaveLength(2);
-  // React skips onChange when the value is unchanged; the native commit event must still finish the gesture.
+  // 値が変わらないと React は onChange を呼ばないが、ネイティブの確定のイベントで操作を終えなければならない。
   await page.locator('[data-tutorial="style-background"] input[type="color"]').dispatchEvent("change", { bubbles: true });
   await expect.poll(async () => (await snapshot(page)).doc.pages.p.children.length).toBe(3);
   await page.evaluate(() => (window as any).dropEditor.getState().select("a"));
@@ -330,7 +330,7 @@ test("Two real controls keep pending drops blocked until the last gesture owner 
   await drop(page, "canvas"); await uploads.wait(1);
   const handles = [page.locator('[data-tutorial="style-spacing"] .field-pre.scrub').first(), page.locator('[data-tutorial="style-appearance"] .field-pre.scrub').nth(1)];
   for (let i = 0; i < handles.length; i++) {
-    // Reproduce two pointers by substituting only capture, while using real React pointer handlers and DOM listeners.
+    // キャプチャだけを差し替えて2つのポインターを再現し、React のポインターのハンドラーと DOM のリスナーは実際のものを使う。
     await handles[i].evaluate((element, pointerId) => {
       (element as HTMLElement).setPointerCapture = () => {};
       element.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, pointerId, clientX: 0, buttons: 1 }));

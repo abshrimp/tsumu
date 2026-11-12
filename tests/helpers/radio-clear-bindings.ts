@@ -48,7 +48,7 @@ export function radioClearDoc(clearOnChange = false): SiteDoc {
   };
 }
 
-/** 公開用の実際のReactページと、必要な機能だけを残したランタイムを使う。 */
+/** 公開用の実際の React のページと、必要な機能だけを残したランタイムを使う。 */
 export async function publishedRadioClear(clearOnChange = false) {
   const { files } = generateProject(radioClearDoc(clearOnChange));
   const require = createRequire(resolve("package.json"));

@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/robots.txt");
   await page.setContent('<div id="app"></div>');
   await page.addScriptTag({ content: bundle });
-  // Open the normally collapsed field using the same steps as a user.
+  // 普段は閉じている欄を、利用者と同じ手順で開く。
   await page.getByRole("button", { name: "カスタムコード", exact: true }).click();
   await expect(page.getByRole("button", { name: "HTML", exact: true })).toBeVisible();
 });

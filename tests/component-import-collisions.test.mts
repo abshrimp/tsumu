@@ -221,7 +221,7 @@ test("editing or deleting an imported master's scripts cannot change the destina
   assert.ok(!originalIds.has(imported.scripts![0].id), "the imported script needs its own editor identity");
   walkSteps(imported.scripts![0].steps, (step) => assert.ok(!originalIds.has(step.id)));
 
-  // スクリプト画面が使う操作を通して、元のブロックが変更・削除されないことを確かめる。
+  // スクリプトの画面が使う操作を通して、元のブロックが変更も削除もされないことを確かめる。
   const ids = pageNodeIds(pasted, "home");
   const importedScript = imported.scripts![0];
   useEditor.getState().updateDoc((doc) => applyPageScripts(doc, "home", ids,

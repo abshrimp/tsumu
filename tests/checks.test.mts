@@ -34,7 +34,7 @@ test("automatic URLs from adding and duplicating pages are reported", () => {
 
 test("automatic titles and shared titles are reported", () => {
   assert.ok(messages(withPage("about", "ページ 3")).some((m) => m.includes('"ページ 3"') && m.includes("automatic")));
-  // タイトルが空ならページ名がタイトルになる
+  // タイトルが空なら、ページ名がタイトルになる
   assert.ok(messages(withPage("about", "", "ページ 12")).some((m) => m.includes('"ページ 12"') && m.includes("automatic")));
   assert.ok(messages(withPage("menu", "Home")).some((m) => m.includes("same search and share title")));
   assert.ok(!messages(withPage("about", "ページの作り方")).some((m) => m.includes("still the automatic")));
@@ -63,7 +63,7 @@ test("a new page takes its first confirmed name as its title, and is not linked 
   st().addPage();
   const added = Object.values(st().doc.pages).find((p) => p.titlePending)!;
   assert.ok(added, "new page is marked");
-  // 触っただけ（同じ名前で確定）では決まらない
+  // 触れただけ（同じ名前で確定した）では、決まらない
   st().updatePage(added.id, { name: added.name });
   assert.equal(st().doc.pages[added.id].titlePending, true);
   st().updatePage(added.id, { name: "About us" });
@@ -80,7 +80,7 @@ test("titles without an explicit pending marker stay unchanged when a page is re
   assert.equal(page("x").title, "ページ 2");
   st().updatePage("x", { name: "会社案内" });
   assert.equal(page("x").title, "ページ 2");
-  // 自分で決めた名前と同じタイトルは連動しない
+  // 自分で決めた名前と同じタイトルは、連動しない
   st().updatePage("y", { name: "News" });
   assert.equal(page("y").title, "News");
 });
@@ -90,7 +90,7 @@ test("a copied page keeps the source title until its name is first confirmed", a
   st().duplicatePage("a");
   const id = bySlug("about-copy").id;
   assert.equal(page(id).title, "About our cafe");
-  // 同じタイトルで確定しても、触っただけなのでしるしは残る
+  // 同じタイトルで確定しても、触れただけなので、しるしは残る
   st().updatePage(id, { title: "About our cafe" });
   assert.equal(page(id).titlePending, true);
   st().updatePage(id, { name: "Access" });
@@ -107,7 +107,7 @@ test("editing the title first stops it from following the name", async () => {
   st().updatePage(id, { title: "Our menu" });
   st().updatePage(id, { name: "Menu" });
   assert.equal(page(id).title, "Our menu");
-  // 名前とタイトルを一緒に指定したときは、指定したタイトル
+  // 名前とタイトルを一緒に指定したときは、指定したタイトルになる
   st().updatePage(id, { name: "Drinks", title: "Drinks list" });
   assert.equal(page(id).title, "Drinks list");
 });

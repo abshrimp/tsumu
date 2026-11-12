@@ -361,11 +361,11 @@ test("Next.js refuses imported HTML route collisions before generating files", (
     reason.includes("share a path")));
   assert.throws(() => generateExportProject(site, "nextjs"), /share a path/);
 
-  // Two imported pages with different queries still compile to one route.ts.
+  // クエリの異なる2つの取り込んだページも、1つの route.ts にまとめられる。
   site.pages.private.rawHtml = "<!doctype html><html><body>Other</body></html>";
   assert.throws(() => generateExportProject(site, "nextjs"), /share a path/);
 
-  // Different URLs are independent routes and remain supported.
+  // URL が異なれば別々のルートになり、引き続き使える。
   site.pages.private.slug = "other";
   assert.deepEqual(exportLimitations(site, "nextjs"), []);
 });
@@ -437,8 +437,8 @@ test("every export, including Next.js SSR, rejects credentials before source gen
   assert.ok(exportLimitations(site, "nextjs").length > 0,
     "reserved internal metadata headers are unsafe even in SSR");
 
-  // Component/page-scoped export may exclude secrets that are not included in
-  // the generated editable document; project export must still inspect all pages.
+  // コンポーネントやページの範囲での書き出しでは、生成する編集可能な文書に含まれない秘密を
+  // 除けることがある。プロジェクトの書き出しでは、すべてのページを調べなければならない。
   step.headers = [];
   site.pages.private.pageScripts = [{
     id: "secret-load", trigger: "load", pos: { x: 0, y: 0 },

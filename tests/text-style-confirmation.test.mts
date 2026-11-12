@@ -33,7 +33,7 @@ for (const ok of [true, false]) {
   ]) test(`${ok ? "split" : "whole-text"} approval ignores obsolete ${interruption}`, async () => {
     const f = fixture();
     try {
-      // Undoの前後で本文が同じでも、前の確認を復活させない。
+      // 「元に戻す」の前後で本文が同じでも、前の確認を復活させない。
       state().updateNode("a", { name: "Undo this" });
       f.change();
       assert.equal(f.ui.confirmations.length, 1);
@@ -65,7 +65,7 @@ for (const ok of [true, false]) {
       if (interruption === "new-range") state().setTextSel({ nodeId: "a", start: 0, end: 4, text: "echo" });
       if (interruption === "unmount") f.ui.unmount();
       const before = snapshot();
-      // 最新のストアを確認するため、上記の一部は再描画前に解決する。
+      // 最新のストアを確かめるため、上の一部は再描画の前に解決する。
       await resolve(f, ok);
       assert.deepEqual(snapshot(), before);
     } finally { f.ui.unmount(); }

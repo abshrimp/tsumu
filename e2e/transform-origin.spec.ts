@@ -38,7 +38,7 @@ for (const [bp, state, inherited, resetValue] of [
     await page.evaluate(() => (window as any).originEditor.getState().redo());
     await expect(node(page)).toHaveCSS("transform-origin", "100px 50px");
     expect(await page.evaluate(() => (window as any).originEditor.getState().doc)).toEqual(changed);
-    // Selecting the same cell again keeps its origin rather than toggling it off.
+    // 同じマスをもう一度選んでも、原点は解除されず、そのまま残る。
     const history = await page.evaluate(() => (window as any).originEditor.getState().past.length);
     await center(page).click();
     await expect(node(page)).toHaveCSS("transform-origin", "100px 50px");
@@ -67,7 +67,7 @@ test("Setting center origin for multiple nodes preserves their individually inhe
   await reset(page);
   await expect(node(page)).toHaveCSS("transform-origin", "0px 0px");
   await expect(node(page, "b")).toHaveCSS("transform-origin", "200px 100px");
-  // An action after navigating to a different page must not reuse the previous multi-selection.
+  // 別のページへ移動した後の操作で、前の複数選択を使い回してはならない。
   await page.evaluate(() => {
     const s = (window as any).originEditor.getState(); s.setActivePage("q"); s.select("c");
   });

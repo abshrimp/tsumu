@@ -30,7 +30,7 @@ async function embedded(bytes: Uint8Array, type: string, attributes = "") {
   return { attrs, bytes: new Uint8Array(await fetched.arrayBuffer()), type: fetched.headers.get("content-type")! };
 }
 
-// HTML の classic script デコード順序: BOM → レスポンス charset → 要素/文書の文字コード。
+// HTML の classic script のデコードの順序: BOM → 応答の charset → 要素や文書の文字コード。
 // https://html.spec.whatwg.org/multipage/webappapis.html#fetch-a-classic-script
 function execute(bytes: Uint8Array, contentType: string, fallback = "utf-8"): unknown {
   let decoder = new TextDecoder(fallback);

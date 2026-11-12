@@ -49,7 +49,7 @@ function database() {
   };
 }
 
-// Cloudflare の基底クラスだけを置き換え、実際の DocumentRoom のフィールド初期化も実行する。
+// Cloudflare の基底クラスだけを置き換え、実際の DocumentRoom のフィールドの初期化も実行する。
 function roomClass() {
   const url = new URL("../document-room.ts", import.meta.url);
   const require = createRequire(url);

@@ -31,7 +31,7 @@ function loadUi(file: string, direct = false) {
 }
 function convert(doc: SiteDoc, nodeId = "card") {
   useEditor.getState().replaceDoc(doc); useEditor.getState().setActivePage("p"); useEditor.getState().select(nodeId);
-  // 設定画面の実際のボタンを取り出し、その onClick から store の操作を呼ぶ。
+  // 設定の画面の実際のボタンを取り出し、その onClick から store の操作を呼ぶ。
   const tree = loadUi("components/SettingsPanel.tsx", true).default({ nodeId });
   const find = (el: any): any => {
     if (el?.type === "button" && React.Children.toArray(el.props.children).includes("Create component")) return el;
@@ -75,7 +75,7 @@ test("SettingsPanel component conversion retains nested list rows in Canvas and 
 
 test("nested component instances retain per-item scripts, independent visibility and existing anchor rules", async () => {
   let doc = componentListDoc();
-  // 2段の部品と、ルートが参照の部品も store の変換で作る。
+  // 2段の部品と、ルートが参照になっている部品も、store の変換で作る。
   doc.nodes.tagBox = { ...makeBox(), id: "tagBox", children: ["tags"] };
   doc.nodes.card.children = ["name", "tagBox"];
   doc = convert(doc, "tagBox");
@@ -94,7 +94,7 @@ test("nested component instances retain per-item scripts, independent visibility
   doc.nodes.card.attrId = "master-card";
   const masterHtml = await publishedComponentList(doc);
   assert.match(masterHtml, /id="master-card"/); assert.doesNotMatch(masterHtml, /id="card-anchor"/);
-  // ルートが参照の場合はIDを増やさず、2つの非表示条件だけを引き継ぐ。
+  // ルートが参照の場合は ID を増やさず、2つの非表示の条件だけを引き継ぐ。
   doc.components!.alias = { id: "alias", name: "Alias", rootId: inner };
   doc.nodes.card.children = ["alias"];
   doc.nodes.alias = { ...makeBox(), id: "alias", type: "instance", componentId: "alias", hiddenOn: ["sm"], attrId: "ignored-alias" };
@@ -211,7 +211,7 @@ test("static nested components and form boundaries keep their standalone behavio
   const { files } = generateProject(doc), names = buildClassNames(doc);
   assert.ok(files["app/page.tsx"].includes(`className="${names.get("inside-button")}" type="button"`));
   assert.ok(files["app/page.tsx"].includes(`className="${names.get("outside-button")}" type="submit"`));
-  // 検索フォームのルーターはこの描画テストの対象外。
+  // 検索のフォームのルーターは、この描画のテストの対象外。
   doc.nodes.form.semantic = "div";
   const html = await publishedComponentList(doc);
   assert.doesNotMatch(html, /ignored-static-anchor/);

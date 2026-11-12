@@ -85,8 +85,8 @@ test("published instances forward independent visibility onto the component root
   const names = buildClassNames(doc);
   const { html, css } = renderExport(doc);
   assert.ok(html.includes('data-instance-hidden="' + names.get("hidden") + '"'));
-  assert.equal((html.match(/data-instance-hidden=/g) ?? []).length, 3); // Hidden outer and two nested instances.
-  assert.equal((html.match(/<div/g) ?? []).length, 4); // No visibility wrappers.
+  assert.equal((html.match(/data-instance-hidden=/g) ?? []).length, 3); // 非表示の外側のインスタンスと、入れ子の2つのインスタンス。
+  assert.equal((html.match(/<div/g) ?? []).length, 4); // 表示を切り替えるための包みは無い。
   assert.ok(css.includes('@media ' + bpRangeQuery("sm") + ' {\n  [data-instance-hidden~="' + names.get("hidden") + '"] {\n    display: none !important;'));
   assert.ok(css.includes('@media ' + bpRangeQuery("lg") + ' {\n  [data-instance-hidden~="' + names.get("nested") + '"] {\n    display: none !important;'));
   assert.ok(!css.includes('[data-instance-hidden~="' + names.get("visible") + '"]'));

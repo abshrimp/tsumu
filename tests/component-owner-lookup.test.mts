@@ -40,8 +40,8 @@ test("component ownership keeps the original component-order precedence", () => 
   assert.equal(componentOf(doc, "unattached"), null);
   assert.equal(componentOf(doc, "missing"), null);
 
-  // The former algorithm tests component roots in their stored order, not
-  // nearest-master-first. Preserve that behavior when the order changes.
+  // コンポーネントのルートは、近いマスターから順ではなく、保存されている順に調べる。
+  // 順序を入れ替えても、この動作を保つ。
   doc.components = {
     innerComponent: doc.components!.innerComponent,
     outerComponent: doc.components!.outerComponent,

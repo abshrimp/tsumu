@@ -111,8 +111,8 @@ test("RETURNING counts direct changes once and excludes trigger writes", withDat
 }));
 
 test("RETURNING commits and batch rollbacks survive a Node process restart", withDataDir(async (dir) => {
-  // Separate processes ensure neither a cached connection nor uncommitted
-  // in-process state can satisfy the persistence assertions.
+  // 別々のプロセスを使い、キャッシュした接続や、確定していないプロセス内の状態で、
+  // 保存の検証が通ってしまわないようにする。
   const setup = `
     const assert = require('node:assert/strict');
     const { nodeDatabase } = require(${JSON.stringify(fileURLToPath(new URL("../lib/node-storage.ts", import.meta.url)))});

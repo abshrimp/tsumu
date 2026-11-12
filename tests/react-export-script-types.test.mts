@@ -38,7 +38,7 @@ for (const language of ["typescript", "javascript"] as const) {
         symlinkSync(resolve("node_modules"), join(folder, "node_modules"), "junction");
         if (language === "typescript") {
           const config = JSON.parse(project.files["tsconfig.json"]);
-          // Vite 自体には依存せず、出力された React の全ソースを strict 設定で検証する。
+          // Vite そのものには依存せず、出力した React のソースのすべてを、strict の設定で検証する。
           config.compilerOptions.types = ["node"];
           config.include = ["src"];
           writeFileSync(join(folder, "src/css.d.ts"), 'declare module "*.css";\n');

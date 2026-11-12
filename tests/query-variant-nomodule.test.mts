@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { QUERY_VARIANT_RUNTIME } from "../lib/generator/query-route";
 
-// A module-capable browser ignores classic nomodule scripts without dispatching
-// load/error. The router must not await an event that the browser never emits.
+// モジュールに対応したブラウザは、classic script の nomodule のスクリプトを、load や error を発生させずに無視する。
+// ルーターは、ブラウザが決して発生させないイベントを待ってはならない。
 async function bootstrap(moduleCapable: boolean, type = "") {
   const inserted: string[] = [];
   const attributes = [{ name: "nomodule", value: "" }, { name: "src", value: "/legacy.js" }, { name: "type", value: type }];

@@ -34,7 +34,7 @@ async function hold(page: Page, pattern: string, body: string, contentType: stri
 }
 async function doc(page: Page) { return page.evaluate(() => (window as any).importEditor.getState().doc); }
 async function settle(page: Page) {
-  // Wait for the delayed fetch and React update, then verify nothing changes later.
+  // 遅らせた取得と React の更新を待ち、その後で何も変わらないことを確かめる。
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 }
 async function startFont(page: Page) {

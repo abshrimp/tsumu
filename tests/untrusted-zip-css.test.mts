@@ -47,7 +47,7 @@ test("central-directory and local-header corruptions fail before parsing untrust
   const normal = await parseSiteImport(raw, "zip");
   assert.deepEqual(normal.doc, JSON.parse(JSON.stringify(doc)));
   assert.doesNotThrow(() => validateImportedDoc(normal.doc));
-  const end = raw.length - 22; // Fixture has no archive comment.
+  const end = raw.length - 22; // この準備のアーカイブには、コメントが無い。
   const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
   assert.equal(view.getUint32(end, true), 0x06054b50);
   const central = view.getUint32(end + 16, true);

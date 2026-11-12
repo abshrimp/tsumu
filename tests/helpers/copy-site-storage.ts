@@ -2,7 +2,7 @@ import { build } from "esbuild";
 import { resolve } from "node:path";
 import type { SiteDoc } from "../../lib/types";
 
-/** 実際のダイアログ・ストア・コピー処理を、合成データだけで動かす。 */
+/** 実際のダイアログ・ストア・コピーの処理を、合成したデータだけで動かす。 */
 export async function copySiteStorageBundle(doc?: SiteDoc) {
   return (await build({
     stdin: { contents: `

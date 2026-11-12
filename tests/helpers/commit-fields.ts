@@ -9,7 +9,7 @@ export function commitFieldsDoc(): SiteDoc {
   };
 }
 
-/** 実際の確定入力欄で、入力・確定・外部更新・呼び出し側のイベントを確かめる。 */
+/** 実際の確定する入力欄で、入力・確定・外からの更新・呼び出し側のイベントを確かめる。 */
 export async function commitFieldsBundle() {
   return (await build({
     stdin: { contents: `
@@ -57,7 +57,7 @@ createRoot(document.getElementById("app")).render(<React.StrictMode><Example /><
   })).outputFiles[0].text;
 }
 
-/** ページ設定の実コンポーネントとストアで、Undo・Redoと共同編集の履歴を確かめる。 */
+/** ページの設定の実際のコンポーネントとストアで、元に戻す・やり直すと、共同編集の履歴を確かめる。 */
 export async function commitPageFieldsBundle() {
   return (await build({
     stdin: { contents: `

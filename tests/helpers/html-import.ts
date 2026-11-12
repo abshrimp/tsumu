@@ -1,7 +1,7 @@
 import { build } from "esbuild";
 import { resolve } from "node:path";
 
-/** 実際の右パネルとストアを、外部サービスを使わず確認する。 */
+/** 実際の右のパネルとストアを、外部のサービスを使わずに確かめる。 */
 export async function htmlImportBundle() {
   return (await build({
     stdin: { contents: `

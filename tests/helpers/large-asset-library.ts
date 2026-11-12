@@ -2,7 +2,7 @@ import { makeBox } from "../../lib/presets";
 import { assetSrc } from "../../lib/assets";
 import type { SiteDoc } from "../../lib/types";
 
-/** 実画像や個人データを使わず、大きいアセット一覧と通常のページスタイルを作る。 */
+/** 実際の画像や個人のデータを使わずに、大きなアセットの一覧と、通常のページのスタイルを作る。 */
 export function largeAssetLibrary(count = 2_000, nodeCount = 100): SiteDoc {
   const assets = Object.fromEntries(Array.from({ length: count }, (_, index) => {
     const id = `library_asset_${String(index).padStart(6, "0")}`;

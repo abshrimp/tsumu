@@ -23,7 +23,7 @@ for (const [action, failure] of cases) {
   test(`local ${action} keeps original content and retry input after ${failure} failure`, async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
-    // Isolated origin and intercepted requests: no real sites, auth, or external services.
+    // 切り離したオリジンと、横取りしたリクエストを使う。実際のサイト・認証・外部のサービスには触れない。
     await page.route("http://tsumu-home.test/**", (route) => {
       if (new URL(route.request().url()).pathname === "/api/sites") {
         return route.fulfill({ status: 503, json: {} });

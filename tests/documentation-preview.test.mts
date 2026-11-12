@@ -10,8 +10,8 @@ const previewEnv = {
   PREVIEW_KV_NAMESPACE_ID: "test-kv",
 };
 
-// Execute the operator's copyable example, rather than maintaining a second
-// configuration fixture that could pass while the instructions remain broken.
+// 別の設定の準備を保守すると、手順が壊れたままでも通ってしまう。
+// そうならないよう、運用者がコピーできる例そのものを実行する。
 for (const guide of ["docs/worker-previews.md", "docs/worker-previews.ja.md"]) {
   test(`${guide}: test-storage recipe supplies the complete document store`, () => {
     const examples = [...read(guide).matchAll(/```jsonc?\s*\n([\s\S]*?)\n```/g)]
@@ -23,7 +23,7 @@ for (const guide of ["docs/worker-previews.md", "docs/worker-previews.ja.md"]) {
     const production = parseJsonc(read("wrangler.jsonc"));
     const original = structuredClone(production);
     const source = { ...production, ...recipe };
-    // The hosted-preview command first runs the production config normalizer.
+    // クラウドでのプレビューのコマンドは、最初に本番の設定の正規化を実行する。
     const prepared = normalizeStorageConfig(source).config;
     const generated = isolatedPreviewConfig(prepared, previewEnv);
     const effective = { ...generated, ...generated.previews };
@@ -49,7 +49,7 @@ test("default browser-only previews and incomplete custom storage have different
   assert.deepEqual(defaults.previews.kv_namespaces, []);
   assert.equal(defaults.previews.vars.ALLOW_ANONYMOUS, "true");
 
-  // This was the old guide: remove the empty arrays and supply only D1/KV IDs.
+  // 空の配列を取り除き、D1・KV の ID だけを渡す設定は、DOC_STORE が無いため拒否される。
   config.previews = { vars: {} };
   assert.throws(() => isolatedPreviewConfig(config, previewEnv), /DOC_STORE/);
 });

@@ -4,7 +4,7 @@ import type { SiteDoc } from "../lib/types";
 
 test("GitHub Push publishes the selected Vue file tree, not the Next.js tree", async ({ page }) => {
   const messages: Array<{ action: string; site?: string; exportOptions?: { framework: string; language: string; style: string }; files?: Record<string, string>; path?: string }> = [];
-  // The intercepted API emulates site-scoped persisted settings, not browser storage.
+  // 横取りした API は、ブラウザの保存領域ではなく、サイトごとに保存する設定を再現する。
   const saved = new Map<string, { framework: string; language: string; style: string }>();
   await page.route("**/api/publish**", async (route) => {
     if (route.request().method() === "GET") {
@@ -69,14 +69,14 @@ test("GitHub Push publishes the selected Vue file tree, not the Next.js tree", a
   expect(messages.find((m) => m.action === "commit")?.exportOptions).toEqual({ framework: "vue", language: "typescript", style: "css" });
   expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.includes("publish-options")))).toEqual([]);
 
-  // Only successful GitHub Push remembers its options, even across reloads.
+  // 選択肢を覚えるのは、GitHub への公開に成功したときだけ。再読み込みしても残る。
   await modal.getByRole("button", { name: "閉じる" }).click();
   await page.reload();
   await expect(page.locator('[data-tutorial="canvas"]').getByText("見出しをここに").first()).toBeVisible();
   await page.locator('[data-tutorial="publish"]').click();
   await expect(modal.getByRole("button", { name: "フレームワーク" })).toContainText("Vue 3 + Vite");
 
-  // Changing the selection without publishing must not overwrite the last Push.
+  // 公開せずに選択を変えても、最後に公開したときの設定を上書きしてはならない。
   await modal.getByRole("button", { name: "フレームワーク" }).click();
   await page.getByRole("button", { name: "React + Vite" }).click();
   await modal.getByRole("button", { name: "閉じる" }).click();
@@ -84,7 +84,7 @@ test("GitHub Push publishes the selected Vue file tree, not the Next.js tree", a
   await expect(modal.getByRole("button", { name: "フレームワーク" })).toContainText("Vue 3 + Vite");
   await modal.getByRole("button", { name: "閉じる" }).click();
 
-  // A different site must not inherit this site's publishing preferences.
+  // 別のサイトが、このサイトの公開の設定を引き継いではならない。
   const another = await page.request.post("/api/sites", { data: { name: "Different publish target" } });
   expect(another.ok()).toBe(true);
   const { site: otherSite } = await another.json();

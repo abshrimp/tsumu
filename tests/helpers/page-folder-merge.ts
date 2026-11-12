@@ -15,7 +15,7 @@ export function pageFolderFixture(): SiteDoc {
   };
 }
 
-/** 実際のページ一覧を操作し、同時編集の受信と履歴を検証する。 */
+/** 実際のページの一覧を操作し、同時編集の受信と履歴を検証する。 */
 export async function pageFolderBundle() {
   return (await build({
     stdin: { contents: `

@@ -98,8 +98,8 @@ for (const path of ["node gesture", "document gesture", "transient checkpoint"] 
     delete remote.nodes.deleted;
     remote.pages.p.children = ["a"];
     state().applyRemoteDoc(remote);
-    // Repeated synchronization, including a snapshot after reconnection, must
-    // neither consume the checkpoint nor create an empty history entry.
+    // 接続し直した後のスナップショットを含め、同期を何度くり返しても、
+    // 時点を使い切ったり、空の履歴の項目を作ったりしてはならない。
     const latest = structuredClone(remote);
     latest.siteName = "Remote site name";
     state().applyRemoteDoc(latest);

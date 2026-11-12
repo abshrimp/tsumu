@@ -37,7 +37,7 @@ for (const laterEdit of ["undo", "rename", "none"] as const) {
           if (input.type !== "patch") throw new Error("Expected patch");
           server = applyDocPatch(server, input.patch);
           rev = "2";
-          // Another editor makes an independent change after our commit.
+          // 自分のコミットの後で、別の編集者が独立した変更を加える。
           server = { ...server, pages: { ...server.pages,
             [pageId]: { ...server.pages[pageId], name: "Collaborator page" } } };
           rev = "3";

@@ -4,7 +4,7 @@ async function openSite(page: Page, seeded = true) {
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
   const created = await page.request.post("/api/sites", { data: { name: "Comment composer lifecycle" } });
   expect(created.ok()).toBeTruthy(); const { site } = await created.json();
-  // Read a newly created site's document only after the editor finishes its initial save.
+  // 新しく作ったサイトの文書は、エディタが最初の保存を終えてから読む。
   await page.goto(`/sites/${site.id}`); await expect(page.getByText("サーバー保存済み")).toBeVisible();
   const saved = await page.request.get(`/api/doc?site=${site.id}`); expect(saved.ok()).toBeTruthy();
   const { doc } = await saved.json(); expect(doc).toBeDefined();
@@ -82,7 +82,7 @@ test("a site deleted while posting a new discussion keeps the unsent text", asyn
   await input.fill("Keep this unsent new comment");
   await page.route("**/api/comments?*", async route => {
     if (route.request().method() !== "POST") return route.continue();
-    // After submission begins, simulate another tab deleting the site just before the actual comments API request.
+    // 送信が始まった後、実際のコメントの API へのリクエストの直前に、別のタブがサイトを削除した状況を再現する。
     expect((await page.request.delete(`/api/sites/${site}`)).ok()).toBeTruthy();
     await route.continue();
   });

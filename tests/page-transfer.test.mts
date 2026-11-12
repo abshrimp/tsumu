@@ -48,21 +48,21 @@ test("copying pages to another site brings nodes, assets and folders and relinks
   assert.equal(added, 2);
   assert.equal(dst.pageOrder.length, 4);
   const [home, about] = dst.pageOrder.slice(2).map((id) => dst.pages[id]);
-  // 同じ名前・URLのページがあれば「のコピー」にする
+  // 同じ名前・URL のページがあれば、「のコピー」にする
   assert.notEqual(home.slug, "");
   assert.equal(about.slug, "about");
   assert.equal(about.name, "About");
-  // フォルダは同じ名前で作る
+  // フォルダは、同じ名前で作る
   assert.equal(dst.pageFolders?.find((f) => f.id === about.folderId)?.name, "Info");
-  // 要素は新しいIDで、入れ子もそろっている
+  // 要素は新しい ID になり、入れ子もそろっている
   const a = dst.nodes[home.children[0]];
   assert.ok(a && a.id !== "a");
   assert.equal(dst.nodes[a.children[0]]?.image?.assetId, "img1");
-  // 一緒にコピーしたページへのリンクは新しいページへ、コピーしなかったページは同じURLのページへ
+  // 一緒にコピーしたページへのリンクは新しいページへ、コピーしなかったページへのリンクは、同じ URL のページへ
   assert.equal(a.link?.pageId, about.id);
   const step = dst.nodes[about.children[0]].scripts?.[0].steps[0];
   assert.equal(step?.kind === "open-page" ? step.pageId : null, "tn");
-  // 使っているアセットだけ写す
+  // 使っているアセットだけを写す
   assert.deepEqual(Object.keys(dst.assets), ["img1"]);
   // 元のサイトは変わらない
   assert.deepEqual(src, source());
@@ -77,9 +77,9 @@ test("pages copied to a site in another language keep their language", () => {
   applyPagePayload(dst, buildPagePayload(src, ["home", "news"]));
   const [home, news] = dst.pageOrder.slice(2).map((id) => dst.pages[id]);
   assert.equal(home.lang, "en");
-  // ページで選んでいた言語はそのまま
+  // ページで選んでいた言語は、そのまま
   assert.equal(news.lang, "fr");
-  // 同じ言語のサイトへは、サイトに従うまま
+  // 同じ言語のサイトへのコピーでは、サイトの言語に従ったまま
   const same = target();
   same.lang = "en";
   applyPagePayload(same, buildPagePayload(src, ["home"]));
@@ -110,7 +110,7 @@ test("copied component masters relink copied pages and matching destination slug
   assert.equal(loop?.kind === "repeat" && loop.then[0].kind === "open-page" ? loop.then[0].pageId : null, "tn");
   assert.deepEqual(src, original);
 
-  // 同じコンポーネントが既にあるときはコピー先の編集内容を保つ。
+  // 同じコンポーネントがすでにあるときは、コピー先の編集内容を保つ。
   dst.nodes.master.link = { kind: "page", pageId: "t" };
   const existing = structuredClone(dst.nodes.master);
   applyPagePayload(dst, buildPagePayload(src, ["home", "about"]));
@@ -120,7 +120,7 @@ test("copied component masters relink copied pages and matching destination slug
 test("page copy remaps equal-width breakpoint IDs without changing the destination", () => {
   const src = source(), dst = target();
   src.breakpoints = [{ id: "narrow", label: "Small", maxWidth: 600 }, { id: "wide", label: "Large", maxWidth: 900 }];
-  // IDs deliberately swap, so in-place key renaming would overwrite a style.
+  // ID をわざと入れ替える。その場でキーの名前を変えると、スタイルが上書きされてしまう。
   dst.breakpoints = [{ id: "wide", label: "Small target", maxWidth: 600 }, { id: "narrow", label: "Large target", maxWidth: 900 }];
   src.nodes.a.styles = { base: { default: { color: "red" } }, narrow: { default: { color: "blue" } }, wide: { default: { color: "green" } } };
   src.nodes.a.hiddenOn = ["narrow"];

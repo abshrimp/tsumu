@@ -44,7 +44,7 @@ export function previewQueryDoc(slug = "blog", queries = ["", "tab=news", "tab=n
   return doc;
 }
 
-/** Execute the real hook and store using React; effects are intentionally absent for pure navigation checks. */
+/** React で実際のフックとストアを実行する。純粋な移動の確認のため、effect は意図的に入れない。 */
 export async function previewNavigationFixture() {
   const result = await build({
     stdin: { contents: `export { useCanvasData } from './components/canvas/useCanvasData'; export { useEditor } from './lib/store';`, resolveDir: resolve("."), loader: "tsx" },
@@ -66,7 +66,7 @@ export async function previewNavigationFixture() {
   };
 }
 
-/** Compare with the actual generated route dispatcher, not a second copy of its selection algorithm. */
+/** 選び方のアルゴリズムの別の写しではなく、実際に生成したルートの振り分けと比べる。 */
 export async function publishedQueryPage(pages: Page[], url: string): Promise<string> {
   const module = { exports: {} as any };
   const code = transformSync(queryDispatcherFile(pages.map((p) => p.query)), { loader: "tsx", format: "cjs", jsx: "automatic" }).code;

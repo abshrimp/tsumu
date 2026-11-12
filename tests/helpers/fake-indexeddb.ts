@@ -1,9 +1,9 @@
 /**
- * Minimal asynchronous IndexedDB implementation for Node-only integration fixtures.
- * Browser E2E tests use Chromium's real IndexedDB instead.
- * Supports single-store transactions with string keys/values used by document storage.
- * Transactions on a store run in creation order (including readonly transactions).
- * This is deliberately not a general IndexedDB implementation.
+ * Node.js だけで動く結合テスト用の、最小限の非同期の IndexedDB の実装。
+ * ブラウザの E2E テストでは、代わりに Chromium の実際の IndexedDB を使う。
+ * 文書の保存が使う、文字列のキーと値による、単一の保存領域のトランザクションに対応する。
+ * 1つの保存領域のトランザクションは、作った順に実行する（読み取り専用のトランザクションも含む）。
+ * 意図的に、汎用の IndexedDB の実装にはしていない。
  */
 export function fakeIndexedDB(): IDBFactory {
   const databases = new Map<string, Map<string, Map<IDBValidKey, unknown>>>();
@@ -55,7 +55,7 @@ export function fakeIndexedDB(): IDBFactory {
               queueMicrotask(pump);
               return;
             }
-            // Only a completed transaction publishes its writes. Aborts discard them.
+            // 書き込みを反映するのは、完了したトランザクションだけ。中断したものは捨てる。
             if (mode === "readwrite") {
               map.clear();
               for (const [key, value] of snapshot) map.set(key, value);
@@ -66,7 +66,7 @@ export function fakeIndexedDB(): IDBFactory {
           const start = () => {
             if (finished || started) return;
             started = true;
-            // Take the snapshot after preceding transactions have committed/aborted.
+            // 先のトランザクションが確定または中断した後で、スナップショットを取る。
             snapshot = new Map(map);
             pump();
           };

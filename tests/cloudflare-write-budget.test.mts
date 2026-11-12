@@ -18,7 +18,7 @@ test("D1 metadata and edit activity write only once per minute per site/editor",
   const previous = process.env.TSUMU_DATA_DIR;
   process.env.TSUMU_DATA_DIR = dir;
   try {
-    // Run the actual D1 SQL against SQLite rather than testing a mock limiter.
+    // 模擬した上限の処理を試すのではなく、実際の D1 の SQL を SQLite で実行する。
     const sqlite = nodeDatabase()!;
     const binding: D1LikeDatabase = {
       prepare: sql => sqlite.prepare(sql),
@@ -72,19 +72,19 @@ test("D1 metadata and edit activity write only once per minute per site/editor",
     assert.equal((await readActivity(db, "site", start + SITE_EDIT_METADATA_INTERVAL_MS))?.lastEdit?.at,
       start + SITE_EDIT_METADATA_INTERVAL_MS);
 
-    // A delayed acknowledgment cannot regress either timestamp.
+    // 遅れて届いた確認で、どちらの時刻も戻ってはならない。
     await edit(start + 1000);
     assert.equal(metadataWrites, 4);
     assert.equal(activityWrites, 2);
 
-    // Different editors still appear independently; publishing is not throttled.
+    // 別々の編集者は、引き続き別々に表示される。公開は間引かない。
     await recordActivity(db, "site", "edit", { ...editor, email: "second@example.test" }, start + 65_000, key);
     assert.equal(activityWrites, 3);
     await recordActivity(db, "site", "publish", editor, start);
     await recordActivity(db, "site", "publish", editor, start + 1000);
     assert.equal(activityWrites, 5);
 
-    // Do not acknowledge an old generation after the site was removed.
+    // サイトを削除した後に、古い世代を受け入れない。
     await deleteSite(db, "site", key);
     assert.equal(await recordSiteSavedAt(db, "site", key, start + 120_000), false);
     await recordActivity(db, "site", "edit", editor, start + 120_000, key);

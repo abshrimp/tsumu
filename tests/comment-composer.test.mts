@@ -5,8 +5,8 @@ import { runInNewContext } from "node:vm";
 import { transformSync } from "esbuild";
 import { useComments, openPostedComment } from "../lib/comment-store";
 
-// 実際の内部コンポーネントの処理を、状態を再現できるフックで検証する。
-// DOMのreadOnlyとReactの実際のマウントは、別途ブラウザテストで確かめる。
+// 実際の内部のコンポーネントの処理を、状態を再現できるフックで検証する。
+// DOM の readOnly と、React の実際のマウントは、別にブラウザのテストで確かめる。
 function harness() {
   const source = readFileSync(new URL("../components/Comments.tsx", import.meta.url), "utf8");
   const start = source.indexOf("function Composer("); const end = source.indexOf("export function CommentLayer(");
@@ -65,7 +65,7 @@ test("unsent text is kept per discussion until it is sent or cancelled", async (
   assert.equal(textarea(h.instance(h.Composer, props("reply:b")).render()).props.value, "");
   submit(reopened.render()).props.onClick(); await tick();
   assert.equal(textarea(h.instance(h.Composer, props("reply:a")).render()).props.value, "");
-  // キャンセルした新しいコメントは、次に開いたときに戻さない。
+  // 取り消した新しいコメントは、次に開いたときに戻さない。
   const draft = h.instance(h.Composer, props("new", () => {}));
   textarea(draft.render()).props.onChange({ target: { value: "Discard me" } });
   find(draft.render(), node => node.type === "button" && node.props.className === "btn btn-sm btn-ghost").props.onClick();
@@ -77,7 +77,7 @@ for (const ok of [true, false]) test(`pending submission is read-only and ${ok ?
   const h = harness(); const response = deferred<boolean>(); const sent: string[] = [];
   const composer = h.instance(h.Composer, { initial: "First reply", placeholder: "", submitLabel: "", onSubmit: (body: string) => { sent.push(body); return response.promise; } });
   const click = submit(composer.render()).props.onClick;
-  click(); click(); // 再描画前の2回目の操作でも、二重送信しない。
+  click(); click(); // 再描画の前に2回目の操作をしても、二重に送信しない。
   assert.equal(textarea(composer.render()).props.readOnly, true);
   assert.equal(submit(composer.render()).props.disabled, true);
   assert.deepEqual(sent, ["First reply"]);

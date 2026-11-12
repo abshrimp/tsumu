@@ -32,7 +32,7 @@ for (const kind of ["html", "redirect"]) {
       const remote = structuredClone(state().doc); Object.assign(remote.pages.p, patch);
       state().applyRemoteDoc(remote);
       const before = snapshot();
-      // 再描画より先に確認を完了しても、現在のストアで競合を検出する。
+      // 再描画より先に確認を完了しても、現在のストアで競合を見つける。
       f.ui.confirmations[0].resolve(true); await change;
       assert.deepEqual(snapshot(), before);
     } finally { f.ui.unmount(); }

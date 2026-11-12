@@ -41,7 +41,7 @@ test("right panel resize ignores another pointer and cleans up after cancellatio
   expect(await width()).toBe(resized);
   await page.mouse.up();
 
-  // A subsequent drag must still work; no stale listener can steal it.
+  // 次のドラッグも動かなければならない。古いリスナーがそれを奪うことはない。
   const updatedRect = (await handle.boundingBox())!;
   const x2 = updatedRect.x + updatedRect.width / 2;
   await page.mouse.move(x2, y);

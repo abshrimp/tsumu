@@ -20,8 +20,8 @@ const history = (label: string) => ({ head: `${label}-head`, commits: [
 
 type Instance = { type: unknown; values: any[]; deps: unknown[][]; cleanups: (() => void)[]; alive: boolean };
 
-// 実際のコンポーネントを実行し、フックの状態を型・位置・key ごとに保持する。
-// 通信を保留して、応答が届く順とタブ操作を決める（外部通信・ブラウザは使わない）。
+// 実際のコンポーネントを実行し、フックの状態を、型・位置・key ごとに持つ。
+// 通信を保留して、応答が届く順序とタブの操作を決める（外部への通信もブラウザも使わない）。
 function fixture(holdWrites = false, holdConfirmation = false) {
   let branch = "main";
   let confirm: ((yes: boolean) => void) | undefined;
@@ -87,7 +87,7 @@ function fixture(holdWrites = false, holdConfirmation = false) {
   };
   const mocks: Record<string, unknown> = {
     react: hooks,
-    "../lib/export-formats": {}, // Export generation is not used by the history panel.
+    "../lib/export-formats": {}, // 履歴のパネルは、書き出しの生成を使わない。
     "./controls": { Seg: (props: any) => React.createElement("tabs", props) },
     "../lib/dialog": { showConfirm: () => holdConfirmation ? new Promise<boolean>(resolve => { confirm = resolve; }) : Promise.resolve(true), showAlert: async (...args: any[]) => { alerts.push(args); } },
     "../lib/site": {
@@ -96,8 +96,8 @@ function fixture(holdWrites = false, holdConfirmation = false) {
     },
     "../lib/i18n": { tr: (text: string) => text, getLang: () => "en" },
   };
-  // Execute the real pending-import hook with this renderer's hook cells and
-  // the real store, rather than letting it call React outside a renderer.
+  // 実際の、読み込み中の操作のフックを、このレンダラーのフックの枠と実際のストアで実行する。
+  // レンダラーの外で React を呼ばせることはしない。
   hooks.useLayoutEffect = hooks.useEffect;
   const store = { useEditor: Object.assign((select: (state: ReturnType<typeof useEditor.getState>) => unknown) => select(useEditor.getState()), { getState: useEditor.getState }) };
   const pendingCode = transformSync(readFileSync(new URL("../lib/use-pending-import.ts", import.meta.url), "utf8"), { loader: "ts", format: "cjs" }).code;

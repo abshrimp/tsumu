@@ -17,7 +17,7 @@ export function selectDefaultDoc(field: Partial<FieldContent> = {}, query = ""):
   };
 }
 
-/** 選択肢の編集は本物の設定欄を使い、保存データ・Undo/Redo・プレビューを一緒に確かめる。 */
+/** 選択肢の編集には実際の設定の欄を使い、保存したデータ・元に戻す・やり直す・プレビューを一緒に確かめる。 */
 export async function selectDefaultBundle(doc = selectDefaultDoc()) {
   return (await build({
     stdin: { contents: `
@@ -49,7 +49,7 @@ createRoot(document.getElementById("app")).render(<Example />);
   })).outputFiles[0].text;
 }
 
-/** 書き出したページを実行する。手書きのselectではなく、同じ文書の公開用React要素を使う。 */
+/** 書き出したページを実行する。手書きの select ではなく、同じ文書の公開用の React の要素を使う。 */
 export async function publishedSelectDefault(doc: SiteDoc) {
   const { files } = generateProject(doc);
   const require = createRequire(resolve("package.json"));
