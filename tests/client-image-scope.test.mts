@@ -96,7 +96,9 @@ test('static assets, crisp SVGs, raw content and server image preload keep their
     const img = span.querySelector('img')!;
     assert.match(img.getAttribute('src')!, /^\/assets\/.*\.svg$/);
     assert.equal(img.getAttribute('width'), '240'); assert.equal(img.getAttribute('height'), '80');
-    assert.equal(span.querySelector('svg')!.getAttribute('width'), '120');
+    assert.equal(span.querySelector('svg'), null);
+    assert.match(span.getAttribute('style') ?? '', /--crisp-svg-width:\s*120px/);
+    assert.match(span.getAttribute('style') ?? '', /--crisp-svg-ratio:\s*120\s*\/\s*40/);
   }
   for (const raw of runtime.active('#raw')) assert.equal(raw.querySelector('img')!.getAttribute('src'), '/{name}.png');
   runtime.dispose();
