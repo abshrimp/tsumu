@@ -274,7 +274,7 @@ test("missing field values clear stale data before a following fallback", () => 
     { kind: "transform", source: "records.0", into: "selected",
       transform: { kind: "field", key: "unknown" } },
     { kind: "transform", source: "selected", into: "selected",
-      transform: { kind: "fallback", text: "not found" } },
+      transform: { kind: "fallback", when: "missing", text: "not found" } },
   ];
   assert.equal(runPurePageSteps(steps as any, vars,
     (scope, name) => lookupVar(scope, name), interpolate, evaluateValueRecipe), true);

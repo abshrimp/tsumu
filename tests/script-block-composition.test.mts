@@ -447,7 +447,7 @@ test("missing field results clear stale values before the fallback recipe", () =
     { id: "missing", kind: "transform", source: "records.0", into: "selected",
       transform: { kind: "field", key: "doesNotExist" } },
     { id: "fallback", kind: "transform", source: "selected", into: "selected",
-      transform: { kind: "fallback", text: "no match" } },
+      transform: { kind: "fallback", when: "missing", text: "no match" } },
   ];
   const vars: Record<string, unknown> = { records: [{ name: "first" }] };
   assert.equal(runPurePageSteps(steps, vars, lookupVar, interpolate, evaluateValueRecipe), true);
@@ -459,7 +459,7 @@ test("missing field results clear stale values before the fallback recipe", () =
     { id: "read-missing", kind: "transform", source: "data.rows.0", into: "selected",
       transform: { kind: "field", key: "absent" } },
     { id: "fallback-missing", kind: "transform", source: "selected", into: "selected",
-      transform: { kind: "fallback", text: "no match" } },
+      transform: { kind: "fallback", when: "missing", text: "no match" } },
   );
   assert.equal(previewDataVars(doc, "p").selected, "no match");
   const files = generateProject(doc).files;
@@ -473,7 +473,7 @@ test("failed numeric transforms preserve earlier values instead of using fallbac
     { id: "bad", kind: "transform", source: "not-a-number", into: "selected",
       transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
     { id: "fallback", kind: "transform", source: "selected", into: "selected",
-      transform: { kind: "fallback", text: "replacement" } },
+      transform: { kind: "fallback", when: "missing", text: "replacement" } },
   ];
   const vars: Record<string, unknown> = { "not-a-number": "invalid" };
   assert.equal(runPurePageSteps(steps, vars, lookupVar, interpolate, evaluateValueRecipe), true);
@@ -631,7 +631,7 @@ test("server data transforms interpolate strings and source variables without cl
   doc.pages.p.pageScripts![0].steps.push(
     { id: "person", kind: "set-var", into: "person", value: "田中" },
     { id: "fallback", kind: "transform", source: "missing", into: "greeting",
-      transform: { kind: "fallback", text: "こんにちは、{person}さん" } },
+      transform: { kind: "fallback", when: "missing", text: "こんにちは、{person}さん" } },
     { id: "dynamic-name", kind: "set-var", into: "lookupField", value: "price" },
     { id: "read-price", kind: "transform", source: "data", into: "cost",
       transform: { kind: "field", key: "{lookupField}" } },
