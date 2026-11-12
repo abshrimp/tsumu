@@ -1086,7 +1086,7 @@ function LinkSettings({
       <div className="sec-head is-open">
         <span className="sec-title">{tr("Link")}</span>
         <InfoTip
-          text={tr("The URL or page opened when this is pressed. It is the same as “When clicked → Open” in the script editor, so changing either changes both. URLs can use {variables} and #ID (a position on the page).")}
+          text={tr("The URL or page opened when this is pressed. It is the same setting as “When clicked → Open” in the script editor, so changing either one changes both. URLs can use {variables} and #ID (a position on the page).")}
         />
       </div>
       <div className="sec-body">

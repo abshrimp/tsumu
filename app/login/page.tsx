@@ -109,7 +109,7 @@ export default async function LoginPage({
             </p>
           ) : error ? (
             <p className="login-error" role="alert">
-              {tr("Couldn't sign in. Please wait a moment and try again.")}
+              {tr("Couldn't sign in. Wait a moment and try again.")}
             </p>
           ) : null}
           <GoogleSignIn label={tr("Sign in with Google")} busyLabel={tr("Redirecting to Google…")} />

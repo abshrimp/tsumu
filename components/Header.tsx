@@ -102,7 +102,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
             <RotateCcw size={13} />
             {tr("Reset")}
           </button>
-          <p className="hint">{tr("Removes all pages, elements and settings and returns the site to how it was when created. The published site isn't affected.")}</p>
+          <p className="hint">{tr("Removes all pages, elements and settings and returns the site to how it was when it was created. The published site doesn't change until you publish again.")}</p>
         </section>
 
         <div className="modal-actions" style={{ marginTop: 16 }}>

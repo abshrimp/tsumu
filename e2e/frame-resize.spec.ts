@@ -154,7 +154,7 @@ test("HTML pages only execute their HTML, CSS and scripts in preview mode", asyn
   page.on("pageerror", (error) => errors.push(error.message));
   await page.evaluate(() => (window as any).frameResize.page("h"));
 
-  await expect(page.locator(".cv-placeholder")).toContainText("このページはHTMLモードです");
+  await expect(page.locator(".cv-placeholder")).toContainText("このページはHTMLのページです");
   await expect(page.locator(".rawhtml-frame")).toHaveCount(0);
 
   await page.evaluate(() => (window as any).frameResize.mode("preview"));

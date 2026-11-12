@@ -219,7 +219,7 @@ export async function POST(req: Request) {
       }
       if (hasPublishCredentials(doc as Parameters<typeof hasPublishCredentials>[0])) {
         return NextResponse.json({
-          error: tr("Cannot push editable data containing credentials to GitHub. Remove API keys or passwords and manage them with server environment variables instead."),
+          error: tr("Editable data that contains credentials cannot be pushed to GitHub. Remove the API keys or passwords and manage them with server environment variables instead."),
         }, { status: 400 });
       }
     }
@@ -327,7 +327,7 @@ export async function POST(req: Request) {
     const commitSha = (await commitRes.json()).sha as string;
     if (!(await advanceBranchRef(gh, fail, conf.branch, commitSha, true, tr))) {
       return NextResponse.json(
-        { error: tr("Another publish happened at the same time. Reload the history and try again") },
+        { error: tr("Another publish happened at the same time. Reload the history and try again.") },
         { status: 409 }
       );
     }

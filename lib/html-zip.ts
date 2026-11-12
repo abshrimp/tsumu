@@ -210,10 +210,10 @@ async function prepareHtmlZip(
     const bytes = await readZipEntryLimited(entry, HTML_ZIP_LIMITS.cssBytes);
     let source: string;
     try { source = decoder.decode(bytes); }
-    catch { throw new Error(tr("ZIP stylesheets must use UTF-8. Convert the CSS files to UTF-8 and reimport the ZIP.")); }
+    catch { throw new Error(tr("ZIP stylesheets must use UTF-8. Convert the CSS files to UTF-8 and import the ZIP again.")); }
     const charset = /^@charset\s+["']([^"']+)["'];/i.exec(source)?.[1];
     if (charset && !/^utf-8$/i.test(charset)) {
-      throw new Error(tr("ZIP stylesheets must use UTF-8. Convert the CSS files to UTF-8 and reimport the ZIP."));
+      throw new Error(tr("ZIP stylesheets must use UTF-8. Convert the CSS files to UTF-8 and import the ZIP again."));
     }
     stylesheets.set(entry.name, { bytes, source });
   }

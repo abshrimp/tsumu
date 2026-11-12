@@ -204,7 +204,7 @@ export function rewriteCssAssetUrls(
   let length = 0;
   const append = (part: string) => {
     length += part.length;
-    if (length > maxLength) throw new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and reimport the ZIP."));
+    if (length > maxLength) throw new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and import the ZIP again."));
     parts.push(part);
   };
   for (const ref of iterateCssAssetReferences(css)) {
@@ -212,7 +212,7 @@ export function rewriteCssAssetUrls(
     if (target === undefined || target === ref.url) continue;
     // CSS のエスケープは URL の長さの数倍のメモリを使うことがあるため、エスケープの前に確かめる。
     if (length + ref.start - from + target.length > maxLength) {
-      throw new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and reimport the ZIP."));
+      throw new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and import the ZIP again."));
     }
     append(css.slice(from, ref.start));
     append(escapeCssAssetUrl(target, ref.quote));

@@ -669,7 +669,7 @@ export function CommentsPanel() {
                 onClose={() => closeCommentIfOpen(openThread.id)}
                 notices={
                   <>
-                    {threadUnavailable && <p className="cm-target-notice is-alert" role="alert">{tr("This discussion has been deleted. Your draft remains until you close it, so copy it if you need it.")}</p>}
+                    {threadUnavailable && <p className="cm-target-notice is-alert" role="alert">{tr("This thread has been deleted. Your draft remains until you close it, so copy it if you need it.")}</p>}
                     <TargetNotice target={targetOf(openThread)} draft={false} />
                   </>
                 }
@@ -696,7 +696,7 @@ export function CommentsPanel() {
           <div className="cm-list">
             {onDeletedPages > 0 && (
               <button type="button" className="cm-list-notice" onClick={() => setAllPages(true)}>
-                {tr("Comments on deleted pages: {n}. Switch to All pages to see them.", { n: onDeletedPages })}
+                {tr("{n} comments are on deleted pages. Switch to All pages to see them.", { n: onDeletedPages })}
               </button>
             )}
             {shown.length === 0 ? (
@@ -737,7 +737,7 @@ export function CommentsPanel() {
             )}
           </div>
           {partial && (
-            <div className="cm-pagination" title={tr("Filters and pins apply to the batch shown.")}>
+            <div className="cm-pagination" title={tr("Filters and pins apply only to the comments currently shown.")}>
               <span className="hint">{tr("{loaded} of {total}", { total, loaded: threads.length })}</span>
               <span className="cm-pagination-actions">
                 {cursor && (
@@ -765,10 +765,10 @@ export function CommentsPanel() {
 
 function TargetNotice({ target, draft }: { target: CommentTarget; draft: boolean }) {
   if (draft && isDeletedCommentTarget(target)) return <p className="cm-target-notice" role="status">{target.kind === "deleted-page"
-    ? tr("The page has been deleted. Your unfinished comment is retained.")
-    : tr("The element has been deleted. Your unfinished comment is retained.")}</p>;
-  const text = target.kind === "deleted-page" ? tr("The page has been deleted. Its comments are retained.")
-    : target.kind === "deleted-node" ? tr("The element has been deleted. Its comments are retained.")
+    ? tr("The page has been deleted. Your unfinished comment is kept.")
+    : tr("The element has been deleted. Your unfinished comment is kept.")}</p>;
+  const text = target.kind === "deleted-page" ? tr("The page has been deleted. Its comments are kept.")
+    : target.kind === "deleted-node" ? tr("The element has been deleted. Its comments are kept.")
     : target.hidden ? tr("The element is hidden at this screen width.") : null;
   return text ? <p className="cm-target-notice" role="status">{text}</p> : null;
 }

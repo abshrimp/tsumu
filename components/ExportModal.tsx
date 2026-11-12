@@ -126,7 +126,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
         </fieldset>
         {style === "tailwind" && (
           <p className="hint export-note">
-            {tr("Tailwind utilities are available. Tsumu-generated CSS remains included to preserve your design.")}
+            {tr("Tailwind utilities are available. The CSS that Tsumu generates is still included to preserve your design.")}
           </p>
         )}
         {scope === "component" && (
@@ -136,17 +136,17 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
         )}
         {(format === "html" || format === "single-html") && (
           <p className="hint export-note">
-            {tr("The HTML format provides ready-to-open files, so language is JavaScript and styling is CSS.")}
+            {tr("The HTML format produces files you can open directly, so the language is fixed to JavaScript and the styling to CSS.")}
           </p>
         )}
         {(format === "html" || format === "single-html") && (
           <p className="hint export-note">
-            {tr("Fetching external data requires the API to allow CORS. file:// has restrictions, so test on localhost or a similar environment.")}
+            {tr("Fetching external data requires the API to allow CORS. file:// has restrictions, so test on localhost or a similar server.")}
           </p>
         )}
         {format === "single-html" && (
           <p className="hint export-note">
-            {tr("External APIs and embedded videos still require an internet connection. If external images cannot be embedded, import them into the asset library and retry.")}
+            {tr("External APIs and embedded videos still need an internet connection. If external images cannot be embedded, import them as assets and try again.")}
           </p>
         )}
         {format !== "single-html" && (
@@ -172,7 +172,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
                 onClose();
                 if (missing.length) {
                   void showAlert(
-                    tr("These images weren't found in storage, so they were left out of the zip (they may have been deleted).\n{p1}", { p1: missing.join("\n") }),
+                    tr("These images weren't found in storage, so they were left out of the ZIP (they may have been deleted).\n{p1}", { p1: missing.join("\n") }),
                     { title: tr("Downloaded without some images") }
                   );
                 }

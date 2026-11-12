@@ -353,7 +353,7 @@ export function validateSlugUsage(slug: string): string | null {
   const slugSegs = segs.filter((s) => s === "[slug]");
   const badSegs = segs.filter((s) => /[\[\]]/.test(s) && s !== "[slug]");
   if (badSegs.length) {
-    return tr("\"{p1}\" can't be used. Write the variable part as just [slug]", { p1: badSegs[0] });
+    return tr("\"{p1}\" can't be used. Write the variable part as just [slug].", { p1: badSegs[0] });
   }
   if (slugSegs.length > 1) return tr("Only one [slug] is allowed");
   return null;

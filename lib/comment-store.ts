@@ -226,7 +226,7 @@ export const useComments = create<CommentsState>((set, get) => ({
           throw new Error(tr("The comment you are editing has been deleted."));
         }
         if (hasCommentIdConflict(existing, a, null)) {
-          throw new Error(tr("This comment ID is already in use. Please send again."));
+          throw new Error(tr("This comment ID is already in use. Send it again."));
         }
         const next = applyCommentAction(existing, a, null);
         writeLocal(id, next);

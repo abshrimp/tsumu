@@ -100,7 +100,7 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
       if (!request.current()) return;
       if (!found) {
         setError(
-          tr("Not found on Google Fonts. Enter the name exactly as shown on fonts.google.com")
+          tr("Not found on Google Fonts. Enter the name exactly as shown on fonts.google.com.")
         );
         return;
       }
@@ -115,7 +115,7 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
       setFamily("");
     } catch {
       if (!request.current()) return;
-      setError(tr("Couldn't check. Check your network connection"));
+      setError(tr("Couldn't check. Check your network connection."));
     } finally {
       request.finish();
     }

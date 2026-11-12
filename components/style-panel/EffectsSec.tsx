@@ -279,7 +279,7 @@ function TransformCard({ onDelete }: { onDelete: () => void }) {
       <div className="fx-head">
         <span className="fx-label">{tr("Transform", "transform_variant_1")}</span>
         <InfoTip
-          text={tr("Moves, rotates, scales or skews only how the element looks (the layout around it doesn't change). Change it in a state such as Hover and combine it with a “state change” motion to animate it.")}
+          text={tr("Moves, rotates, scales or skews only how the element looks; the layout around it doesn't change. Change it in a state such as Hover and combine it with a “state change” motion to animate it.")}
         />
         <button className="icon-btn sm" data-tip={tr("Delete")} onClick={onDelete}>
           <Trash2 size={12} />

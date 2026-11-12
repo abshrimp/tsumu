@@ -262,7 +262,7 @@ export default function VarExplorer({
         <div className={`vx-body${q ? " is-search" : ""}`} ref={listRef}>
           {!groups.length ? (
             <p className="vx-empty">
-              {tr("No variables are available here. Fetch data in the page's \"When the page opens\" script and it will appear here.")}
+              {tr("No variables are available here. Fetch data in the page's \"When the page opens\" script, and the variables will appear here.")}
             </p>
           ) : q ? (
             results.length ? (

@@ -6,7 +6,7 @@ import { appendAssetSuffix, zipDependency } from "./zip-references";
 // CSS は、取り込む側のスタイルシートに展開せず、別々の data URL に埋め込む。
 // 上限は、個々の結果と全体の処理量の両方にかかる（祖先によって変わる派生も含む）。
 export const ZIP_CSS_LIMITS = { source: 2 * 1024 * 1024, output: 8 * 1024 * 1024, work: 64 * 1024 * 1024, variants: 4096, assets: 2000 };
-const limitError = () => new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and reimport the ZIP."));
+const limitError = () => new Error(tr("The ZIP stylesheet preview is too large. Reduce the CSS dependencies and import the ZIP again."));
 export const zipCssUrl = (id: string) => `tsumu-zip-css:${encodeURIComponent(id)}`;
 
 const sourceSizes = new WeakMap<object, { source: string; bytes: number }>();
@@ -73,7 +73,7 @@ export function zipCssPreviewUrls(
   const rootIds = [...new Set(roots)];
   const closure = zipAssetClosure(assets, rootIds);
   for (const id of closure) {
-    if (assets[id].zip?.stylesheet !== undefined && !zipStylesheet(assets[id])) throw new Error(tr("The ZIP stylesheet data could not be read. Reimport the ZIP."));
+    if (assets[id].zip?.stylesheet !== undefined && !zipStylesheet(assets[id])) throw new Error(tr("The ZIP stylesheet data could not be read. Import the ZIP again."));
   }
   if (closure.size > ZIP_CSS_LIMITS.assets || [...closure].reduce((n, id) => n + (zipStylesheet(assets[id]) ? sourceBytes(zipStylesheet(assets[id])!) : 0), 0) > ZIP_CSS_LIMITS.source) throw limitError();
   const cache = new Map<string, string>();
@@ -135,7 +135,7 @@ export function zipCssPreviewUrls(
 export function exportZipStylesheet(asset: Asset, names: Map<string, string>): string | undefined {
   const sheet = zipStylesheet(asset);
   if (!sheet) {
-    if (asset.zip?.stylesheet !== undefined) throw new Error(tr("The ZIP stylesheet data could not be read. Reimport the ZIP."));
+    if (asset.zip?.stylesheet !== undefined) throw new Error(tr("The ZIP stylesheet data could not be read. Import the ZIP again."));
     return undefined;
   }
   const refs = new Map(sheet.references.map((r) => [r.url, r]));

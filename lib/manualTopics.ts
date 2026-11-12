@@ -42,7 +42,7 @@ export const TOPICS: Topic[] = [
     cat: "start",
     level: 1,
     q: tr("What does each part of the screen do?"),
-    a: tr("**Add and select on the left, view in the middle, change on the right**. The top bar switches screen widths and publishes."),
+    a: tr("**Add and select on the left, view in the middle, change on the right**. The top bar switches screen widths and publishes the site."),
     keys: [tr("how to use"), tr("screen"), tr("layout"), tr("first time"), tr("panel")],
     ctx: ["none"],
     body: [
@@ -51,7 +51,7 @@ export const TOPICS: Topic[] = [
       { note: tr("Open and close the side panels with ⌘[ and ⌘].") },
     ],
     guide: [
-      { target: "canvas", text: tr("The middle is the canvas. It shows your page as it is. Click an element to select it.") },
+      { target: "canvas", text: tr("The middle is the canvas. It shows your page as it will look. Click an element to select it.") },
       { target: "left-tabs", text: tr("The tabs at the top of the left panel switch between Pages, Layers, Add, Assets and Site."), prepare: { design: true } },
       { target: "inspector", text: tr("The right panel shows settings for the selected element. With nothing selected, it shows the current page's settings.") },
       { target: "responsive", text: tr("Switch between desktop, tablet and phone views here. You can also change the look for phones only.") },
@@ -90,7 +90,7 @@ export const TOPICS: Topic[] = [
           rows: [
             [tr("Saved to server"), tr("Saving is complete")],
             [tr("Saving to server…"), tr("Saving in progress")],
-            [tr("Couldn't save to server"), tr("The connection may be down, for example. Your work is kept in this browser")],
+            [tr("Couldn't save to server"), tr("For example, the connection may be down. Your work is kept in this browser.")],
             [tr("Saved in this browser only"), tr("Server storage isn't configured, so work is saved in this browser only")],
           ],
         },
@@ -109,7 +109,7 @@ export const TOPICS: Topic[] = [
     a: tr("Press ⌘Z to undo and ⇧⌘Z to redo. The arrow buttons in the top bar do the same."),
     keys: [tr("Undo"), tr("undo"), "undo", tr("redo"), "redo", tr("cancel"), "Ctrl+Z", "Ctrl+Y"],
     body: [
-      { p: tr("You can undo up to 100 steps. Even after others' changes come in, undo only reverts your own actions.") },
+      { p: tr("You can undo up to 100 steps. Even after others' changes come in, Undo reverts only your own actions.") },
       { warn: tr("Deleting assets (images) and loading a backup can't be undone.") },
       { note: tr("While typing, ⌘Z undoes only that typing. On Windows, Ctrl+Y also redoes.") },
     ],
@@ -164,7 +164,7 @@ export const TOPICS: Topic[] = [
           tr("**Writing** … \"Make this description shorter and friendlier\""),
         ],
       },
-      { rule: tr("Select an element before asking: \"this\" and \"it\" then refer to it. Asking for one or two things at a time gives more predictable results."), title: tr("Tips for asking") },
+      { rule: tr("Select an element before asking, so that \"this\" and \"it\" refer to it. Asking for one or two things at a time gives more predictable results."), title: tr("Tips for asking") },
       { note: tr("AI only edits the page you have open (or the component you're editing). It can't set up scripts or data, or upload images.") },
       { warn: tr("This button appears only when the editor's administrator has enabled AI on the server. The administrator also chooses which AI is used (Claude, Gemini, etc.).") },
     ],
@@ -178,7 +178,7 @@ export const TOPICS: Topic[] = [
     cat: "start",
     level: 2,
     q: tr("Can I edit at the same time as others?"),
-    a: tr("Yes. But if two people change the same element at once, **whoever saves last wins**. Split up pages or sections between people."),
+    a: tr("Yes. But if two people change the same element at once, **whoever saves last wins**. Divide pages or sections between people."),
     keys: [tr("simultaneous editing"), tr("collaboration"), tr("multiple people"), tr("conflict")],
     body: [
       { p: tr("Others' saves show up on your screen within seconds. If you edit different elements at the same time, both changes are kept.") },
@@ -286,7 +286,7 @@ export const TOPICS: Topic[] = [
     body: [
       { p: tr("Duplicating copies the page with all its elements. \"copy\" and \"-copy\" are added to the name and URL to avoid clashes.") },
       { p: tr("Deleted pages can be restored with ⌘Z. Links to the page are removed.") },
-      { note: tr("The list order doesn't affect URLs on your live site. Arrange it however is easiest to find things.") },
+      { note: tr("The list order doesn't affect URLs on your live site. Arrange it in whatever order makes pages easiest to find.") },
     ],
     guide: [{ target: "pages-panel", text: tr("Drag rows to reorder. Hover over a row to show duplicate, delete and publish buttons at the right."), prepare: { left: "pages" } }],
     see: ["page-folder", "page-add"],
@@ -305,7 +305,7 @@ export const TOPICS: Topic[] = [
           tr("Drop onto a folder row → moves it inside"),
           tr("Drag between pages outside the folder → moves it out"),
           tr("The folder's \"+\" → creates a new page inside"),
-          tr("Double-click to rename. Deleting a folder keeps its pages"),
+          tr("Double-click to rename. Deleting a folder keeps its pages."),
         ],
       },
     ],
@@ -358,9 +358,9 @@ export const TOPICS: Topic[] = [
         table: {
           head: [tr("Item"), tr("Guideline")],
           rows: [
-            [tr("Title"), tr("Around 50–60 characters. Put words that describe the page first")],
-            [tr("Description"), tr("About 120–160 characters. The summary shown under the search result")],
-            [tr("Share image (OGP)"), tr("1200×630px. The large image shown when shared on social media")],
+            [tr("Title"), tr("Around 50–60 characters. Put words that describe the page first.")],
+            [tr("Description"), tr("About 120–160 characters. The summary shown under the search result.")],
+            [tr("Share image (OGP)"), tr("1200×630px. The large image shown when the page is shared on social media.")],
           ],
         },
       },
@@ -394,10 +394,10 @@ export const TOPICS: Topic[] = [
     keys: [tr("Redirect"), tr("forward"), "301", tr("URL change"), tr("reverse proxy")],
     body: [
       { p: tr("Enter a site URL like \"/new-page\" or an external URL starting with \"https://\". It's a 301 redirect, which tells search engines the page has moved.") },
-      { warn: tr("301 redirects ignore letter case and also match a trailing /. Changing only the query (after ?) or # still returns to the same redirect, so choose a different path. For sources containing [slug], make sure the destination does not return to the same rule either.") },
+      { warn: tr("301 redirects ignore letter case and also match a trailing /. Changing only the query (after ?) or # still leads back to the same redirect, so choose a different path. For sources that contain [slug], make sure the destination does not lead back to the same rule either.") },
       { p: tr("\"Show an external site\" displays another site's content while keeping your address (a reverse proxy).") },
-      { p: tr("Under the home page (/), this site's pages and files take priority. Only unmatched paths are forwarded to the external site.") },
-      { p: tr("If the destination URL contains ? or #, only paths matching this page's URL are forwarded.") },
+      { p: tr("Under the home page (/), this site's pages and files take priority, and only paths with no match are forwarded to the external site.") },
+      { p: tr("If the destination URL contains ? or #, only paths that match this page's URL are forwarded.") },
       { note: tr("This site does not forward /_next/image to the external site. Some features, such as the external site's image optimization, may not work the same way.") },
       { rule: tr("When you change the URL of a published page, add a redirect at the old URL so links shared on social media keep working.") },
     ],
@@ -414,12 +414,12 @@ export const TOPICS: Topic[] = [
     a: tr("Set \"Page type\" to \"HTML\" under \"Custom code\" in Page settings, and your HTML is served as is."),
     keys: ["HTML", tr("Code"), tr("hand-coded"), tr("game"), "ZIP"],
     body: [
-      { p: tr("You can load an HTML file, or a zip bundling images, CSS and JavaScript. Files in the zip are added to Assets automatically, and references in the HTML are updated.") },
+      { p: tr("You can load an HTML file, or a ZIP that bundles images, CSS and JavaScript. Files in the ZIP are added to Assets automatically, and the references in the HTML are updated.") },
       { warn: tr("HTML pages don't include the site-wide header, meta information or custom code, and can't be edited on the canvas.") },
       { p: tr("To add HTML to just part of a page, use the Code element from Add.") },
     ],
     guide: [
-      { target: "page-code", text: tr("Choose \"HTML\" under \"Page type\", then paste code or load a file or zip."), prepare: { deselect: true, section: "page-code" } },
+      { target: "page-code", text: tr("Choose \"HTML\" under \"Page type\", then paste code or load a file or ZIP."), prepare: { deselect: true, section: "page-code" } },
     ],
     see: ["page-code-snippet"],
   },
@@ -455,7 +455,7 @@ export const TOPICS: Topic[] = [
         table: {
           head: [tr("Element"), tr("When to use")],
           rows: [
-            [tr("Box"), tr("A container for other elements. The base for layout and backgrounds")],
+            [tr("Box"), tr("A container for other elements. The base for layout and backgrounds.")],
             [tr("Heading"), tr("Titles for pages and sections")],
             [tr("Text", "text_variant_1"), tr("Body")],
             [tr("Button"), tr("Actions you want people to take (sign up, learn more, etc.)")],
@@ -463,7 +463,7 @@ export const TOPICS: Topic[] = [
           ],
         },
       },
-      { rule: tr("Select where you want it before adding to save reordering later. \"Insert into\" at the top of the Add tab shows where it'll go."), title: tr("Choose the spot first") },
+      { rule: tr("Select where you want it before adding, so you don't have to reorder later. \"Insert into\" at the top of the Add tab shows where it will go."), title: tr("Choose the spot first") },
       { fig: "insert-mode", caption: tr("Switch how the position is chosen with \"Inside / After\" next to Insert into") },
     ],
     guide: [
@@ -482,8 +482,8 @@ export const TOPICS: Topic[] = [
     keys: [tr("Insert into"), tr("Inside"), tr("After"), tr("sibling"), tr("same level")],
     body: [
       { fig: "insert-mode" },
-      { p: tr("The setting applies not only to adding elements but also to **pasting (⌘V)** and adding images or components. It isn't asked every time; the last choice in this browser is used.") },
-      { note: tr("When the selected element can't contain others, like text or an image, it always goes after.") },
+      { p: tr("The setting applies not only to adding elements but also to **pasting (⌘V)** and adding images or components. You aren't asked every time; the last choice made in this browser is used.") },
+      { note: tr("When the selected element can't contain others, like text or an image, new elements always go after it.") },
     ],
     guide: [
       { target: "insert-target", text: tr("Switch between Inside and After here."), prepare: { left: "add" } },
@@ -498,7 +498,7 @@ export const TOPICS: Topic[] = [
     a: tr("Each click selects **one level deeper**. **⌘-click (Ctrl-click on Windows) selects the innermost element** directly. To select the outer (parent) element, press ⇧Enter or use the arrow at the top left of the selection."),
     keys: [tr("Select"), tr("can't select"), tr("parent"), tr("multi-select"), tr("Layers"), tr("deep"), tr("level")],
     body: [
-      { fig: "select-depth", caption: tr("Each click on the same spot goes one level deeper. ⌘-click selects the innermost element at once") },
+      { fig: "select-depth", caption: tr("Each click on the same spot goes one level deeper. ⌘-click selects the innermost element at once.") },
       {
         list: [
           tr("**Click** … selects the large outer element first; click inside again to go one level deeper (levels that exactly overlap are skipped)"),
@@ -529,7 +529,7 @@ export const TOPICS: Topic[] = [
     ctx: ["box", "text", "image"],
     body: [
       { p: tr("You can also move one step at a time with \"Move up\" and \"Move down\" in the right-click menu. Multiple selected elements move together.") },
-      { rule: tr("To move elements, change their order and container (box) instead of position numbers. That way nothing breaks when the screen width changes."), title: tr("Position by order") },
+      { rule: tr("To move elements, change their order and container (box) instead of position numbers. That way, nothing breaks when the screen width changes."), title: tr("Position by order") },
     ],
     guide: [
       { target: "layers-panel", text: tr("Drag a row in Layers to move it to the blue line. Drop it onto the middle of a box row to put it inside."), prepare: { left: "layers" } },
@@ -555,7 +555,7 @@ export const TOPICS: Topic[] = [
     cat: "element",
     level: 2,
     q: tr("How do I lock or temporarily hide an element?"),
-    a: tr("Lock it with **Lock** under Settings in the right panel, or the lock button on its row in Layers. To hide it, use the eye button in Layers."),
+    a: tr("Lock it with **Lock** under Settings in the right panel, or with the lock button on its row in Layers. To hide it, use the eye button in Layers."),
     keys: [tr("Lock"), tr("Fixed"), tr("hidden"), tr("Hide"), tr("eye icon")],
     body: [
       { p: tr("Locking **prevents moving, resizing, deleting and cutting** on the canvas and in Layers. Styles such as color and text can still be changed, so it's a way to protect finished parts from accidental moves or deletion. The eye button hides the element at the current screen width and below ([[resp-hide|showing per device]]).") },
@@ -601,7 +601,7 @@ export const TOPICS: Topic[] = [
           ],
         },
       },
-      { p: tr("On \"Auto\", it's chosen from the content. If unsure, Auto is fine.") },
+      { p: tr("On \"Auto\", the tag is chosen from the content. If unsure, Auto is fine.") },
     ],
     guide: [{ target: "settings-semantic", text: tr("Choose the meaning here."), needs: "container", prepare: { right: "settings" } }],
     see: ["text-heading", "d-accessibility"],
@@ -663,12 +663,12 @@ export const TOPICS: Topic[] = [
     cat: "text",
     level: 2,
     q: tr("How do I change the font or use Google Fonts?"),
-    a: tr("Choose one under Font in Text. Use \"+\" on the right to add a Google Fonts font by name."),
+    a: tr("Choose a font under Font in Text. Use \"+\" on the right to add a Google Fonts font by name."),
     keys: [tr("Font"), tr("typeface"), "Google Fonts", tr("serif"), tr("sans-serif")],
     ctx: ["text", "body"],
     body: [
       { p: tr("Find one on fonts.google.com and enter its name exactly as shown (e.g. Playfair Display).") },
-      { rule: tr("Use at most two fonts (one for headings, one for body). More fonts look less unified and load slower. Fonts with large character sets (like Japanese) are especially heavy, so a system font for body text is a good option."), title: tr("Two fonts at most") },
+      { rule: tr("Use at most two fonts (one for headings, one for body text). More fonts look less unified and load more slowly. Fonts with large character sets (like Japanese) are especially heavy, so using a system font for body text is a good option."), title: tr("Two fonts at most") },
     ],
     guide: [
       { target: "style-typography", text: tr("Choose from the Font field, or add one from Google Fonts with \"+\" on the right."), needs: "text", prepare: { right: "style", section: "style-typography" } },
@@ -715,7 +715,7 @@ export const TOPICS: Topic[] = [
     cat: "text",
     level: 2,
     q: tr("How do I adjust line height and letter spacing?"),
-    a: tr("Adjust Line height and Letter spacing under Text. For body text, **a line height around 1.5–1.9** is easy to read (Japanese text needs the higher end)."),
+    a: tr("Adjust Line height and Letter spacing under Text. For body text, **a line height of about 1.5–1.9** is easy to read (Japanese text needs the higher end)."),
     keys: [tr("Line height"), tr("Letter spacing"), tr("line height"), "line-height", "letter-spacing", tr("readability")],
     ctx: ["text", "body"],
     body: [
@@ -835,13 +835,13 @@ export const TOPICS: Topic[] = [
     cat: "layout",
     level: 2,
     q: tr("How do I make an element full width or fill the remaining width?"),
-    a: tr("Enter 100% for W under Size to fill the parent's width. In a row, use the arrow button next to W (Fill remaining space)."),
+    a: tr("Enter 100% for W under Size to fill the parent's width. In a row, use the arrow button next to W (Fill remaining space) instead."),
     keys: [tr("Width"), tr("width"), "100%", tr("full width"), tr("Fill remaining space"), tr("Stretch"), tr("Size")],
     ctx: ["box", "image"],
     body: [
       { fig: "width-percent" },
-      { rule: tr("Match the parent with % or \"Fill remaining space\", and cap it with a px Max width. Fix sizes in px only for things like icons that shouldn't change."), title: tr("Size widths to the parent") },
-      { note: tr("With width empty (auto), a box fills its parent, or fits its content inside a row. Click the unit to switch units while keeping the same size.") },
+      { rule: tr("Match the parent with % or \"Fill remaining space\", and cap the width with a Max width in px. Fix sizes in px only for things like icons that shouldn't change size."), title: tr("Size widths to the parent") },
+      { note: tr("With the width empty (auto), a box fills its parent, or fits its content inside a row. Click the unit to switch units while keeping the same size.") },
     ],
     guide: [
       { target: "style-layout", text: tr("Enter 100% for W under Size, or in a row, turn on \"Fill remaining space\" with the arrow button."), needs: "any", prepare: { right: "style", section: "style-layout" } },
@@ -894,7 +894,7 @@ export const TOPICS: Topic[] = [
     ctx: ["box"],
     body: [
       { fig: "wrap" },
-      { note: tr("Good for rows with a varying number of items, like tags. For a fixed number like three cards, a [[layout-grid|grid]] keeps columns aligned.") },
+      { note: tr("Good for rows with a varying number of items, like tags. For a fixed number of items, like three cards, a [[layout-grid|grid]] keeps columns aligned.") },
     ],
     guide: [
       { target: "style-layout", text: tr("Check \"Wrap\", which appears with horizontal flow."), needs: "container", prepare: { right: "style", section: "style-layout" } },
@@ -910,7 +910,7 @@ export const TOPICS: Topic[] = [
     ctx: ["box"],
     body: [
       { fig: "min-height-vh" },
-      { rule: tr("A fixed Height overflows when text grows or wraps on phones. Use Min height when you want to set a height."), title: tr("Use min height") },
+      { rule: tr("A fixed Height makes content overflow when text grows or wraps on phones. Use Min height when you want to set a height."), title: tr("Use min height") },
     ],
     see: ["d-no-fixed-height", "d-units", "layout-center"],
   },
@@ -960,7 +960,7 @@ export const TOPICS: Topic[] = [
     ctx: ["box"],
     body: [
       { p: tr("If an image pokes out of a rounded box's corners, Hidden clips it to the corners.") },
-      { warn: tr("Elements that overflow sideways make the whole page wobble horizontally on phones. Before hiding overflow, fix the width of the overflowing element (the pre-publish check flags this too).") },
+      { warn: tr("Elements that overflow sideways make the whole page wobble horizontally on phones. Before hiding the overflow, fix the width of the overflowing element (the pre-publish check flags this too).") },
     ],
     see: ["d-units", "look-radius"],
   },
@@ -1012,7 +1012,7 @@ export const TOPICS: Topic[] = [
     ctx: ["box", "image"],
     body: [
       { fig: "shadow" },
-      { rule: tr("For a refined shadow, use a large blur and light color (e.g. Y 4px, blur 16px, about 10% opacity). Keep corner radius and shadows consistent across the site."), title: tr("Shadows and corners") },
+      { rule: tr("For a refined shadow, use a large blur and a light color (e.g. Y 4px, blur 16px, about 10% opacity). Keep corner radius and shadows consistent across the site."), title: tr("Shadows and corners") },
       { note: tr("For a circular image, make width and height equal and set a large corner radius (like 999px).") },
     ],
     guide: [
@@ -1042,13 +1042,13 @@ export const TOPICS: Topic[] = [
     cat: "look",
     level: 2,
     q: tr("How do I change color on mouse-over (hover)?"),
-    a: tr("**Switch State at the top of the right panel to Hover**, then change colors and so on. Those settings apply only while the mouse is over the element."),
+    a: tr("**Switch State at the top of the right panel to Hover**, then change colors or other styles. Those settings apply only while the mouse is over the element."),
     keys: [tr("Hover"), tr("mouse-over"), tr("State"), tr("Pressed"), "hover", "active"],
     ctx: ["box", "text"],
     body: [
       { fig: "states" },
       { p: tr("Settings changed in a state apply only in that state. Switch back to Default when you're done. To smooth the color change, add \"On state change\" in [[look-animation|Motion]].") },
-      { rule: tr("Phones have no hover. Don't hide information behind hover; keep it to a hint that something is clickable."), title: tr("Don't rely on hover") },
+      { rule: tr("Phones have no hover. Don't hide information behind hover; limit it to a hint that something can be clicked."), title: tr("Don't rely on hover") },
     ],
     guide: [
       { target: "style-state", text: tr("Choose Hover under State."), needs: "any", prepare: { right: "style" }, done: (s) => s.styleState === "hover" },
@@ -1070,14 +1070,14 @@ export const TOPICS: Topic[] = [
         table: {
           head: [tr("Triggers"), tr("When it plays")],
           rows: [
-            [tr("On state change"), tr("When the look changes, e.g. on hover (smooths the change)")],
+            [tr("On state change"), tr("When the look changes, e.g. on hover (smooths the change).")],
             [tr("Play on hover / Play on press"), tr("On mouse-over or press")],
             [tr("Play on page load"), tr("When the page opens")],
             [tr("When scrolled into view"), tr("When scrolled into view (once)")],
           ],
         },
       },
-      { rule: tr("About 0.2–0.5 seconds feels right. Animate only key things like headings and images."), title: tr("Keep motion short and sparse") },
+      { rule: tr("About 0.2–0.5 seconds feels right. Animate only key elements like headings and images."), title: tr("Keep motion short and sparse") },
     ],
     guide: [
       { target: "style-motion", text: tr("Add it with \"+\" at the top right of Motion, then choose the trigger and animation."), needs: "any", prepare: { right: "style", section: "style-motion" } },
@@ -1106,7 +1106,7 @@ export const TOPICS: Topic[] = [
     cat: "look",
     level: 3,
     q: tr("I want to nudge, scale or skew an element (transform)"),
-    a: tr("Add Transform with the + in Effects to set move, scale, rotate and skew, and their origin. The layout around the element doesn't change."),
+    a: tr("Add Transform with the + in Effects to set move, scale, rotate and skew, along with their origin. The layout around the element doesn't change."),
     keys: ["transform", tr("Transform", "transform_variant_1"), tr("Zoom in"), tr("Zoom out"), tr("Rotation"), tr("skew"), tr("Navigation"), tr("nudge")],
     ctx: ["box", "image"],
     body: [
@@ -1130,7 +1130,7 @@ export const TOPICS: Topic[] = [
       { p: tr("Number, slider and date fields have a minimum, maximum and step; text fields have a maximum length. A Required field can't be submitted empty.") },
       { p: tr("For checkboxes and switches, {ID} is true when checked and false when not. When a script's If compares it, you can pick On or Off.") },
       { p: tr("Radio buttons with the same Group allow only one choice. {group name} is the chosen button's value (its label), and {ID} is true or false depending on whether that button is chosen.") },
-      { note: tr("Under Show advanced in Find a variable you can also pick whether a field is disabled ({ID.disabled}), its length ({ID.length}) and the chosen number ({ID.index}). The script block “Set ［field］ to ［enabled / disabled］” switches it.") },
+      { note: tr("Under Show advanced in Find a variable, you can also pick whether a field is disabled ({ID.disabled}), its length ({ID.length}) and the chosen number ({ID.index}). The script block “Set ［field］ to ［enabled / disabled］” switches whether it is disabled.") },
     ],
     see: ["act-vars", "data-search"],
   },
@@ -1257,7 +1257,7 @@ export const TOPICS: Topic[] = [
     body: [
       { fig: "breakpoint-cascade" },
       { p: tr("When you switch, the canvas is exactly the breakpoint width (478px for phones). That is the widest screen the phone styles apply to, so it is wider than real phones.") },
-      { note: tr("Use the button next to the width field to check small (360px) and large (430px) phones too. It's worth making sure text and spacing don't feel cramped on narrow devices.") },
+      { note: tr("Use the button next to the width field to check small (360px) and large (430px) phones too. It's worth making sure that text and spacing don't feel cramped on narrow devices.") },
       { p: tr("Settings changed outside desktop turn orange in the right panel (desktop is blue). Right-click a setting's name to undo just that screen width's change.") },
       { rule: tr("Most sites get more phone visitors than desktop ones. Make a habit of checking important pages on phone first."), title: tr("Check on phone") },
     ],
@@ -1345,7 +1345,7 @@ export const TOPICS: Topic[] = [
           tr("**Colored heading on a collapsed section** … it contains changed settings"),
         ],
       },
-      { p: tr("Clearing a number field on phone (or similar) overrides it with \"no value\". To fall back to the larger screen's setting, right-click instead.") },
+      { p: tr("Clearing a number field in the phone view (or a similar view) overrides it with \"no value\". To fall back to the larger screen's setting, right-click instead.") },
     ],
     see: ["resp-basics"],
   },
@@ -1359,7 +1359,7 @@ export const TOPICS: Topic[] = [
     body: [
       { fig: "breakpoint-cascade" },
       { warn: tr("Deleting a breakpoint also removes the styles changed for it (⌘Z restores them).") },
-      { rule: tr("Choose breakpoints by where the design starts to break, not by device model. Too many gets hard to manage; 3–4 levels (desktop, tablet, phone) is typical.") },
+      { rule: tr("Choose breakpoints by where the design starts to break, not by device model. Too many become hard to manage; 3–4 levels (desktop, tablet, phone) is typical.") },
     ],
     guide: [
       { target: "site-breakpoints", text: tr("Rename, resize, add or remove them here."), prepare: { left: "site", section: "site-breakpoints" } },
@@ -1379,7 +1379,7 @@ export const TOPICS: Topic[] = [
     body: [
       { fig: "script-blocks" },
       { p: tr("A plain \"When clicked → Open\" combination becomes a regular link on your live site. For external sites, switch ［page］ to URL and enter the address.") },
-      { rule: tr("Link text should say where it goes, like \"Go to the sign-up form\", not \"Click here\". Screen readers sometimes read links on their own."), title: tr("Link text") },
+      { rule: tr("Link text should say where the link goes, like \"Go to the sign-up form\", not \"Click here\". Screen readers sometimes read links on their own."), title: tr("Link text") },
     ],
     guide: [
       { target: "canvas", text: tr("Select the button (element) to link."), needs: "any" },
@@ -1434,7 +1434,7 @@ export const TOPICS: Topic[] = [
     a: tr("Enter the URL in \"Open ［page / URL］\" and check \"New tab\"."),
     keys: [tr("New tab"), tr("separate tab"), tr("external link"), "target", "blank"],
     body: [
-      { rule: tr("Open only external sites, PDFs and the like in a new tab, where you want people to come back. Opening your own pages in new tabs piles up tabs and confuses navigation."), title: tr("When to use a new tab") },
+      { rule: tr("Open only external sites, PDFs and the like in a new tab, so that people come back to your page. Opening your own pages in new tabs piles up tabs and makes it hard to find the way back."), title: tr("When to use a new tab") },
     ],
     see: ["act-link"],
   },
@@ -1461,7 +1461,7 @@ export const TOPICS: Topic[] = [
     guide: [
       { target: "settings-id", text: tr("Select the element to show and hide, and give it an ID attribute."), needs: "any", prepare: { right: "settings" } },
       { target: "style-visibility", text: tr("Under \"Show on devices\", turn off the screen widths where it starts hidden."), prepare: { right: "style" } },
-      { target: "settings-link", text: tr("Select the open button, open its scripts and attach \"［Toggle］［element］\"."), prepare: { right: "settings" } },
+      { target: "settings-link", text: tr("Select the button that opens it, open its scripts and attach \"［Toggle］［element］\"."), prepare: { right: "settings" } },
     ],
     see: ["resp-hide", "act-script"],
   },
@@ -1470,7 +1470,7 @@ export const TOPICS: Topic[] = [
     cat: "action",
     level: 1,
     q: tr("How do I try out links and interactions (Preview)?"),
-    a: tr("Click Preview in the top bar. Selection outlines disappear and buttons and links work as they will when published."),
+    a: tr("Click Preview in the top bar. Selection outlines disappear, and buttons and links work as they will when published."),
     keys: [tr("Preview"), tr("Confirm"), tr("try"), tr("test", "test_variant_1")],
     body: [
       { p: tr("Scripts and animations don't run in the Design view. Check them in Preview, then click Design to go back.") },
@@ -1483,7 +1483,7 @@ export const TOPICS: Topic[] = [
     cat: "action",
     level: 3,
     q: tr("How do scripts work? (Triggers and actions)"),
-    a: tr("A script is a chain of blocks: when (the trigger) and what to do (actions), run from top to bottom. All scripts on a page are edited together on one screen."),
+    a: tr("A script is a chain of blocks that run from top to bottom: when (the trigger) and what to do (actions). All scripts on a page are edited together on one screen."),
     keys: [tr("Scripts"), tr("block"), tr("Triggers"), tr("Triggers"), tr("programming"), tr("condition"), tr("if")],
     body: [
       { fig: "script-blocks" },
@@ -1500,7 +1500,7 @@ export const TOPICS: Topic[] = [
         },
       },
       { p: tr("Drag actions under a trigger to attach them; drag them back to the list to delete. Use \"If ［condition］\" to branch and \"Repeat\" to loop.") },
-      { rule: tr("Instead of cramming actions into one script, split them by purpose. It's easier to fix later.") },
+      { rule: tr("Instead of cramming actions into one script, split them by purpose. That makes them easier to fix later.") },
     ],
     guide: [
       { target: "page-scripts", text: tr("You can also open the page's script editor from Page settings with nothing selected."), prepare: { deselect: true, section: "page-scripts" } },
@@ -1512,7 +1512,7 @@ export const TOPICS: Topic[] = [
     cat: "action",
     level: 4,
     q: tr("How do I show entered text or data somewhere else (variables)?"),
-    a: tr("Write {name} in text and it's replaced by that value. For fields, the ID attribute is the name; for data, use {dataName.field}."),
+    a: tr("Write {name} in text, and it is replaced with that value. For fields, the ID attribute is the name; for data, use {dataName.field}."),
     keys: [tr("Variables"), "{", tr("insert"), tr("replace"), "ID", tr("template")],
     ctx: ["text", "field"],
     body: [
@@ -1592,7 +1592,7 @@ export const TOPICS: Topic[] = [
       {
         list: [
           tr("Create a page with the URL `news/[slug]`"),
-          tr("In the page script, fetch data from a URL containing {slug}, or iterate the list, compare {ループ.値.id} with {slug}, store the matching value in a variable, and use \"Break loop\" to stop iterating."),
+          tr("In the page script, fetch data from a URL that contains {slug}, or loop over the list, compare {ループ.値.id} with {slug}, store the matching value in a variable, and use \"Break loop\" to stop the loop."),
           tr("Set each card's link in the list display to something like `/news/{id}`"),
         ],
         ordered: true,
@@ -1606,7 +1606,7 @@ export const TOPICS: Topic[] = [
     cat: "data",
     level: 4,
     q: tr("How do I add search, filtering and sorting?"),
-    a: tr("Set a box's meaning to \"Search form\" and add a field and a submit button. The entered value is added to the URL and can be used as {ID} in data URLs. On-screen filtering and sorting is built with script blocks."),
+    a: tr("Set a box's meaning to \"Search form\" and add a field and a submit button. The entered value is added to the URL and can be used as {ID} in data URLs. Filtering and sorting on the screen are built with script blocks."),
     keys: [tr("Search"), tr("filter"), tr("reorder"), tr("filter", "filter_variant_1"), tr("sort"), tr("Form")],
     body: [
       { p: tr("If the field's ID is \"q\", write `?q={q}` in the data URL. Submitting updates just the results without reloading the page.") },
@@ -1623,7 +1623,7 @@ export const TOPICS: Topic[] = [
     a: tr("Save with \"Save ［value］ to storage key ［key］\" and read with \"Load storage key ［key］ into variable ［］\"."),
     keys: [tr("Storage"), tr("save"), "localStorage", tr("cookie"), tr("favorites")],
     body: [
-      { p: tr("Saved values stay only in the visitor's browser and aren't visible to others. They aren't sent to the server; don't use this for personal information.") },
+      { p: tr("Saved values stay only in the visitor's browser and aren't visible to others. They aren't sent to the server. Don't use this for personal information.") },
       { p: tr("Combine it with \"［Toggle］［value］ in variable ［］ (separated by ［.］)\" to add and remove favorites.") },
     ],
     see: ["act-vars", "act-script"],
@@ -1641,7 +1641,7 @@ export const TOPICS: Topic[] = [
     body: [
       { fig: "component-sync" },
       { p: tr("Double-click a placed copy (instance) to edit the original (main component). Click Done at the top when finished.") },
-      { rule: tr("Once you've built the same thing twice, consider a component. Copies mean hunting down every one when you need a change."), title: tr("Make it a component the second time") },
+      { rule: tr("Once you've built the same thing twice, consider making it a component. With copies, you have to hunt down every one when something needs to change."), title: tr("Make it a component the second time") },
       { warn: tr("Deleting a component removes every copy placed on pages.") },
     ],
     guide: [
@@ -1699,13 +1699,13 @@ export const TOPICS: Topic[] = [
         table: {
           head: [tr("Button"), tr("What it restores")],
           rows: [
-            [tr("Restore site"), tr("The published site. The chosen version is published again as a new version")],
-            [tr("Restore edits"), tr("The editor's content, as it was when that version was published (⌘Z undoes it)")],
+            [tr("Restore site"), tr("The published site. The chosen version is published again as a new version.")],
+            [tr("Restore edits"), tr("The editor's content, as it was when that version was published (⌘Z undoes it).")],
           ],
         },
       },
       { warn: tr("\"Restore site\" alone leaves the editor's content as it is, and the next publish overwrites the site with it. **To bring back the edits too, also use \"Restore edits\"**.") },
-      { note: tr("It takes as long as a normal publish to go live (once the hosting service finishes building).") },
+      { note: tr("It takes as long as a normal publish to go live (when the hosting service finishes the build).") },
     ],
     guide: [
       { target: "publish", text: tr("Click Publish, then open \"Publish history & rollback\" at the bottom.") },
@@ -1813,7 +1813,7 @@ export const TOPICS: Topic[] = [
     a: tr("Add the email address of their Google account under **Settings** in the \"…\" menu at the top right."),
     keys: [tr("account"), tr("sign in"), tr("add user"), tr("permission"), tr("member")],
     body: [
-      { p: tr("Added people can use it from their next sign-in. After you remove access, someone already signed in may still have access for a while.") },
+      { p: tr("People you add can use the editor from their next sign-in. After you remove access, someone who is already signed in may keep access for a while.") },
       { note: tr("Accounts marked \"Fixed\" are set in the server configuration and can't be removed here.") },
     ],
     guide: [{ target: "menu", text: tr("Open Settings from the \"…\" menu at the top right and add the email address.") }],
@@ -1824,7 +1824,7 @@ export const TOPICS: Topic[] = [
     cat: "publish",
     level: 4,
     q: tr("How do I export the site and run it myself (zip)?"),
-    a: tr("Use **Export as zip** in the \"…\" menu at the top right to export a Next.js project. Unzip it and run `npm install && npm run dev`."),
+    a: tr("Use **Export as zip** in the \"…\" menu at the top right to export a Next.js project. Extract it and run `npm install && npm run dev`."),
     keys: ["zip", tr("export", "export_variant_1"), tr("export"), "Next.js", tr("Download")],
     body: [
       { p: tr("Sites made with this editor are regular Next.js projects. You can edit and publish the exported files without the editor.") },
@@ -1867,7 +1867,7 @@ export const TOPICS: Topic[] = [
         table: {
           head: [tr("Hosting"), tr("Pages that use external JSON")],
           rows: [
-            [tr("Standard (Vercel etc.)"), tr("Pages are prebuilt and rebuilt in the background at the refresh interval (ISR). Fast to load")],
+            [tr("Standard (Vercel etc.)"), tr("Pages are prebuilt and rebuilt in the background at the refresh interval (ISR). Fast to load.")],
             ["Cloudflare Workers", tr("Pages are rendered on every request, and fetched JSON is cached at Cloudflare for the refresh interval")],
           ],
         },
@@ -1889,7 +1889,7 @@ export const TOPICS: Topic[] = [
     keys: [tr("loading"), tr("splash screen"), "PWA", tr("home screen"), tr("app")],
     ctx: ["site"],
     body: [
-      { p: tr("You build the loading screen on the canvas like a page. Turn on \"Show only once per tab\" so it doesn't appear on every page change. For the PWA icon, a 512×512px square PNG is recommended.") },
+      { p: tr("You build the loading screen on the canvas, like a page. Turn on \"Show only once per tab\" so that it doesn't appear on every page change. For the PWA icon, a 512×512px square PNG is recommended.") },
       { rule: tr("Keep loading screens short (0.5–1 second). The longer people wait, the more of them leave.") },
     ],
     guide: [
@@ -1923,7 +1923,7 @@ export const TOPICS: Topic[] = [
           ],
         },
       },
-      { rule: tr("A % height has no effect unless the parent's height is set. Usually leave height empty (fits content) and use Min height if needed."), title: tr("% heights often don't work") },
+      { rule: tr("A % height has no effect unless the parent's height is set. Usually, leave the height empty (fit to content) and use Min height if needed."), title: tr("% heights often don't work") },
       { note: tr("Click the unit to switch units; the number is converted so the size stays the same.") },
     ],
     see: ["layout-width", "layout-max-width", "layout-height", "d-no-fixed-height"],
@@ -1976,7 +1976,7 @@ export const TOPICS: Topic[] = [
           ],
         },
       },
-      { rule: tr("A big size difference between headings and body feels bold; a small one feels calm. Event and promotional pages suit a bigger difference; guides and terms, a smaller one."), title: tr("Size contrast sets the mood") },
+      { rule: tr("A big size difference between headings and body text feels bold; a small one feels calm. Event and promotional pages suit a bigger difference; guides and terms suit a smaller one."), title: tr("Size contrast sets the mood") },
       { note: tr("If text in form fields is under 16px on phones, iPhones zoom in every time you type.") },
     ],
     see: ["text-size", "resp-font", "text-heading"],
@@ -1992,7 +1992,7 @@ export const TOPICS: Topic[] = [
     body: [
       { fig: "line-length" },
       { rule: tr("With text spanning the whole screen, it's hard for the eye to get from the end of one line to the start of the next, and people skip lines. Give text boxes a max width."), title: tr("Keep lines short") },
-      { rule: tr("Break long text into paragraphs every 3–4 lines and add headings. On phones it runs many screens long, so put the key points first."), title: tr("Key points first, short paragraphs") },
+      { rule: tr("Break long text into paragraphs every 3–4 lines and add headings. On phones, it runs many screens long, so put the key points first."), title: tr("Key points first, short paragraphs") },
     ],
     see: ["layout-max-width", "text-spacing"],
   },
@@ -2017,7 +2017,7 @@ export const TOPICS: Topic[] = [
     cat: "design",
     level: 2,
     q: tr("How do I choose fonts?"),
-    a: tr("**Use two at most**. The usual approach is a readable sans-serif for body text and a heading font that sets the mood. Varying weight adds contrast without more fonts."),
+    a: tr("**Use two at most**. The usual approach is a readable sans-serif for body text and a heading font that sets the mood. Varying the weight adds contrast without adding fonts."),
     keys: [tr("Font"), tr("typeface"), tr("sans-serif"), tr("serif"), tr("Weight")],
     ctx: ["text", "body"],
     body: [
@@ -2059,7 +2059,7 @@ export const TOPICS: Topic[] = [
     keys: [tr("Phone"), tr("tap"), tr("easy to tap"), "44px", tr("mobile first"), tr("thumb")],
     ctx: ["mobile"],
     body: [
-      { fig: "tap-target", caption: tr("The dotted circle is a fingertip (about 44px). Small buttons lead to mis-taps.") },
+      { fig: "tap-target", caption: tr("The dotted circle is the size of a fingertip (about 44px). Small buttons lead to mis-taps.") },
       { rule: tr("Stack what sits side by side on desktop, and keep text at 16px. Leave at least 16px between the screen edge and content."), title: tr("Stack vertically") },
       { rule: tr("Phones have no hover. Make clickable things look clickable at all times (button shape, color, underline)."), title: tr("Don't rely on hover") },
     ],
@@ -2070,7 +2070,7 @@ export const TOPICS: Topic[] = [
     cat: "design",
     level: 3,
     q: tr("Why does text overflow or overlap?"),
-    a: tr("Usually it's because the box holding the text **has a fixed height or width**. Leave height empty (fits content) and use Min height if needed."),
+    a: tr("Usually it's because the box holding the text **has a fixed height or width**. Leave the height empty (fit to content) and use Min height if needed."),
     keys: [tr("overflow"), tr("overlap", "overlap_variant_1"), tr("broken layout"), tr("fixed height"), tr("layout issues")],
     ctx: ["box", "text", "mobile"],
     body: [
@@ -2126,7 +2126,7 @@ export const TOPICS: Topic[] = [
           tr("**Interaction** … don't hide information behind hover, and make tap targets large ([[d-mobile|phones]])"),
         ],
       },
-      { rule: tr("Difficulty seeing or hearing isn't only about disability. A phone in sunlight, using one hand or a noisy place can affect anyone.") },
+      { rule: tr("Difficulty seeing or hearing isn't only about disability. A phone in sunlight, one-handed use or a noisy place can affect anyone.") },
     ],
     see: ["img-alt", "d-color", "text-heading"],
   },
@@ -2149,7 +2149,7 @@ export const TOPICS: Topic[] = [
           ],
         },
       },
-      { rule: tr("Images about twice the displayed size stay sharp on high-resolution screens. Going bigger doesn't look better; it just adds weight."), title: tr("Up to 2× the displayed size") },
+      { rule: tr("Images about twice the displayed size stay sharp on high-resolution screens. Going bigger doesn't look any better; it only makes the page heavier."), title: tr("Up to 2× the displayed size") },
       { p: tr("For large images visible right when the page opens, turn on \"Load first\" in the image's Settings to show them sooner.") },
     ],
     see: ["img-add", "d-performance"],
@@ -2205,7 +2205,7 @@ export const TOPICS: Topic[] = [
     keys: [tr("consistency"), tr("unify"), tr("design rules"), tr("cohesion"), tr("consistent")],
     body: [
       { rule: tr("Following rules like \"buttons have 8px corners, 44px height and the accent color\" on every page gives a professional, cohesive look."), title: tr("Set rules and stick to them") },
-      { p: tr("Make repeated parts [[reuse-component|components]] and set base text (font, color, size) on the page's \"body\". Then fixes happen in one place.") },
+      { p: tr("Make repeated parts [[reuse-component|components]] and set the base text style (font, color, size) on the page's \"body\". Then a fix only has to happen in one place.") },
     ],
     see: ["reuse-component", "d-spacing", "d-color"],
   },
