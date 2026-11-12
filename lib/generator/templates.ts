@@ -88,44 +88,59 @@ export const RUNNABLE_SCRIPT = /<script\b(?![^>]*\btype\s*=\s*["']?application\/
  */
 export const PAGE_HTML_COMPONENT = `"use client";
 
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef } from "react";
 
-const subscribe = () => () => {};
+type ScriptRun = { html: string; cancelled: boolean };
 
-export default function PageHtml({ html }: { html: string }) {
+export default function PageHtml({ html, staticHtml }: { html: string; staticHtml: string }) {
   const ref = useRef<HTMLDivElement>(null);
-  // ハイドレーション中だけ true（サーバーのHTMLをそのまま使う = 中のスクリプトはもう動いた）
-  const hydrating = useSyncExternalStore(subscribe, () => false, () => true);
-  // サーバーで動いたHTMLだけを飛ばす。同じコンポーネントで別のHTMLに変われば動かす。
-  const serverHtml = useRef(hydrating ? html : null);
+  const active = useRef<ScriptRun | null>(null);
 
   useEffect(() => {
     const box = ref.current;
-    if (!box || serverHtml.current === html) return;
-    serverHtml.current = null;
-    let cancelled = false;
-    (async () => {
-      for (const old of Array.from(box.querySelectorAll("script"))) {
-        if (cancelled) return;
+    if (!box) return;
+
+    // StrictMode replays mount effects. Do not run inline scripts twice or
+    // abandon the rest of a sequence waiting for an external script to load.
+    if (active.current?.html === html) {
+      const run = active.current;
+      run.cancelled = false;
+      return () => { run.cancelled = true; };
+    }
+    const run: ScriptRun = { html, cancelled: false };
+    active.current = run;
+
+    // React may keep the same inert markup across two page variants. Reset
+    // only our own raw HTML subtree before activating this variant's scripts.
+    box.innerHTML = staticHtml;
+    void (async () => {
+      for (const old of Array.from(box.querySelectorAll("script[data-tsumu-deferred]"))) {
+        if (run.cancelled) return;
         const script = document.createElement("script");
-        for (const a of Array.from(old.attributes)) script.setAttribute(a.name, a.value);
+        for (const attr of Array.from(old.attributes)) {
+          if (attr.name === "type" || attr.name === "data-tsumu-deferred" ||
+              attr.name === "data-tsumu-original-type") continue;
+          script.setAttribute(attr.name, attr.value);
+        }
+        const originalType = old.getAttribute("data-tsumu-original-type");
+        if (originalType !== null) script.setAttribute("type", originalType);
         script.text = old.text;
-        // 外部のスクリプトは読み込み終わってから次へ進み、書いた順に動かす
+        // Execute scripts in source order, including external dependencies.
         const loaded = script.src
-          ? new Promise((done) => {
-              script.onload = script.onerror = done;
+          ? new Promise<void>((done) => {
+              script.onload = script.onerror = () => done();
             })
           : null;
         old.replaceWith(script);
         if (loaded) await loaded;
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [html]);
+    return () => { run.cancelled = true; };
+  }, [html, staticHtml]);
 
-  return <div ref={ref} style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: html }} />;
+  // Both SSR and the first client render are inert. Browser scripts only
+  // become executable in the effect, after React has hydrated this subtree.
+  return <div ref={ref} style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: staticHtml }} />;
 }
 `;
 
