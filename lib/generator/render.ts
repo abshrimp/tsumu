@@ -339,7 +339,7 @@ ${indent}</div>`;
     const src = node.image.assetId
       ? assetMediaUrl(assetPath(ctx, node.image.assetId), node.image.assetSuffix)
       : node.image.src;
-    let srcAttr = `src=${jsxString(src)}`;
+    // Next/Image must never receive an empty source: browsers may request the page URL.\n    let srcAttr = `src=${jsxString(src.trim() ? src : EMPTY_GIF)}`;
     if (hasVars(src)) {
       ctx.usesInterpolate = true;
       const base = ctx.varsExpr ?? "vars";
