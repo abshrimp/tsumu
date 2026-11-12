@@ -39,7 +39,19 @@ function attrStyle(raw: CSSStyleDeclaration, apply: (name: string, value: string
   }
 }
 function htmlText(el: Element): string {
-  return (el.textContent || "").replace(/\s+/g, " ").trim();
+  // Whitespace in <pre>, code, and around inline descendants belongs to the
+  // source document. CSS controls whether it is collapsed when rendered.
+  return el.textContent || "";
+}
+
+const TEXT_FLOW_TAGS = new Set([
+  "a", "b", "button", "code", "dd", "dt", "em", "figcaption", "h1", "h2",
+  "h3", "h4", "h5", "h6", "i", "kbd", "label", "li", "mark", "p", "pre",
+  "small", "span", "strong", "summary", "time",
+]);
+function keepWhitespaceText(parent: Element): boolean {
+  return TEXT_FLOW_TAGS.has(parent.tagName.toLowerCase()) ||
+    /^pre(?:-wrap|-line)?$/.test((parent as HTMLElement).style?.whiteSpace || "");
 }
 function safeUrl(value: string): string {
   // Browsers remove tab/newline characters before interpreting a scheme.
@@ -169,7 +181,9 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     }
     return null;
   };
-  for (const element of Array.from(parsed.head.children)) {
+  // Styles and stylesheet links are also valid inside <body>. Resolve them
+  // in source order rather than silently dropping links or ignoring media.
+  const appendStylesheet = (element: Element): boolean => {
     const tag = element.tagName.toLowerCase();
     if (tag === "style") {
       const source = mediaCss(element, resolveCss(element.textContent || ""));
@@ -178,38 +192,51 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
         unusedHead.push(element.outerHTML);
         warn(tr("Unsupported CSS media conditions were kept as custom code."));
       }
+      return true;
     }
-    else if (tag === "link" && (element.getAttribute("rel") || "").toLowerCase().split(/\s+/).includes("stylesheet")) {
-      const href = element.getAttribute("href") || "";
-      const match = /^tsumu-zip-css:([^?#]+)/.exec(href);
-      let asset: Asset | undefined;
-      if (match) {
-        try { asset = assets.find((a) => a.id === decodeURIComponent(match[1])); } catch { /* malformed reference */ }
+    if (tag !== "link" || !(element.getAttribute("rel") || "").toLowerCase().split(/\\s+/).includes("stylesheet")) {
+      return false;
+    }
+    const href = element.getAttribute("href") || "";
+    const match = /^tsumu-zip-css:([^?#]+)/.exec(href);
+    let asset: Asset | undefined;
+    if (match) {
+      try { asset = assets.find((a) => a.id === decodeURIComponent(match[1])); } catch { /* malformed reference */ }
+    }
+    const source = zipStylesheet(asset);
+    if (source) {
+      if (element.getAttribute("integrity")?.trim()) throw new Error("Cannot import a stylesheet with unverified integrity metadata.");
+      const expanded = resolveCss(source.source, asset);
+      const converted = mediaCss(element, expanded);
+      if (converted !== null) sheets.push(converted);
+      else {
+        // The ZIP-only URL would be broken after export. Preserve the actual
+        // CSS and its original media attribute as an executable stylesheet.
+        const media = (element.getAttribute("media") || "").replace(/&/g, "&amp;")
+          .replace(/"/g, "&quot;").replace(/</g, "&lt;");
+        unusedHead.push(`<style media="${media}">\\n${escapeStyleContent(expanded)}\\n</style>`);
+        warn(tr("Unsupported CSS media conditions were kept as custom code."));
       }
-      const source = zipStylesheet(asset);
-      if (source) {
-        if (element.getAttribute("integrity")?.trim()) throw new Error("Cannot import a stylesheet with unverified integrity metadata.");
-        const converted = mediaCss(element, resolveCss(source.source, asset));
-        if (converted !== null) sheets.push(converted);
-        else {
-          unusedHead.push(element.outerHTML);
-          warn(tr("Unsupported CSS media conditions were kept as custom code."));
-        }
-      } else {
-        unusedHead.push(element.outerHTML);
-        warn(tr("An external or unresolved stylesheet was preserved as custom code."));
-      }
-    } else if (tag === "script") {
-      // Preserve head scripts *before* page content; appending them to body
-      // breaks common dependencies and script initialization order.
+    } else {
+      unusedHead.push(element.outerHTML);
+      warn(tr("An external or unresolved stylesheet was preserved as custom code."));
+    }
+    return true;
+  };
+  for (const element of Array.from(parsed.head.children)) {
+    if (appendStylesheet(element)) continue;
+    const tag = element.tagName.toLowerCase();
+    if (tag === "script") {
+      // Keep head scripts before body content and their dependencies.
       unusedHead.push(element.outerHTML);
       scriptCount++;
-    }
-    else if (tag !== "title" && tag !== "base") unusedHead.push(element.outerHTML);
+    } else if (tag !== "title" && tag !== "base") unusedHead.push(element.outerHTML);
   }
-  for (const style of Array.from(parsed.body.querySelectorAll("style"))) {
-    if (!isPageCode(style)) continue;
-    sheets.push(resolveCss(style.textContent || ""));
+  for (const element of Array.from(parsed.body.querySelectorAll("style, link"))) {
+    if (!isPageCode(element)) continue;
+    if (!appendStylesheet(element) && element.tagName.toLowerCase() === "link") {
+      unusedHead.push(element.outerHTML);
+    }
   }
   for (const script of Array.from(parsed.body.querySelectorAll("script"))) {
     if (!isPageCode(script)) continue;
@@ -559,7 +586,8 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     }
     const children = Array.from(element.childNodes).filter((child) =>
       child.nodeType === Node.ELEMENT_NODE ||
-      (child.nodeType === Node.TEXT_NODE && !!child.textContent?.trim()));
+      (child.nodeType === Node.TEXT_NODE &&
+        (!!child.textContent?.trim() || (keepWhitespaceText(element) && !!child.textContent))));
     if (children.length === 0) {
       if (/^h[1-6]$/.test(tag)) common.text = { content: "", heading: Number(tag.slice(1)) };
       return add(common);
@@ -583,7 +611,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     add(common);
     for (const child of children) {
       if (child.nodeType === Node.TEXT_NODE) {
-        const value = (child.textContent || "").replace(/\s+/g, " ").trim();
+        const value = child.textContent || "";
         if (!value) continue;
         if (depth >= MAX_NODE_DEPTH) throw new Error(tr("The HTML contains too many elements."));
         const textId = genId("node");
@@ -605,7 +633,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       const id = genId("node");
       roots.push(add({
         id, type: "box", name: tr("Text", "text_variant_1"), semantic: "span",
-        text: { content: child.textContent.replace(/\s+/g, " ").trim(), heading: 0 },
+        text: { content: child.textContent, heading: 0 },
         link: null, children: [], styles: { base: { default: {} } },
       }));
     } else if (child.nodeType === Node.ELEMENT_NODE) {
