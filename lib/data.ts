@@ -494,8 +494,6 @@ function transformReferences(transform: TransformStep["transform"]): string[] {
   }
   if ("operandType" in transform && transform.operandType === "variable" &&
       typeof transform.operand === "string") fields.push(transform.operand);
-  else if ("operandType" in transform && transform.operandType === "text" &&
-      typeof transform.operand === "string") fields.push(...refs(transform.operand));
   return fields;
 }
 
@@ -1422,7 +1420,6 @@ function mapStepTokens(steps: ScriptStep[], fn: (name: string) => string | null)
       const next: Record<string, unknown> = { ...t };
       if ("operandType" in t && typeof t.operand === "string") {
         if (t.operandType === "variable") next.operand = fn(t.operand) ?? t.operand;
-        if (t.operandType === "text") next.operand = mapVarTokens(t.operand, fn);
       }
       if (t.kind === "field") next.key = mapVarTokens(t.key, fn);
       if (t.kind === "fallback") next.text = mapVarTokens(t.text, fn);
