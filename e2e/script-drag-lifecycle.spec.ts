@@ -131,7 +131,11 @@ async function scaleScriptModal(page: Page) {
 test("dropping over the right side of a wide step shows the insertion bar and inserts there", async ({ page }) => {
   await page.addStyleTag({ content: '.se-ws [data-sel-key="step:wait"] { min-width: 470px; }' });
   const target = page.locator('.se-ws .se-stack[data-script-id="script"] .se-slot').last();
-  const rect = (await target.boundingBox())!;
+  // Insertion rows are deliberately zero-height, so boundingBox() can treat them as hidden.
+  const rect = await target.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.x, y: r.y, width: r.width };
+  });
   expect(rect.width).toBeGreaterThan(300);
 
   await start(page, "palette");
