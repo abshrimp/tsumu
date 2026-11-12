@@ -447,7 +447,7 @@ test("missing field results clear stale values before the fallback recipe", () =
     { id: "missing", kind: "transform", source: "records.0", into: "selected",
       transform: { kind: "field", key: "doesNotExist" } },
     { id: "fallback", kind: "transform", source: "selected", into: "selected",
-      transform: { kind: "fallback", text: "no match" } },
+      transform: { kind: "fallback", when: "missing", text: "no match" } },
   ];
   const vars: Record<string, unknown> = { records: [{ name: "first" }] };
   assert.equal(runPurePageSteps(steps, vars, lookupVar, interpolate, evaluateValueRecipe), true);
@@ -459,7 +459,7 @@ test("missing field results clear stale values before the fallback recipe", () =
     { id: "read-missing", kind: "transform", source: "data.rows.0", into: "selected",
       transform: { kind: "field", key: "absent" } },
     { id: "fallback-missing", kind: "transform", source: "selected", into: "selected",
-      transform: { kind: "fallback", text: "no match" } },
+      transform: { kind: "fallback", when: "missing", text: "no match" } },
   );
   assert.equal(previewDataVars(doc, "p").selected, "no match");
   const files = generateProject(doc).files;
@@ -471,9 +471,9 @@ test("failed numeric transforms preserve earlier values instead of using fallbac
   const steps: ScriptStep[] = [
     { id: "previous", kind: "set-var", into: "selected", value: "original" },
     { id: "bad", kind: "transform", source: "not-a-number", into: "selected",
-      transform: { kind: "math", operation: "add", operand: 1 } },
+      transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
     { id: "fallback", kind: "transform", source: "selected", into: "selected",
-      transform: { kind: "fallback", text: "replacement" } },
+      transform: { kind: "fallback", when: "missing", text: "replacement" } },
   ];
   const vars: Record<string, unknown> = { "not-a-number": "invalid" };
   assert.equal(runPurePageSteps(steps, vars, lookupVar, interpolate, evaluateValueRecipe), true);
@@ -505,7 +505,7 @@ test("three ordinary blocks compose a value in preview and server generated outp
   const chain: ScriptStep[] = [
     { id: "t1", kind: "transform", source: "data", into: "chosen", transform: { kind: "field", key: "tags" } },
     { id: "t2", kind: "transform", source: "chosen", into: "chosen", transform: { kind: "length" } },
-    { id: "t3", kind: "transform", source: "chosen", into: "chosen", transform: { kind: "math", operation: "add", operand: 5 } },
+    { id: "t3", kind: "transform", source: "chosen", into: "chosen", transform: { kind: "math", operation: "add", operandType: "number", operand: 5 } },
   ];
   steps.splice(1, 1, ...chain);
   const plan = pagePlan(doc, "p");
@@ -631,7 +631,7 @@ test("server data transforms interpolate strings and source variables without cl
   doc.pages.p.pageScripts![0].steps.push(
     { id: "person", kind: "set-var", into: "person", value: "田中" },
     { id: "fallback", kind: "transform", source: "missing", into: "greeting",
-      transform: { kind: "fallback", text: "こんにちは、{person}さん" } },
+      transform: { kind: "fallback", when: "missing", text: "こんにちは、{person}さん" } },
     { id: "dynamic-name", kind: "set-var", into: "lookupField", value: "price" },
     { id: "read-price", kind: "transform", source: "data", into: "cost",
       transform: { kind: "field", key: "{lookupField}" } },
@@ -727,7 +727,7 @@ test("page-load for-each and if execute on fetched items before rendering, inclu
         cond: { subject: "var", target: "", left: "{enabled}", op: "eq", value: '\"true\"' },
         then: [
           { id: "double", kind: "transform", source: "price", into: "doubled",
-            transform: { kind: "math", operation: "multiply", operand: 2 } },
+            transform: { kind: "math", operation: "multiply", operandType: "number", operand: 2 } },
           { id: "sum", kind: "transform", source: "total", into: "total",
             transform: { kind: "math", operation: "add", operandType: "variable", operand: "doubled" } },
           { id: "append", kind: "transform", source: "prices", into: "prices",
@@ -789,7 +789,7 @@ test("page-load repeat count can come from a numeric-string variable", () => {
     { id: "numeric", kind: "transform", source: "sum", into: "sum", transform: { kind: "parse" } },
     { id: "iterate", kind: "repeat", times: "{count}", then: [
       { id: "increment", kind: "transform", source: "sum", into: "sum",
-        transform: { kind: "math", operation: "add", operand: 1 } },
+        transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
     ] },
   );
   const plan = pagePlan(doc, "p");
@@ -845,7 +845,7 @@ test("a canvas transform chain serializes to the browser runtime without losing 
       { id: "input", kind: "set-var" as const, into: "number", value: "4" },
       { id: "parse", kind: "transform" as const, source: "number", into: "number", transform: { kind: "parse" as const } },
       { id: "math", kind: "transform" as const, source: "number", into: "number",
-        transform: { kind: "math" as const, operation: "multiply" as const, operand: 3 } },
+        transform: { kind: "math" as const, operation: "multiply" as const, operandType: "number" as const, operand: 3 } },
     ],
   }] };
   doc.nodes.action = node;

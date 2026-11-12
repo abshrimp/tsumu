@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readActivity } from "../lib/activity";
+import { GENERATED_MANIFEST_PATH, serializeGeneratedManifest } from "../lib/publish-files";
 import { readPublishedExportOptions, DEFAULT_PUBLISHED_EXPORT_OPTIONS } from "../lib/publish-preferences";
 import { load, replacement, setup, sqlOf, isRoomLookup } from "./helpers/document-generation-api";
 
@@ -27,7 +28,12 @@ async function fixture(t: Parameters<typeof setup>[0], operation: "production" |
   let refs = 0;
   const gh = async (path: string) => {
     if (path.startsWith("/git/ref/heads/")) return Response.json({ object: { sha: head } });
-    if (path.startsWith("/git/trees/")) return Response.json({ tree: [] });
+    if (path.startsWith("/git/trees/")) return Response.json({ tree: [
+      { path: GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "generated-manifest" },
+    ] });
+    if (path === "/git/blobs/generated-manifest") return Response.json({
+      content: Buffer.from(serializeGeneratedManifest({})).toString("base64"), encoding: "base64",
+    });
     if (path.startsWith("/git/commits/")) return Response.json({ tree: { sha: "old-tree" }, message: "Synthetic" });
     if (path === "/git/trees") return Response.json({ sha: "new-tree" });
     if (path === "/git/commits") return Response.json({ sha: "new-commit" });

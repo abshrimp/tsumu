@@ -17,7 +17,7 @@ export interface AssetLedgerSummary {
   count: number;
   /** 大きさの分かっているファイルの合計。 */
   bytes: number;
-  /** 大きさの分からないファイルの数（大きさを記録するようになる前にアップロードしたもの）。 */
+  /** KV のメタデータに大きさが登録されていないファイルの数。 */
   unknownCount: number;
   unknownPaths: string[];
   /** GC による削除に登録したファイルの数（エディタで削除したもの）。 */

@@ -12,7 +12,7 @@ import { nodeAssetStore } from "./node-storage";
 /** アセットのメタデータ（KV の metadata に保存する） */
 export interface AssetMeta {
   contentType?: string;
-  /** GC の見積もりに使う、分かっている大きさ。古い KV のオブジェクトには、この項目が無いことがある。 */
+  /** GC の見積もりに使うファイルサイズ。KV のメタデータには存在しないこともある。 */
   bytes?: number;
 }
 

@@ -39,8 +39,8 @@ for (const exported of [false, true]) {
   test((exported ? "exported" : "preview") + " runtime composes numeric value blocks in ordinary script order", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported, "12", [
       { id: "parse", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
-      { id: "math", kind: "transform", source: "items", into: "items", transform: { kind: "math", operation: "multiply", operand: 2 } },
-      { id: "add", kind: "transform", source: "items", into: "items", transform: { kind: "math", operation: "add", operand: 3 } },
+      { id: "math", kind: "transform", source: "items", into: "items", transform: { kind: "math", operation: "multiply", operandType: "number", operand: 2 } },
+      { id: "add", kind: "transform", source: "items", into: "items", transform: { kind: "math", operation: "add", operandType: "number", operand: 3 } },
     ]);
     await expect(answer).toHaveValue("27");
     expect(errors).toEqual([]);
@@ -79,7 +79,7 @@ for (const exported of [false, true]) {
       { id: "parse-sum", kind: "transform", source: "sum", into: "sum", transform: { kind: "parse" } },
       { id: "repeat", kind: "repeat", times: "{count}", then: [
         { id: "increase", kind: "transform", source: "sum", into: "sum",
-          transform: { kind: "math", operation: "add", operand: 1 } },
+          transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
       ] },
       { id: "result", kind: "set-var", into: "items", value: "{sum}" },
     ]);
@@ -182,7 +182,7 @@ for (const exported of [true]) {
     const { answer, errors } = await runChain(page, exported, "unused", [
       { id: "name", kind: "set-var", into: "name", value: "田中" },
       { id: "fallback", kind: "transform", source: "missing", into: "items",
-        transform: { kind: "fallback", text: "こんにちは、{name}さん" } },
+        transform: { kind: "fallback", when: "missing", text: "こんにちは、{name}さん" } },
     ]);
     await expect(answer).toHaveValue("こんにちは、田中さん");
     expect(errors).toEqual([]);
@@ -212,7 +212,7 @@ for (const exported of [true]) {
       { id: "parse-object", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
       { id: "store-prototype", kind: "set-var", into: "__proto__", value: "{items}" },
       { id: "safe-fallback", kind: "transform", source: "polluted", into: "items",
-        transform: { kind: "fallback", text: "safe" } },
+        transform: { kind: "fallback", when: "missing", text: "safe" } },
     ]);
     await expect(answer).toHaveValue("safe");
     expect(errors).toEqual([]);
@@ -294,7 +294,7 @@ for (const exported of [true]) {
     const { answer, errors } = await runChain(page, exported, "", [
       { id: "input-value", kind: "set-value", target: "answer", value: "東京" },
       { id: "fallback", kind: "transform", source: "absent", into: "items",
-        transform: { kind: "fallback", text: "行き先: {answer}" } },
+        transform: { kind: "fallback", when: "missing", text: "行き先: {answer}" } },
     ]);
     await expect(answer).toHaveValue("行き先: 東京");
     expect(errors).toEqual([]);
@@ -422,7 +422,7 @@ for (const exported of [true]) {
         transform: { kind: "parse" } },
       { id: "each-row", kind: "for-each", array: "items", then: [
         { id: "local-age", kind: "transform", source: "profile.age", into: "picked",
-          transform: { kind: "fallback", text: "missing" } },
+          transform: { kind: "fallback", when: "missing", text: "missing" } },
         { id: "display-picked", kind: "set-var", into: "items", value: "{picked}" },
       ] },
     ]);
@@ -694,7 +694,7 @@ test("canvas fallback uses one text field for text mixed with variables", async 
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
       doc.pages.p.pageScripts[0].steps.push({
         id: "fallback-inline", kind: "transform", source: "data.name", into: "chosen",
-        transform: { kind: "fallback", text: "" },
+        transform: { kind: "fallback", when: "missing", text: "" },
       });
     });
   });

@@ -237,9 +237,12 @@ export async function POST(req: Request) {
     // 両方の版について、どのファイルを生成したかの記録を読む。過去のファイルを
     // すべて生成物とみなしてはいけない。選んだ版より後に手動のファイルを削除している
     // 場合があり、ロールバックではその削除も尊重する。
-    const readGenerated = async (blobs: Record<string, string>): Promise<Record<string, string> | null> => {
-      const sha = blobs[GENERATED_MANIFEST_PATH];
-      if (!sha) return null;
+    const manifestSha = currentBlobs[GENERATED_MANIFEST_PATH];
+    const sourceManifestSha = sourceBlobs[GENERATED_MANIFEST_PATH];
+    if (!manifestSha || !sourceManifestSha) {
+      return NextResponse.json({ error: tr("Publishing stopped because the generated file manifest is invalid.") }, { status: 409 });
+    }
+    const readGenerated = async (sha: string): Promise<Record<string, string>> => {
       const res = await gh(`/git/blobs/${sha}`);
       if (!res.ok) await fail(tr("Fetching the tree"), res);
       const data = (await res.json()) as { content?: unknown; encoding?: unknown };
@@ -250,20 +253,18 @@ export async function POST(req: Request) {
       if (!parsed) throw new Error(tr("Publishing stopped because the generated file manifest is invalid."));
       return parsed;
     };
-    const generated = await readGenerated(currentBlobs);
-    const sourceGenerated = await readGenerated(sourceBlobs);
+    const generated = await readGenerated(manifestSha);
+    const sourceGenerated = await readGenerated(sourceManifestSha);
     const sourcePaths = leaf(sourceEntries).map(entry => entry.path);
     const manual = planPublish(currentBlobs, generated, []);
     const keptPaths = Object.keys(manual.kept).filter(path => !isProtectedPath(path));
     const kept = keptTreeEntries(currentEntries, keptPaths);
     // 古い版の生成ファイルの一覧があれば、過去のツリーで手動のファイルだったものは、
     // 現在の削除をそのまま残す。現在のツリーにない生成ファイルは復元する。
-    const deletedManual = sourceGenerated
-      ? leaf(sourceEntries).filter(entry =>
+    const deletedManual = leaf(sourceEntries).filter(entry =>
           !isProtectedPath(entry.path) && !entry.path.startsWith("_tsumu/") &&
           !Object.hasOwn(sourceGenerated, entry.path) &&
-          !Object.hasOwn(currentBlobs, entry.path))
-      : [];
+          !Object.hasOwn(currentBlobs, entry.path));
     const deletedPaths = new Set(deletedManual.map(entry => entry.path));
     if (!kept || conflictingCommitPaths([
       ...sourcePaths.filter(path => !isProtectedPath(path) && !deletedPaths.has(path)), ...keptPaths,
@@ -294,7 +295,7 @@ export async function POST(req: Request) {
     // 残す手動ファイルが、以前は生成ファイルだったパスを使っている場合がある。
     // 古い所有の情報を戻すと、内容や Git の属性が過去の版と一致していても、
     // 次の公開でそのファイルを削除してしまう。
-    if (sourceGenerated && keptPaths.some(path => Object.hasOwn(sourceGenerated, path))) {
+    if (keptPaths.some(path => Object.hasOwn(sourceGenerated, path))) {
       const retained = new Set(keptPaths);
       edits.push({
         path: GENERATED_MANIFEST_PATH,

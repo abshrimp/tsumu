@@ -13,7 +13,7 @@ export function scriptInputValueDoc(field: FieldContent, requested: string, rest
   const nodes: DocNode[] = [
     { ...makeBox(), id: "entry", attrId: "entry", type: "field" as const, field, scripts: [{
       id: "changed", trigger: "change" as const, pos: { x: 32, y: 200 }, steps: [
-        { id: "parse-changes", kind: "transform", source: "changes", into: "changes", transform: { kind: "parse" } }, { id: "count", kind: "transform", source: "changes", into: "changes", transform: { kind: "math", operation: "add", operand: 1 } },
+        { id: "parse-changes", kind: "transform", source: "changes", into: "changes", transform: { kind: "parse" } }, { id: "count", kind: "transform", source: "changes", into: "changes", transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
       ],
     }] },
     ...actions.map(([id, values]) => ({ ...makeText(id), id, attrId: id, semantic: "button" as const, scripts: [{

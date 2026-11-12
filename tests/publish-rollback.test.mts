@@ -279,11 +279,11 @@ test("a concurrent commit still rejects rollback after both manual-path tree ope
   assert.deepEqual(f.entries().find(entry => entry.path === manual.path), manual);
 });
 
-test("rollback keeps refusing real generated-path conflicts and unclassified legacy paths", async () => {
-  for (const legacy of [false, true]) {
-    const manual = { path: `${legacy ? "manual" : "old-page.html"}/readme`, mode: "100644", type: "blob", sha: "manual" };
+test("rollback refuses generated-path conflicts and histories without a generated manifest", async () => {
+  for (const missingManifest of [false, true]) {
+    const manual = { path: `${missingManifest ? "manual" : "old-page.html"}/readme`, mode: "100644", type: "blob", sha: "manual" };
     const f = fixture("production", manual, "unused", {
-      historicalManual: { ...manual, path: "manual", sha: "old-manual" }, noSourceManifest: legacy,
+      historicalManual: { ...manual, path: "manual", sha: "old-manual" }, noSourceManifest: missingManifest,
     });
     const response = await f.send({ sha: f.source }, true);
     assert.equal(response.status, 409);
