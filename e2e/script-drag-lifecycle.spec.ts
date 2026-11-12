@@ -149,6 +149,28 @@ test("dropping over the right side of a wide step shows the insertion bar and in
   expect(scripts[0].steps.map((step: { kind: string }) => step.kind)).toEqual(["wait", "wait"]);
 });
 
+test("drag previews stay outside the clipped dialog while crossing its edge", async ({ page }) => {
+  await scaleScriptModal(page);
+  const dialog = (await page.locator(".se").boundingBox())!;
+  for (const kind of ["palette", "step", "script"]) {
+    await start(page, kind);
+    const ghost = page.locator(".se-ghost");
+    await expect(visibleGhost(page)).toBeVisible();
+    // The dialog clips its descendants and its scale animation changes the
+    // containing block of position:fixed. The preview must escape both.
+    expect(await ghost.evaluate((element) => element.parentElement === document.body)).toBe(true);
+
+    const x = dialog.x + dialog.width - 35;
+    const y = dialog.y + dialog.height - 85;
+    await pointer(page, "pointermove", { x, y });
+    await expect.poll(async () => (await visibleGhost(page).boundingBox())?.x ?? 0)
+      .toBeGreaterThan(dialog.x + dialog.width - 100);
+    await expect(visibleGhost(page)).toBeVisible();
+    await pointer(page, "pointercancel", { x, y, buttons: 0 });
+    await expect(transient(page)).toHaveCount(0);
+  }
+});
+
 test("dragged steps retain their width without narrowing the source stack", async ({ page }) => {
   // 幅の広い手順が、元の並びの幅を決める。それを取り除くと、通常は並びが縮む。
   await page.addStyleTag({ content: '.se-ws [data-sel-key="step:wait"] { min-width: 480px; }' });
