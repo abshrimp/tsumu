@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Check,
   CloudOff,
@@ -304,12 +304,31 @@ export default function PublishModal({
     setStyle(targets.lastExportOptions.style);
   }, [targets]);
   const options: ExportOptions = { framework: format, language, style, scope: "project" };
-  const checks = useMemo<CheckResult[]>(() => [
-    ...runChecks(doc),
-    ...exportLimitations(doc, { framework: format, language, style, scope: "project" })
-      .map((message): CheckResult => ({ level: "error", message })),
-  ], [doc, format, language, style]);
-  const hasError = checks.some((c) => c.level === "error");
+  // 公開前チェックの完了を待たずにモーダルを描画し、古い結果で公開できないようにする。
+  const [validation, setValidation] = useState<{
+    doc: SiteDoc;
+    format: ExportFormat;
+    language: ExportLanguage;
+    style: ExportStyle;
+    checks: CheckResult[];
+  } | null>(null);
+  const checks = configuredTargets &&
+    validation?.doc === doc && validation.format === format &&
+    validation.language === language && validation.style === style
+    ? validation.checks : null;
+  useEffect(() => {
+    if (!configuredTargets) return;
+    const timer = window.setTimeout(() => {
+      const nextChecks: CheckResult[] = [
+        ...runChecks(doc),
+        ...exportLimitations(doc, { framework: format, language, style, scope: "project" })
+          .map((message): CheckResult => ({ level: "error", message })),
+      ];
+      setValidation({ doc, format, language, style, checks: nextChecks });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [configuredTargets, doc, format, language, style]);
+  const hasError = !checks || checks.some((c) => c.level === "error");
   useEscapeToClose(onClose, phase !== "busy");
 
   const publish = async (site: PublishTarget) => {
@@ -326,6 +345,10 @@ export default function PublishModal({
     setSite(site);
     setPhase("busy");
     setProgress("");
+    // 重いファイル生成やアセット検査を始める前に、進捗表示を確実に描画する。
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => window.setTimeout(resolve, 0));
+    });
     // 公開中に編集されても、実際に公開した内容で公開済み判定する
     let target = doc;
     try {
@@ -520,7 +543,13 @@ export default function PublishModal({
             </li>
           </ul>
         )}
-        {phase === "check" && configuredTargets && (
+        {phase === "check" && configuredTargets && !checks && (
+          <div className="pub-loading is-large" role="status">
+            <LoaderCircle size={16} className="spin" />
+            {tr("Checking site before publishing…")}
+          </div>
+        )}
+        {phase === "check" && configuredTargets && checks && (
           <>
             <p className="modal-desc">
               {format === "html" || format === "single-html"
