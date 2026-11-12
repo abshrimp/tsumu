@@ -221,8 +221,10 @@ test("if conditions allow nested list variables and choose meaningful operators"
   }));
   const b = block(page, "if-categories");
   await expect(b).toBeVisible();
-  await openPicker(page, "if-categories");
-  await pick(page, "data.rows.0.categories", "if-categories");
+  const source = b.getByRole("button", { name: "Source variable" });
+  await source.click();
+  await page.getByRole("textbox", { name: "Enter a path or index" }).fill("data.rows.0.categories");
+  await page.getByRole("button", { name: "Use path" }).click();
   const operation = b.locator("select.se-in").filter({ has: page.locator('option[value="eq"]') });
   await expect(operation).toHaveValue("has-key");
   await expect(operation.locator('option[value="starts-with"]')).toHaveCount(0);
@@ -230,8 +232,9 @@ test("if conditions allow nested list variables and choose meaningful operators"
   expect(cond.left).toBe("{data.rows.0.categories}");
   expect(cond.op).toBe("has-key");
 
-  await openPicker(page, "if-categories");
-  await pick(page, "data.rows.0.categories.出展カテゴリ", "if-categories");
+  await source.click();
+  await page.getByRole("textbox", { name: "Enter a path or index" }).fill("data.rows.0.categories.出展カテゴリ");
+  await page.getByRole("button", { name: "Use path" }).click();
   await expect(operation).toHaveValue("contains");
   await expect(operation.locator('option[value="has-key"]')).toHaveCount(0);
   cond = (await snapshot(page)).pages.p.pageScripts[0].steps.find((s: any) => s.id === "if-categories").cond;
