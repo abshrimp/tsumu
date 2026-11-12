@@ -124,6 +124,8 @@ export interface Drag {
   h: number;
   /** ドラッグを始める前のブロックの幅（倍率 1 での値） */
   w?: number;
+  /** モーダルの登場アニメーション中もプレビューの見た目の倍率を揃える。 */
+  modalScale?: number;
   /** ブロックを取り除いた後も、元のスタックの幅を保つ */
   sourceStackWidth?: number;
   /** 複数のスタックをドラッグするときは、各スタックの幅を保つ */
@@ -583,6 +585,12 @@ function ScriptEditorInner({
     // ワークスペースの CSS の倍率にも左右されない。
     const sourceStack = target.closest<HTMLElement>(".se-stack");
     const sourceStackWidth = sourceStack?.offsetWidth;
+    // ドラッグ用の層はモーダルの外へ出すため、登場アニメーション中の
+    // scale を別途引き継ぐ。元のブロックとプレビューの大きさを揃える。
+    const dialog = target.closest<HTMLElement>(".se");
+    const modalScale = dialog?.offsetWidth
+      ? dialog.getBoundingClientRect().width / dialog.offsetWidth
+      : 1;
     const sourceStackIdle = sourceStack?.classList.contains("is-idle") ?? false;
     let scriptWidths: Record<string, number> | undefined;
     if (key?.startsWith("script:") && selectedRef.current.has(key)) {
@@ -647,6 +655,7 @@ function ScriptEditorInner({
       // プレビューは左右に 1px ずつ枠線を加える。一時的にアニメーションしている矩形ではなく、
       // ドラッグした行の、倍率のかかっていないレイアウト上の幅を使う。
       w: key?.startsWith("script:") ? (sourceStackWidth ?? target.offsetWidth) : target.offsetWidth + 2,
+      modalScale,
       sourceStackWidth,
       sourceStackIdle,
       scriptWidths,
@@ -806,6 +815,8 @@ function ScriptEditorInner({
       aria-hidden="true"
       inert
       style={{ left: 0, top: 0,
+        scale: drag.modalScale ?? 1,
+        transformOrigin: "top left",
         transform: `translate3d(${drag.x - drag.ox * zoom}px, ${drag.y - drag.oy * zoom}px, 0)` }}
     >
       <div style={{ zoom }}>
@@ -1091,7 +1102,9 @@ function ScriptEditorInner({
             </Ctx.Provider>
           </div>
         )}
-        {ghost}
+        {/* A fixed child of the animated, overflow-clipped modal can disappear
+            at its edges. Put the preview in the viewport layer instead. */}
+        {ghost && createPortal(ghost, document.body)}
         {marquee && (
           <div
             ref={marqueeElRef}
