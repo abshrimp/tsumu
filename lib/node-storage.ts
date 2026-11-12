@@ -8,6 +8,7 @@
  * node:sqlite は、このリポジトリが求める Node.js（26.12.1 以上）で使える。
  */
 
+import { extractAssetReferences } from "./asset-gc-plan";
 import type { D1LikeDatabase } from "./db";
 import type { AssetMeta, KVLikeNamespace } from "./kv";
 
@@ -38,6 +39,7 @@ interface SqliteStatement {
 }
 
 interface SqliteDatabase {
+  function(name: string, options: { deterministic: boolean; directOnly: boolean }, fn: (body: string, path: string) => number): void;
   prepare(sql: string): SqliteStatement;
   exec(sql: string): void;
 }
@@ -110,6 +112,8 @@ export function nodeDatabase(): D1LikeDatabase | null {
   const raw = new sqlite.DatabaseSync(`${dir}/tsumu.db`);
   raw.exec("PRAGMA journal_mode = WAL");
   raw.exec("PRAGMA busy_timeout = 5000");
+  raw.function("document_references_asset", { deterministic: true, directOnly: true },
+    (body, path) => Number(extractAssetReferences(body).has(path)));
   const db = d1Adapter(raw);
   cache.__tsumuSqlite = { dir, db };
   return db;

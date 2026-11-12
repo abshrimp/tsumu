@@ -1,3 +1,4 @@
+import { insertIntoHtmlHead } from "./generator/head";
 import type { SiteDoc } from "./types";
 import { pagePlan } from "./data";
 import { generateProject, type GeneratedProject, type PublishTarget } from "./generator";
@@ -276,9 +277,9 @@ export function generateExportProject(
   }
   const next = generateProject(scoped, target);
   const generated = options.framework === "react"
-    ? buildReactProject(scoped, next)
+    ? buildReactProject(scoped, next, target)
     : (options.framework === "html" || options.framework === "single-html")
-      ? generateStandaloneHtml(scoped, next)
+      ? generateStandaloneHtml(scoped, next, target)
       : (options.framework === "vue" || options.framework === "nuxt" || options.framework === "sveltekit")
         ? buildAdditionalFramework(scoped, next, options.framework, options.language, target)
         : next;
@@ -323,9 +324,7 @@ export async function prepareExportProject(
       : ["index.html", "src/app.html"];
     for (const path of htmlFiles) {
       if (!files[path]) continue;
-      if (/<head(?:\s[^>]*)?>/i.test(files[path])) {
-        files[path] = files[path].replace(/<head(?:\s[^>]*)?>/i, (head) => head + "\n" + robotsMeta);
-      } else files[path] = robotsMeta + "\n" + files[path];
+      files[path] = insertIntoHtmlHead(files[path], robotsMeta);
     }
     const assetRoot = options.framework === "html" || options.framework === "single-html" ? ""
       : options.framework === "sveltekit" ? "static/" : "public/";

@@ -67,7 +67,7 @@ test("standalone HTML selects query-variant pages before loading their data", as
     pages: {
       default: { id: "default", name: "Default", slug: "", title: "Default", description: "",
         children: ["default-heading"] },
-      special: { id: "special", name: "Special", slug: "", title: "Special", description: "",
+      special: { id: "special", name: "Special", slug: "", title: "Special", description: "Details for this view", noindex: true,
         query: "tab=2", children: ["special-heading"],
         pageScripts: [{
           id: "load", trigger: "load", pos: { x: 0, y: 0 },
@@ -101,10 +101,13 @@ test("standalone HTML selects query-variant pages before loading their data", as
   await expect(page.locator("[data-variant-root]")).toContainText("Query-specific page");
   await expect(page.locator("[data-page-body]")).toHaveAttribute("data-page-body", "special");
   await expect(page).toHaveTitle("Special");
+  await expect(page.locator('head meta[name="description"]')).toHaveAttribute("content", "Details for this view");
+  await expect(page.locator('head meta[name="robots"]')).toHaveAttribute("content", /noindex/);
 
   await page.goto("/__query_probe__/index.html?tab=3");
   await expect(page.locator("[data-variant-root]")).toContainText("Default page");
   await expect(page.locator("[data-page-body]")).toHaveAttribute("data-page-body", "default");
+  await expect(page.locator('head meta[name="robots"]')).toHaveCount(0);
 });
 
 
