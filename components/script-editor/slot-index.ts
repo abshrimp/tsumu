@@ -10,6 +10,8 @@ export interface SlotPoint {
   kind: "step" | "head";
   x: number;
   y: number;
+  /** Width of the insertion row in workspace pixels (defaults to an anchor point). */
+  width?: number;
 }
 
 const CELL_X = 120;
@@ -20,15 +22,17 @@ export class SlotIndex {
 
   constructor(slots: SlotPoint[]) {
     slots.forEach((slot, order) => {
-      const cell = this.cell(slot.x, slot.y);
-      const items = this.cells.get(cell) ?? [];
-      items.push({ ...slot, order });
-      this.cells.set(cell, items);
+      // Wide rows must be discoverable from their right side as well as their left edge.
+      // Store each row in the horizontal cells it actually spans, keeping queries local.
+      const from = Math.floor(slot.x / CELL_X);
+      const to = Math.floor((slot.x + Math.max(0, slot.width ?? 0)) / CELL_X);
+      for (let ix = from; ix <= to; ix++) {
+        const cell = `${ix},${Math.floor(slot.y / CELL_Y)}`;
+        const items = this.cells.get(cell) ?? [];
+        items.push({ ...slot, order });
+        this.cells.set(cell, items);
+      }
     });
-  }
-
-  private cell(x: number, y: number) {
-    return `${Math.floor(x / CELL_X)},${Math.floor(y / CELL_Y)}`;
   }
 
   nearest(kind: SlotPoint["kind"], x: number, y: number): string | null {
@@ -36,12 +40,14 @@ export class SlotIndex {
     const cy = Math.floor(y / CELL_Y);
     let best: { key: string; dist: number; order: number } | null = null;
 
-    // 80 x 28 ピクセルの受け入れ範囲は、どの方向にも隣の区画1つまでしか届かない。
+    // 横方向は行全体 + 左右80px、縦方向は差し込み線の上下28pxを受け入れる。
+    // 許容幅は区画1つ未満なので、隣接区画だけの検索で足りる。
     for (let ix = cx - 1; ix <= cx + 1; ix++) {
       for (let iy = cy - 1; iy <= cy + 1; iy++) {
         for (const slot of this.cells.get(`${ix},${iy}`) ?? []) {
           if (slot.kind !== kind) continue;
-          const dx = x - slot.x;
+          const right = slot.x + Math.max(0, slot.width ?? 0);
+          const dx = x < slot.x ? x - slot.x : x > right ? x - right : 0;
           const dy = y - slot.y;
           if (Math.abs(dx) > 80 || Math.abs(dy) > 28) continue;
           const dist = Math.hypot(dx, dy * 2);
