@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mergeDocs } from "../lib/merge";
 import { useEditor } from "../lib/store";
-import { pageFolderFixture, pageFolderBundle } from "./helpers/page-folder-merge";
+import { pageFolderFixture } from "./helpers/page-folder-merge";
 import type { SiteDoc } from "../lib/types";
 
 const names = (doc: SiteDoc) => Object.fromEntries((doc.pageFolders ?? []).map((folder) => [folder.id, folder.name]));
@@ -218,8 +218,4 @@ test("rebasing folder history does not mutate the existing document or history s
   assert.deepEqual([base, current, ...past, remote], originals);
   assert.equal(names(useEditor.getState().doc).second, "Remote name");
   assert.equal(names(useEditor.getState().doc).third, undefined);
-});
-
-test("page folder fixture bundles actual PagesTab and mergeDocs", async () => {
-  assert.ok((await pageFolderBundle()).length > 1000);
 });

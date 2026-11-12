@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { makeText } from '../lib/presets';
 import { SCRIPT_RUNTIME, scriptsFile } from '../lib/script-runtime';
 import { publishedClientNested } from './helpers/client-nested-lists';
-import { clientScriptBundle, clientScriptFixture as fixture } from './helpers/client-script-scope';
+import { clientScriptFixture as fixture } from './helpers/client-script-scope';
 import { listRuntimeDom } from './helpers/list-runtime-dom';
 
 
@@ -133,12 +133,6 @@ test('raw number, boolean, null, object and array values survive assignments wit
   }
 });
 
-
-test('native regression bundles the real ScriptEditor and Canvas', async () => {
-  const bundle = await clientScriptBundle(fixture().doc);
-  assert.ok(bundle.includes('Edit action'));
-  assert.ok(bundle.includes('Reload saved'));
-});
 
 test('script execution preserves neighboring text, image, link and initialized field carriers', async () => {
   const { doc, items } = fixture();

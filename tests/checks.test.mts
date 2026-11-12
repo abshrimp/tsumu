@@ -33,7 +33,9 @@ test("automatic URLs from adding and duplicating pages are reported", () => {
 });
 
 test("automatic titles and shared titles are reported", () => {
-  assert.ok(messages(withPage("about", "ページ 3")).some((m) => m.includes('"ページ 3"') && m.includes("automatic")));
+  for (const title of ["Page 3", "ページ 3"]) {
+    assert.ok(messages(withPage("about", title)).some((m) => m.includes(`"${title}"`) && m.includes("automatic")));
+  }
   // タイトルが空なら、ページ名がタイトルになる
   assert.ok(messages(withPage("about", "", "ページ 12")).some((m) => m.includes('"ページ 12"') && m.includes("automatic")));
   assert.ok(messages(withPage("menu", "Home")).some((m) => m.includes("same search and share title")));
@@ -60,9 +62,12 @@ async function fresh(pages: Record<string, { name: string; slug: string; title: 
 
 test("a new page takes its first confirmed name as its title, and is not linked afterwards", async () => {
   const { st } = await fresh({});
+  const number = st().doc.pageOrder.length + 1;
   st().addPage();
   const added = Object.values(st().doc.pages).find((p) => p.titlePending)!;
   assert.ok(added, "new page is marked");
+  assert.equal(added.name, `Page ${number}`);
+  assert.equal(added.title, added.name);
   // 触れただけ（同じ名前で確定した）では、決まらない
   st().updatePage(added.id, { name: added.name });
   assert.equal(st().doc.pages[added.id].titlePending, true);

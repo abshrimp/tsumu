@@ -10,7 +10,9 @@ for (const slug of ["blog", "posts/[slug]"]) {
     const variants = doc.pageOrder.filter((id) => id.startsWith("variant")).map((id) => doc.pages[id]);
     for (const query of ["tab=news", "lang=ja&tab=news#section", "tab=archive", "tab=unknown", "", "extra=1&tab=news", "tab=news&tab=archive", "tab=archive&tab=news"]) {
       const url = `/${slug.replace("[slug]", "article")}?${query}`;
-      assert.equal(navigate(doc, url), await publishedQueryPage(variants, url), url);
+      const expected = await publishedQueryPage(variants, url);
+      assert.equal(navigate(doc, url), expected, url);
+      assert.equal(navigate(doc, `?${query}`, "variant0"), expected, `?${query}`);
     }
   });
 }
@@ -29,6 +31,11 @@ test("no default query keeps the first-page fallback and does not affect other r
   assert.equal(navigate(doc, "/blog?tab=missing"), "variant0");
   assert.equal(navigate(doc, "/unknown?tab=news"), "missing");
   assert.equal(navigate(doc, "/"), "home");
+  doc.pages.start = { ...doc.pages.home, id: "start", slug: "guide/chapter", children: [] };
+  doc.pages.next = { ...doc.pages.home, id: "next", slug: "guide/next", children: [] };
+  doc.pageOrder.push("start", "next");
+  assert.equal(navigate(doc, "../blog?tab=news", "start"), "variant1");
+  assert.equal(navigate(doc, "./next", "start"), "next");
   assert.equal(navigate(doc, "#section"), "home");
 });
 

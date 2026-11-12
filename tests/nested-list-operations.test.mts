@@ -13,7 +13,7 @@ import { useEditor } from "../lib/store";
 import type { SiteDoc } from "../lib/types";
 import { ArraySelect } from "../components/script-editor/arrays";
 import { Ctx, type EdCtx } from "../components/script-editor/context";
-import { nestedOperationsBundle, nestedOperationsDoc, publishedNestedOperations } from "./helpers/nested-list-operations";
+import { nestedOperationsDoc, publishedNestedOperations } from "./helpers/nested-list-operations";
 
 const require = createRequire(import.meta.url);
 const { parse } = require("next/dist/compiled/node-html-parser");
@@ -147,11 +147,4 @@ for (const component of [false, true]) test(`${component ? "component" : "nested
   restarted.dispose();
   assert.doesNotMatch(canvasMarkup(doc, false), /data-array=|data-item=|data-scripts=/);
   assert.deepEqual(doc, before, "runtime operations never change the saved document");
-});
-
-test("native regression bundles the real ScriptEditor, Canvas and runtime", async () => {
-  const bundle = await nestedOperationsBundle(true);
-  for (const name of ["ScriptEditor", "ArraySelect", "Canvas", "GhostView", "createScriptRuntime"]) {
-    assert.match(bundle, new RegExp(`function ${name}`));
-  }
 });

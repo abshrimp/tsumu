@@ -253,8 +253,18 @@ export function useCanvasData({
         return;
       }
       const clean = (s: string) => s.replace(/^\/+|\/+$/g, "");
-      const path = clean(raw.split(/[?#]/)[0]);
-      const query = new URLSearchParams(raw.split("#")[0].split("?").slice(1).join("?"));
+      // 相対リンクの基準はエディタの URL ではなく、プレビューしている公開ページのパス。
+      const origin = "https://preview.invalid";
+      let targetUrl: URL;
+      try {
+        const currentPath = clean(page?.slug ?? "").replace("[slug]", () => encodeURIComponent(slugVal));
+        targetUrl = new URL(raw, `${origin}/${currentPath}`);
+      } catch {
+        return;
+      }
+      if (targetUrl.origin !== origin) return;
+      const path = clean(targetUrl.pathname);
+      const query = targetUrl.searchParams;
       const pages = doc.pageOrder.map((pid) => doc.pages[pid]);
       // 通常のページ（URL が完全に一致するもの）。同じパスのページは、クエリで振り分ける。
       const normal = queryPage(pages.filter((p) => !p.slug.includes("[slug]") && clean(p.slug) === path), query);
@@ -302,7 +312,7 @@ export function useCanvasData({
       const nf = doc.pageOrder.find((pid) => clean(doc.pages[pid].slug) === "404");
       if (nf) setActivePage(nf);
     },
-    [doc, setActivePage, setPreviewIndex]
+    [doc, page?.slug, slugVal, setActivePage, setPreviewIndex]
   );
 
   return { fetchedVars, fieldValues, setFieldValues, setClientValues, setLiveSamples, setLiveTotals, setFullData, previewSlug, setPreviewSlug, refreshing, primary, primaryFindBy, primaryItems, setTypedSlugOf, slugNotFound, slugVal, plan, fieldVarNodes, pageVars, refreshData, setActivePage, navigateTo };

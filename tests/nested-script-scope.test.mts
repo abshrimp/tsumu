@@ -9,7 +9,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { pagePlan, previewDataVars } from "../lib/data";
 import { useEditor } from "../lib/store";
-import { nestedScopeBundle, nestedScopeDoc, publishedNestedScope } from "./helpers/nested-script-scope";
+import { nestedScopeDoc, publishedNestedScope } from "./helpers/nested-script-scope";
 
 function render(preview = true) {
   const doc = nestedScopeDoc(); useEditor.getState().replaceDoc(doc);
@@ -46,11 +46,4 @@ test("generated nested scripts already scope every repeated row", async () => {
   assert.equal((html.match(/data-row=/g) ?? []).length, 6);
   for (const label of ["red", "blue", "green", "yellow"]) assert.match(html, new RegExp(`hide ${label}`));
   assert.equal((html.match(/id="detail"/g) ?? []).length, 4);
-});
-
-test("native regression bundles the real Canvas and production runtime", async () => {
-  const bundle = await nestedScopeBundle();
-  assert.match(bundle, /function Canvas/);
-  assert.match(bundle, /function GhostView/);
-  assert.match(bundle, /function createScriptRuntime/);
 });

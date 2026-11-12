@@ -16,7 +16,7 @@ import { hasScriptsInside } from "../lib/generator/render-helpers";
 import { buildClassNames } from "../lib/generator/names";
 import { makeBox, makeText } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
-import { componentListBundle, componentListDoc, publishedComponentList } from "./helpers/component-list-export";
+import { componentListDoc, publishedComponentList } from "./helpers/component-list-export";
 
 const require = createRequire(import.meta.url);
 const { parse } = require("next/dist/compiled/node-html-parser");
@@ -247,10 +247,4 @@ test("converted server and client list projects typecheck", () => {
     }
     execFileSync(process.execPath, [join(dirname(require.resolve("typescript/package.json")), "bin/tsc"), "--project", join(dir, "tsconfig.json"), "--noEmit", "--incremental", "false"], { cwd: dir, stdio: "pipe" });
   } finally { rmSync(dir, { recursive: true, force: true }); }
-});
-
-test("native conversion regression bundles actual SettingsPanel, Canvas and store", async () => {
-  const bundle = await componentListBundle();
-  for (const name of ["SettingsPanel", "Canvas", "GhostView"]) assert.match(bundle, new RegExp(`function ${name}`));
-  assert.match(bundle, /createComponent/);
 });

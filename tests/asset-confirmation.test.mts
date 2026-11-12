@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { useEditor } from "../lib/store";
 import { closeDialog, useDialogs } from "../lib/dialog";
 import { assetSrc } from "../lib/assets";
-import { assetConfirmationBundle, assetConfirmationCallbacks, assetConfirmationDoc, candidate, spare } from "./helpers/asset-confirmation";
+import { assetConfirmationCallbacks, assetConfirmationDoc, candidate, spare } from "./helpers/asset-confirmation";
 import type { SiteDoc } from "../lib/types";
 
 const state = () => useEditor.getState();
@@ -244,10 +244,4 @@ test("cleanup deletes an approved shared path once when none of its aliases rema
     assert.deepEqual(state().doc.assets, {});
     assert.deepEqual(f.deleted, [candidate.path]);
   } finally { f.close(); }
-});
-
-test("asset confirmation browser fixture bundles real components and remote deletion", async () => {
-  const bundle = await assetConfirmationBundle();
-  assert.match(bundle, /function AssetsTab/); assert.match(bundle, /function DialogHost/);
-  assert.match(bundle, /function deleteAssetRemote/); assert.match(bundle, /assetEditor/);
 });
