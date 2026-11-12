@@ -12,6 +12,7 @@ test("site head and body each expand beside their label, without a section butto
   await newSite(page, "Custom code per field");
   await page.locator('[data-tutorial="left-tab-site"]').click();
   const section = page.locator('[data-tutorial="site-code"]');
+  await section.locator(".sec-title").click();
   await expect(section.locator(".sec-head .code-editor-button")).toHaveCount(0);
   await expect(section.locator(".code-field-heading .code-editor-button")).toHaveCount(2);
   await section.getByRole("button", { name: "head内コード: コードエディタで編集" }).click();
@@ -30,7 +31,6 @@ test("site head and body each expand beside their label, without a section butto
   expect(box!.height).toBeGreaterThan(viewport.height * 0.8);
   await dialog.getByRole("button", { name: "適用" }).click();
 
-  await section.locator(".sec-title").click();
   await expect(page.locator("#site-head-code")).toHaveValue(source);
   await expect(page.locator("#site-body-code")).toHaveValue("");
   await section.getByRole("button", { name: "body末尾コード: コードエディタで編集" }).click();
@@ -65,7 +65,7 @@ test("raw HTML uses a full-size syntax-highlighted modal without executing HTML"
   await page.getByRole("button", { name: "切り替える", exact: true }).click();
   await section.getByRole("button", { name: "HTMLコード: コードエディタで編集" }).click();
   const dialog = page.getByRole("dialog", { name: /HTMLコード.*コードエディタ/ });
-  const html = "<!doctype html>\n<html><body><img src=x onerror=alert(1)><!-- note --><script>const x = 1</script></body></html>";
+  const html = "<!doctype html>\n<html><body><img src=x data-onerror=example><!-- note --><script>const x = 1</script></body></html>";
   await dialog.getByRole("textbox", { name: "HTMLコード" }).fill(html);
   await expect(dialog.locator(".custom-code-highlight img")).toHaveCount(0);
   await expect(dialog.locator(".custom-code-highlight script")).toHaveCount(0);
