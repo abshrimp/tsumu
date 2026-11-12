@@ -914,7 +914,7 @@ export function pageArrays(doc: SiteDoc, pageId: string): PageArray[] {
   for (const steps of scriptsInPage(doc, pageId)) {
     walkAll(steps, (st) => {
       if (st.kind !== "transform" || !st.into || seen.has(st.into)) return;
-      const listProducing = ["split", "sort", "append"].includes(st.transform.kind);
+      const listProducing = ["split", "sort"].includes(st.transform.kind);
       if (!listProducing) {
         transformedSamples ??= previewDataVars(doc, pageId);
         if (!Array.isArray(lookupVar(transformedSamples, st.into))) return;
