@@ -2,23 +2,6 @@
 
 [README](../README.ja.md) · [English](user-guide.md)
 
-## スクリーンショット
-
-<table>
-  <tr>
-    <td width="50%"><img src="screenshots/ja/ai.png" alt="AIにページの編集を頼む"><br><sub><b>AIに頼む</b></sub></td>
-    <td width="50%"><img src="screenshots/ja/publish.png" alt="テストサイトと本番サイトを選べる公開画面"><br><sub><b>公開</b>: チェックの後、テストサイトか本番へ</sub></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="screenshots/ja/comments.png" alt="見出しに付けたコメント"><br><sub><b>コメント</b></sub></td>
-    <td width="50%"><img src="screenshots/ja/help.png" alt="図解付きのヘルプ"><br><sub><b>ヘルプ内蔵</b></sub></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="screenshots/ja/responsive.png" alt="スマホの見た目を編集"><br><sub><b>画面幅ごとの編集</b></sub></td>
-    <td width="50%"><img src="screenshots/ja/scripts.png" alt="クリック時とページを開いたときのブロックを並べたスクリプト編集画面"><br><sub><b>コード不要のスクリプト</b>: 「きっかけ → 動作」のブロック</sub></td>
-  </tr>
-</table>
-
 ## 構成
 
 ```
