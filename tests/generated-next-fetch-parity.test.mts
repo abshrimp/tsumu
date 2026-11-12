@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { createRequire } from "node:module";
 import { transformSync } from "esbuild";
 import { generateProject } from "../lib/generator";
+import { previewDataVars } from "../lib/data";
 import { fetchRequestOf } from "../lib/fetch-request";
 import { makeBox, makeText } from "../lib/presets";
 import { publishedComponentList } from "./helpers/component-list-export";
@@ -210,3 +211,40 @@ test("Next length counts both fetched records and new keys in a browser-edited r
   await dom.click("act");
   assert.equal(dom.active("#counts")[0].textContent, "2/2");
 });
+
+test("preview and generated Next page load update the parent record for nested destinations", async () => {
+  const doc = fetchedListDoc([]);
+  const sample = [{ value: "loaded" }];
+  doc.pages.p.pageScripts![0].steps = [
+    { id: "record", kind: "set-var", into: "record", value: '{"keep":"old"}' },
+    { id: "field", kind: "set-var", into: "record.label", value: "new" },
+    { id: "request", kind: "fetch", as: "record.rows", url: "https://example.com/catalogue", preview: { sample } },
+    { id: "transform", kind: "transform", source: "record.rows", into: "record.count", transform: { kind: "length" } },
+    { id: "out", kind: "transform", source: "record", into: "output", transform: { kind: "stringify" } },
+  ];
+  doc.pages.p.children = ["result"];
+  doc.nodes.result = { ...makeText("{output}"), id: "result", attrId: "result" };
+  const expected = { keep: "old", label: "new", rows: sample, count: 1 };
+  assert.deepEqual(JSON.parse(String(previewDataVars(doc, "p").output)), expected);
+  const html = await publishedComponentList(doc, "app/page.tsx", sample);
+  const dom = listRuntimeDom(html, "");
+  assert.deepEqual(JSON.parse(dom.active("#result")[0].textContent), expected);
+});
+
+for (const [target, reference] of [["data.1.rows", "data.-1.rows.0"], ["data.-1.rows", "data.1.rows.0"]]) {
+  test(`editing ${target} updates the fetched last item at ${reference}`, async () => {
+    const doc = fetchedListDoc([
+      { id: "remove", kind: "remove-list-item", list: target, mode: "key", value: "0" },
+    ]);
+    doc.nodes.tail = { ...makeText(`{${reference}}`), id: "tail", attrId: "tail" };
+    doc.pages.p.children.push("tail");
+    const html = await publishedComponentList(doc, "app/page.tsx", [
+      { rows: ["A"], private: "unreferenced-field" }, { rows: ["B", "C"], private: "unreferenced-field" },
+    ]);
+    assert.doesNotMatch(html, /unreferenced-field/);
+    const dom = listRuntimeDom(html, generateProject(doc).files["public/scripts.js"]);
+    assert.equal(dom.active("#tail")[0].textContent, "B");
+    await dom.click("act");
+    assert.equal(dom.active("#tail")[0].textContent, "C");
+  });
+}

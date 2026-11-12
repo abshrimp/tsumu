@@ -15,7 +15,7 @@ export function importedAssetPath(asset: Asset): string | null {
   if (typeof zip.group !== "string" || !/^[A-Za-z0-9_-]{1,100}$/.test(zip.group)) return null;
   const path = zip.path;
   if (typeof path !== "string" || path.length > 600 ||
-      !/^[\p{L}\p{N}\p{M} ._~/-]+$/u.test(path) || !isPortableOutputPath(path)) return null;
+      !/^[\p{L}\p{N}\p{M} ._~@+/-]+$/u.test(path) || !isPortableOutputPath(path)) return null;
   return `public/assets/_imports/${zip.group}/${path}`;
 }
 

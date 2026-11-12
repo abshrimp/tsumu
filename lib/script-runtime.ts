@@ -403,7 +403,12 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (seedData) {
             try {
               JSON.parse(seedData).forEach(function (entry) {
-                writeVarPath(vars, entry[0], entry[1], withinValueLimit);
+                var value = entry[1];
+                if (entry[2] === true) {
+                  if (!Number.isSafeInteger(value) || value < 0 || value > 5 * 1024 * 1024) return;
+                  value = new Array(value);
+                }
+                writeVarPath(vars, entry[0], value, withinValueLimit);
               });
             } catch (e) {}
           }

@@ -196,9 +196,9 @@ export function setVarPath(vars: Record<string, unknown>, name: string, value: u
       // A nested array path must update an existing slot or append one item.
       // Never turn a list into a dictionary or construct a sparse million-slot
       // list from an accidental index (set-list-item follows the same rule).
-      if (!/^(0|[1-9][0-9]*)$/.test(k)) { invalidPath = true; return cur; }
-      const index = Number(k);
-      if (!Number.isSafeInteger(index) || index > cur.length ||
+      if (k !== "-1" && !/^(0|[1-9][0-9]*)$/.test(k)) { invalidPath = true; return cur; }
+      const index = k === "-1" ? cur.length - 1 : Number(k);
+      if (!Number.isSafeInteger(index) || index < 0 || index > cur.length ||
           (index === cur.length && cur.length >= 10000)) {
         invalidPath = true;
         return cur;

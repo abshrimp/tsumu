@@ -41,13 +41,13 @@ test("unsafe or corrupted ZIP paths never become export output paths", () => {
 });
 
 test("localized ZIP module paths remain directories and relative browser imports reach real files", () => {
-  const script = fixture("公開 版/入口.js", "main", "entry.js");
-  const chunk = fixture("公開 版/音声 読込.js", "chunk", "chunk.js");
+  const script = fixture("@公開 版+2/入口.js", "main", "entry.js");
+  const chunk = fixture("@公開 版+2/音声 読込.js", "chunk", "chunk.js");
   const doc = createInitialDoc();
   doc.assets = { main: script, chunk };
   const page = doc.pages[doc.pageOrder[0]];
   page.rawHtml = '<script type="module" src="%E5%85%A5%E5%8F%A3.js"></script>';
-  page.htmlZip = { path: "公開 版/index.html", assetIds: ["main", "chunk"] };
+  page.htmlZip = { path: "@公開 版+2/index.html", assetIds: ["main", "chunk"] };
   const next = generateProject(doc);
   const html: string = JSON.parse(/^const html = (.*);$/m.exec(next.files["app/route.ts"])![1]);
   const entry = new URL(/<script type="module" src="([^"]+)"/.exec(html)![1], "https://site.example/");

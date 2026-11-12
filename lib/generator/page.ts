@@ -39,6 +39,10 @@ import { parseValueLiteral } from "../value-semantics";
 export { normalizeQuery } from "../vars";
 
 /** Shared by the page imports and the project file emitter. */
+export function writesNestedPageValue(step: ScriptStep): boolean {
+  return (step.kind === "fetch" ? step.as : "into" in step ? step.into : "")?.includes(".") ?? false;
+}
+
 export function needsPageStepRunner(step: ScriptStep): boolean {
   return step.kind === "for-each" || step.kind === "if" || step.kind === "repeat" ||
     step.kind === "set-list-item" || step.kind === "remove-list-item";
@@ -136,7 +140,7 @@ export function generatePageFile(
   const writes = new Set([...plan.clientAssignmentPaths, ...plan.clientListTargets]);
   for (const n of idVarNodesOf(doc, pageId)) if (n.type === "field") fieldVarNames(n).forEach((v) => writes.add(v));
   const loads = nf ? [] : plan.steps.filter((st) => st.kind !== "fetch" || st.url.trim());
-  const fetchedRoots = new Set(loads.flatMap(step => step.kind === "fetch" && step.as ? [step.as] : []));
+  const fetchedRoots = new Set(loads.flatMap(step => step.kind === "fetch" && step.as ? [step.as.split(".")[0]] : []));
   const seedPaths = new Set([...plan.clientListTargets].filter(path => fetchedRoots.has(path.split(".")[0])));
   // Existing browser-owned variable roots include array aliases such as -1.
   // Narrow only fetched roots, whose untouched siblings remain on the server.
@@ -207,9 +211,11 @@ export function generatePageFile(
     }
     return true;
   });
-  const listSeeds = fetchedListTargets.length
-    ? ` data-list-seeds={JSON.stringify(${codeLiteral(fetchedListTargets)}.map(path => [path, lookupVar(vars, path)]))}`
-    : "";
+  const aliasSeeds = [...seedPaths, ...writes].some(path => path.split(".").includes("-1")) && fetchedListTargets.length > 0;
+  const seedValues = aliasSeeds
+    ? `listSeedEntries(vars, ${codeLiteral(fetchedListTargets)})`
+    : `${codeLiteral(fetchedListTargets)}.map(path => [path, lookupVar(vars, path)])`;
+  const listSeeds = fetchedListTargets.length ? ` data-list-seeds={JSON.stringify(${seedValues})}` : "";
   if (listSeeds) ctx.usesLookup = true;
   const parts = [
     // 「このページ」のスクリプト（データの取得以外）はページの目印に載せて動かす
@@ -240,8 +246,11 @@ export function generatePageFile(
   if (loads.length) imports.push('import { fetchPublic, readTextLimited } from "@/lib/safe-fetch";');
   if (loads.some((st) => st.kind === "transform") || hasPurePageControls)
     imports.push('import { evaluateValueRecipe as __evalValueRecipe } from "@/lib/value-recipe";');
-  if (hasPurePageControls)
-    imports.push('import { runPurePageSteps as __runPurePageSteps } from "@/lib/page-load-steps";');
+  const stepImports = [
+    ...(hasPurePageControls ? ["runPurePageSteps as __runPurePageSteps"] : []),
+    ...(loads.some(writesNestedPageValue) ? ["writePageValue"] : []),
+  ];
+  if (stepImports.length) imports.push(`import { ${stepImports.join(", ")} } from "@/lib/page-load-steps";`);
   if (isSlugPg && primary)
     imports.push('import { notFound } from "next/navigation";');
   const reactImports = [
@@ -313,7 +322,35 @@ ${body}
   const edgeCache = cacheable && doc.hosting === "cloudflare";
   const isr = cacheable && !edgeCache;
 
+  const assignData = (name: string, expr: string) => name.includes(".")
+    ? `writePageValue(vars, ${codeLiteral(name)}, ${expr});` : `vars[${codeLiteral(name)}] = ${expr};`;
   const helpers: string[] = [];
+  // A partially hydrated array needs its actual length for -1 and its canonical
+  // index for subsequent writes. Send the shape separately from the used fields.
+  if (aliasSeeds) helpers.push(`function listSeedEntries(vars: Vars, paths: string[]) {
+  const arrays = new Map<string, number>();
+  const values = new Map<string, unknown>();
+  for (const path of paths) {
+    let value: unknown = vars;
+    const keys: string[] = [];
+    const parts = path.split(".");
+    for (const part of parts) {
+      if (value === null || typeof value !== "object") break;
+      let key = part;
+      if (Array.isArray(value)) {
+        arrays.set(keys.join("."), value.length);
+        if (key === "length") break;
+        if (key === "-1") key = String(value.length - 1);
+      }
+      if (!Object.prototype.hasOwnProperty.call(value, key)) break;
+      keys.push(key);
+      value = (value as Record<string, unknown>)[key];
+      if (keys.length === parts.length) values.set(keys.join("."), value);
+    }
+  }
+  return [...Array.from(arrays, ([path, length]) => [path, length, true]), ...values];
+}`);
+
   if (loads.length) {
     helpers.push(`/** 同じリクエスト内（メタデータとページ本体）では、同じURLを1回だけ取得する */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -383,7 +420,8 @@ ${loads
         } catch {
           origin = undefined;
         }
-        return `  vars[${codeLiteral(st.as)}] = await fetchJson(${url}${init ? `, JSON.stringify(${init}), ${origin === undefined ? "undefined" : codeLiteral(origin)}` : ""});`;
+        const request = `await fetchJson(${url}${init ? `, JSON.stringify(${init}), ${origin === undefined ? "undefined" : codeLiteral(origin)}` : ""})`;
+        return "  " + assignData(st.as, request);
       }
       case "for-each":
       case "if":
@@ -395,19 +433,19 @@ ${loads
         if (!st.into || !st.source) return "";
         return `  {
     const result = __evalValueRecipe(lookupVar(vars, ${codeLiteral(st.source)}), [${codeLiteral(st.transform)}], vars);
-    if (result.kind === "value") vars[${codeLiteral(st.into)}] = result.value;
-    else if (result.kind === "missing") vars[${codeLiteral(st.into)}] = undefined;
+    if (result.kind === "value") ${assignData(st.into, "result.value")}
+    else if (result.kind === "missing") ${assignData(st.into, "undefined")}
   }`;
       case "set-var": {
         if (!st.into) return "";
         const from = setVarSource(st);
-        if (from) return `  vars[${codeLiteral(st.into)}] = lookupVar(vars, ${codeLiteral(from)}) ?? null;`;
+        if (from) return "  " + assignData(st.into, `lookupVar(vars, ${codeLiteral(from)}) ?? null`);
         if (!extractVars(st.value).length) {
           const literal = interpolate(st.value, {});
           // Keep JSON containers (including their own keys) and scalar types on the server.
           const expression = parseValueLiteral(literal) === literal
             ? codeLiteral(literal) : `JSON.parse(${codeLiteral(literal)})`;
-          return `  vars[${codeLiteral(st.into)}] = ${expression};`;
+          return "  " + assignData(st.into, expression);
         }
         return "";
       }
