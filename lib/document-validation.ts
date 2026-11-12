@@ -33,8 +33,6 @@ function validTransform(v: unknown): v is ValueTransform {
     case "split": case "join": return str(v.separator);
     case "replace": return str(v.find) && str(v.replacement) && bool(v.regex);
     case "sort": return str(v.field) && oneOf(v.direction, ["asc", "desc"]);
-    case "append": return str(v.operand) &&
-      oneOf(v.operandType, ["text", "number", "boolean", "null", "variable"]);
     default: return false;
   }
 }

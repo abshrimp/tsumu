@@ -1,8 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { codeLiteral } from "../lib/generator/code-literal";
-import { parseValueOperandInput } from "../lib/script-model/compose";
-import { interpolate } from "../lib/vars";
 import { applyDocPatch, isDocPatch } from "../lib/doc-patch";
 import type { SiteDoc } from "../lib/types";
 
@@ -17,14 +15,6 @@ test("generated code literals preserve values without emitting HTML script termi
   }
   assert.match(codeLiteral("</script>"), /\\u003c\/script\\u003e/);
   assert.throws(() => codeLiteral(undefined), TypeError);
-});
-
-test("quoted value-recipe inputs keep braces literal even when preceded by a backslash", () => {
-  for (const value of ["{name}", "\\{name}", "x {name} y", "<script>{name}</script>"]) {
-    const { operand, operandType } = parseValueOperandInput(JSON.stringify(value));
-    assert.equal(operandType, "text");
-    assert.equal(interpolate(operand, { name: "INJECTED" }), value);
-  }
 });
 
 test("document patch never accepts prototype-chain keys", () => {

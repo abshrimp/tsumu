@@ -2,54 +2,14 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
 import { validDocumentScripts } from "../lib/document-validation";
-import { defaultTransform, VALUE_TRANSFORM_KINDS, parseValueOperandInput, formatValueOperandInput, type ValueTransform } from "../lib/script-model/compose";
+import { defaultTransform, VALUE_TRANSFORM_KINDS, type ValueTransform } from "../lib/script-model/compose";
 
-
-test("list operation value fields infer typed literals while keeping variables and mixed text", () => {
-  const examples = [
-    ["hello", "text", "hello"],
-    ["123", "number", "123"],
-    ["-1.25", "number", "-1.25"],
-    ["1e3", "number", "1e3"],
-    ["true", "boolean", "true"],
-    ["false", "boolean", "false"],
-    ["null", "null", ""],
-    ["00123", "text", "00123"],
-    ["{count}", "text", "{count}"],
-    ["hello {name}", "text", "hello {name}"],
-    ['"123"', "text", "123"],
-    ['"true"', "text", "true"],
-    ['"null"', "text", "null"],
-    ['"{name}"', "text", "\\{name}"],
-    ['"Hello {name}"', "text", "Hello \\{name}"],
-  ] as const;
-  for (const [input, operandType, operand] of examples) {
-    const parsed = parseValueOperandInput(input);
-    assert.deepEqual(parsed, { operand, operandType });
-    assert.deepEqual(parseValueOperandInput(formatValueOperandInput(parsed.operand, parsed.operandType)), parsed);
-  }
-  const numeric = parseValueOperandInput("12");
-  const bool = parseValueOperandInput("true");
-  const string = parseValueOperandInput('"true"');
-  const variable = parseValueOperandInput("{value}");
-  assert.deepEqual(evaluateValueRecipe([], [{ kind: "append", ...numeric }]), val([12]));
-  assert.deepEqual(evaluateValueRecipe([], [{ kind: "append", ...bool }]), val([true]));
-  assert.deepEqual(evaluateValueRecipe([], [{ kind: "append", ...string }]), val(["true"]));
-  assert.deepEqual(evaluateValueRecipe([], [{ kind: "append", ...variable }], { value: 5 }), val([5]));
-  assert.deepEqual(evaluateValueRecipe([], [{ kind: "append", operandType: "text", operand: "Hi {name}" }], { name: "A" }), val(["Hi A"]));
-  const quoted = parseValueOperandInput('"{name}"');
-  assert.deepEqual(evaluateValueRecipe([], [{ kind: "append", ...quoted }], { name: "A" }),
-    val(["{name}"]), "quotes force a literal brace rather than a variable lookup");
-  const quotedMixed = parseValueOperandInput('"Hello {name}"');
-  assert.deepEqual(evaluateValueRecipe([], [{ kind: "append", ...quotedMixed }], { name: "A" }),
-    val(["Hello {name}"]));
-});
 
 const run = (input: unknown, steps: readonly ValueTransform[]) => evaluateValueRecipe(input, steps);
 const val = (value: unknown) => ({ kind: "value", value });
 
 test("all advertised transforms have stable, serializable defaults", () => {
-  assert.equal(VALUE_TRANSFORM_KINDS.length, 11);
+  assert.equal(VALUE_TRANSFORM_KINDS.length, 10);
   assert.equal(new Set(VALUE_TRANSFORM_KINDS).size, VALUE_TRANSFORM_KINDS.length);
   for (const kind of VALUE_TRANSFORM_KINDS) {
     const transform = defaultTransform(kind);
@@ -216,22 +176,6 @@ test("math operands can resolve nested variables and safely parse numeric form s
   assert.deepEqual(evaluateValueRecipe(12, [
     { kind: "math", operation: "add", operandType: "number", operand: 3 },
   ]), val(15)); // 既定の被演算子は、数値として解釈する。
-});
-
-
-test("append returns a new list with typed values and enforces limits", () => {
-  const original = [1, 2];
-  assert.deepEqual(run(original, [{ kind: "append", operandType: "number", operand: "3" }]), val([1, 2, 3]));
-  assert.deepEqual(evaluateValueRecipe(original, [
-    { kind: "append", operandType: "variable", operand: "row" },
-  ], { row: { id: 1 } }), val([1, 2, { id: 1 }]));
-  assert.deepEqual(run(original, [{ kind: "append", operandType: "variable", operand: "missing" }]),
-    { kind: "error", code: "invalid-literal" });
-  assert.deepEqual(run("not a list", [{ kind: "append", operandType: "null", operand: "" }]),
-    { kind: "error", code: "type-mismatch" });
-  assert.deepEqual(run(Array(10000).fill(1), [{ kind: "append", operandType: "number", operand: "2" }]),
-    { kind: "error", code: "type-mismatch" });
-  assert.deepEqual(original, [1, 2]);
 });
 
 

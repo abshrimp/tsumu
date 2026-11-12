@@ -6,9 +6,8 @@ import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import { TextIn } from "./inputs";
 import { tr } from "../../lib/i18n";
-import { formatValueOperandInput, parseValueOperandInput } from "../../lib/script-model/compose";
 import type {
-  ValueTransform, ValueTransformKind, NumericOperation, ValueOperandType,
+  ValueTransform, ValueTransformKind, NumericOperation,
 } from "../../lib/script-model/compose";
 
 export const VALUE_TRANSFORM_LABELS: Record<ValueTransformKind, string> = {
@@ -21,14 +20,13 @@ export const VALUE_TRANSFORM_LABELS: Record<ValueTransformKind, string> = {
   join: "Join a list as text",
   replace: "Replace text",
   sort: "Sort a list",
-  append: "Append to list",
   fallback: "Use another value if missing",
 };
 
 export const VALUE_TRANSFORM_GROUPS: readonly { label: string; kinds: readonly ValueTransformKind[] }[] = [
   { label: "Extract and fallback", kinds: ["field", "fallback"] },
   { label: "Number and text operations", kinds: ["math", "split", "replace", "join"] },
-  { label: "List operations", kinds: ["length", "sort", "append"] },
+  { label: "List operations", kinds: ["length", "sort"] },
   { label: "JSON conversion", kinds: ["stringify", "parse"] },
 ];
 const MATH: readonly { value: NumericOperation; label: () => string }[] = [
@@ -258,25 +256,6 @@ function FieldKeyPicker({ value, onChange, options, samples, excludedVariableNam
 }
 
 
-function ValueOperandEditor({ type, text, onChange, purpose = "compare" }: {
-  type: ValueOperandType;
-  text: string;
-  onChange: (text: string, type: ValueOperandType) => void;
-  purpose?: "compare" | "list";
-}) {
-  const isList = purpose === "list";
-  return (
-    <div className="se-composer-operand">
-      <TextIn vars value={formatValueOperandInput(text, type)} valueContext="value" width={144}
-        placeholder={isList ? tr("Value to add or remove / {variable}") : tr("Value / {variable}")}
-        onCommit={(input) => {
-          const next = parseValueOperandInput(input);
-          onChange(next.operand, next.operandType);
-        }} />
-    </div>
-  );
-}
-
 function RecipeStepSettings({ transform, options, onChange, samples, excludedVariableName }: {
   transform: ValueTransform;
   options: string[];
@@ -302,13 +281,6 @@ function RecipeStepSettings({ transform, options, onChange, samples, excludedVar
               operand: text !== "" && Number.isFinite(Number(text)) ? Number(text) : text });
           }} />
       </div>
-    </div>
-  );
-
-  if (transform.kind === "append") return (
-    <div className="se-composer-step-settings">
-      <ValueOperandEditor type={transform.operandType} text={transform.operand} purpose="list"
-        onChange={(operand, operandType) => onChange({ ...transform, operand, operandType })} />
     </div>
   );
 
