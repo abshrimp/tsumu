@@ -342,8 +342,10 @@ test("preview terminates and chains copies into nested variable paths", () => {
   const page = doc.pages[doc.pageOrder[0]];
   page.pageScripts = [
     { id: "load", trigger: "load", pos: { x: 0, y: 0 }, steps: [
-      { id: "seed", kind: "set-var", into: "source", value: '{"title":"ready"}' },
-      { id: "protected", kind: "set-var", into: "preserve.title", value: '"original"' },
+      { id: "seed", kind: "fetch", as: "source", url: "https://example.test/source",
+        preview: { sample: { title: "ready" } } },
+      { id: "protected", kind: "fetch", as: "preserve", url: "https://example.test/preserve",
+        preview: { sample: { title: "original" } } },
     ] },
     { id: "click", trigger: "click", pos: { x: 0, y: 0 }, steps: [
       // Deliberately out of order: the first copy needs a second pass.
