@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>Design freely. Build openly.</strong><br>
-  画面上でパーツを配置して、Webサイトを作れるオープンソースのツール。
+  ノーコードでWebサイトを作れる、オープンソースのエディタ。
 </p>
 
 <p align="center">
