@@ -13,7 +13,7 @@ test("if variable references retain complete list objects and singleton arrays",
   assert.equal(ifVariableSample("{later}", samples), undefined);
   assert.equal(ifVariableSample("Hello {data.categories}", samples), undefined);
   assert.deepEqual(ifVariableOperators("{data.categories}", samples), ["has-key", "empty", "eq"]);
-  assert.deepEqual(ifVariableOperators("{data.categories.出展カテゴリ}", samples), ["contains", "empty", "eq"]);
+  assert.deepEqual(ifVariableOperators("{data.categories.出展カテゴリ}", samples), ["contains", "contains-any", "empty", "eq"]);
   assert.equal(ifVariableOperators("{later}", samples), undefined);
   assert.equal(ifVariableOperators("{data.name}", samples), undefined);
 });
