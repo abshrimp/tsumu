@@ -35,7 +35,8 @@ test("HTML page code can be edited in a larger modal", async ({ page }) => {
   await section.locator(".sec-title").click();
   await section.locator(".seg").getByRole("button", { name: "HTML", exact: true }).click();
   const confirm = page.getByRole("button", { name: "切り替える", exact: true });
-  if (await confirm.isVisible()) await confirm.click();
+  await expect(confirm).toBeVisible();
+  await confirm.click();
   await section.getByRole("button", { name: "コードエディタで編集" }).click();
   const dialog = page.getByRole("dialog", { name: /コードエディタ/ });
   const html = '<!doctype html>\n<html><body><p>custom</p></body></html>';
