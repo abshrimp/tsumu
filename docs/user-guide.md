@@ -2,23 +2,6 @@
 
 [README](../README.md) · [日本語](user-guide.ja.md)
 
-## Screenshots
-
-<table>
-  <tr>
-    <td width="50%"><img src="screenshots/en/ai.png" alt="Asking AI to edit the page"><br><sub><b>Ask AI</b></sub></td>
-    <td width="50%"><img src="screenshots/en/publish.png" alt="Publish dialog with test and live sites"><br><sub><b>Publish</b>: checks, then a test site or the live site</sub></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="screenshots/en/comments.png" alt="Comment thread pinned to a heading"><br><sub><b>Comments</b></sub></td>
-    <td width="50%"><img src="screenshots/en/help.png" alt="Help article with a diagram"><br><sub><b>Built-in help</b></sub></td>
-  </tr>
-  <tr>
-    <td width="50%"><img src="screenshots/en/responsive.png" alt="Editing the phone layout"><br><sub><b>Responsive editing</b></sub></td>
-    <td width="50%"><img src="screenshots/en/scripts.png" alt="Script editor with click and page-open blocks"><br><sub><b>Scripts without code</b>: "when → do" blocks</sub></td>
-  </tr>
-</table>
-
 ## How it works
 
 ```
