@@ -17,7 +17,7 @@ import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "
 import { unnestLinks } from "./page";
 import { hasVars } from "../vars";
 import { pageQueryConditions } from "../page-query";
-import { fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
+import { selectDefaultValue, fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
 import { resolveTag } from "../tags";
 import { compileScripts, hasRunnableScripts, scriptTargetIds } from "../script";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
@@ -257,7 +257,8 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
   }
   if (f.kind === "select") {
     const values = f.options || [];
-    const selected = Math.max(0, values.findIndex((o) => o.value === f.defaultValue));
+    const initial = selectDefaultValue(f);
+    const selected = Math.max(0, values.findIndex((o) => o.value === initial));
     return "<select" + attrs + shared + ">" + values.map((o, index) =>
       "<option" + attr("value", o.value) + flag("selected", index === selected) +
       (hasVars(o.value) ? attr("data-live-value", o.value) : "") +

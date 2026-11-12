@@ -7,7 +7,7 @@ import { buildClassNames, buildAssetNames } from "./names";
 import { unnestLinks } from "./page";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
-import { fieldVarName } from "../fields";
+import { selectDefaultValue, fieldVarName } from "../fields";
 import { resolveTag } from "../tags";
 import { hasVars } from "../vars";
 import { pageQueryConditions } from "../page-query";
@@ -187,11 +187,12 @@ function node(ctx: Context, id: string, top = false): string {
       }
       if (f.kind === "select") {
         const optionValues = (f.options || []).map((option) => option.value);
-        const defaultIndex = f.defaultValue !== undefined ? optionValues.indexOf(f.defaultValue) : 0;
+        const initial = selectDefaultValue(f);
+        const defaultIndex = initial !== undefined ? optionValues.indexOf(initial) : 0;
         const def = Math.max(0, defaultIndex);
         const dynamic = hasVars(f.defaultValue) || (f.options || []).some((option) =>
           hasVars(option.label) || hasVars(option.value));
-        const selected = "selectedOption(" + q(optionValues) + ", " + q(f.defaultValue ?? null) + ", scope" +
+        const selected = "selectedOption(" + q(optionValues) + ", " + q(initial ?? null) + ", scope" +
           (ctx.rows.length ? ", " + ctx.rows.join(", ") : "") + ")";
         const options = (f.options || []).map((opt, index) => {
           const contents = hasVars(opt.label) ? (ctx.vue ? "{{ " + expr(ctx, "resolveText", opt.label) + " }}"

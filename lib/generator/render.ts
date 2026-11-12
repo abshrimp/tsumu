@@ -8,7 +8,7 @@ import { safeNavigationUrl } from "../url-policy";
 import type { SiteDoc } from "../types";
 import { toggleShowDisplay } from "../style";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
-import { fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
+import { selectDefaultValue, fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
 import { hasVars, KEEP_ESCAPES } from "../vars";
 import { type ListOp } from "../data";
 import { resolveTag } from "../tags";
@@ -413,7 +413,7 @@ ${indent}</div>`;
     const nameAttr = formAttrs + (fieldName ? ` name=${jsxString(fieldName)}` : "");
     const reqAttr = (f.required ? " required" : "") + (f.disabled ? " disabled" : "");
     const phAttr = attr("placeholder", f.placeholder) + liveOf("data-live-placeholder", f.placeholder);
-    const defaultValueAttr = (f.kind === "select" && f.defaultValue === "" ? ' defaultValue=""' : attr("defaultValue", f.defaultValue)) + liveOf("data-live-value", f.defaultValue) +
+    const defaultValueAttr = (f.kind === "select" && selectDefaultValue(f) === "" ? ' defaultValue=""' : attr("defaultValue", f.defaultValue)) + liveOf("data-live-value", f.defaultValue) +
       (!hasVars(f.defaultValue) && (
         (f.kind === "select" && f.defaultValue && (f.options ?? []).some((o) => hasVars(o.label) || hasVars(o.value))) ||
         (f.kind === "input" && RANGED_INPUTS.has(f.inputType ?? "text") && [f.min, f.max, f.step].some(hasVars))

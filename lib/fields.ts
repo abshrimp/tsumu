@@ -34,6 +34,11 @@ export function radioValue(f: FieldContent, vars?: Record<string, unknown>): str
   return f.submitValue ?? fill(f.label, vars);
 }
 
+/** 編集画面の空欄は初期値なし。HTML で選択された value="" は明示的な初期値。 */
+export function selectDefaultValue(f: FieldContent): string | undefined {
+  return f.name !== undefined ? f.defaultValue : f.defaultValue || undefined;
+}
+
 /** 真偽として読む（空・off・false・0・no はオフ。公開サイトのランタイムと同じ） */
 export function truthy(v: unknown): boolean {
   const t = String(v ?? "").trim().toLowerCase();
@@ -81,9 +86,10 @@ export function fieldInitialValue(f: FieldContent, vars?: Record<string, unknown
       return f.checked ? radioValue(f, vars) : "";
     case "select": {
       const options = (f.options ?? []).map((option) => fill(option.value, vars));
-      const value = fill(f.defaultValue, vars);
+      const initial = selectDefaultValue(f);
+      const value = fill(initial, vars);
       // 初期値が選択肢に無ければ、ブラウザと同じく先頭を選ぶ。変数が空に解決される場合も比べる。
-      return f.defaultValue !== undefined && options.includes(value) ? value : (options[0] ?? "");
+      return initial !== undefined && options.includes(value) ? value : (options[0] ?? "");
     }
     case "file":
     case "submit":
