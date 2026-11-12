@@ -528,7 +528,9 @@ function pureLoadStep(st: ScriptStep, inLoop = false): boolean {
  * 「このページ｜ページを開いたとき」の直下にあるデータのブロックだけが配信前に動き、
  * 分解・配列の〜は、使う値がストレージや入力欄によらなければ配信前に動く
  */
-export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
+export function pagePlan(
+  doc: SiteDoc, pageId: string, idVarNodes = idVarNodesOf(doc, pageId),
+): PagePlan {
   const page = doc.pages[pageId];
   const loadRoot = new Set<ScriptStep>();
   const nestedLoad = new Set<ScriptStep>();
@@ -558,7 +560,7 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
     else clientAssignmentPaths.add(name);
   };
   const fieldIds = new Set(
-    idVarNodesOf(doc, pageId)
+    idVarNodes
       .filter((n) => n.type === "field")
       .flatMap((n) => fieldVarNames(n))
   );
@@ -985,10 +987,10 @@ export function makeSample(json: unknown): { sample: unknown; totals?: Record<st
  * for each entry -> if {ループ.値.field} equals {slug} -> set selected = {ループ.値}, break.
  * No special search transformation is required.
  */
-function slugSelectorOf(doc: SiteDoc, pageId: string): {
+function slugSelectorOf(steps: readonly ServerStep[]): {
   loop: ForEachStep; field: string; selected: SetVarStep;
 } | null {
-  for (const step of pageDataSteps(doc, pageId)) {
+  for (const step of steps) {
     if (step.kind !== "for-each" || !step.array) continue;
     for (const child of step.then) {
       if (child.kind !== "if") continue;
@@ -1012,12 +1014,14 @@ function slugSelectorOf(doc: SiteDoc, pageId: string): {
 }
 
 export type PrimaryStep = SetVarStep;
-export function primaryDataStep(doc: SiteDoc, pageId: string): { step: PrimaryStep } | null {
+export function primaryDataStep(
+  doc: SiteDoc, pageId: string, plannedSteps?: readonly ServerStep[],
+): { step: PrimaryStep } | null {
   const page = doc.pages[pageId];
   if (!page || !isSlugPage(page.slug)) return null;
-  const chosen = slugSelectorOf(doc, pageId);
+  const all = plannedSteps ?? pageDataSteps(doc, pageId);
+  const chosen = slugSelectorOf(all);
   if (chosen) return { step: chosen.selected };
-  const all = pageDataSteps(doc, pageId);
   const slugFetches = new Set(all.filter((step) =>
     step.kind === "fetch" && step.as && urlHasSlug(step.url)).map((step) => (step as FetchStep).as!));
   for (const step of all) {
@@ -1029,11 +1033,12 @@ export function primaryDataStep(doc: SiteDoc, pageId: string): { step: PrimarySt
 
 /** Preview candidates used by slug-aware loops. */
 export function primaryCandidates(
-  doc: SiteDoc, pageId: string, live?: Record<string, unknown>,
+  doc: SiteDoc, pageId: string, live?: Record<string, unknown>, previewPlan?: PreviewDataPlan,
 ): { field: string; items: Record<string, unknown>[] } | null {
-  const selection = slugSelectorOf(doc, pageId);
+  const steps = previewPlan?.steps ?? pageDataSteps(doc, pageId);
+  const selection = slugSelectorOf(steps);
   if (!selection) return null;
-  const vars = previewDataVars(doc, pageId, { live, index: 0 });
+  const vars = previewDataVars(doc, pageId, { live, index: 0 }, previewPlan ?? preparePreviewData(doc, pageId, steps));
   return { field: selection.field, items: toListItems(lookupVar(vars, selection.loop.array)) };
 }
 
@@ -1061,11 +1066,32 @@ export interface PreviewOpts {
   vars?: Record<string, unknown>;
 }
 
+interface PreviewDataPlan {
+  steps: readonly ServerStep[];
+  copies: { into: string; src: string }[];
+}
+
+/** フォーム入力やプレビュー値に依存しない手順と変数のコピー元をまとめる。 */
+export function preparePreviewData(
+  doc: SiteDoc, pageId: string, steps: readonly ServerStep[] = pageDataSteps(doc, pageId),
+): PreviewDataPlan {
+  const copies: PreviewDataPlan["copies"] = [];
+  for (const script of scriptsInPage(doc, pageId)) {
+    walkAll(script, (st) => {
+      if (st.kind !== "set-var" || !st.into) return;
+      const src = setVarSource(st);
+      if (src) copies.push({ into: st.into, src });
+    });
+  }
+  return { steps, copies };
+}
+
 /** エディタで表示する、ページの変数の値（保存した見本でデータのブロックを順に実行する） */
 export function previewDataVars(
   doc: SiteDoc,
   pageId: string,
-  opts: PreviewOpts = {}
+  opts: PreviewOpts = {},
+  plan = preparePreviewData(doc, pageId),
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   const origins: Record<string, { totals?: Record<string, number>; path: string }> = {};
@@ -1090,10 +1116,9 @@ export function previewDataVars(
     const root = own(origins, head) ? origins[head] : undefined;
     return root ? { totals: root.totals, path: [root.path, ...tail].filter(Boolean).join(".") } : null;
   };
-  const primarySelector = slugSelectorOf(doc, pageId);
+  const primarySelector = slugSelectorOf(plan.steps);
   const scope = () => opts.vars || opts.slug !== undefined
     ? { ...opts.vars, slug: opts.slug, ...out } : out;
-  const plan = pagePlan(doc, pageId);
   for (const st of plan.steps) {
     switch (st.kind) {
       case "fetch":
@@ -1166,14 +1191,7 @@ export function previewDataVars(
   }
   // 「［{名前}］を変数［］とする」は画面上で動くが、見本ではそのまま入れておく
   //（リストの項目・変数の候補に中身を出すため。変数から変数へ入れ直した場合もたどる）
-  let pending: { into: string; src: string }[] = [];
-  for (const steps of scriptsInPage(doc, pageId)) {
-    walkAll(steps, (st) => {
-      if (st.kind !== "set-var" || !st.into || hasSavedPath(st.into)) return;
-      const src = setVarSource(st);
-      if (src) pending.push({ into: st.into, src });
-    });
-  }
+  let pending = plan.copies;
   while (pending.length) {
     let added = false;
     const unresolved: typeof pending = [];

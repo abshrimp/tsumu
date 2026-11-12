@@ -8,7 +8,7 @@ import { siteLangOf, siteText } from "./site-lang";
 import { INVIEW_SCRIPT } from "./motion";
 import { fieldVarNames } from "./fields";
 import { VARS_RUNTIME } from "./vars";
-import { idVarNodesOf, obfuscateVarNames, pagePlan } from "./data";
+import { obfuscateVarNames, pagePlan } from "./data";
 import { hasRunnableScripts, listFilterFields, matchVariableWrites, scriptTargetIds } from "./script";
 import { compactJs, scriptsFile, usesLiveFields } from "./script-runtime";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
@@ -19,7 +19,7 @@ import { headHtmlToJsx } from "./generator/head";
 import { SAFE_FETCH_SOURCE } from "./generator/safe-fetch-source";
 import { buildAssetNames, buildClassNames, buildComponentNames } from "./generator/names";
 import { htmlZipExportSource, htmlZipExportUrl, importedAssetPath, isZipJavascript } from "./generator/imported-assets";
-import { generatePageFile, needsPageStepRunner, writesNestedPageValue, queryDispatcherFile, routeDir, unnestLinks } from "./generator/page";
+import { generatePageFile, indexQueryVariants, needsPageStepRunner, writesNestedPageValue, queryDispatcherFile, routeDir, unnestLinks } from "./generator/page";
 import { imageRefSrc, jsxString, raiseOverCrispSvg, smartLinkComponent } from "./generator/render-helpers";
 import { renderNode, type JsxContext } from "./generator/render";
 import {
@@ -145,20 +145,7 @@ export function generateProject(
       return rules;
     });
 
-  /** 同じURLを共有する通常ページ（クエリ違い）。1つだけなら空 */
-  const queryVariantsOf = (slug: string): string[] => {
-    const ids = routedPages
-      .filter(
-        (p) =>
-          p.redirectTo === undefined &&
-          p.rewriteTo === undefined &&
-          !p.rawHtml?.trim() &&
-          p.slug.replace(/^\/+|\/+$/g, "") !== "404" &&
-          routeDir(p.slug) === routeDir(slug)
-      )
-      .map((p) => p.id);
-    return ids.length > 1 ? ids : [];
-  };
+  const queryVariants = indexQueryVariants(routedPages);
 
   // ページ（非公開は除外）
   let anySearchForm = false;
@@ -197,16 +184,12 @@ export function GET() {
           ? `app/${dir}/page.tsx`
           : "app/page.tsx";
     // 同じURLをクエリで分けたページは、_q/ に置いて page.tsx で振り分ける
-    const variants = slug === "404" ? [] : queryVariantsOf(slug);
-    const variantIndex = variants.indexOf(pageId);
-    const path =
-      variantIndex < 0
-        ? routePath
-        : `${routePath.replace(/page\.tsx$/, "")}_q/p${variantIndex}.tsx`;
-    if (variantIndex === 0) {
-      files[routePath] = queryDispatcherFile(
-        variants.map((id) => doc.pages[id].query)
-      );
+    const variant = queryVariants.get(pageId);
+    const path = variant
+      ? `${routePath.replace(/page\.tsx$/, "")}_q/p${variant.index}.tsx`
+      : routePath;
+    if (variant?.index === 0) {
+      files[routePath] = queryDispatcherFile(variant.group.map((p) => p.query));
     }
     files[path] = generatePageFile(ctx, pageId, { notFound: slug === "404" });
     if (ctx.usesSearchForm) anySearchForm = true;
@@ -221,9 +204,6 @@ export function GET() {
   const siteLiveNames = new Set<string>();
   for (const p of Object.values(doc.pages)) {
     for (const v of pagePlan(doc, p.id).clientVars) siteLiveNames.add(v);
-    for (const n of idVarNodesOf(doc, p.id)) {
-      if (n.type === "field") fieldVarNames(n).forEach((v) => siteLiveNames.add(v));
-    }
   }
   for (const n of Object.values(doc.nodes)) {
     if (n.type === "field") fieldVarNames(n).forEach((v) => siteLiveNames.add(v));

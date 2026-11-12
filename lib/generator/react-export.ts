@@ -1,15 +1,15 @@
 import type { SiteDoc } from "../types";
 import { pagePlan } from "../data";
 import { scriptsFile } from "../script-runtime";
-import { PAGE_DATA_RUNTIME, pageDataPlan } from "./browser-data";
-import { reactClientPageFragment } from "./html-export";
+import { PAGE_DATA_RUNTIME } from "./browser-data";
+import { createReactPageRenderer } from "./html-export";
 import type { GeneratedProject } from "../generator";
 import { usedGoogleFonts } from "./css";
 import { buildAssetNames } from "./names";
 import { imageRefSrc } from "./render-helpers";
 import { pwaIconType } from "./templates";
 import { REACT_SEARCH_FORM } from "./react-form";
-import { routeDir } from "./page";
+import { indexQueryVariants, routeDir } from "./page";
 import { pageQueryConditions } from "../page-query";
 
 const esc = (value: string) =>
@@ -40,6 +40,11 @@ export function reactSource(source: string): string {
   return result;
 }
 
+export function needsReactPageRuntime(doc: SiteDoc, pageId: string): boolean {
+  const plan = pagePlan(doc, pageId);
+  return plan.steps.length > 0 || plan.listOps.size > 0 || plan.clientVars.size > 0;
+}
+
 /** Output a client-rendered Vite application with static client routes and assets. */
 export function buildReactProject(doc: SiteDoc, next: GeneratedProject): GeneratedProject {
   const files: Record<string, string> = {};
@@ -66,14 +71,10 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
   // Even without a fetch step, a client-owned variable or a list-display
   // operation requires the DOM/runtime renderer. The Next.js JSX fallback
   // cannot reproduce those browser-side data dependencies.
-  const needsClientRuntime = (page: (typeof pages)[number]) => {
-    const plan = pagePlan(doc, page.id);
-    const exportedPlan = pageDataPlan(doc, page);
-    return exportedPlan.steps.length > 0 || Object.keys(exportedPlan.listOps).length > 0 ||
-      plan.clientVars.size > 0;
-  };
-  const needsClientData = pages.some(needsClientRuntime);
-  if (needsClientData) {
+  const variants = indexQueryVariants(pages);
+  const clientPages = new Set(pages.filter((page) => needsReactPageRuntime(doc, page.id)).map((page) => page.id));
+  const renderClientPage = clientPages.size ? createReactPageRenderer(doc) : undefined;
+  if (renderClientPage) {
     files["public/data-loader.js"] = PAGE_DATA_RUNTIME;
     files["public/scripts.js"] = scriptsFile(doc, true);
   }
@@ -82,15 +83,13 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject): Generat
     const dir = routeDir(slug);
     // Locate JSX using Next.js's filesystem routes; retain the authored slug
     // below for the React router. Distinct slugs can share a Next.js directory.
-    const variants = pages.filter((candidate) =>
-      routeDir(candidate.slug) === dir && !candidate.rawHtml?.trim());
-    const variant = variants.length > 1 ? variants.indexOf(page) : -1;
+    const variant = variants.get(page.id);
     const generatedPath = "app/" + (dir ? dir + "/" : "") +
-      (variant < 0 ? "page.tsx" : "_q/p" + variant + ".tsx");
+      (variant ? "_q/p" + variant.index + ".tsx" : "page.tsx");
     const generated = next.files[generatedPath];
     if (!generated) throw new Error("Missing generated page: " + generatedPath);
-    if (needsClientRuntime(page)) {
-      const body = reactClientPageFragment(doc, page);
+    if (renderClientPage && clientPages.has(page.id)) {
+      const body = renderClientPage(page.id);
       files["src/pages/Page" + i + ".tsx"] = [
         "/** Client-side JSON data and DOM effects; no server is required. */",
         "export default function Page() {",

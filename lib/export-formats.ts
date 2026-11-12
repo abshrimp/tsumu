@@ -1,7 +1,7 @@
 import type { SiteDoc } from "./types";
 import { pagePlan } from "./data";
 import { generateProject, type GeneratedProject, type PublishTarget } from "./generator";
-import { buildReactProject } from "./generator/react-export";
+import { buildReactProject, needsReactPageRuntime } from "./generator/react-export";
 import { buildAssetNames } from "./generator/names";
 import { generateStandaloneHtml } from "./generator/html-export";
 import { buildAdditionalFramework } from "./generator/framework-export";
@@ -189,7 +189,7 @@ export function exportLimitations(
     // page.tsx. Multiple imported HTML pages also overwrite one another's
     // route.ts silently; query parameters do not distinguish build routes.
     const routeKinds = new Map<string, { imported: number; regular: number }>();
-    for (const page of publishedPages(doc)) {
+    for (const page of pages) {
       if (page.redirectTo !== undefined || page.rewriteTo !== undefined) continue;
       const slug = page.slug.replace(/^\/+|\/+$/g, "");
       const existing = routeKinds.get(slug) ?? { imported: 0, regular: 0 };
@@ -243,14 +243,11 @@ export function exportLimitations(
   if (options.framework === "react") {
     // Data-driven React pages use dangerouslySetInnerHTML for their DOM
     // runtime. Scripts inserted this way do not execute in browsers.
-    if (pages.some((page) => {
-      const plan = pagePlan(doc, page.id);
-      const needsClientRuntime = plan.steps.length > 0 || plan.listOps.size > 0 ||
-        plan.clientVars.size > 0;
-      return needsClientRuntime &&
-        /<script\b(?![^>]*\btype\s*=\s*["']?application\/(?:ld\+)?json)/i
-          .test((page.customTopHtml ?? "") + (page.customEndHtml ?? ""));
-    })) {
+    if (pages.some((page) =>
+      /<script\b(?![^>]*\btype\s*=\s*["']?application\/(?:ld\+)?json)/i
+        .test((page.customTopHtml ?? "") + (page.customEndHtml ?? "")) &&
+      needsReactPageRuntime(doc, page.id)
+    )) {
       reasons.push(tr("Custom scripts on pages with dynamic data cannot run in the React export. Export to Next.js or HTML."));
     }
   }
