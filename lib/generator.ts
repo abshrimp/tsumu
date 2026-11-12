@@ -658,9 +658,10 @@ img {
 }
 
 /* iOS Safari の SVG フィルターを2倍で描き、元の大きさに縮小する。
-   元の大きさと比率は要素のカスタムプロパティから求める。画像は絶対配置するため、
-   show/hide スクリプトによる display:block と干渉せず、空の SVG も不要。
-   詳細度0にして、要素が指定した位置・サイズ・display を優先する。 */
+   画像は通常のレイアウトに参加させる。絶対配置すると、縮小配置の親の
+   中身がすべて配置外となり、親と画像の幅が 0 になってしまう。
+   はみ出す2倍の画像は wrapper の比率と overflow で切り取る。
+   display:flex への切り替えでも2倍描画を縮めない。 */
 :where(.crisp-svg) {
   display: block;
   position: relative;
@@ -671,9 +672,8 @@ img {
 }
 
 .crisp-svg > img {
-  position: absolute;
-  top: 0;
-  left: 0;
+  display: block;
+  flex-shrink: 0;
   width: 200%;
   height: 200%;
   max-width: none;
