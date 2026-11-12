@@ -114,7 +114,7 @@ export default function PageHtml({ html, staticHtml }: { html: string; staticHtm
     // only our own raw HTML subtree before activating this variant's scripts.
     box.innerHTML = staticHtml;
     void (async () => {
-      for (const old of Array.from(box.querySelectorAll("script[data-tsumu-deferred]"))) {
+      for (const old of Array.from(box.querySelectorAll<HTMLScriptElement>("script[data-tsumu-deferred]"))) {
         if (run.cancelled) return;
         const script = document.createElement("script");
         for (const attr of Array.from(old.attributes)) {
