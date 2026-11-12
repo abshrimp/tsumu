@@ -7,6 +7,7 @@ import { applyBreakpoints } from "./style";
 import { siteLangOf, siteText } from "./site-lang";
 import { INVIEW_SCRIPT } from "./motion";
 import { fieldVarNames } from "./fields";
+import { routeDir } from "./page-query";
 import { VARS_RUNTIME } from "./vars";
 import { obfuscateVarNames, pagePlan } from "./data";
 import { hasRunnableScripts, listFilterFields, matchVariableWrites, scriptTargetIds } from "./script";
@@ -21,7 +22,7 @@ import { codeLiteral } from "./generator/code-literal";
 import { SAFE_FETCH_SOURCE } from "./generator/safe-fetch-source";
 import { buildAssetNames, buildClassNames, buildComponentNames } from "./generator/names";
 import { htmlZipExportSource, htmlZipExportUrl, importedAssetPath, isZipJavascript } from "./generator/imported-assets";
-import { generatePageFile, indexQueryVariants, needsPageStepRunner, writesNestedPageValue, queryDispatcherFile, routeDir, unnestLinks } from "./generator/page";
+import { generatePageFile, indexQueryVariants, needsPageStepRunner, writesNestedPageValue, queryDispatcherFile, unnestLinks } from "./generator/page";
 import { imageRefSrc, jsxString, raiseOverCrispSvg, smartLinkComponent } from "./generator/render-helpers";
 import { renderNode, type JsxContext } from "./generator/render";
 import {

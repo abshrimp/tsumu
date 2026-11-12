@@ -13,7 +13,7 @@ import type {
 } from "../lib/collab";
 import { applyDocPatchAtRevision } from "../lib/doc-patch";
 import { shareUnchangedDoc } from "../lib/doc-share";
-import { errorOf, scheduleCloudSave, sendCloudDoc, type CollabRequestInput, type DeferredCloudConflict } from "../lib/cloud-save";
+import { canReceiveCloudDoc, errorOf, scheduleCloudSave, sendCloudDoc, type CollabRequestInput, type DeferredCloudConflict } from "../lib/cloud-save";
 import { mergeDocs } from "../lib/merge";
 import { css2FamilyToken } from "../lib/style";
 import {
@@ -212,8 +212,6 @@ export default function Editor({ onReady }: EditorProps = {}) {
   const lastSyncedRev = useRef<string | null>(null);
   /** 最後に同期した時点の文書（3方向マージの基準） */
   const lastSyncedDoc = useRef<SiteDoc | null>(null);
-  /** 他の人の変更を取り込んだことによる doc の変更では、自動保存（同じ内容の送り返し）をしない */
-  const skipNextCloudSave = useRef(false);
   /** テキストの編集中に競合したため、編集を確定した後に保存し直す */
   const retrySaveAfterEdit = useRef(false);
   const deferredCloudConflict = useRef<DeferredCloudConflict | null>(null);
@@ -623,7 +621,6 @@ export default function Editor({ onReady }: EditorProps = {}) {
           cloudDirty.current = false;
           lastSyncedRev.current = data.rev ?? null;
           lastSyncedDoc.current = data.doc;
-          skipNextCloudSave.current = true;
           s.replaceDoc(data.doc);
           s.setCloud("synced", data.savedAt);
         }
@@ -689,7 +686,6 @@ export default function Editor({ onReady }: EditorProps = {}) {
         cloudDirty.current = false;
         lastSyncedRev.current = conflict.rev;
         lastSyncedDoc.current = conflict.doc;
-        skipNextCloudSave.current = true;
         cloudReady.current = true;
         s.replaceDoc(conflict.doc);
         s.setCloud("synced", conflict.savedAt);
@@ -739,7 +735,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
   useEffect(() => {
     if (!initialLoadComplete) return;
     return scheduleCloudSave({
-      observedDoc, cloudReady, cloudDirty, skipNextCloudSave, cloudTimer, activeCloudSave,
+      observedDoc, cloudReady, cloudDirty, cloudTimer, activeCloudSave,
       cloudSaveQueued, lastSyncedRev, lastSyncedDoc, retrySaveAfterEdit, deferredCloudConflict,
       getState: useEditor.getState, saveCloudDoc, setUnsyncedFlag,
       requestRetry: () => setSaveRetry((n) => n + 1),
@@ -821,6 +817,8 @@ export default function Editor({ onReady }: EditorProps = {}) {
     /** 更新の通知（/api/collab/events）。WebSocket に一度もつながらなかったときだけ開く */
     let events: EventSource | null = null;
     let eventsOpen = false;
+    let connectionGeneration = 0;
+    let checkedGeneration = 0;
     let inFlight = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     let reconnectDelay = 1000;
@@ -835,13 +833,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
         return true;
       }
       const state = useEditor.getState();
-      if (
-        !cloudReady.current ||
-        cloudDirty.current ||
-        state.cloudState === "saving" ||
-        state.editingText ||
-        document.hidden
-      ) {
+      if (!cloudReady.current || document.hidden || !canReceiveCloudDoc(state, lastSyncedDoc.current, cloudDirty.current)) {
         if (!pendingRemote || Number(pendingRemote.rev) < incomingRev) pendingRemote = message;
         return false;
       }
@@ -859,7 +851,6 @@ export default function Editor({ onReady }: EditorProps = {}) {
       }
       lastSyncedRev.current = message.rev;
       lastSyncedDoc.current = incomingDoc;
-      skipNextCloudSave.current = true;
       state.applyRemoteDoc(incomingDoc, message.type === "doc-patched" && baseDoc
         ? { baseDoc, patch: message.patch } : undefined);
       state.setCloud("synced", message.savedAt);
@@ -869,34 +860,24 @@ export default function Editor({ onReady }: EditorProps = {}) {
     };
 
     const pullFallback = async () => {
-      if (stopped || inFlight || !cloudReady.current) return;
-      const s = useEditor.getState();
-      // 手元に未保存の変更がある間、テキストの編集中、保存中は取り込まない
-      if (s.cloudState === "local" || s.cloudState === "checking") return;
-      if (cloudDirty.current || s.cloudState === "saving") return;
-      if (s.editingText) return;
-      if (document.hidden) return;
+      if (stopped || inFlight || !cloudReady.current || document.hidden) return;
+      if (!canReceiveCloudDoc(useEditor.getState(), lastSyncedDoc.current, cloudDirty.current)) return;
       inFlight = true;
+      const generation = connectionGeneration;
       try {
         const metaRes = await fetch(siteApi("/api/doc", { meta: 1 }));
         if (!metaRes.ok) return;
         const meta = await metaRes.json();
-        if (
-          !meta.exists ||
-          !meta.rev ||
-          meta.rev === lastSyncedRev.current
-        ) {
-          return;
+        if (typeof meta.exists !== "boolean" || (meta.exists && !meta.rev)) return;
+        if (meta.exists && meta.rev !== lastSyncedRev.current) {
+          const res = await fetch(siteApi("/api/doc"));
+          if (!res.ok) return;
+          const data = await res.json();
+          if (!data.exists || !data.rev || !data.doc?.pages || !data.doc?.pageOrder?.length || stopped) return;
+          applyRemote({ type: "doc-updated", rev: data.rev, savedAt: data.savedAt, doc: data.doc });
         }
-        // 新しいスナップショットがある → 全体を取得して反映する
-        const res = await fetch(siteApi("/api/doc"));
-        if (!res.ok) return;
-        const data = await res.json();
-        if (!data.exists || !data.doc?.pages || !data.doc?.pageOrder?.length) {
-          return;
-        }
-        if (stopped) return;
-        applyRemote({ type: "doc-updated", rev: data.rev, savedAt: data.savedAt, doc: data.doc });
+        // 照合の途中にもう一度接続し直した場合は、新しい接続でもう一度調べる。
+        if (generation === connectionGeneration) checkedGeneration = generation;
       } catch {
         // 失敗は無視し、次の機会に再試行する
       } finally {
@@ -904,9 +885,9 @@ export default function Editor({ onReady }: EditorProps = {}) {
       }
     };
 
-    /** 更新がすぐに届く接続があるか（無ければポーリングで確認する） */
-    const liveConnected = () =>
-      collabSocket.current?.readyState === WebSocket.OPEN || eventsOpen;
+    /** 接続が無い間と、再接続までの取りこぼしを照合できていない間は、ポーリングを続ける。 */
+    const needsPolling = () => checkedGeneration !== connectionGeneration ||
+      (collabSocket.current?.readyState !== WebSocket.OPEN && !eventsOpen);
 
     const closeEvents = () => {
       events?.close();
@@ -924,6 +905,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       events = source;
       source.addEventListener("open", () => {
         eventsOpen = true;
+        connectionGeneration++;
         // つながる前（再接続の間）に行われた保存を取りこぼさないよう、一度確認する
         void pullFallback();
       });
@@ -979,22 +961,19 @@ export default function Editor({ onReady }: EditorProps = {}) {
         reconnectDelay = 1000;
         closeEvents();
         if (cloudReady.current) {
+          const generation = ++connectionGeneration;
           void requestViaWebSocket({ type: "load", knownRev: lastSyncedRev.current ?? undefined })
             .then((message) => {
-              if (
-                message.type === "snapshot" &&
-                message.exists &&
-                message.rev &&
-                message.savedAt &&
-                message.doc
-              ) {
+              if (stopped || message.type !== "snapshot" || !message.exists || !message.rev) return;
+              if (message.doc && message.savedAt !== undefined) {
                 applyRemote({
                   type: "doc-updated",
                   rev: message.rev,
                   savedAt: message.savedAt,
                   doc: message.doc,
                 });
-              }
+              } else if (message.rev !== lastSyncedRev.current) return;
+              if (generation === connectionGeneration) checkedGeneration = generation;
             })
             .catch(() => undefined);
         }
@@ -1040,11 +1019,11 @@ export default function Editor({ onReady }: EditorProps = {}) {
 
     connect();
 
-    // 保留中の他の人の変更を再試行する。WebSocket と SSE のどちらも無いときだけ、10秒間隔で HTTP で確認する
+    // 保留中の他の人の変更を再試行する。必要な間だけ、10秒間隔で HTTP で確認する
     const id = setInterval(() => {
       if (pendingRemote) applyRemote(pendingRemote);
       fallbackTick = (fallbackTick + 1) % 5;
-      if (fallbackTick === 0 && !liveConnected()) {
+      if (fallbackTick === 0 && needsPolling()) {
         void pullFallback();
       }
     }, 2000);
@@ -1054,7 +1033,7 @@ export default function Editor({ onReady }: EditorProps = {}) {
       if (!document.hidden) {
         connect();
         if (pendingRemote) applyRemote(pendingRemote);
-        if (!liveConnected()) {
+        if (needsPolling()) {
           void pullFallback();
         }
       }

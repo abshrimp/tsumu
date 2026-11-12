@@ -11,7 +11,8 @@ import type {
   StyleState,
 } from "./types";
 import { BODY_NODE_ID } from "./types";
-import { newPageName, renamePage, setPageTitle } from "./pageTitle";
+import { renamePage, setPageTitle } from "./pageTitle";
+import { createPageNaming } from "./page-naming";
 import { createInitialDoc, genId } from "./presets";
 import { canContainElements } from "./tags";
 import {
@@ -256,36 +257,6 @@ function canPlaceComponentNodes(
     pending.push(...node.children);
   }
   return !owner || !componentsReachable(doc, referenced).has(owner);
-}
-
-/**
- * 複製したページの URL。「[slug]」の区切りに文字を足すと使えない URL になるため、
- * その手前の区切りに -copy を付ける（products/[slug] → products-copy/[slug]）
- */
-export function copySlug(slug: string, n: number): string {
-  const suffix = n > 1 ? `copy-${n}` : "copy";
-  const segs = slug.split("/");
-  for (let i = segs.length - 1; i >= 0; i--) {
-    if (segs[i] && segs[i] !== "[slug]") {
-      segs[i] += `-${suffix}`;
-      return segs.join("/");
-    }
-  }
-  return slug ? `${suffix}/${slug}` : suffix;
-}
-
-/** 「ページ 3」「page-3」のように、他のページと重ならない名前と URL にする */
-export function uniquePageNaming(
-  doc: SiteDoc,
-  name: (n: number) => string,
-  slug: (n: number) => string,
-  start: number
-): { name: string; slug: string } {
-  const names = new Set(Object.values(doc.pages).map((p) => p.name));
-  const slugs = new Set(Object.values(doc.pages).map((p) => p.slug));
-  let n = start;
-  while (names.has(name(n)) || slugs.has(slug(n))) n++;
-  return { name: name(n), slug: slug(n) };
 }
 
 /** 親から順に並べた祖先のノードの ID（ページの直下の要素なら空） */
@@ -1676,12 +1647,8 @@ export const useEditor = create<EditorStore>((set, get) => {
     addPage: (folderId) => {
       const id = genId("page");
       // ページを消した後でも、既存のページと名前や URL が重ならない番号にする
-      const { name, slug } = uniquePageNaming(
-        get().doc,
-        newPageName,
-        (n) => `page-${n}`,
-        get().doc.pageOrder.length + 1
-      );
+      const { doc } = get();
+      const { name, slug } = createPageNaming(doc.pages).newPage(doc.pageOrder.length + 1);
       const activeId = get().activePageId;
       get().updateDoc((doc) => {
         const active = doc.pages[activeId];
@@ -1803,16 +1770,12 @@ export const useEditor = create<EditorStore>((set, get) => {
         next.nodes[copy.id] = copy;
         return copy.id;
       };
+      const naming = createPageNaming(doc.pages);
       const copies = new Map<string, string>();
       for (let i = ids.length - 1; i >= 0; i--) {
         const pageId = ids[i];
         const src = doc.pages[pageId];
-        const { name, slug } = uniquePageNaming(
-          next,
-          (n) => (n > 1 ? tr("{name} copy {n}", { name: src.name, n }) : tr("{name} copy", { name: src.name })),
-          (n) => copySlug(src.slug, n),
-          1
-        );
+        const { name, slug } = naming.copy(src, "duplicate");
         const id = genId("page");
         copies.set(pageId, id);
         next.pages[id] = {

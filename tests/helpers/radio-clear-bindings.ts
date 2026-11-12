@@ -33,6 +33,11 @@ export function radioClearDoc(clearOnChange = false): SiteDoc {
     ...["false", "0", "off", "no", ""].map((v, i) => button(`clear-item-${i}`, "small", v)),
     button("clear-group", "size", ""), button("unknown-group", "size", "unknown"),
     button("select-small", "small", "true"), button("select-medium", "size", "M"),
+    { ...makeText("Toggle sizes"), id: "toggle-sizes", attrId: "toggle-sizes", semantic: "button", scripts: [{
+      id: "toggle-sizes-script", trigger: "click", pos: { x: 0, y: 0 }, steps: [
+        { id: "toggle-size-group", kind: "set-enabled", target: "size", op: "toggle" },
+      ],
+    }] },
     { ...makeText(radioState), id: "result", attrId: "result" },
     { ...makeText("{smallChanges}|{mediumChanges}|{redChanges}"), id: "counts", attrId: "counts" },
     { ...makeBox(), id: "dependent", attrId: "dependent", type: "field", field: {

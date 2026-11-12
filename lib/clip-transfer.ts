@@ -215,42 +215,13 @@ export function parseClipPayload(raw: string | null | undefined): ClipPayload | 
   }
 }
 
-/** タグのような断片を入れ子に残さずに、プレーンテキストを取り出す。 */
-function clipboardText(html: string): string {
-  let result = "";
-  for (let index = 0; index < html.length;) {
-    if (html[index] !== "<") { result += html[index++]; continue; }
-    let end = index + 1;
-    let quote = "";
-    for (; end < html.length; end++) {
-      const ch = html[end];
-      if (quote) { if (ch === quote) quote = ""; }
-      else if (ch === "'" || ch === '"') quote = ch;
-      else if (ch === ">") break;
-    }
-    if (end === html.length) { result += html[index++]; continue; }
-    const tag = html.slice(index, end + 1);
-    if (/^<br(?:\s[^<>]*)?\s*\/?>$/i.test(tag)) result += "\n";
-    index = end + 1;
-  }
-  return result;
-}
-
-/** 要素の文字（他のアプリに貼り付けたときに使う） */
-function plainText(nodes: DocNode[]): string {
-  return nodes
-    .map((n) => clipboardText(n.text?.content ?? "").trim())
-    .filter(Boolean)
-    .join("\n");
-}
-
 /** OS のクリップボードは標準の HTML とテキストを受け付ける。独自のウェブ形式は無くてもよい。 */
 const CLIP_WEB_MIME = `web ${CLIP_MIME}`;
 const MAX_CLIP_HTML = 48 * 1024 * 1024;
 
-export function clipHtml(payload: ClipPayload): string {
-  const escaped = plainText(payload.nodes).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  return `<span data-tsumu-clipboard="${encodeURIComponent(JSON.stringify(payload))}">${escaped}</span>`;
+export function clipHtml(raw: string, text: string): string {
+  const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `<span data-tsumu-clipboard="${encodeURIComponent(raw)}" style="white-space: pre-wrap">${escaped}</span>`;
 }
 
 /** 現在の Tsumu のデータを読む。任意の貼り付けられた HTML を、コードとして解釈しない。 */
@@ -280,11 +251,11 @@ export function writeClipPayload(payload: ClipPayload): void {
     // ブラウザ内だけのクリップボードの控えは、無くてもよい。
   }
   try {
-    const text = plainText(payload.nodes);
+    const text = payload.nodes.map(node => node.text?.content).filter(Boolean).join("\n");
     if (navigator.clipboard?.write && typeof ClipboardItem !== "undefined") {
       const formats: Record<string, Blob> = {
         "text/plain": new Blob([text], { type: "text/plain" }),
-        "text/html": new Blob([clipHtml(payload)], { type: "text/html" }),
+        "text/html": new Blob([clipHtml(raw, text)], { type: "text/html" }),
       };
       if (typeof ClipboardItem.supports === "function" && ClipboardItem.supports(CLIP_WEB_MIME)) {
         formats[CLIP_WEB_MIME] = new Blob([raw], { type: CLIP_MIME });

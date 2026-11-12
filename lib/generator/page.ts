@@ -7,7 +7,7 @@ import { pageLangOf, siteLangOf } from "../site-lang";
 import { fieldVarNames } from "../fields";
 import { sendsBody } from "../fetch-request";
 import { extractVars, hasVars, interpolate, pageQueryVars } from "../vars";
-import { pageQueryConditions } from "../page-query";
+import { pageQueryConditions, routeDir } from "../page-query";
 import {
   filterConds,
   idVarNodesOf,
@@ -36,8 +36,6 @@ import { RUNNABLE_SCRIPT } from "./templates";
 import { deferRunnableScripts } from "./defer-scripts";
 import { codeLiteral } from "./code-literal";
 import { parseValueLiteral } from "../value-semantics";
-
-export { normalizeQuery } from "../vars";
 
 /** ページの import と、プロジェクトのファイルの出力で共有する。 */
 export function writesNestedPageValue(step: ScriptStep): boolean {
@@ -792,20 +790,6 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
     return n.children.some((cid) => walk(cid, childInList));
   };
   return page.children.some((id) => walk(id, false));
-}
-
-/**
- * ページの URL から、app/ の下のフォルダ名を作る。「_」で始まるフォルダは Next.js では
- * 非公開のフォルダ（URL にならない）になるため、URL の「_」を表す %5F で始める
- */
-export function routeDir(slug: string): string {
-  return slug
-    .split("/")
-    // 「.」「..」の区切りや使えない文字で、プロジェクトの外を指すパスを作らない（AI や取り込んだデータの URL もここを通る）
-    .filter((seg) => seg && seg !== "." && seg !== "..")
-    .map((seg) => seg.replace(/[^A-Za-z0-9._~\-\[\]]/g, "-"))
-    .map((seg) => (seg.startsWith("_") ? `%5F${seg.slice(1)}` : seg))
-    .join("/");
 }
 
 /**
