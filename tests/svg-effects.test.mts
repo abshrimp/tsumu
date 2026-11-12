@@ -99,13 +99,13 @@ test("remote SVGs are fetched once for repeated exports, duplicate aliases, and 
       detectSvgFilters({ a: asset, b: alias }),
       detectSvgFilters({ a: asset }),
     ]);
-    assert.equal(first.a.svgFilter, true);
-    assert.equal(first.b.svgFilter, true);
-    assert.equal(second.a.svgFilter, true);
+    assert.equal(first["cached-one"].svgFilter, true);
+    assert.equal(first["cached-two"].svgFilter, true);
+    assert.equal(second["cached-one"].svgFilter, true);
     assert.equal(requests, 1, "Concurrent aliases must share one remote download");
 
     const another = await detectSvgFilters({ a: asset });
-    assert.equal(another.a.svgFilter, true);
+    assert.equal(another["cached-one"].svgFilter, true);
     assert.equal(requests, 1, "Repeated exports must use the cached analysis");
 
     const changedPath = { ...asset, path: "assets/svg-effect-cache-20261112-b.svg" };
