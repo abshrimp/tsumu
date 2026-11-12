@@ -670,8 +670,7 @@ test("server preview calculates with numeric strings and filters lists through l
     { id: "rate", kind: "set-var", value: "1.5", into: "rate" },
     { id: "calc", kind: "transform", source: "data.price", into: "total",
       transform: { kind: "math", operation: "multiply", operandType: "variable", operand: "rate" } },
-    { id: "append", kind: "transform", source: "data.tags", into: "tags",
-      transform: { kind: "append", operandType: "text", operand: "green" } },
+    { id: "append", kind: "set-list-item", list: "data.tags", key: "", value: "green" },
     { id: "empty-tags", kind: "set-var", value: "[]", into: "filteredTags" },
     { id: "filter-tags", kind: "for-each", array: "tags", then: [
       { id: "keep", kind: "if", cond: {
@@ -687,7 +686,7 @@ test("server preview calculates with numeric strings and filters lists through l
   assert.ok(plan.serverIds.has("append"));
   assert.ok(plan.serverIds.has("filter-tags"));
   const generated = generateProject(doc).files["app/page.tsx"];
-  assert.match(generated, /"append"/);
+  assert.match(generated, /"set-list-item"/);
   assert.match(generated, /"for-each"/);
   assert.doesNotThrow(() => transformSync(generated, { loader: "tsx", jsx: "automatic" }));
 });
@@ -730,8 +729,7 @@ test("page-load for-each and if execute on fetched items before rendering, inclu
             transform: { kind: "math", operation: "multiply", operandType: "number", operand: 2 } },
           { id: "sum", kind: "transform", source: "total", into: "total",
             transform: { kind: "math", operation: "add", operandType: "variable", operand: "doubled" } },
-          { id: "append", kind: "transform", source: "prices", into: "prices",
-            transform: { kind: "append", operandType: "variable", operand: "doubled" } },
+          { id: "append", kind: "set-list-item", list: "prices", key: "", value: "{doubled}" },
         ], else: [
           { id: "excluded", kind: "set-var", value: "excluded", into: "status" },
         ] },
@@ -829,8 +827,7 @@ test("page-load nested loops read the nearest item's fields and preserve the out
     { id: "parse", kind: "transform", source: "collected", into: "collected", transform: { kind: "parse" } },
     { id: "each-outer", kind: "for-each", array: "data.rows", then: [
       { id: "each-inner", kind: "for-each", array: "nested", then: [
-        { id: "collect", kind: "transform", source: "collected", into: "collected",
-          transform: { kind: "append", operandType: "variable", operand: "key" } },
+        { id: "collect", kind: "set-list-item", list: "collected", key: "", value: "{key}" },
       ] },
     ] },
   );
