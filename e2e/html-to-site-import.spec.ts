@@ -69,7 +69,7 @@ test("editable HTML retains inline spacing, preformatted text, and body style me
     '<style media="(max-width: 768px)">#mixed { color: rgb(7, 8, 9); }</style>',
     '<p id="mixed">Hello <strong>world</strong> again <em>today</em>!</p>',
     '<p id="gap"><strong>First</strong> <em>Second</em></p>',
-    '<pre id="formatted">  line 1\\n    line 2</pre>',
+    '<pre id="formatted">  line 1\n    line 2</pre>',
     '</body></html>',
   ].join("");
   await page.goto("/");
@@ -77,13 +77,13 @@ test("editable HTML retains inline spacing, preformatted text, and body style me
   await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
     name: "fidelity.html", mimeType: "text/html", buffer: Buffer.from(html),
   });
-  await expect(page).toHaveURL(/\\/sites\\/[a-z0-9-]+$/, { timeout: 30000 });
+  await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   const doc = await importedDoc(page);
   const node = (id: string) => Object.values(doc.nodes).find((item: any) => item.attrId === id) as any;
   const textChildren = (id: string) => node(id).children.map((childId: string) => doc.nodes[childId].text?.content);
   expect(textChildren("mixed")).toEqual(["Hello ", "world", " again ", "today", "!"]);
   expect(textChildren("gap")).toEqual(["First", " ", "Second"]);
-  expect(node("formatted").text.content).toBe("  line 1\\n    line 2");
+  expect(node("formatted").text.content).toBe("  line 1\n    line 2");
   const mobile = doc.breakpoints.find((bp: any) => bp.maxWidth === 768);
   expect(mobile).toBeTruthy();
   expect(node("mixed").styles[mobile.id].default.color).toBe("rgb(7, 8, 9)");
@@ -105,7 +105,7 @@ test("HTML ZIP resolves body stylesheet links including media and fallback condi
     name: "body-css.zip", mimeType: "application/zip",
     buffer: await zip.generateAsync({ type: "nodebuffer" }),
   });
-  await expect(page).toHaveURL(/\\/sites\\/[a-z0-9-]+$/, { timeout: 30000 });
+  await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   const doc = await importedDoc(page);
   const card = Object.values(doc.nodes).find((node: any) => node.attrId === "card") as any;
   const mobile = doc.breakpoints.find((bp: any) => bp.maxWidth === 768);
