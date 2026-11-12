@@ -1,7 +1,11 @@
 import { withImportUploads } from "./import-uploads";
 import type JSZip from "jszip";
-import type { Asset, BreakpointDef, SiteDoc } from "./types";
+import type { Asset, BreakpointDef, LinkSetting, SiteDoc } from "./types";
 import { readHtmlZip, readHtmlZipPages } from "./html-zip";
+import { safeNavigationUrl } from "./url-policy";
+import { genId } from "./presets";
+import { archiveBaseUrl, archiveFileUrl } from "./zip-references";
+import { importedFormAction } from "./imported-form";
 import { isHtmlIndex } from "./html-zip-guard";
 import { convertHtmlToSite, type HtmlConversion } from "./html-to-site";
 import { IMPORT_LIMITS } from "./site-import";
@@ -41,7 +45,7 @@ export async function convertHtmlFile(
     return withImportUploads(async paths => {
       const converted = await readHtmlZip(file, options.progress, paths);
       return requireEditableHtmlContent(convertHtmlToSite(converted.html, {
-        breakpoints: options.breakpoints, assets: converted.assets,
+        breakpoints: options.breakpoints, assets: converted.assets, sourceName: converted.zip.path.split("/").pop(),
       }));
     }, uploaded);
   }
@@ -49,7 +53,7 @@ export async function convertHtmlFile(
   if (file.size > IMPORT_LIMITS.docBytes) throw new Error(tr("The import file is too large."));
   const html = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
   options.progress?.(tr("Converting HTML into editable elements…"));
-  return requireEditableHtmlContent(convertHtmlToSite(html, { breakpoints: options.breakpoints }));
+  return requireEditableHtmlContent(convertHtmlToSite(html, { breakpoints: options.breakpoints, sourceName: file.name }));
 }
 
 /**
@@ -57,7 +61,7 @@ export async function convertHtmlFile(
  * 同じ階層の .html と、入れ子の index.html は、それぞれ別のページになる。
  */
 function convertHtmlPages(
-  pages: { name: string; html: string }[],
+  pages: { name: string; html: string; baseHref?: string | null }[],
   assets: Asset[],
 ): HtmlConversion {
   if (!pages.length) throw new Error(tr("No HTML file found in the zip"));
@@ -70,78 +74,63 @@ function convertHtmlPages(
   };
   const paths = new Map<string, { id: string; slug: string }>();
   const slugs = new Set<string>();
-  const warnings: string[] = [];
-  const originForPage = new Map<string, string>();
-  let breakpoints: BreakpointDef[] | undefined;
-  const canonical = (raw: string) => {
-    const parts: string[] = [];
-    for (const part of raw.replace(/\\/g, "/").split("/")) {
-      if (part === "..") parts.pop();
-      else if (part && part !== ".") parts.push(part);
-    }
-    return parts.join("/");
-  };
-  for (const source of pages) {
-    const converted = convertHtmlToSite(source.html, { assets, breakpoints });
-    const doc = converted.doc;
-    const id = doc.pageOrder[0];
-    const page = doc.pages[id];
+  const routes = pages.map(source => {
     let slug = source.name.startsWith(prefix) ? source.name.slice(prefix.length) : source.name;
     slug = slug.replace(/\.html?$/i, "").replace(/\/index$/i, "").replace(/^index$/i, "");
     slug = slug.replace(/[^A-Za-z0-9/_-]/g, "-").replace(/^\/+|\/+$/g, "");
     let unique = slug;
     for (let n = 2; slugs.has(unique); n++) unique = (slug || "page") + "-" + n;
     slugs.add(unique);
-    page.slug = unique;
-    result.pages[id] = page;
-    result.pageOrder.push(id);
-    Object.assign(result.nodes, doc.nodes);
-    const path = canonical(source.name);
-    const target = { id, slug: unique };
-    paths.set(path, target);
-    if (isHtmlIndex(path)) {
-      const directory = path.slice(0, path.lastIndexOf("/") + 1);
+    const target = { id: genId("page"), slug: unique };
+    paths.set(source.name, target);
+    if (isHtmlIndex(source.name)) {
+      const directory = source.name.slice(0, source.name.lastIndexOf("/") + 1);
       if (!paths.has(directory)) paths.set(directory, target);
     }
-    originForPage.set(id, source.name);
-    breakpoints = doc.breakpoints;
-    for (const warning of converted.warnings) if (!warnings.includes(warning)) warnings.push(warning);
-    if (!result.siteName) result.siteName = doc.siteName;
-  }
-  if (result.pageOrder.length > 1) {
-    // ローカルのページへのリンクを、Tsumu のページ ID に書き換える。外部の URL とフラグメントは
-    // そのまま残し、続く部分は、サイト内の明示的な相対 URL として保つ。
-    const visit = (id: string, filename: string) => {
-      const node = result.nodes[id];
-      if (!node) return;
-      if (node.link?.kind === "url" && node.link.url) {
-        const href = node.link.url;
-        if (!/^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i.test(href)) {
-          const m = /^([^?#]*)([?#].*)?$/.exec(href);
-          let relative = m?.[1] || "";
-          // URL のパスだけを一度デコードし、ZIP の中の元のファイル名と照合する。
-          try { relative = decodeURIComponent(relative); } catch { /* 不正なエスケープは元の表記を保つ。 */ }
-          const suffix = m?.[2] || "";
-          const folder = filename.slice(0, filename.lastIndexOf("/") + 1);
-          // パスの無いクエリは、親のフォルダではなく、現在の HTML のページを指す。
-          const candidate = canonical(relative
-            ? relative.startsWith("/") ? prefix + relative : folder + relative
-            : filename);
-          const directoryPage = paths.get(candidate ? candidate + "/" : "");
-          const directoryLink = /(?:\/|(?:^|\/)\.{1,2})$/.test(relative);
-          const found = directoryLink ? directoryPage :
-            paths.get(candidate) ?? paths.get(candidate + ".html") ?? paths.get(candidate + ".htm") ?? directoryPage;
-          if (found) {
-            node.link = suffix
-              ? { kind: "url", url: "/" + found.slug + suffix, newTab: node.link.newTab }
-              : { kind: "page", pageId: found.id, newTab: node.link.newTab };
-          }
-        }
-      }
-      node.children.forEach((child) => visit(child, filename));
+    return { source, target };
+  });
+
+  const lookup = (path: string) => {
+    if (!path || path.endsWith("/")) return paths.get(path);
+    return paths.get(path) ?? paths.get(path + ".html") ?? paths.get(path + ".htm") ?? paths.get(path + "/");
+  };
+  const lookupUrl = (url: URL, root: string) => {
+    // An encoded slash belongs to the URL segment; it is not a ZIP path separator.
+    if (/%2f|%5c/i.test(url.pathname)) return undefined;
+    try { return lookup(root + decodeURIComponent(url.pathname.slice(1))); }
+    catch { return undefined; }
+  };
+  const warnings = new Set<string>();
+  let breakpoints: BreakpointDef[] | undefined;
+  for (const { source, target } of routes) {
+    // Inside a wrapped site, / and excess .. segments resolve from its entry directory.
+    const root = source.name.startsWith(prefix) ? prefix : "";
+    const name = source.name.slice(root.length);
+    const base = archiveBaseUrl(name, source.baseHref);
+    const pageBase = base ?? archiveFileUrl(name);
+    const archiveFile = root ? archiveBaseUrl(source.name, source.baseHref) ?? archiveFileUrl(source.name) : undefined;
+    const resolvePageLink = (href: string, asUrl = false): LinkSetting | undefined => {
+      if (/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(href) || (!base && (!href || href.startsWith("#")))) return;
+      const url = new URL(href, pageBase);
+      if (url.protocol !== "file:") return { kind: "url", url: url.href };
+      // An archive can also contain sibling pages outside the entry directory.
+      const page = lookupUrl(url, root) ?? (archiveFile && lookupUrl(new URL(href, archiveFile), ""));
+      const suffixAt = url.href.search(/[?#]/);
+      const suffix = suffixAt < 0 ? "" : url.href.slice(suffixAt);
+      if (page) return suffix || asUrl ? { kind: "url", url: "/" + page.slug + suffix } : { kind: "page", pageId: page.id };
+      if (asUrl) return { kind: "url", url: importedFormAction(href, url, source.baseHref, target.slug) };
+      if (base) return { kind: "url", url: safeNavigationUrl(url.pathname + suffix) };
     };
-    for (const [id, filename] of originForPage) result.pages[id].children.forEach((child) => visit(child, filename));
+    const converted = convertHtmlToSite(source.html, { assets, breakpoints, pageId: target.id, resolvePageLink });
+    const page = converted.doc.pages[target.id];
+    page.slug = target.slug;
+    result.pages[target.id] = page;
+    result.pageOrder.push(target.id);
+    Object.assign(result.nodes, converted.doc.nodes);
+    breakpoints = converted.doc.breakpoints;
+    for (const warning of converted.warnings) warnings.add(warning);
+    if (!result.siteName) result.siteName = converted.doc.siteName;
   }
   result.breakpoints = breakpoints;
-  return { doc: result, warnings };
+  return { doc: result, warnings: [...warnings] };
 }

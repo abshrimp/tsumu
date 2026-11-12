@@ -90,6 +90,17 @@ for (const accept of [AI_STREAM_TYPE, "application/json", null]) {
   });
 }
 
+test("fetch-json checks the UTF-8 byte length of the outgoing body", async () => {
+  const f = fixture("fetch-json");
+  const exact = "日".repeat(Math.floor((1024 * 1024) / 3)) + "a";
+  const post = (body: string) => f.POST(request("fetch-json",
+    JSON.stringify({ ...inputs["fetch-json"], method: "POST", body })));
+  assert.equal((await post(exact)).status, 200);
+  const oversized = await post(exact + "a");
+  assert.equal(oversized.status, 400);
+  assert.equal(f.calls, 1);
+});
+
 test("AI stream cancellation aborts the in-flight model without an Accept header", async () => {
   let aborted = false;
   const f = fixture("ai", true, async (_conf, _turns, _tool, signal) => {

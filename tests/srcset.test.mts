@@ -45,7 +45,7 @@ test("the HTML ZIP rewrite applies candidate parsing to img and source without c
   try {
     const value = "data:image/png;base64,AAAA 1x, photo,wide.png 2x";
     const output = rewriteZipReferences(`<html><body><picture><source srcset="${value}"><img srcset="${value}"></picture></body></html>`, "index.html", urls);
-    const elements = parse(output).querySelectorAll("[srcset]");
+    const elements = parse(output.html).querySelectorAll("[srcset]");
     assert.equal(elements.length, 2);
     for (const element of elements) {
       assert.equal(element.getAttribute("srcset"), "data:image/png;base64,AAAA 1x, /assets/wide.png 2x");

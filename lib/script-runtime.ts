@@ -139,9 +139,10 @@ export const SCRIPT_RUNTIME = `function (env) {
   function radiosOf(input) {
     if (!input.name) return [input];
     try {
+      var tree = input.getRootNode ? input.getRootNode() : document;
       return Array.prototype.slice.call(
-        document.querySelectorAll('input[type="radio"][name="' + CSS.escape(input.name) + '"]')
-      );
+        tree.querySelectorAll('input[type="radio"][name="' + CSS.escape(input.name) + '"]')
+      ).filter(function (radio) { return radio.form === input.form; });
     } catch (e) {
       return [input];
     }
@@ -152,11 +153,11 @@ export const SCRIPT_RUNTIME = `function (env) {
     return v !== "" && v !== "off" && v !== "false" && v !== "0" && v !== "no";
   }
   // グループ名と別のIDで、ラジオボタンを1つだけ指しているか（そのボタンを選んでいるかが値になる）
-  function isRadioItem(el, input) {
-    return !!input && input.type === "radio" && !!el.id && el.id !== input.name;
+  function isRadioItem(el, input, name) {
+    return !!input && input.type === "radio" && !!el.id && el.id !== input.name && name !== input.name;
   }
   // 入力欄の状態（{ID.disabled} / {ID.length} / {ID.index}）。入力欄でなければ undefined
-  function stateOf(els, prop) {
+  function stateOf(els, prop, name) {
     var input = els.length ? inputOf(els[0]) : null;
     if (!input && els.length && els[0].matches("button")) input = els[0];
     if (!input) return undefined;
@@ -165,7 +166,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       case "disabled":
         return String(!!input.disabled);
       case "length":
-        return String(valueOf(els).length);
+        return String(valueOf(els, name).length);
       case "index":
         if (input.tagName === "SELECT") return String(input.selectedIndex + 1);
         if (radios) {
@@ -180,12 +181,12 @@ export const SCRIPT_RUNTIME = `function (env) {
         return undefined;
     }
   }
-  function valueOf(els) {
+  function valueOf(els, name) {
     for (var i = 0; i < els.length; i++) {
       var input = inputOf(els[i]);
       if (!input) return (els[i].textContent || "").trim();
       // チェックボックス・グループのラジオボタン1つは、チェックしているか（true / false）
-      if (input.type === "checkbox" || isRadioItem(els[i], input)) return input.checked ? "true" : "false";
+      if (input.type === "checkbox" || isRadioItem(els[i], input, name)) return input.checked ? "true" : "false";
       if (input.type === "radio") {
         // グループのどれかが選ばれていれば、その値
         var hit = radiosOf(input).filter(function (r) {
@@ -486,14 +487,17 @@ export const SCRIPT_RUNTIME = `function (env) {
       function inTpl(el) {
         return !!(el.closest && el.closest("[data-tpl]"));
       }
-      // グループ名（name）で探すラジオボタン
-      function groupOf(name) {
+      // ラジオはグループ名、それ以外の入力欄は ID がないときだけ送信用の name でも参照する。
+      function namedFields(self, name) {
         try {
-          return Array.prototype.slice
-            .call(root.querySelectorAll('input[type="radio"][name="' + CSS.escape(name) + '"]'))
+          var fields = Array.prototype.slice.call(root.querySelectorAll('[name="' + CSS.escape(name) + '"]'))
             .filter(function (el) {
-              return !inTpl(el);
+              return !inTpl(el) && el.matches("input,select,textarea") && (!el.id || el.type === "radio");
             });
+          if (!fields.length) return fields;
+          var owner = self && (self.form || (self.closest && self.closest("form")));
+          if (!owner || !fields.some(function (el) { return el.form === owner; })) owner = fields[0].form;
+          return fields.filter(function (el) { return el.form === owner; });
         } catch (e) {
           return [];
         }
@@ -540,11 +544,10 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*/env*/
         var prop = dot < 0 ? "" : name.slice(dot + 1);
         var els = find(self, head);
-        // ラジオボタンのグループ名
-        if (!els.length) els = groupOf(head);
+        if (!els.length) els = namedFields(self, head);
         if (els.length) {
-          var state = prop ? stateOf(els, prop) : undefined;
-          return state !== undefined ? state : valueOf(els);
+          var state = prop ? stateOf(els, prop, head) : undefined;
+          return state !== undefined ? state : valueOf(els, head);
         }
         try {
           var q = new URLSearchParams(location.search).get(name);
@@ -1175,19 +1178,19 @@ export const SCRIPT_RUNTIME = `function (env) {
       /*#set*/
       function setValue(self, id, v) {
         var els = find(self, id);
-        if (!els.length) els = groupOf(id);
+        if (!els.length) els = namedFields(self, id);
         var first = els.length ? inputOf(els[0]) : null;
         // ファイルへの非空代入は、プレビューの状態や変更通知も含めて何もしない
         if (first && first.type === "file" && v !== "") return;
         // チェックボックス・グループのラジオボタン1つは、オン・オフを「true」/「false」にそろえる
-        var toggle = !!first && (first.type === "checkbox" || isRadioItem(els[0], first));
+        var toggle = !!first && (first.type === "checkbox" || isRadioItem(els[0], first, id));
         if (toggle) v = truthy(v) ? "true" : "false";
         // ラジオ（グループの値）はグループのボタンすべてから選ぶ
         else if (first && first.type === "radio") els = radiosOf(first);
         // 選択解除と空文字の選択肢はvalueが同じでも別の状態。
         var select = first && first.tagName === "SELECT";
         var scalar = first && !select && first.type !== "checkbox" && first.type !== "radio";
-        if (valueOf(els) === v && !(select && first.selectedIndex < 0)) return;
+        if (valueOf(els, id) === v && !(select && first.selectedIndex < 0)) return;
         // 値が変わった入力欄だけに知らせる（ラジオは選ばれたボタンだけ。外れたボタンは知らせない）
         var changed = [];
         els.forEach(function (el) {
@@ -1273,7 +1276,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (!name || count++ >= 64) return;
           var rootName = name.split(".")[0];
           if (has(scope, name) || has(scope, rootName)) return;
-          var exists = !!find(self, rootName).length || !!groupOf(rootName).length;
+          var exists = !!find(self, rootName).length || !!namedFields(self, rootName).length;
           if (!exists) {
             try { exists = new URLSearchParams(location.search).has(name); } catch (e) {}
           }
@@ -1373,7 +1376,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           case "set-enabled": {
             // グループ名で取得したラジオはすでに全件そろっている。各入力を1回だけ切り替える。
             var targets = find(self, st.target);
-            var controls = new Set(targets.length ? [] : groupOf(st.target));
+            var controls = new Set(targets.length ? [] : namedFields(self, st.target));
             targets.forEach(function (el) {
               var ctl = el.matches("button") ? el : inputOf(el);
               if (!ctl) return;

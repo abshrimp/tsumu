@@ -49,6 +49,9 @@ exactly one shard; the durations file only influences load balancing.
   verifies every mode and cancellation path. Likewise, input defaults, script
   assignments, image drop gesture endings, and committed field states sample
   the native browser paths rather than repeating their full Cartesian product.
+  Canvas move coverage keeps real mouse, touch cancellation, and keyboard
+  interruption in Playwright. The Node suite covers pending and active drags
+  across the full cancellation and editor-state matrix.
 - Do not delete a browser test merely because its filename also exists in
   `tests/`. Compare its assertions and unique browser behavior first.
   Preserve the multi-engine smoke tags when changing test selection.

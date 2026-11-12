@@ -1,3 +1,4 @@
+import { fieldSubmissionAttributes, submissionAttributes } from "../imported-form";
 import { assetMediaUrl } from "../assets";
 import type { PublishTarget } from "../generator";
 import type { SiteDoc, Page, DocNode } from "../types";
@@ -6,7 +7,7 @@ import { buildClassNames, buildAssetNames } from "./names";
 import { unnestLinks } from "./page";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
-import { fieldVarName } from "../fields";
+import { selectDefaultValue, fieldVarName } from "../fields";
 import { resolveTag } from "../tags";
 import { hasVars } from "../vars";
 import { pageQueryConditions } from "../page-query";
@@ -165,16 +166,17 @@ function node(ctx: Context, id: string, top = false): string {
     if (n.type === "field" && n.field) {
       const f = n.field;
       const name = fieldVarName(n);
-      const fields = literal("name", name) + truth("disabled", f.disabled) + truth("required", f.required);
+      const formAttrs = Object.entries(fieldSubmissionAttributes(n)).map(([key, value]) => literal(key, value)).join("");
+      const fields = formAttrs + literal("name", f.name ?? name) + truth("disabled", f.disabled) + truth("required", f.required);
       const fieldEvent = (event: "input" | "change"): string => !name ? "" :
         ctx.vue
           ? " @" + event + '="setField(scope, ' + esc(q(name)) + ', $event)"'
           : " on" + event + "={(event) => setField(scope, " + q(name) + ", event)}";
       if (f.kind === "submit") {
-        const label = f.label || "送信";
+        const label = f.label ?? "送信";
         const body = hasVars(label) ? (ctx.vue ? "{{ " + expr(ctx, "resolveText", label) + " }}"
           : "{" + expr(ctx, "resolveText", label) + "}") : staticText(label);
-        return "<button" + attrs + fields + ' type="submit">' + body + "</button>";
+        return "<button" + attrs + fields + literal("value", f.submitValue) + ' type="submit">' + body + "</button>";
       }
       if (f.kind === "textarea") {
         const val = f.defaultValue || "";
@@ -185,11 +187,12 @@ function node(ctx: Context, id: string, top = false): string {
       }
       if (f.kind === "select") {
         const optionValues = (f.options || []).map((option) => option.value);
-        const defaultIndex = f.defaultValue ? optionValues.indexOf(f.defaultValue) : 0;
+        const initial = selectDefaultValue(f);
+        const defaultIndex = initial !== undefined ? optionValues.indexOf(initial) : 0;
         const def = Math.max(0, defaultIndex);
         const dynamic = hasVars(f.defaultValue) || (f.options || []).some((option) =>
           hasVars(option.label) || hasVars(option.value));
-        const selected = "selectedOption(" + q(optionValues) + ", " + q(f.defaultValue || "") + ", scope" +
+        const selected = "selectedOption(" + q(optionValues) + ", " + q(initial ?? null) + ", scope" +
           (ctx.rows.length ? ", " + ctx.rows.join(", ") : "") + ")";
         const options = (f.options || []).map((opt, index) => {
           const contents = hasVars(opt.label) ? (ctx.vue ? "{{ " + expr(ctx, "resolveText", opt.label) + " }}"
@@ -204,9 +207,12 @@ function node(ctx: Context, id: string, top = false): string {
         const label = f.label || "";
         const body = hasVars(label) ? (ctx.vue ? "{{ " + expr(ctx, "resolveText", label) + " }}"
           : "{" + expr(ctx, "resolveText", label) + "}") : staticText(label);
-        return "<label" + attrs + "><input" + literal("type", f.kind) + fields + fieldEvent("change") +
-          truth("checked", f.checked) + valueAttr(ctx, "value", f.kind === "checkbox" ? "true" : label) +
-          (ctx.vue ? ">" : " />") + "<span>" + body + "</span></label>";
+        const bare = f.submitValue !== undefined && !f.label;
+        const value = f.submitValue !== undefined ? literal("value", f.submitValue) :
+          valueAttr(ctx, "value", f.kind === "checkbox" ? "true" : label);
+        const input = "<input" + (bare ? attrs : "") + literal("type", f.kind) + fields + fieldEvent("change") +
+          truth("checked", f.checked) + value + (ctx.vue ? ">" : " />");
+        return bare ? input : "<label" + attrs + ">" + input + "<span>" + body + "</span></label>";
       }
       if (f.kind === "file") {
         return "<input" + attrs + fields + ' type="file"' + literal("accept", f.accept) +
@@ -254,9 +260,11 @@ function node(ctx: Context, id: string, top = false): string {
       ? ctx.vue ? "{{ " + expr(ctx, "resolveText", value) + " }}" :
         "{" + expr(ctx, "resolveText", value) + "}"
       : staticText(value);
-    let extra = tag === "form" ? ' method="get"' : "";
+    const submission = submissionAttributes(n.htmlAttrs, tag);
+    let extra = Object.entries(submission).map(([key, value]) => literal(key, value)).join("");
+    if (tag === "form" && !submission.method) extra += ' method="get"';
     if (paragraphWrapper) extra += ' data-p=""';
-    if (tag === "button") extra += literal("type", wasForm && !n.scripts?.some(script => script.trigger === "click") ? "submit" : "button");
+    if (tag === "button" && !submission.type) extra += literal("type", wasForm && !n.scripts?.some(script => script.trigger === "click") ? "submit" : "button");
     if (n.link) {
       tag = "a";
       const dest = n.link.kind === "page" && n.link.pageId ?

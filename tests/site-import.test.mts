@@ -23,6 +23,31 @@ function fixture() {
   return doc;
 }
 
+test("an import timeout reconciles the site without deleting its uploaded file", async t => {
+  const doc = createInitialDoc();
+  doc.assets.sheet = { id: "sheet", name: "style.css", mimeType: "text/css", width: 0, height: 0, dataUrl: "data:text/css,body%7B%7D" };
+  const file = new File([JSON.stringify(doc)], "doc.json");
+  const nativeFetch = globalThis.fetch;
+  let saved: { importId: string; initialDoc: typeof doc } | undefined;
+  let visible = false;
+  const actions: string[] = [];
+  t.mock.method(globalThis, "fetch", async (url, init) => {
+    if (String(url).startsWith("data:")) return nativeFetch(url, init);
+    actions.push(init?.method ?? "GET");
+    if (url === "/api/assets") return Response.json({ path: "assets/stylesheet" });
+    if (url === "/api/sites") {
+      saved = JSON.parse(String(init?.body));
+      return Response.json({ error: "Request timed out" }, { status: 408 });
+    }
+    assert.equal(url, "/api/doc?site=" + saved!.importId);
+    return Response.json(visible ? { exists: true, doc: saved!.initialDoc } : { exists: false });
+  });
+  await assert.rejects(createSiteFromFile(file, "server"), /Could not confirm the save/);
+  visible = true;
+  assert.equal((await createSiteFromFile(file, "server")).id, saved!.importId);
+  assert.deepEqual(actions, ["POST", "POST", "GET", "POST", "POST", "GET"]);
+});
+
 test("local doc.json restores an editable SiteDoc and original IDs", async () => {
   const doc = fixture();
   const result = await parseSiteImport(enc.encode(JSON.stringify(doc)), "doc");

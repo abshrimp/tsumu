@@ -187,7 +187,9 @@ for (const lost of [false, true]) test(`server import saves the first revision w
     if (path === "/api/sites" && route.request().method() === "POST") {
       const input = route.request().postDataJSON();
       siteId = input.importId;
-      stored = input.initialDoc;
+      // DocumentRoom reconstructs these collections after the document settings.
+      const { pages, nodes, assets, ...settings } = input.initialDoc;
+      stored = { ...settings, pages, nodes, assets };
       if (lost) return route.abort("connectionreset");
       return route.fulfill({ json: { site: { id: siteId, name: doc.siteName } } });
     }

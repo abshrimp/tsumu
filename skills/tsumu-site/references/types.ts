@@ -51,6 +51,9 @@ export interface FieldOption {
 
 export interface FieldContent {
   kind: FieldKind;
+  /** Native form submission name and value retained from imported HTML. */
+  name?: string;
+  submitValue?: string;
   
   inputType?: InputType;
   

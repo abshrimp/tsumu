@@ -35,10 +35,10 @@ function harness(options: { preview?: boolean; clearOnChange?: boolean; live?: b
       this.selected = on;
       // 同じフォーム・グループのラジオボタンを選ぶと、元の選択はネイティブの DOM が外す。
       if (on && this.type === "radio" && this.name) {
-        for (const other of elements) if (other !== this && other.type === "radio" && other.name === this.name && other.form() === this.form()) other.selected = false;
+        for (const other of elements) if (other !== this && other.type === "radio" && other.name === this.name && other.form === this.form) other.selected = false;
       }
     }
-    form(): Element | null { return this.tagName === "FORM" ? this : this.parentElement?.form() ?? null; }
+    get form(): Element | null { return this.tagName === "FORM" ? this : this.parentElement?.form ?? null; }
     getAttribute(key: string) { return this.attrs.get(key) ?? null; }
     setAttribute(key: string, value: string) { this.attrs.set(key, value); }
     hasAttribute(key: string) { return this.attrs.has(key); }
@@ -78,6 +78,8 @@ function harness(options: { preview?: boolean; clearOnChange?: boolean; live?: b
   for (const node of Object.values(doc.nodes)) for (const child of node.children ?? []) byId.get(child)!.parentElement = byId.get(node.id)!;
   function query(selector: string) {
     if (selector.startsWith("#")) return elements.filter((el) => el.id === selector.slice(1));
+    const named = /^\[name="([^"]+)"\]$/.exec(selector);
+    if (named) return elements.filter((el) => el.name === named[1]);
     const group = /^input\[type="radio"\]\[name="([^"]+)"\]$/.exec(selector);
     if (group) return elements.filter((el) => el.type === "radio" && el.name === group[1]);
     const attr = /^\[([^\]]+)\]$/.exec(selector);
@@ -224,5 +226,44 @@ test("conditions after clearing read the new individual, group and index values"
   assertCleared(h);
   assert.equal(h.text("counts"), "cleared||");
   assert.deepEqual(h.events, []);
+  h.dispose();
+});
+
+test("bare radio IDs address individual controls and group operations stay in their owning form", () => {
+  const h = harness();
+  for (const key of ["small", "medium"]) {
+    const input = h.input(key);
+    input.parentElement!.id = "";
+    input.id = key;
+  }
+  const other = h.input("red");
+  other.parentElement!.tagName = "FORM";
+  other.name = "size";
+  h.click("select-medium");
+  assert.equal(h.text("result"), "size=M; small=false; medium=true; index=2; color=");
+  h.click("clear-group");
+  assert.equal(h.text("result"), "size=; small=false; medium=false; index=; color=");
+  assert.equal(other.checked, true);
+  h.dispose();
+});
+
+test("an imported text input uses its name only while it has no ID", () => {
+  const h = harness({ configure(doc) {
+    doc.nodes.dependent.field = { kind: "input" };
+    doc.nodes["select-medium"].scripts![0].steps = [
+      { id: "write", kind: "set-value", target: "customer", value: "One" },
+      { id: "read", kind: "set-var", into: "smallChanges", value: "{customer}" },
+    ];
+  } });
+  const input = h.input("dependent");
+  input.name = "customer";
+  h.click("select-medium");
+  assert.equal(input.value, "One");
+  assert.equal(h.text("counts"), "One||");
+  input.id = "contact";
+  input.value = "Two";
+  h.click("select-medium");
+  assert.equal(input.value, "Two");
+  assert.equal(h.text("counts"), "||");
   h.dispose();
 });
