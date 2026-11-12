@@ -84,7 +84,7 @@ test("ZIP without doc.json alerts before converting HTML on homepage drop", asyn
       bubbles: true, cancelable: true, dataTransfer: transfer,
     }));
   }, Array.from(bytes));
-  const dialog = page.getByRole("dialog");
+  const dialog = page.getByRole("alertdialog");
   await expect(dialog).toContainText("ZIPに編集データが見つかりませんでした。HTMLを変換して読み込みます。");
   expect((await getLocalSite(page)).list).toHaveLength(0);
   await dialog.getByRole("button", { name: "OK" }).click();
