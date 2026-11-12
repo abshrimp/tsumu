@@ -23,13 +23,18 @@ Tsumu lets you design websites on a canvas and export or publish them as standar
 
 ## Features
 
-- **Visual editing:** Responsive layouts, styles, reusable components and custom states.
-- **No-code interactions:** Script blocks, external JSON data, lists and dynamic pages.
-- **Import and export:** Tsumu ZIP, `doc.json` and HTML import; Next.js, React, Vue, Nuxt, SvelteKit and HTML output.
-- **GitHub publishing:** Production and preview branches, pre-publish checks, history and rollback.
-- **Collaboration:** Real-time co-editing, comments and activity history.
-- **Optional AI editing**, built-in help, and English/Japanese UI.
-- **Self-hosting:** Cloudflare Workers, Node.js or Docker, with support for multiple sites.
+- **Visual editing:** Flexbox and grid layouts, responsive styles, hover and custom states, animations, and reusable components.
+- **No-code scripts:** Combine “when → do” blocks for clicks, input, visibility changes, conditions, and list operations.
+- **External data:** Fetch JSON from APIs, display lists, and generate detail pages such as `/news/[slug]`.
+- **Import:** Restore Tsumu ZIP files or `doc.json`, or convert existing HTML and website ZIPs into editable elements.
+- **Flexible output:** Export Next.js, React, Vue, Nuxt, SvelteKit, HTML, or single-file HTML, with TypeScript or JavaScript and a choice of CSS, CSS Modules, or Tailwind CSS.
+- **GitHub publishing:** Push generated code to a repository for each site, keep production and preview branches separate, and preserve files added by hand.
+- **Pre-publish checks and rollback:** Detect broken links, missing image alt text, heading-order issues, and mobile layout problems. Restore earlier published versions.
+- **Real-time collaboration:** Merge changes property by property, leave comments on the canvas, and view edit and publish activity.
+- **Optional AI editing:** Describe page changes in plain language and undo the result in one step. Supports Claude, Gemini, OpenAI, and compatible APIs.
+- **Multiple sites:** Keep each site's editing data and publishing repository separate, and copy pages or elements between sites.
+- **Self-hosting:** Run on Cloudflare Workers, Node.js, or Docker, configuring external services only as needed.
+- **Help and languages:** Built-in tutorials, illustrated Q&A, guided tours, and English/Japanese UI.
 
 ## Screenshots
 
