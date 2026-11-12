@@ -85,7 +85,7 @@ There are three moving parts:
 
 - **The editor** is a Next.js app. It runs on Cloudflare Workers, Node.js or Docker (see [Deploying the editor](#deploying-the-editor)). It stores the list of sites, editing data, comments, the edit and publish activity log, the sign-in allowlist, and uploaded images, video and audio. Uploads are shared by all sites. Where all of this is stored depends on where the editor runs.
 - **The published site** is an ordinary Next.js app (or one of the other [output formats](#output-formats)), committed to that site's own repository. It does **not** have to run where the editor runs.
-- **Test publishing** commits to a second branch of the same repository (`preview` by default). Vercel, Cloudflare Workers Builds and Netlify automatically build non-production branches as previews, so one hosting project covers both the live and the test site. The test build is kept out of search engines with robots.txt, `noindex`, the `X-Robots-Tag` header and crawler blocking.
+- **Test publishing** commits to a second branch of the same repository (`preview` by default). Vercel, Netlify and Cloudflare Workers Builds can build non-production branches as previews, so one hosting project covers both the live and the test site (on Netlify and Workers Builds, turn this on first; see [Hosting the published site](#hosting-the-published-site)). The test build is kept out of search engines with robots.txt, `noindex`, the `X-Robots-Tag` header and crawler blocking.
 
 ## What you need
 
@@ -116,7 +116,7 @@ Open http://localhost:3000 to see the home screen, which lists your sites. Click
 
 A few things to know about `npm run dev`:
 
-- It emulates Cloudflare's D1 and KV locally, based on `wrangler.jsonc`. Data goes to `.wrangler/state`, and this takes precedence over `TSUMU_DATA_DIR`.
+- It emulates Cloudflare's D1 and KV locally, based on `wrangler.jsonc`. Data goes to `.wrangler/state`, even if `TSUMU_DATA_DIR` is set.
 - It needs no environment variables, and it skips sign-in. This applies to `npm run dev` only. To skip sign-in under `npm run preview`, put `ALLOW_ANONYMOUS=true` in `.dev.vars`.
 - Collaborators' changes arrive by polling. To try the real-time WebSocket connection, use `npm run preview`.
 
@@ -133,9 +133,9 @@ The editor runs in any of three environments. The features are identical; what d
 | Cost | Runs on the free plan (see [Limits](#limits)) | Your server | Your server |
 | Good for | Running without a server of your own | Running on your machine or an existing server | Managing it as a container |
 
-D1 and local SQLite tables are created on first access. Cloudflare's SQLite-backed DocumentRoom requires the `DOC_STORE` binding and the live SQLite-backed `exports.DocumentRoom` declaration in `wrangler.jsonc`. For the storage model and deployment checks, see [Document storage](docs/durable-object-storage.md). Without server storage, data stays in the browser (see [What you need](#what-you-need)).
+D1 and local SQLite tables are created on first access. To store editing data on Cloudflare, `wrangler.jsonc` must declare the `DOC_STORE` binding and the SQLite-backed `exports.DocumentRoom`. For the storage model and deployment checks, see [Document storage](docs/durable-object-storage.md). Without server storage, data stays in the browser (see [What you need](#what-you-need)).
 
-On Cloudflare, asset removal registers a seven-day garbage-collection candidate in D1. The daily 03:00 JST job processes only expired candidates; a separate weekly check discovers orphaned uploads. Physical KV deletion is disabled by default and requires `ASSET_GC_ENABLED=true`. See [KV asset GC](docs/asset-gc.md) for retention trade-offs and configuration.
+On Cloudflare, removing an asset records it in D1 as a garbage-collection candidate, which expires after seven days (`ASSET_GC_GRACE_DAYS`). The daily job at 03:00 JST processes only expired candidates; a separate weekly check (Mondays at 04:00 JST) adds orphaned uploads as candidates. Physical KV deletion is off by default and runs only with `ASSET_GC_ENABLED=true`. See [KV asset GC](docs/asset-gc.md) for retention trade-offs and configuration.
 
 ### Common setup
 
@@ -170,9 +170,9 @@ npx wrangler kv namespace create ASSETS_KV    # put the printed id in wrangler.l
 
 Git ignores `wrangler.local.jsonc`, so your resource IDs never end up in the repository. When the file exists, `npm run dev`, `npm run preview` and `npm run deploy` use it automatically. (To use a different file, name it in `WRANGLER_CONFIG`.)
 
-The deploy wrapper validates the selected configuration and refuses command-line overrides such as `--config` or `--env` that could bypass these checks. Use `WRANGLER_CONFIG` with top-level bindings for a custom production config.
+The deploy wrapper validates the selected configuration and rejects command-line overrides such as `--config` or `--env`, which could bypass that validation. For a separate production config, point `WRANGLER_CONFIG` at a file that declares its bindings at the top level.
 
-Production deployments automatically use browser-only storage if D1, KV, or the DocumentRoom binding/export is incomplete. The deploy wrapper first inspects the active Worker versions and refuses to remove existing server-storage bindings. If it cannot inspect an existing deployment, it stops instead of risking data access. New Workers may deploy without server storage; local builds and hosted Worker Previews also require no storage IDs.
+If D1, KV or the DocumentRoom binding and export are incomplete, a production deployment falls back to browser-only storage. Before that, the deploy wrapper inspects the active Worker versions and refuses to remove existing server-storage bindings. If it can't inspect an existing deployment, it stops rather than risk losing access to data. New Workers may deploy without server storage, and local builds and hosted Worker Previews need no storage IDs.
 
 **2. Set the secrets and deploy**
 
@@ -191,13 +191,13 @@ To deploy automatically with Cloudflare Workers Builds, connect the repository a
 - Preview command: `node scripts/cloudflare-preview.mjs` (see below)
 - Build variables (optional; under Settings → Build → Variables and secrets): `D1_DATABASE_ID` and `KV_NAMESPACE_ID`
 
-At build time, the script reads `wrangler.jsonc` and writes a deploy config, `wrangler.generated.jsonc`. It fills in the IDs from the build variables and drops bindings that have none, so you never need to commit your IDs. Workers Builds selects its connected Worker name through `WRANGLER_CI_OVERRIDE_NAME`, so this generated config targets the correct Worker without changing the repository default.
+At build time, the script reads `wrangler.jsonc` and writes a deploy config, `wrangler.generated.jsonc`. It fills in the IDs from the build variables and drops bindings that have none, so you never need to commit your IDs. Workers Builds passes the connected Worker's name in `WRANGLER_CI_OVERRIDE_NAME`, and the generated config uses it, so you don't need to change the name in the repository.
 
 #### Previewing pull requests (Worker Previews)
 
 With the Preview command above, Workers Builds deploys each pull request as a **Worker Preview** and posts its URL on the pull request. The repository's default Preview configuration is a public demo that needs no sign-in and keeps its data in the browser. The wrapper supplies empty D1/KV bindings and uses `--ignore-base-config`; it does not remove secrets already configured on an existing Preview. Check those secrets before reusing a Preview as a public demo.
 
-See [Previewing pull requests of the editor](docs/worker-previews.md) for setup and for giving Previews test storage. Server storage also needs an explicit Preview `DOC_STORE` binding to `DocumentRoom`, alongside `COLLAB_ROOM`; adding only D1 and KV IDs is incomplete. Configure sign-in before using shared test storage.
+See [Previewing pull requests of the editor](docs/worker-previews.md) for setup and for giving Previews test storage. For server storage, adding D1 and KV IDs isn't enough: the Preview also needs an explicit `DOC_STORE` binding to `DocumentRoom`, alongside `COLLAB_ROOM`. Configure sign-in before using shared test storage.
 
 ### Node.js
 
@@ -222,7 +222,7 @@ Set the other variables in `.env.local` or in the server's environment (see [Env
 Things to keep in mind:
 
 - **Backups:** stop every process writing to `TSUMU_DATA_DIR` and disable automatic restarts before copying the whole folder. Keep writers stopped until the copy finishes. Copying a live SQLite database and its WAL files one at a time is not a consistent snapshot. Include `assets/` and any `tsumu.db-wal` / `tsumu.db-shm` files still present; do not delete them. Use a fresh backup destination outside the data folder, and [validate a disposable restore](docs/releasing.md#backup-and-restore-validation) before relying on it.
-- **One editor per folder:** run only one editor per `TSUMU_DATA_DIR`. Collaborators' changes are relayed inside a single process.
+- **One editor per folder:** run only one editor per `TSUMU_DATA_DIR`. Collaborators' changes are relayed only within a single process.
 - **Reverse proxy (nginx and similar):**
   - Set `AUTH_URL` to the public URL, and have the proxy forward `X-Forwarded-Host` and `X-Forwarded-Proto`. Otherwise Google sign-in won't redirect back to the right address.
   - Make sure the proxy streams `/api/collab/events` without buffering. nginx does this automatically, because the response carries an `X-Accel-Buffering: no` header.
@@ -254,8 +254,9 @@ Pass environment variables with `--env-file` (or `-e`); see [Environment variabl
 - **Don't start the container without `-v`.** The data would go to an anonymous volume, and a recreated container wouldn't see it.
 
 To back up the named volume from the example above, first disable any external
-supervisor that could restart the editor and stop any other writers to this
-volume. Run the entire block from a backup directory outside the data volume:
+supervisor that could restart the editor, and stop anything else that writes to
+this volume. Then run the entire block from a backup directory outside the data
+volume:
 
 ```bash
 (
@@ -275,10 +276,11 @@ volume. Run the entire block from a backup directory outside the data volume:
 )
 ```
 
-The block checks the expected volume and stopped state, mounts the source
-read-only, and creates a separate directory for each attempt. On failure it
-exits without continuing to restart; inspect the error and container state,
-then restart the editor deliberately when safe. Do not use a partial archive.
+The block checks that it has the expected volume and that the container has
+stopped, mounts the source read-only, and creates a new directory for each
+attempt. If any step fails, it exits without restarting the container; inspect
+the error and the container's state, then restart the editor yourself once it
+is safe. Do not use a partial archive.
 Archive readability alone does not prove recovery: follow the
 [isolated restore drill](docs/releasing.md#backup-and-restore-validation).
 
@@ -299,7 +301,7 @@ Create the site's repository before the first publish. It can be empty or initia
 
 ## Output formats
 
-**Publish** and **⋯ → Export as zip** both let you pick a framework, a language and a style. Next.js is selected each time the dialog opens.
+**Publish** and **⋯ → Export as zip** both let you pick a framework, a language and a style. The choice isn't saved: Next.js is selected each time the dialog opens.
 
 | Framework | What you get | Running it |
 |---|---|---|
@@ -318,10 +320,11 @@ Formats other than Next.js can't express everything. The dialog lists what the s
 
 - dynamic paths (`[slug]`) and redirect or reverse-proxy pages;
 - HTML pages (pages written as raw HTML), except in the two HTML formats;
-- data fetches that carry credentials (an `Authorization` header, an API key in the URL or body, and so on), because visitors could read them;
 - a custom `<script>` at the end of the body, in React, Vue, Nuxt and SvelteKit;
 - CSS Modules or Tailwind CSS with the HTML formats;
 - more than one page with Single HTML.
+
+Data fetches that carry credentials (an `Authorization` header, an API key in the URL or body, and so on) can't be exported or published in any format, Next.js included, because the values would end up in the generated source and in the zip's editing data. Keep credentials in server environment variables or behind an API proxy.
 
 **Publishing** always covers the whole project. Publishing a format other than Next.js to the live site asks for confirmation first, because the repository layout changes and the host's build and output settings must match. Test publishes in every format are kept out of search engines.
 
@@ -342,7 +345,7 @@ On the home screen, click **Import** or drop a file onto the page to create a ne
 
 Any warnings, such as assets that couldn't be restored, appear once the new site opens.
 
-In the editor, a page's settings can also load an HTML file or a zip into that page. A normal page converts it into editable elements (after asking before it replaces the page's current elements). An HTML page keeps the HTML as is, using `index.html` from the zip.
+In the editor, a page's settings can also load an HTML file or a zip into that page. A normal page converts the HTML into editable elements, asking before it replaces the page's current elements. An HTML page uses the HTML as is. From a zip, `index.html` is loaded first.
 
 Limits: a zip can be up to 100 MB and a `doc.json` or HTML file up to 12 MB. A zip of a website can hold up to 200 files and 2 MB of CSS, which must be UTF-8.
 
@@ -403,7 +406,7 @@ Ask AI doesn't edit scripts, data sources or assets.
 
 - `AI_API_KEY` works with every provider.
 - `AI_EFFORT` (`low` … `max`, default `medium`) controls how much the model thinks. Lower is cheaper.
-- Smaller models make more mistakes with edit operations. The server catches them, but each request then takes more round trips.
+- Smaller models make more mistakes with edit operations. The server catches them and has the model fix them, so your page isn't damaged, but each request takes more round trips.
 - Some free tiers, such as Gemini's, may use your requests to improve the provider's products.
 
 ### Example: using Gemini
@@ -451,6 +454,8 @@ All variables are optional (see [What you need](#what-you-need)).
 | `AI_BASE_URL` | API URL for `openai-compatible`, e.g. `https://openrouter.ai/api/v1` |
 | `AI_EFFORT` | `low`, `medium` (default), `high`, `xhigh` or `max` |
 | `TSUMU_DATA_DIR` | Storage folder on Node.js (see [Node.js](#nodejs)). Fixed to `/data` on Docker. |
+| `ASSET_GC_ENABLED` | Cloudflare only. `true` lets garbage collection delete unused assets from KV; by default it only does a dry run (see [KV asset GC](docs/asset-gc.md)). |
+| `ASSET_GC_GRACE_DAYS` / `ASSET_GC_MAX_DELETES` | Cloudflare only. Days before a candidate can be deleted (default 7), and the most deletions per run (default and maximum 500). |
 
 Where to put them:
 
@@ -474,8 +479,8 @@ Where to put them:
 
 ### Sites
 
-- Deleting a site deletes its editing data and automatic backups. The published repository and the images in storage remain.
-- Images copied between sites share a stored file. On Cloudflare, an asset is not physically deleted immediately, because a concurrent save in another site might still reference it. Unreferenced files require an explicit garbage-collection process; deletion in the editor only removes the reference.
+- Deleting a site deletes its editing data and automatic backups. The published repository remains, and the images in storage aren't deleted right away.
+- Images copied between sites share a stored file. On Cloudflare, deleting an asset in the editor only removes the reference; the file stays in KV for now, because a concurrent save in another site might still use it. Unreferenced files are deleted by garbage collection when `ASSET_GC_ENABLED=true` (see [KV asset GC](docs/asset-gc.md)).
 - Without D1, sites exist only in that browser. Clearing the browser's data loses them.
 
 ### Collaboration
@@ -508,7 +513,7 @@ Where to put them:
 - **The first publish is careful too.** It keeps existing files and asks before overwriting any file at the same path.
 - **`_tsumu/` is reserved** for Tsumu's metadata. If the list of generated files there is malformed, publishing stops.
 - Page-specific custom code is inserted at the start and end of the page body, not in `<head>`.
-- On the canvas, custom code and icons are shown sanitized, and iframes in custom code run in a sandbox without the editor's origin. Their scripts and event handlers run only on the published site, so they can't act with your editor session's permissions.
+- On the canvas, custom code and icons are shown sanitized, and iframes in custom code run in a sandbox on a different origin from the editor. Their scripts and event handlers run only on the published site, so they can't act with your editor session's permissions.
 - `next/image` is exported with `unoptimized` so it works on every host.
 - HTML pages (pages written as raw HTML) don't get the shared layout, metadata or custom code. Only the Next.js and HTML formats can output them.
 - After you split text into spans, each span is edited separately.
@@ -586,7 +591,7 @@ Tsumu uses English source strings as translation keys (`tr("Save")`). Japanese t
 2. Run `npm run dev` or `npm run build`. The language picker and lazy dictionary loader are generated automatically from file names; **do not edit** `lib/lang.ts` or `lib/locales/index.ts`. Language labels are generated using the native language display name.
 3. Run `npm run i18n:check -- fr` to report missing entries without failing. `npm run i18n:check -- --strict fr` makes missing translations a failing check; `npm run i18n:check -- --all` reports every registered dictionary. CI enforces complete Japanese translations with `--strict ja` but permits partially translated new languages.
 
-The generation also runs before `typecheck`, `test`, `test:e2e`, and `build:worker`. For direct commands without npm lifecycle hooks, run `npm run locales:sync` first. `en` is reserved for the built-in English source strings; it needs no `en.ts` file.
+The generation also runs before `typecheck`, `test` and `build:worker` (`test:e2e` relies on the `npm run build` that precedes it). If you run a tool directly rather than through npm, run `npm run locales:sync` first. `en` is reserved for the built-in English source strings; it needs no `en.ts` file.
 
 The language appears under **Settings → Language** on the home screen and **⋯ → Settings** in the editor. The browser's language preferences select supported languages automatically. Existing Japanese/English E2E assertions are not expanded to newly added languages.
 

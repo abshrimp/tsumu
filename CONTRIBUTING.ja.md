@@ -21,8 +21,8 @@ npm run dev
 
 - **1つのプルリクエストでは1つの問題のみを扱い**、変更後の動作を説明してください。
 - **動作を変更する場合は、回帰テストを追加してください。** 単体テストは `tests/` に、ブラウザでのテストは `e2e/` に配置します。
-- **画面の文言の原文は英語で `tr()` に指定し、コードのコメントは日本語で記述してください。** 日本語訳は `lib/locales/ja.ts` に追加します。新言語は辞書ファイルだけで追加できます。
-- **Tsumu のデータ形式と実行仕様を一貫させてください。** 型定義・エディタ・生成コード・テストの整合性を保ってください。
+- **画面の文言の原文は英語で `tr()` に指定し、コードのコメントは日本語で記述してください。** 日本語訳は `lib/locales/ja.ts` に追加します。新しい言語は、辞書ファイルを追加するだけで対応できます。
+- **Tsumu のデータ形式と実行時の動作を、型定義・エディタ・生成コード・テストのあいだで食い違わないようにしてください。**
 - **公開時に、利用者が作成したファイルを削除しないでください。** `_tsumu/` は、Tsumu の文書と公開の管理情報を置く専用のディレクトリです。
 
 プルリクエストを作成する前に、次のチェックを実行してください。
@@ -37,9 +37,9 @@ npx playwright install chromium firefox webkit
 npm run test:e2e
 ```
 
-Cloudflare との連携部分を変更した場合は、`npm run build:worker` も実行してください。これらのチェックでデプロイが行われることはありません。
+Cloudflare と連携する部分を変更した場合は、`npm run build:worker` も実行してください。これらのチェックを実行しても、デプロイは行われません。
 
-出力形式（`lib/export-formats.ts`・`lib/generator/`）を変更した場合は、影響するフレームワークのサンプルを生成してビルドを確認してください（CI では全フレームワークを TypeScript と JavaScript の両方で検証しています）。
+出力形式（`lib/export-formats.ts`・`lib/generator/`）を変更した場合は、影響するフレームワークのサンプルを生成し、ビルドできることを確認してください（CI では全フレームワークを TypeScript と JavaScript の両方で検証しています）。
 
 ```sh
 node --import tsx scripts/smoke-export-build.mts <nextjs|react|vue|nuxt|sveltekit> [typescript|javascript]
@@ -50,7 +50,7 @@ node --import tsx scripts/smoke-export-build.mts <nextjs|react|vue|nuxt|svelteki
 
 ## 問題の報告
 
-再現可能な不具合や機能の提案は、[Issues](https://github.com/abshrimp/tsumu/issues) で受け付けています。報告の際は、次の情報を記載してください。
+再現できる不具合や機能の提案は、[Issues](https://github.com/abshrimp/tsumu/issues) で受け付けています。報告の際は、次の情報を記載してください。
 
 - 再現手順
 - 期待した動作と、実際の動作
@@ -58,7 +58,7 @@ node --import tsx scripts/smoke-export-build.mts <nextjs|react|vue|nuxt|svelteki
 
 投稿前に、ログやスクリーンショットにトークン・メールアドレス・非公開のサイトの内容が含まれていないか確認してください。
 
-セキュリティ上の脆弱性は、公開の Issue ではなく、[SECURITY.ja.md](SECURITY.ja.md) に記載の方法で報告してください。
+セキュリティ上の脆弱性は、公開の Issue ではなく、[SECURITY.ja.md](SECURITY.ja.md) に記載した方法で報告してください。
 
 ## コミュニティ
 
