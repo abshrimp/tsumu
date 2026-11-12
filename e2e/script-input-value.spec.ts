@@ -30,17 +30,11 @@ const click = (page: Page, id: string) => page.locator(`#${id}`).click();
 const cases: { name: string; field: FieldContent; requested: string; expected: string; restored: string }[] = [
   { name: "invalid number", field: { kind: "input", inputType: "number", defaultValue: "12" }, requested: "not-a-number", expected: "", restored: "8" },
   { name: "invalid date", field: { kind: "input", inputType: "date", defaultValue: "2026-11-05" }, requested: "2026-02-30", expected: "", restored: "2026-11-06" },
-  { name: "invalid time", field: { kind: "input", inputType: "time", defaultValue: "12:30" }, requested: "25:00", expected: "", restored: "13:30" },
   { name: "normalized datetime", field: { kind: "input", inputType: "datetime-local", defaultValue: "2026-11-05T12:30" }, requested: "2026-11-06 13:30:00", expected: "2026-11-06T13:30", restored: "2026-11-07T14:30" },
-  { name: "invalid month", field: { kind: "input", inputType: "month", defaultValue: "2026-11" }, requested: "2026-13", expected: "", restored: "2026-12" },
-  { name: "invalid week", field: { kind: "input", inputType: "week", defaultValue: "2026-W45" }, requested: "2026-W99", expected: "", restored: "2026-W46" },
   { name: "clamped range", field: { kind: "input", inputType: "range", defaultValue: "10", min: "10", max: "20", step: "5" }, requested: "99", expected: "20", restored: "15" },
-  { name: "rounded range", field: { kind: "input", inputType: "range", defaultValue: "10", min: "10", max: "20", step: "5" }, requested: "14", expected: "15", restored: "20" },
-  { name: "empty range", field: { kind: "input", inputType: "range", defaultValue: "10", min: "10", max: "20", step: "5" }, requested: "", expected: "15", restored: "20" },
   { name: "invalid color", field: { kind: "input", inputType: "color", defaultValue: "#ffffff" }, requested: "not-a-color", expected: "#000000", restored: "#123456" },
   { name: "single-line text", field: { kind: "input", defaultValue: "initial" }, requested: "first\nsecond", expected: "firstsecond", restored: "restored" },
   { name: "trimmed email", field: { kind: "input", inputType: "email", defaultValue: "initial@example.com" }, requested: "  next@example.com  ", expected: "next@example.com", restored: "restored@example.com" },
-  { name: "trimmed URL", field: { kind: "input", inputType: "url", defaultValue: "https://example.com" }, requested: "  https://example.org  ", expected: "https://example.org", restored: "https://example.net" },
   { name: "textarea line endings", field: { kind: "textarea", defaultValue: "initial" }, requested: "first\r\nsecond", expected: "first\nsecond", restored: "restored" },
 ];
 

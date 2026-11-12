@@ -25,8 +25,9 @@ test("page settings clearly distinguish editable HTML conversion and raw HTML lo
 // The complete kind/interruption matrix is covered by the store-level tests.
 // Keep browser cases for distinct dialog, focus, navigation, and collaboration behavior.
 const browserInterruptions = {
-  html: ["rawHtml", "undo-redo", "page-return", "unmount", "cancel", "unrelated"],
-  redirect: ["redirectTo", "rewriteTo", "restore", "delete", "page", "unrelated"],
+  // Store tests cover the complete matrix; sample distinct browser outcomes here.
+  html: ["page-return", "unmount", "cancel", "unrelated"],
+  redirect: ["undo-redo", "delete", "unrelated"],
 } as const;
 
 for (const kind of ["html", "redirect"] as const) {
@@ -80,8 +81,10 @@ for (const kind of ["html", "redirect"] as const) {
   }
 }
 
-for (const from of ["normal", "html", "redirect", "rewrite"]) for (const to of ["normal", "html", "redirect"]) {
-  if ((from === "rewrite" ? "redirect" : from) === to) continue;
+const browserTransitions = [
+  ["normal", "html"], ["html", "redirect"], ["redirect", "normal"], ["rewrite", "normal"],
+] as const;
+for (const [from, to] of browserTransitions) {
   test(`Approved ${from} to ${to} transitions are applied`, async ({ page }) => {
     await page.evaluate(from => {
       const s = (window as any).pageKindEditor.getState();

@@ -44,9 +44,11 @@ exactly one shard; the durations file only influences load balancing.
   Playwright still validate the built server, even if they do not open a tab.
 - For behavior covered at both layers, keep a small set of browser scenarios
   demonstrating the integration and place the full combinatorial matrix in
-  Node tests. For example, `page-kind-confirmation` has exhaustive
-  cancellation and mode-transition cases in `tests/`, while `e2e/`
-  exercises dialogs, editor navigation, and shared-document updates.
+  Node tests. For example, `page-kind-confirmation` retains representative
+  dialog, navigation, and collaboration cases in `e2e/`, while `tests/`
+  verifies every mode and cancellation path. Likewise, input defaults, script
+  assignments, image drop gesture endings, and committed field states sample
+  the native browser paths rather than repeating their full Cartesian product.
 - Do not delete a browser test merely because its filename also exists in
   `tests/`. Compare its assertions and unique browser behavior first.
   Preserve the multi-engine smoke tags when changing test selection.
