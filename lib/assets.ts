@@ -11,7 +11,8 @@ import { appendAssetSuffix } from "./zip-references";
 import type { Asset, SiteDoc } from "./types";
 import { genId } from "./presets";
 import { tr } from "./i18n";
-import { currentSiteId, siteApi } from "./site";
+import { currentSiteId } from "./site";
+import { extractAssetReferences } from "./asset-gc-plan";
 import { otherBrowserDocs } from "./browser-doc-storage";
 
 const MAX_LOCAL_ASSET_BYTES = 2 * 1024 * 1024;
@@ -501,33 +502,34 @@ export async function downloadAsset(asset: Asset): Promise<void> {
 }
 
 /**
- * サーバー上のアセットを削除する（data URL のアセットでは何もしない）。
+ * サーバー上のファイルを削除する。ブラウザに保存した他のサイトはまとめて1回だけ調べる。
  * 他のサイトが同じファイルを使っていれば消さない（Node.js・Docker のサーバーは、全サイトを調べて確かめる。
  * Cloudflare は D1 に GC の候補を登録し、猶予期間（既定7日）の後に全サイトを確認してから削除する）
  */
-export async function deleteAssetRemote(asset: Asset): Promise<void> {
-  if (!asset.path) return;
-  const quoted = `"${asset.path}"`;
-  // ブラウザ内だけに保存した別のサイトがそのファイルを参照していても、Cloudflare のエンドポイントは
-  // GC の候補に登録するため、削除の操作を受け取る必要がある。Node.js・Docker では、
-  // browserReferenced の印を使って、その場で削除するときの安全を保つ。
-  let browserReferenced = false;
+export async function deleteRemoteAssetFiles(paths: string[]): Promise<void> {
+  if (!paths.length) return;
+  const site = currentSiteId();
+  const candidates = new Set(paths);
+  const browserReferences = new Set<string>();
+  let scanFailed = false;
   if (typeof window !== "undefined") {
     try {
-      browserReferenced = (await otherBrowserDocs(currentSiteId()))
-        .some((raw) => raw.includes(quoted));
+      for (const raw of await otherBrowserDocs(site)) {
+        for (const path of extractAssetReferences(raw)) {
+          if (candidates.has(path)) browserReferences.add(path);
+        }
+        if (browserReferences.size === candidates.size) break;
+      }
     } catch {
-      // ブラウザ内の索引が使えなくても、Cloudflare の GC への登録を止めてはいけない。
-      // Node.js・Docker では、分からないときは安全のためにファイルを残す。
-      browserReferenced = true;
+      // ブラウザ内の参照を確かめられないときは、Node.js・Docker の即時削除を止める。
+      scanFailed = true;
     }
   }
-  await fetch(siteApi("/api/assets", {
-    path: asset.path, ...(browserReferenced ? { browserReferenced: "1" } : {}),
-  }), {
-    method: "DELETE",
-  }).catch(() => {
-    // 削除の失敗は、文書から消えていれば実害が無いため、無視する
+  await mapLimit(paths, ASSET_FETCH_CONCURRENCY, async path => {
+    const params = new URLSearchParams({ site, path });
+    if (scanFailed || browserReferences.has(path)) params.set("browserReferenced", "1");
+    // Cloudflare はブラウザ内の参照があっても GC 候補として受け取り、猶予期間後に再確認する。
+    await fetch(`/api/assets?${params}`, { method: "DELETE" }).catch(() => {});
   });
 }
 

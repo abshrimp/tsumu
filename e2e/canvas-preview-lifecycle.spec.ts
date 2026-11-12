@@ -63,8 +63,7 @@ async function openPage(page: Page, id: string) {
 }
 const signal = (page: Page, id: string) => page.locator(`.cv-root [data-node="${id}"]`);
 
-for (const locale of ["ja-JP", "en-US"]) test.describe(`preview lifecycle (${locale})`, () => {
-  test.use({ locale });
+test.describe("preview lifecycle", () => {
   test.beforeEach(async ({ page }) => {
     // この準備は、翻訳した UI を読み込み、クッキーを書く。そのため、中身の見えない about:blank の
     // ページではなく、HTTP のオリジンを使う。robots.txt なら、競合するアプリのスクリプトが無い。

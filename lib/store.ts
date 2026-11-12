@@ -593,6 +593,7 @@ export interface EditorStore {
   /** フォルダを並べ替える（index は、移動する前の並びでの位置） */
   moveFolder: (folderId: string, index: number) => void;
   duplicatePage: (id: string) => void;
+  duplicatePages: (ids: string[]) => void;
   deletePage: (id: string) => void;
   /** 複数のページをまとめて削除する（1回の「元に戻す」で戻せる。最後の1ページは残す） */
   deletePages: (ids: string[]) => void;
@@ -1193,26 +1194,18 @@ export const useEditor = create<EditorStore>((set, get) => {
       if (sel && findParentOf(doc, sel.id) && !componentOf(doc, sel.id)) {
         ({ parent, index } = insertPointFor(doc, sel.id, parent, get().insertMode));
       }
-      get().updateDoc((d) => {
-        d.nodes[instanceId] = {
-          id: instanceId,
-          type: "instance",
-          name: comp.name,
-          semantic: "auto",
-          text: null,
-          link: null,
-          componentId,
-          children: [],
-          styles: {},
-        };
-        const list = childrenOf(d, parent);
-        list.splice(index ?? list.length, 0, instanceId);
-      });
-      set({
-        selection: instanceId,
-        selectedIds: [instanceId],
-        editingComponentId: null,
-      });
+      get().insertNodes([{
+        id: instanceId,
+        type: "instance",
+        name: comp.name,
+        semantic: "auto",
+        text: null,
+        link: null,
+        componentId,
+        children: [],
+        styles: {},
+      }], instanceId, parent, index);
+      if (editingComponentId && get().selection === instanceId) set({ editingComponentId: null });
     },
 
     deleteComponent: (componentId) => {
@@ -1796,42 +1789,41 @@ export const useEditor = create<EditorStore>((set, get) => {
       });
     },
 
-    duplicatePage: (pageId) => {
+    duplicatePage: (id) => get().duplicatePages([id]),
+
+    duplicatePages: (pageIds) => {
       const doc = get().doc;
-      const src = doc.pages[pageId];
-      if (!src) return;
-      const clones: DocNode[] = [];
+      const ids = [...new Set(pageIds)].filter(id => Object.hasOwn(doc.pages, id));
+      if (!ids.length) return;
+      const next = { ...doc, nodes: { ...doc.nodes }, pages: { ...doc.pages } };
       const cloneTree = (id: string): string => {
-        const n = doc.nodes[id];
-        const copy = structuredClone(n);
+        const copy = structuredClone(doc.nodes[id]);
         copy.id = genId("node");
-        copy.children = n.children.map(cloneTree);
-        clones.push(copy);
+        copy.children = copy.children.map(cloneTree);
+        next.nodes[copy.id] = copy;
         return copy.id;
       };
-      const newChildren = src.children.map(cloneTree);
-      const id = genId("page");
-      // 2回目以降の複製でも URL が重ならないよう、「-copy-2」のように番号を付ける
-      const { name, slug } = uniquePageNaming(
-        doc,
-        (n) => (n > 1 ? tr("{name} copy {n}", { name: src.name, n }) : tr("{name} copy", { name: src.name })),
-        (n) => copySlug(src.slug, n),
-        1
-      );
-      get().updateDoc((d) => {
-        for (const c of clones) d.nodes[c.id] = c;
-        d.pages[id] = {
-          ...structuredClone(src),
-          id,
-          name,
-          slug,
-          children: newChildren,
+      const copies = new Map<string, string>();
+      for (let i = ids.length - 1; i >= 0; i--) {
+        const pageId = ids[i];
+        const src = doc.pages[pageId];
+        const { name, slug } = uniquePageNaming(
+          next,
+          (n) => (n > 1 ? tr("{name} copy {n}", { name: src.name, n }) : tr("{name} copy", { name: src.name })),
+          (n) => copySlug(src.slug, n),
+          1
+        );
+        const id = genId("page");
+        copies.set(pageId, id);
+        next.pages[id] = {
+          ...structuredClone(src), id, name, slug, children: src.children.map(cloneTree),
+          // 複製元のタイトルを保ち、初めてページ名を確定したときに更新する。
+          titlePending: true,
         };
-        // タイトルは複製元のまま持たせ、初めてページ名を確定したときに、その名前にする
-        d.pages[id].titlePending = true;
-        d.pageOrder.splice(d.pageOrder.indexOf(pageId) + 1, 0, id);
-      });
-      get().setActivePage(id);
+      }
+      next.pageOrder = doc.pageOrder.flatMap(id => copies.has(id) ? [id, copies.get(id)!] : [id]);
+      commitDoc(next);
+      get().setActivePage(copies.get(ids[0])!);
     },
 
     deletePage: (pageId) => get().deletePages([pageId]),

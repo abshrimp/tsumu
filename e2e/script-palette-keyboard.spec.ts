@@ -54,6 +54,7 @@ for (const locale of ["ja-JP", "en-US"]) test.describe(locale, () => {
     }
     await page.keyboard.press("Escape");
     await expect(page.locator(".se-backdrop")).toHaveCount(0);
+    expect(await snapshot(page)).toEqual(before);
   });
 
   for (const composition of [{ isComposing: true }, { keyCode: 229 }]) test(`IME owns Escape: ${JSON.stringify(composition)}`, async ({ page }) => {

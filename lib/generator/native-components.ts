@@ -1,4 +1,5 @@
 import { assetMediaUrl } from "../assets";
+import type { PublishTarget } from "../generator";
 import type { SiteDoc, Page, DocNode } from "../types";
 import { obfuscateVarNames, pagePlan } from "../data";
 import { buildClassNames, buildAssetNames } from "./names";
@@ -270,7 +271,7 @@ function node(ctx: Context, id: string, top = false): string {
 }
 
 export interface NativeFiles {
-  pages: { id: string; name: string; title: string; description: string; slug: string;
+  pages: { id: string; name: string; title: string; description: string; noindex: boolean; slug: string;
     query: Record<string, string>; language: string; plan: ReturnType<typeof serializePageDataPlan> }[];
   vuePages: Record<string, string>;
   vueComponents: Record<string, string>;
@@ -279,7 +280,7 @@ export interface NativeFiles {
 }
 
 /** 書かれたすべてのページとコンポーネントについて、フレームワーク固有の明示的なテンプレートのツリーを生成する。 */
-export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage): NativeFiles {
+export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage, target: PublishTarget): NativeFiles {
   const normalized = obfuscateVarNames(doc);
   unnestLinks(normalized);
   applyBreakpoints(normalized);
@@ -359,7 +360,7 @@ export function generateNativeFiles(doc: SiteDoc, lang: NativeLanguage): NativeF
       vuePages[name] = build(page.children, "vue", view);
       sveltePages[name] = build(page.children, "sveltekit", view);
       return { id: page.id, name, title: page.title || page.name,
-        description: page.description, slug: page.slug,
+        description: page.description, noindex: target === "production" && !!page.noindex, slug: page.slug,
         query: Object.fromEntries(pageQueryConditions(page.query)),
         language: page.lang || normalized.lang || "ja", plan };
     });

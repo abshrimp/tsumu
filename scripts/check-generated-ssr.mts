@@ -30,6 +30,9 @@ try {
   if (!/<h1[^>]*>\s*Smoke test\s*<\/h1>/i.test(html)) {
     throw new Error("SSR did not render the heading in the HTTP response:\n" + html.slice(0, 3000));
   }
+  if (!/<meta\s+name="robots"\s+content="noindex,\s*nofollow"\s*\/?>/i.test(html)) {
+    throw new Error("SSR omitted the page's noindex setting");
+  }
   if (!html.includes("Alpha") || !html.includes("Beta") || !html.includes("Reusable")) {
     throw new Error("SSR omitted a list row or reusable component: " + html.slice(0, 3500));
   }

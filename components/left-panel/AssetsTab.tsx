@@ -37,7 +37,7 @@ import {
   ASSET_DRAG_TYPE,
   assetKind,
   assetSrc,
-  deleteAssetRemote,
+  deleteRemoteAssetFiles,
   downloadAsset,
   nodeAssetSrc,
   replaceEmbeddedAsset,
@@ -243,18 +243,20 @@ function serverFileNotice(deletion: AssetDeletion | null | undefined, several: b
   }
   if (deletion?.mode === "kept") return tr("The file stored on the server is kept, not deleted.");
   return several
-    ? tr("Files on the server will also be deleted. This can't be undone.")
-    : tr("The file on the server will also be deleted.");
+    ? tr("The server permanently deletes files that no other saved site uses.")
+    : tr("The server deletes this file if no other saved site uses it.");
 }
 
 /** 別の ID で残るアセットの保存先は消さず、同じファイルを二重に削除しない。 */
 function deleteRemovedAssetFiles(removed: Asset[]) {
   const retained = new Set(Object.values(useEditor.getState().doc.assets).map((a) => a.path));
+  const paths: string[] = [];
   for (const asset of removed) {
     if (!asset.path || retained.has(asset.path)) continue;
     retained.add(asset.path);
-    void deleteAssetRemote(asset);
+    paths.push(asset.path);
   }
+  void deleteRemoteAssetFiles(paths);
 }
 
 export function AssetsTab() {

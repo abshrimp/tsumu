@@ -3,7 +3,7 @@
  * Next.js の書き出しと同じ、正規化した文書と、生成した CSS・アセットを使う。
  */
 import type { DocNode, Page, SiteDoc } from "../types";
-import type { GeneratedProject } from "../generator";
+import type { GeneratedProject, PublishTarget } from "../generator";
 import { obfuscateVarNames, pagePlan } from "../data";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
@@ -455,7 +455,7 @@ function fontsCss(doc: SiteDoc): string {
   return imports.join("\n") + (variables.length ? "\n:root {\n" + variables.join("\n") + "\n}" : "");
 }
 
-export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): GeneratedProject {
+export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, target: PublishTarget = "production"): GeneratedProject {
   const shared = prepareHtmlExport(doc);
   const { doc: normalized, assets, scriptSources } = shared;
   const files: Record<string, string> = {};
@@ -535,7 +535,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
       // 直列化した TypeScript はフレームワークの出力で、ページのデータの元ではない。
       const source = htmlZipSource(page.rawHtml, page.htmlZip, normalized.assets,
         asset => htmlZipExportSource(asset, assets));
-      const html = rawHtmlWithBodyStyles(normalized, page, cssValue(normalized, "rawHtml", source, assets), assets);
+      const html = rawHtmlWithBodyStyles(normalized, page, cssValue(normalized, "rawHtml", source, assets), assets, target);
       const base = page.htmlZip && standaloneZipBase(html, path);
       const assetPrefix = base?.prefix ?? prefix;
       let htmlWithScriptAssets = rewriteHtmlZipScriptUrls(html, page.htmlZip, normalized.assets, asset => {
@@ -555,6 +555,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
       ...shared, page, prefix, single, staticRoutes: groups,
       seen: new Set(), form: false, template: false,
     };
+    const allNoindex = target === "production" && group.every((variant) => variant.noindex);
     const body = group.length === 1
       ? pageFragment(ctx, page)
       : (() => {
@@ -565,6 +566,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
               query: Object.fromEntries(pageQueryConditions(variant.query)),
               title: variant.title || variant.name,
               description: variant.description,
+              noindex: target === "production" && !allNoindex && !!variant.noindex,
               lang: variant.lang || normalized.lang || "ja",
               html: pageFragment(context, variant),
             };
@@ -579,8 +581,8 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
       '<meta charset="utf-8">',
       '<meta name="viewport" content="width=device-width,initial-scale=1">',
       "<title>" + escapeHtml(page.title || page.name) + "</title>",
-      page.description ? '<meta name="description" content="' + escapeHtml(page.description) + '">' : "",
-      page.noindex ? '<meta name="robots" content="noindex,nofollow">' : "",
+      group.some((variant) => variant.description) ? '<meta name="description" content="' + escapeHtml(page.description || "") + '">' : "",
+      allNoindex ? '<meta name="robots" content="noindex,nofollow">' : "",
       icon ? '<link rel="icon"' + attr("href", icon) + ">" : "",
       normalized.pwa?.enabled ? '<link rel="manifest" href="' + prefix + 'manifest.webmanifest">' : "",
       '<link rel="stylesheet" href="' + prefix + 'styles/globals.css">',

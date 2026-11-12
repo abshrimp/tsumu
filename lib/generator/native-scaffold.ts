@@ -1,5 +1,5 @@
 import type { SiteDoc } from "../types";
-import type { GeneratedProject } from "../generator";
+import type { GeneratedProject, PublishTarget } from "../generator";
 import type { ExportLanguage } from "../export-formats";
 import { generateNativeFiles } from "./native-components";
 import { nativeDataModule } from "./native-data";
@@ -12,8 +12,8 @@ const json = (value: unknown) => JSON.stringify(value)
   .replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
 
 function routesFile(pages: ReturnType<typeof generateNativeFiles>["pages"]): string {
-  const plain = pages.map(({ id, name, title, description, slug, query, language, plan }) =>
-    ({ id, name, title, description, path: "/" + slug.replace(/^\/+|\/+$/g, ""), query: Object.entries(query), language, plan }));
+  const plain = pages.map(({ id, name, title, description, noindex, slug, query, language, plan }) =>
+    ({ id, name, title, description, noindex, path: "/" + slug.replace(/^\/+|\/+$/g, ""), query: Object.entries(query), language, plan }));
   return [
     // __proto__ も条件の名前として保ち、オブジェクトの初期化子の特別な構文にしない。
     "export const pages = " + json(plain) + ".map(page => ({ ...page, query: Object.fromEntries(page.query) }));",
@@ -236,7 +236,8 @@ function vueApp(pages: ReturnType<typeof generateNativeFiles>["pages"],
       "useHead(() => ({",
       "  htmlAttrs: { lang: selected.value?.language || " + json(siteLanguage) + " },",
       "  title: selected.value ? selected.value.title + ' | ' + " + json(siteName) + " : " + json(siteName) + ",",
-      "  meta: [{ name: 'description', content: selected.value?.description || '' }],",
+      "  meta: [{ name: 'description', content: selected.value?.description || '' },",
+      "    ...(selected.value?.noindex ? [{ name: 'robots', content: 'noindex, nofollow' }] : [])],",
       "}));",
     );
   } else {
@@ -280,7 +281,7 @@ function sveltePage(pages: ReturnType<typeof generateNativeFiles>["pages"], lang
     'import { startPage } from "$lib/browser-start.js";',
     ...pages.map((page) => 'import ' + page.name + ' from "$lib/pages/' + page.name + '.svelte";'),
     lang === "typescript"
-      ? 'let { data }: { data: { id: string; vars: Record<string, unknown>; title: string; description: string; language: string } } = $props();'
+      ? 'let { data }: { data: { id: string; vars: Record<string, unknown>; title: string; description: string; noindex: boolean; language: string } } = $props();'
       : "let { data } = $props();",
     'let scope = $state(data.vars || {});',
     '$effect(() => { scope = { ...(data.vars || {}) }; });',
@@ -292,6 +293,7 @@ function sveltePage(pages: ReturnType<typeof generateNativeFiles>["pages"], lang
     '<svelte:head>',
     '  <title>{data.title} | {' + json(siteName).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/\{/g, "\\u007b").replace(/\}/g, "\\u007d") + '}</title>',
     '  <meta name="description" content={data.description} />',
+    '  {#if data.noindex}<meta name="robots" content="noindex, nofollow" />{/if}',
     '</svelte:head>',
     ...pages.map((page, i) => (i ? "{:else if " : "{#if ") + "data.id === " + json(page.id) + "}",
       // Svelte のテンプレートの構文では、':else' の後に 'if' が必要になる点に注意。
@@ -302,9 +304,9 @@ function sveltePage(pages: ReturnType<typeof generateNativeFiles>["pages"], lang
 }
 
 export function applyNativeFramework(
-  doc: SiteDoc, project: GeneratedProject, framework: Framework, language: ExportLanguage,
+  doc: SiteDoc, project: GeneratedProject, framework: Framework, language: ExportLanguage, target: PublishTarget,
 ): GeneratedProject {
-  const native = generateNativeFiles(doc, language);
+  const native = generateNativeFiles(doc, language, target);
   const files = { ...project.files };
   const root = framework === "vue" ? "src/" : framework === "nuxt" ? "app/generated/" : "src/lib/";
   const ext = framework === "sveltekit" ? ".svelte" : ".vue";
@@ -351,7 +353,7 @@ export function applyNativeFramework(
       '  const vars = await loadPageData(selected.plan, url.searchParams,',
       '    (uri, init) => requestPublic(uri, init, url.origin, fetch));',
       '  return { id: selected.id, title: selected.title, description: selected.description,',
-      '    language: selected.language, vars };',
+      '    noindex: selected.noindex, language: selected.language, vars };',
       '}', "",
     ].join("\n");
     files["src/routes/+page.server.js"] = script;

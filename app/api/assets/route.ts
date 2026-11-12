@@ -169,8 +169,13 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ ok: true, kept: true });
     }
     if (db) {
-      const refs = await otherSiteAssetReferences(db, siteId);
-      if (refs.has(path)) return NextResponse.json({ ok: true, kept: true });
+      // SQLite の同じスナップショットで、HTML・CSS に直接書かれた参照も調べる。
+      // 文書を1件ずつ読み、最初の一致で止める。
+      const refs = await db.execute({
+        sql: "SELECT 1 FROM docs WHERE id != ? AND document_references_asset(body, ?) LIMIT 1",
+        args: [siteId, path],
+      });
+      if (refs.rows.length) return NextResponse.json({ ok: true, kept: true });
     }
     await store.delete(path);
     return NextResponse.json({ ok: true });
