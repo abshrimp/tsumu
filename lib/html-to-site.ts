@@ -49,9 +49,26 @@ const TEXT_FLOW_TAGS = new Set([
   "h3", "h4", "h5", "h6", "i", "kbd", "label", "li", "mark", "p", "pre",
   "small", "span", "strong", "summary", "time",
 ]);
-function keepWhitespaceText(parent: Element): boolean {
+// Whitespace between inline siblings is visible even in a block container
+// such as <div> or <section>. Do not turn formatting between block elements
+// into extra editable text nodes.
+const INLINE_SPACING_TAGS = new Set([
+  "a", "abbr", "b", "bdi", "bdo", "button", "cite", "code", "del",
+  "em", "i", "img", "input", "ins", "kbd", "label", "mark", "q",
+  "ruby", "s", "samp", "select", "small", "span", "strong", "sub",
+  "sup", "svg", "textarea", "time", "u", "var",
+]);
+function inlineSibling(node: ChildNode | null): boolean {
+  if (node?.nodeType !== Node.ELEMENT_NODE) return false;
+  const element = node as HTMLElement;
+  const display = element.style?.display?.trim().toLowerCase();
+  if (display) return display.startsWith("inline");
+  return INLINE_SPACING_TAGS.has(element.tagName.toLowerCase());
+}
+function keepWhitespaceText(parent: Element, child: ChildNode): boolean {
   return TEXT_FLOW_TAGS.has(parent.tagName.toLowerCase()) ||
-    /^pre(?:-wrap|-line)?$/.test((parent as HTMLElement).style?.whiteSpace || "");
+    /^pre(?:-wrap|-line)?$/.test((parent as HTMLElement).style?.whiteSpace || "") ||
+    (inlineSibling(child.previousSibling) && inlineSibling(child.nextSibling));
 }
 function safeUrl(value: string): string {
   // Browsers remove tab/newline characters before interpreting a scheme.
@@ -587,7 +604,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     const children = Array.from(element.childNodes).filter((child) =>
       child.nodeType === Node.ELEMENT_NODE ||
       (child.nodeType === Node.TEXT_NODE &&
-        (!!child.textContent?.trim() || (keepWhitespaceText(element) && !!child.textContent))));
+        (!!child.textContent?.trim() || (keepWhitespaceText(element, child) && !!child.textContent))));
     if (children.length === 0) {
       if (/^h[1-6]$/.test(tag)) common.text = { content: "", heading: Number(tag.slice(1)) };
       return add(common);
