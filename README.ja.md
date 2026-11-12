@@ -118,7 +118,7 @@ http://localhost:3000 を開くと、ホーム画面（サイトの一覧）が�
 
 - `wrangler.jsonc` に基づき、Cloudflare の D1・KV をローカルで再現します。データは `.wrangler/state` に保存されます。`TSUMU_DATA_DIR` を設定していても、こちらが優先されます。
 - 環境変数なしで動作し、ログインを省略します（`npm run dev` のみ）。`npm run preview` でもログインを省略するには、`.dev.vars` に `ALLOW_ANONYMOUS=true` を記述します。
-- 他の編集者の変更はポーリングで反映されます。WebSocket によるリアルタイムの反映を確認するには、`npm run preview` を使用します。
+- WebSocket は使えないため、他の編集者の変更は Server-Sent Events（SSE）で反映されます。SSE も使えない場合は、10秒間隔のポーリングに切り替わります。WebSocket によるリアルタイムの反映を確認するには、`npm run preview` を使用します。
 
 ## エディタのデプロイ
 

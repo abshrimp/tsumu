@@ -118,7 +118,7 @@ A few things to know about `npm run dev`:
 
 - It emulates Cloudflare's D1 and KV locally, based on `wrangler.jsonc`. Data goes to `.wrangler/state`, even if `TSUMU_DATA_DIR` is set.
 - It needs no environment variables, and it skips sign-in. This applies to `npm run dev` only. To skip sign-in under `npm run preview`, put `ALLOW_ANONYMOUS=true` in `.dev.vars`.
-- Collaborators' changes arrive by polling. To try the real-time WebSocket connection, use `npm run preview`.
+- Collaborators' changes arrive through Server-Sent Events (SSE), because WebSocket is not available. If SSE is also unavailable, the editor falls back to polling every 10 seconds. To try the real-time WebSocket connection, use `npm run preview`.
 
 ## Deploying the editor
 
