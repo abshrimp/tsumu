@@ -31,7 +31,7 @@ function fixture() {
     ] },
     { id: "each", kind: "for-each", array: "items", then: [
       { id: "per-item", kind: "transform", source: "price", into: "lastPrice",
-        transform: { kind: "math", operation: "multiply", operand: 2 } },
+        transform: { kind: "math", operation: "multiply", operandType: "number", operand: 2 } },
     ] },
     { id: "conditional", kind: "if", cond: { subject: "var", left: "{total}",
       op: "gt", value: "3" }, then: [
@@ -39,7 +39,7 @@ function fixture() {
     ], else: [{ id: "no", kind: "set-var", into: "branch", value: "low" }] },
     { id: "repeat", kind: "repeat", times: 2, then: [
       { id: "inc", kind: "transform", source: "total", into: "total",
-        transform: { kind: "math", operation: "add", operand: 1 } },
+        transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
     ] },
     { id: "list", kind: "list-display", mode: "filter", array: "items",
       field: "id", op: "eq", value: "first", not: true, dir: "asc" },
@@ -127,7 +127,7 @@ test("generated browser event runtime retains transform and list-display actions
     id: "click-value", trigger: "click", pos: { x: 0, y: 0 },
     steps: [
       { id: "increment", kind: "transform", source: "total", into: "total",
-        transform: { kind: "math", operation: "add", operand: 1 } },
+        transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
       { id: "filter", kind: "list-display", mode: "filter", array: "items",
         field: "id", op: "eq", value: "second" },
     ],

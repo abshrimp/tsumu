@@ -471,7 +471,7 @@ test("failed numeric transforms preserve earlier values instead of using fallbac
   const steps: ScriptStep[] = [
     { id: "previous", kind: "set-var", into: "selected", value: "original" },
     { id: "bad", kind: "transform", source: "not-a-number", into: "selected",
-      transform: { kind: "math", operation: "add", operand: 1 } },
+      transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
     { id: "fallback", kind: "transform", source: "selected", into: "selected",
       transform: { kind: "fallback", text: "replacement" } },
   ];
@@ -505,7 +505,7 @@ test("three ordinary blocks compose a value in preview and server generated outp
   const chain: ScriptStep[] = [
     { id: "t1", kind: "transform", source: "data", into: "chosen", transform: { kind: "field", key: "tags" } },
     { id: "t2", kind: "transform", source: "chosen", into: "chosen", transform: { kind: "length" } },
-    { id: "t3", kind: "transform", source: "chosen", into: "chosen", transform: { kind: "math", operation: "add", operand: 5 } },
+    { id: "t3", kind: "transform", source: "chosen", into: "chosen", transform: { kind: "math", operation: "add", operandType: "number", operand: 5 } },
   ];
   steps.splice(1, 1, ...chain);
   const plan = pagePlan(doc, "p");
@@ -727,7 +727,7 @@ test("page-load for-each and if execute on fetched items before rendering, inclu
         cond: { subject: "var", target: "", left: "{enabled}", op: "eq", value: '\"true\"' },
         then: [
           { id: "double", kind: "transform", source: "price", into: "doubled",
-            transform: { kind: "math", operation: "multiply", operand: 2 } },
+            transform: { kind: "math", operation: "multiply", operandType: "number", operand: 2 } },
           { id: "sum", kind: "transform", source: "total", into: "total",
             transform: { kind: "math", operation: "add", operandType: "variable", operand: "doubled" } },
           { id: "append", kind: "transform", source: "prices", into: "prices",
@@ -789,7 +789,7 @@ test("page-load repeat count can come from a numeric-string variable", () => {
     { id: "numeric", kind: "transform", source: "sum", into: "sum", transform: { kind: "parse" } },
     { id: "iterate", kind: "repeat", times: "{count}", then: [
       { id: "increment", kind: "transform", source: "sum", into: "sum",
-        transform: { kind: "math", operation: "add", operand: 1 } },
+        transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
     ] },
   );
   const plan = pagePlan(doc, "p");
@@ -845,7 +845,7 @@ test("a canvas transform chain serializes to the browser runtime without losing 
       { id: "input", kind: "set-var" as const, into: "number", value: "4" },
       { id: "parse", kind: "transform" as const, source: "number", into: "number", transform: { kind: "parse" as const } },
       { id: "math", kind: "transform" as const, source: "number", into: "number",
-        transform: { kind: "math" as const, operation: "multiply" as const, operand: 3 } },
+        transform: { kind: "math" as const, operation: "multiply" as const, operandType: "number" as const, operand: 3 } },
     ],
   }] };
   doc.nodes.action = node;
