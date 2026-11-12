@@ -445,14 +445,14 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*/env*/
         return has(source, name) ? source[name] : dig(source, name, missing);
       }
-      function writeVar(name, v) {
+      function writeVar(name, v, editingList) {
         /*#env*/
         if (env.getPageData && name.includes(".")) {
           var data = env.getPageData(), rootKey = has(data, name) ? name : name.split(".")[0];
           if (!has(vars, rootKey) && has(data, rootKey)) vars[rootKey] = data[rootKey];
         }
         /*/env*/
-        var rootName = writeVarPath(vars, name, v, withinValueLimit);
+        var rootName = writeVarPath(vars, name, v, withinValueLimit, editingList);
         if (rootName === undefined) return false;
         if (typeof window !== "undefined" && typeof window.__siteVarsOnChange === "function") {
           window.__siteVarsOnChange(rootName, vars[rootName]);
@@ -651,7 +651,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         refreshLive();
       }
       /*/live*/
-      function setVar(name, v) {
+      function setVar(name, v, editingList) {
         if (typeof name !== "string" || !name || Object.is(getVar(name, missingVar), v)) return;
         // Variable-change scripts live on the page marker, not on an element.
         // Snapshot the watched paths before writing so unchanged nested fields
@@ -666,7 +666,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (watched.split(".")[0] === changedRoot)
             watching.push({ script: s, name: watched, before: getVar(watched) });
         });
-        if (!writeVar(name, v)) return;
+        if (!writeVar(name, v, editingList)) return;
         refreshLive();
         /*#clist*/
         var rk = name.split(".")[0];
@@ -1443,7 +1443,7 @@ export const SCRIPT_RUNTIME = `function (env) {
               if (!Number.isSafeInteger(targetIndex) || targetIndex < 0 ||
                   targetIndex > nextArray.length || nextArray.length >= 10000 && targetIndex === nextArray.length) break;
               nextArray[targetIndex] = newValue;
-              setVar(st.list, nextArray);
+              setVar(st.list, nextArray, true);
             } else {
               if (!providedKey) break;
               var nextKey = String(rawKey);
@@ -1451,7 +1451,7 @@ export const SCRIPT_RUNTIME = `function (env) {
               if (nextKey === "__proto__" || nextKey === "prototype" || nextKey === "constructor") break;
               var nextObject = Object.assign(Object.create(null), sourceList);
               nextObject[nextKey] = newValue;
-              setVar(st.list, nextObject);
+              setVar(st.list, nextObject, true);
             }
             break;
           }
@@ -1460,7 +1460,7 @@ export const SCRIPT_RUNTIME = `function (env) {
                 !configuredInput(st.value)) break;
             var selected = readInput(st.value, self, sc);
             var remaining = removeItem(getVar(st.list), st.mode, selected, matchValueCondition);
-            if (remaining !== undefined) setVar(st.list, remaining);
+            if (remaining !== undefined) setVar(st.list, remaining, true);
             break;
           }
           case "set-var": {
