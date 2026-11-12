@@ -80,3 +80,37 @@ test("clearing the hover image picker removes the image; group reset restores in
   view.elements.find(e => e.type === "Grp" && e.props.onReset).props.onReset();
   assert.equal(view.writes.at(-1).backgroundImage, null);
 });
+
+for (const [choice, expectedHeight, expectedMin] of [
+  ["auto", "auto", undefined],
+  ["fixed", "300px", undefined],
+  ["parent", "100%", undefined],
+  ["screen", "auto", "100dvh"],
+] as const) {
+  test(`height preset ${choice} emits standard CSS properties`, () => {
+    const view = render("PositionSec", "HeightModeControl", {}, { axis: "cross" }, "base", "default");
+    view.elements.find(e => e.type === "select").props.onChange({ target: { value: choice } });
+    const patch = view.writes.at(-1);
+    assert.equal(patch.height, choice === "auto" || choice === "screen" ? null : expectedHeight);
+    if (expectedMin) assert.equal(patch.minHeight, expectedMin);
+  });
+}
+test("height presets recognize manual values without overwriting them", () => {
+  const view = render("PositionSec", "HeightModeControl", { height: "64rem" }, { axis: "cross" }, "base", "default");
+  assert.equal(view.elements.find(e => e.type === "select").props.value, "custom");
+  assert.equal(view.writes.length, 0);
+});
+test("fill remaining height is offered only in a vertical flex parent", () => {
+  const view = render("PositionSec", "HeightModeControl", {}, { axis: "main" }, "base", "default");
+  const selector = view.elements.find(e => e.type === "select");
+  assert.ok(view.elements.some(e => e.type === "option" && e.props.value === "fill"));
+  selector.props.onChange({ target: { value: "fill" } });
+  assert.equal(view.writes.at(-1).flexGrow, "1");
+  assert.equal(view.writes.at(-1).flexBasis, "0%");
+  assert.equal(view.writes.at(-1).minHeight, "0");
+});
+test("switching away from screen height clears its minimum", () => {
+  const view = render("PositionSec", "HeightModeControl", { minHeight: "100dvh" }, { axis: "cross" }, "base", "hover");
+  view.elements.find(e => e.type === "select").props.onChange({ target: { value: "parent" } });
+  assert.equal(view.writes.at(-1).minHeight, "auto");
+});
