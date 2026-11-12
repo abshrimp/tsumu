@@ -13,7 +13,7 @@ export function radioClearDoc(clearOnChange = false): SiteDoc {
     ...makeBox(), id, attrId: id, type: "field", field: { kind: "radio", label, group, checked },
     scripts: [{ id: `${id}-change`, trigger: "change", pos: { x: 0, y: 0 }, steps: [
       { id: `default-${id}`, kind: "transform", source: `${id}Changes`, into: `${id}Changes`, transform: { kind: "fallback", text: "0" } },
-      { id: `parse-${id}`, kind: "transform", source: `${id}Changes`, into: `${id}Changes`, transform: { kind: "parse" } }, { id: `${id}-count`, kind: "transform", source: `${id}Changes`, into: `${id}Changes`, transform: { kind: "math", operation: "add", operand: 1 } },
+      { id: `parse-${id}`, kind: "transform", source: `${id}Changes`, into: `${id}Changes`, transform: { kind: "parse" } }, { id: `${id}-count`, kind: "transform", source: `${id}Changes`, into: `${id}Changes`, transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
       ...(clearOnChange && id === "small" ? [{ id: "self-clear", kind: "set-value", target: "small", value: "false" } as ScriptStep] : []),
     ] }],
   });

@@ -39,8 +39,8 @@ for (const exported of [false, true]) {
   test((exported ? "exported" : "preview") + " runtime composes numeric value blocks in ordinary script order", async ({ page }) => {
     const { answer, errors } = await runChain(page, exported, "12", [
       { id: "parse", kind: "transform", source: "items", into: "items", transform: { kind: "parse" } },
-      { id: "math", kind: "transform", source: "items", into: "items", transform: { kind: "math", operation: "multiply", operand: 2 } },
-      { id: "add", kind: "transform", source: "items", into: "items", transform: { kind: "math", operation: "add", operand: 3 } },
+      { id: "math", kind: "transform", source: "items", into: "items", transform: { kind: "math", operation: "multiply", operandType: "number", operand: 2 } },
+      { id: "add", kind: "transform", source: "items", into: "items", transform: { kind: "math", operation: "add", operandType: "number", operand: 3 } },
     ]);
     await expect(answer).toHaveValue("27");
     expect(errors).toEqual([]);
@@ -79,7 +79,7 @@ for (const exported of [false, true]) {
       { id: "parse-sum", kind: "transform", source: "sum", into: "sum", transform: { kind: "parse" } },
       { id: "repeat", kind: "repeat", times: "{count}", then: [
         { id: "increase", kind: "transform", source: "sum", into: "sum",
-          transform: { kind: "math", operation: "add", operand: 1 } },
+          transform: { kind: "math", operation: "add", operandType: "number", operand: 1 } },
       ] },
       { id: "result", kind: "set-var", into: "items", value: "{sum}" },
     ]);
