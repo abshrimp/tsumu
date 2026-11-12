@@ -1,6 +1,8 @@
 "use client";
 
 import { isEmbeddedAssetUrl } from "./site-import-format";
+import { svgUsesBlurOrShadow } from "./svg-effects";
+import { cachedSvgEffect, cacheSvgEffect, type SvgEffectAnalysis } from "./svg-analysis-cache";
 import { CSS_ASSET_ATTRIBUTES, replaceCssAssetUrls, rewriteCssAssetUrls } from "./css-assets";
 import { zipAssetClosure, zipCssPreviewUrls, zipStylesheet, ZIP_CSS_LIMITS } from "./zip-css";
 import { assetMediaUrl } from "./media-url";
@@ -53,6 +55,7 @@ export async function uploadStaticAsset(file: File): Promise<Asset> {
     width: 0,
     height: 0,
   };
+  let svgAnalysis: SvgEffectAnalysis | null = null;
   if (file.type.startsWith("image/")) {
     const objectUrl = URL.createObjectURL(file);
     try {
@@ -63,9 +66,10 @@ export async function uploadStaticAsset(file: File): Promise<Asset> {
   }
   if (file.type === "image/svg+xml") {
     const svg = await file.text();
-    size.svgFilter = hasSvgFilter(svg);
+    svgAnalysis = { svgFilter: svgUsesBlurOrShadow(svg), ...(svgViewBoxSize(svg) ?? {}) };
+    size.svgFilter = svgAnalysis.svgFilter;
     // width・height の無い SVG は大きさが 0 と測られることがあるため、viewBox から実際の大きさを取る
-    if (!size.width || !size.height) size = { ...size, ...(svgViewBoxSize(svg) ?? {}) };
+    if (!size.width || !size.height) size = { ...size, width: svgAnalysis.width ?? size.width, height: svgAnalysis.height ?? size.height };
   }
 
   const form = new FormData();
@@ -77,6 +81,7 @@ export async function uploadStaticAsset(file: File): Promise<Asset> {
       if (typeof data?.path !== "string" || !data.path.startsWith("assets/") || data.path.length === "assets/".length) {
         throw new Error(tr("Could not confirm the uploaded file location."));
       }
+      if (svgAnalysis) cacheSvgEffect(data.path, svgAnalysis);
       return {
         id: genId("asset"),
         // 表示名は元のファイル名のまま（日本語も使える）。保存先のパスと書き出すファイル名には、別に安全な名前を使う
@@ -126,10 +131,6 @@ export function assetKind(asset: Asset): "image" | "video" | "audio" {
   return "image";
 }
 
-function hasSvgFilter(svg: string): boolean {
-  return /<filter[\s>]/i.test(svg);
-}
-
 /** ルートの <svg> の viewBox の幅と高さ（無いか不正なら null） */
 function svgViewBoxSize(svg: string): { width: number; height: number } | null {
   const root = /<svg\b[^>]*>/i.exec(svg)?.[0] ?? "";
@@ -138,32 +139,53 @@ function svgViewBoxSize(svg: string): { width: number; height: number } | null {
   return width > 0 && height > 0 ? { width: Math.round(width), height: Math.round(height) } : null;
 }
 
-/**
- * <filter>（影など）の有無をまだ判定していないか、実際の大きさが 0 の SVG アセットを調べる。
- * 戻り値は、判定できたアセットの ID と結果（実際の大きさは viewBox から取れたときだけ）。iOS Safari でぼやけるのを防ぐ対象の判定に使う
- */
+/** SVG画像の実際の内容に基づいて影・ぼかしを判定する。保存先パス単位で結果を再利用する。 */
+/** 同じアセットへの並行取得は共有する。 */
+const svgAnalysisInFlight = new Map<string, Promise<SvgEffectAnalysis | null>>();
+
+async function analyzeAssetSvg(asset: Asset): Promise<SvgEffectAnalysis | null> {
+  const src = assetSrc(asset);
+  if (!src) return null;
+  const path = asset.path;
+  if (path) {
+    const cached = await cachedSvgEffect(path);
+    if (cached) return cached;
+    const ongoing = svgAnalysisInFlight.get(path);
+    if (ongoing) return ongoing;
+  }
+  const pending = (async () => {
+    try {
+      const res = await fetchWithRetry(src);
+      if (!res.ok) return null;
+      const svg = await res.text();
+      const analysis: SvgEffectAnalysis = { svgFilter: svgUsesBlurOrShadow(svg), ...(svgViewBoxSize(svg) ?? {}) };
+      if (path) cacheSvgEffect(path, analysis);
+      return analysis;
+    } catch {
+      return null; // 一時的な取得失敗は記録しない。次回再試行できる。
+    }
+  })();
+  if (!path) return pending; // 埋め込み data URL の読み込みはネットワークに接続しない
+  svgAnalysisInFlight.set(path, pending);
+  try { return await pending; }
+  finally { if (svgAnalysisInFlight.get(path) === pending) svgAnalysisInFlight.delete(path); }
+}
+
 export async function detectSvgFilters(
   assets: Record<string, Asset>
 ): Promise<Record<string, Pick<Asset, "svgFilter"> & Partial<Pick<Asset, "width" | "height">>>> {
   const pending = Object.values(assets).filter(
-    (a) =>
-      (a.mimeType === "image/svg+xml" || (!a.mimeType && /\.svg$/i.test(a.name))) &&
-      (a.svgFilter === undefined || (a.svgFilter && (!a.width || !a.height)))
+    (a) => a.mimeType === "image/svg+xml" || (!a.mimeType && /\.svg$/i.test(a.name))
   );
   const result: Record<string, Pick<Asset, "svgFilter"> & Partial<Pick<Asset, "width" | "height">>> = {};
-  // 一度に取得するとサーバーが 503 を返すため、同時に取得する数を絞る
   await mapLimit(pending, ASSET_FETCH_CONCURRENCY, async (asset) => {
-    try {
-      const src = assetSrc(asset);
-      if (!src) return;
-      const res = await fetchWithRetry(src);
-      if (!res.ok) return;
-      const svg = await res.text();
-      const size = !asset.width || !asset.height ? svgViewBoxSize(svg) : null;
-      result[asset.id] = { svgFilter: hasSvgFilter(svg), ...(size ?? {}) };
-    } catch {
-      // 取得できなければ未判定のままにする（次の機会にまた調べる）
-    }
+    const analysis = await analyzeAssetSvg(asset);
+    if (!analysis) return;
+    result[asset.id] = {
+      svgFilter: analysis.svgFilter,
+      ...((!asset.width || !asset.height) && analysis.width && analysis.height
+        ? { width: analysis.width, height: analysis.height } : {}),
+    };
   });
   return result;
 }
