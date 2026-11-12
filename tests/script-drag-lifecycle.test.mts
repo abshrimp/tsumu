@@ -33,6 +33,17 @@ function mount(targetSlot?: string, inputDoc = scriptDragDoc(), slotKind = "step
   const marqueeRef = { current: null as Marquee | null };
   const ui = { drag: null as Drag | null, marquee: null as Marquee | null, slot: null as string | null, selected: [] as string[], closed: false };
   const rect = (left: number, right: number) => ({ left, right, top: 0, bottom: 600 });
+  const paletteClasses = new Set<string>();
+  const palette = {
+    getBoundingClientRect: () => rect(0, 280),
+    classList: {
+      toggle: (name: string, enabled: boolean) => {
+        if (enabled) paletteClasses.add(name);
+        else paletteClasses.delete(name);
+      },
+      remove: (name: string) => { paletteClasses.delete(name); },
+    },
+  };
   const ws = { scrollLeft: 0, scrollTop: 0, getBoundingClientRect: () => rect(300, 1200),
     querySelectorAll: (selector: string) => targetSlot && selector === '[data-slot-kind]'
       ? [{ dataset: { slot: targetSlot, slotKind },
@@ -47,7 +58,7 @@ function mount(targetSlot?: string, inputDoc = scriptDragDoc(), slotKind = "step
   } as ScriptEditorLatest };
   const setSelectedList = (value: string[]) => { ui.selected = value; };
   const cancel = load("components/script-editor/useScriptDrag.ts").useScriptDrag({
-    wsRef: { current: ws }, paletteRef: { current: { getBoundingClientRect: () => rect(0, 280) } }, zoomRef: { current: 1 },
+    wsRef: { current: ws }, paletteRef: { current: palette }, zoomRef: { current: 1 },
     dragRef, marqueeRef, latest, setSelectedList, setMenu() {},
     setDrag: (value: Drag | null) => { ui.drag = value; },
     setMarquee: (value: Marquee | null) => { ui.marquee = value; },
@@ -70,7 +81,7 @@ function mount(targetSlot?: string, inputDoc = scriptDragDoc(), slotKind = "step
     }
     if (move) pointer("pointermove");
   };
-  return { start, pointer, win, doc, ui, dragRef, marqueeRef, cancel,
+  return { start, pointer, win, doc, ui, dragRef, marqueeRef, paletteClasses, cancel,
     key(key: string, ctrlKey = false) {
       const event = Object.assign(new Event("keydown"), { key, ctrlKey });
       Object.defineProperty(event, "target", { value: { tagName: "BODY" } });
@@ -252,3 +263,20 @@ test("moving a group against a workspace edge keeps the spacing between scripts"
     assert.deepEqual(state().doc.pages.p.pageScripts, scripts);
   } finally { m.close(); }
 });
+
+for (const cancellation of ["pointercancel", "blur", "escape", "document change"] as const) {
+  test(`cancelled script drag clears the palette trash hover on ${cancellation}`, () => {
+    const m = mount();
+    try {
+      m.start("script");
+      m.pointer("pointermove", { x: 100, y: 300 });
+      assert.equal(m.paletteClasses.has("is-trash"), true);
+      if (cancellation === "pointercancel") m.pointer("pointercancel", { x: 100, y: 300, buttons: 0 });
+      if (cancellation === "blur") m.win.dispatchEvent(new Event("blur"));
+      if (cancellation === "escape") m.key("Escape");
+      if (cancellation === "document change") state().updatePage("p", { title: "Updated" });
+      assert.equal(m.paletteClasses.has("is-trash"), false);
+      assert.equal(m.dragRef.current, null);
+    } finally { m.close(); }
+  });
+}
