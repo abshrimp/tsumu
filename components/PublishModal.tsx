@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   CloudOff,
@@ -304,31 +304,14 @@ export default function PublishModal({
     setStyle(targets.lastExportOptions.style);
   }, [targets]);
   const options: ExportOptions = { framework: format, language, style, scope: "project" };
-  // 公開前チェックの完了を待たずにモーダルを描画し、古い結果で公開できないようにする。
-  const [validation, setValidation] = useState<{
-    doc: SiteDoc;
-    format: ExportFormat;
-    language: ExportLanguage;
-    style: ExportStyle;
-    checks: CheckResult[];
-  } | null>(null);
-  const checks = configuredTargets &&
-    validation?.doc === doc && validation.format === format &&
-    validation.language === language && validation.style === style
-    ? validation.checks : null;
-  useEffect(() => {
-    if (!configuredTargets) return;
-    const timer = window.setTimeout(() => {
-      const nextChecks: CheckResult[] = [
-        ...runChecks(doc),
-        ...exportLimitations(doc, { framework: format, language, style, scope: "project" })
-          .map((message): CheckResult => ({ level: "error", message })),
-      ];
-      setValidation({ doc, format, language, style, checks: nextChecks });
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [configuredTargets, doc, format, language, style]);
-  const hasError = !checks || checks.some((c) => c.level === "error");
+  // 公開先が読み込まれるまでは重い同期チェックを実行しない。
+  // 初回のローディングを先に描画してから、公開先が揃った時点で検証する。
+  const checks = useMemo<CheckResult[]>(() => configuredTargets ? [
+    ...runChecks(doc),
+    ...exportLimitations(doc, { framework: format, language, style, scope: "project" })
+      .map((message): CheckResult => ({ level: "error", message })),
+  ] : [], [configuredTargets, doc, format, language, style]);
+  const hasError = checks.some((c) => c.level === "error");
   useEscapeToClose(onClose, phase !== "busy");
 
   const publish = async (site: PublishTarget) => {
@@ -543,13 +526,7 @@ export default function PublishModal({
             </li>
           </ul>
         )}
-        {phase === "check" && configuredTargets && !checks && (
-          <div className="pub-loading is-large" role="status">
-            <LoaderCircle size={16} className="spin" />
-            {tr("Checking site before publishing…")}
-          </div>
-        )}
-        {phase === "check" && configuredTargets && checks && (
+        {phase === "check" && configuredTargets && (
           <>
             <p className="modal-desc">
               {format === "html" || format === "single-html"
