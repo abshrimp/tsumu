@@ -16,6 +16,10 @@
 </p>
 
 <p align="center">
+  <a href="https://tsumu.ebii.net"><strong>Try the demo</strong></a> · English · <a href="README.ja.md">日本語</a>
+</p>
+
+<p align="center">
   <img src="docs/screenshots/en/editor.png" alt="Tsumu's visual website editor">
 </p>
 
