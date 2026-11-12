@@ -16,7 +16,6 @@ import { SELF_TARGET, type FieldContent, type ScriptCond, type ScriptOp } from "
 import { tr, trc, trNodes } from "../../lib/i18n";
 import { Ctx, LoopCtx, ScriptNodeCtx, ScriptStepCtx } from "./context";
 import { TargetSelect } from "./targets";
-import { PathMenu } from "./fetch";
 
 export function TextIn({
   value,
@@ -434,9 +433,11 @@ export function OpEditor({
 export function CondEditor({
   cond,
   onChange,
+  renderPathMenu,
 }: {
   cond: ScriptCond;
   onChange: (c: ScriptCond) => void;
+  renderPathMenu: (root: Record<string, unknown>, path: string, onPick: (path: string) => void) => ReactNode;
 }) {
   const { samples, variableIndex } = useContext(Ctx);
   const variableOptions = useMemo(() => {
@@ -474,19 +475,14 @@ export function CondEditor({
           text="{left} {cond}"
           parts={{
             left: (
-              <PathMenu
-                root={variableOptions}
-                path={singleValueReference(cond.left ?? "") ?? ""}
-                placeholder={tr("Select a variable")}
-                ariaLabel={tr("Source variable")}
-                mode="any"
-                allowRoot={false}
-                portalZIndex={550}
-                onChange={(path) => onChange({
+              renderPathMenu(
+                variableOptions,
+                singleValueReference(cond.left ?? "") ?? "",
+                (path) => onChange({
                   ...cond,
                   ...changeIfVariableLeft(cond, path ? `{${path}}` : "", samples),
-                })}
-              />
+                }),
+              )
             ),
             cond: (
               <OpEditor
