@@ -1094,6 +1094,17 @@ export function previewDataVars(
   const origins: Record<string, { totals?: Record<string, number>; path: string }> = {};
   const own = (object: object, key: string) => Object.prototype.hasOwnProperty.call(object, key);
   const save = (key: string, value: unknown) => setVarPath(out, key, value);
+  const hasSavedPath = (name: string): boolean => {
+    if (own(out, name)) return true;
+    let current: unknown = out;
+    for (const part of name.split(".")) {
+      if (current === null || typeof current !== "object") return false;
+      const key = Array.isArray(current) && part === "-1" ? String(current.length - 1) : part;
+      if (!own(current, key)) return false;
+      current = (current as Record<string, unknown>)[key];
+    }
+    return true;
+  };
   const setOrigin = (key: string, value: { totals?: Record<string, number>; path: string }) =>
     Object.defineProperty(origins, key, { value, writable: true, enumerable: true, configurable: true });
   const originFor = (name: string) => {
@@ -1179,7 +1190,7 @@ export function previewDataVars(
   while (pending.length) {
     const waiting: typeof pending = [];
     for (const copy of pending) {
-      if (own(out, copy.into) || lookupVar(out, copy.into) !== undefined) continue;
+      if (hasSavedPath(copy.into)) continue;
       const value = lookupVar(scope(), copy.src);
       if (value === undefined || save(copy.into, value) === undefined) waiting.push(copy);
     }
