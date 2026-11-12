@@ -21,31 +21,31 @@ function branchOf(list: string): [string, string] {
   return [list.slice(0, separator), list.slice(separator + 1)];
 }
 
+// Imported documents can contain duplicate step IDs. Resolve the first owner
+// in document order consistently for both slot lookup and immutable edits.
+function findBranchOwner(steps: ScriptStep[], id: string): ScriptStep | null {
+  for (const step of steps) {
+    if (step.kind !== "if" && step.kind !== "repeat" && step.kind !== "for-each") continue;
+    if (step.id === id) return step;
+    const nested = findBranchOwner(step.then, id);
+    if (nested) return nested;
+    if (step.kind === "if" && step.else) {
+      const otherwise = findBranchOwner(step.else, id);
+      if (otherwise) return otherwise;
+    }
+  }
+  return null;
+}
+
 export function listIn(script: PageScript, list: string, createMissing = false): ScriptStep[] | null {
   if (list === "root") return script.steps;
   const [sid, branch] = branchOf(list);
-  let found: ScriptStep[] | null = null;
-  const visit = (steps: ScriptStep[]) => {
-    for (const s of steps) {
-      if (s.kind === "repeat" || s.kind === "for-each") {
-        if (s.id === sid) {
-          found = s.then;
-          return;
-        }
-        visit(s.then);
-        continue;
-      }
-      if (s.kind !== "if") continue;
-      if (s.id === sid) {
-        found = branch === "else" ? (s.else ?? (createMissing ? (s.else = []) : null)) : s.then;
-        return;
-      }
-      visit(s.then);
-      if (s.else) visit(s.else);
-    }
-  };
-  visit(script.steps);
-  return found;
+  const owner = findBranchOwner(script.steps, sid);
+  if (!owner) return null;
+  if (owner.kind === "if" && branch === "else") {
+    return owner.else ?? (createMissing ? (owner.else = []) : null);
+  }
+  return owner.then;
 }
 
 /** ブロックの並びの中（入れ子も含む）に stepId があるか */
@@ -80,23 +80,7 @@ function spliceScriptList(
   }
 
   const [sid, branch] = branchOf(loc.list);
-  // Resolve duplicate IDs with the same direct-match short circuit as listIn.
-  const findOwner = (steps: ScriptStep[]): ScriptStep | null => {
-    let found: ScriptStep | null = null;
-    for (const step of steps) {
-      if (step.kind === "repeat" || step.kind === "for-each") {
-        if (step.id === sid) return step;
-        found = findOwner(step.then) ?? found;
-        continue;
-      }
-      if (step.kind !== "if") continue;
-      if (step.id === sid) return step;
-      found = findOwner(step.then) ?? found;
-      if (step.else) found = findOwner(step.else) ?? found;
-    }
-    return found;
-  };
-  const owner = findOwner(script.steps);
+  const owner = findBranchOwner(script.steps, sid);
   if (!owner) return [scripts, []];
   const field = owner.kind === "if" && branch === "else" ? "else" : "then";
   if (field === "else" && owner.kind === "if" && !owner.else && !createMissing) {
