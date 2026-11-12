@@ -502,7 +502,8 @@ export default function Home() {
     try {
       const { createSiteFromFile } = await import("../lib/import-site-file");
       const { id } = await createSiteFromFile(file, store,
-        (message) => setImportStatus({ kind: "loading", message }));
+        (message) => setImportStatus({ kind: "loading", message }),
+        () => showAlert(tr("No editing data was found in the ZIP. The HTML will be converted and imported.")));
       window.location.assign(sitePath(id));
     } catch (error) {
       setImportStatus({ kind: "error", message: error instanceof Error
