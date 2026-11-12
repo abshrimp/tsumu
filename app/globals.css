@@ -12666,28 +12666,66 @@ select.se-in.se-fixed-select,
 }
 
 
-/* サイト・ページ・HTML要素共通の拡大コード編集画面 */
-.code-editor-button { opacity: 0.85; flex: none; }
-.code-editor-button:hover, .code-editor-button:focus-visible { opacity: 1; }
-.custom-code-modal {
-  width: min(960px, calc(100vw - 32px));
+/* A separate expansion control beside each custom-code textarea label. */
+.code-field-heading { display: flex; align-items: center; gap: 5px; min-height: 22px; }
+.code-field-heading .lbl { min-width: 0; }
+.code-editor-button {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 23px; height: 23px; flex: none;
+  border-radius: 6px; color: var(--text-2); background: transparent;
+}
+.code-editor-button:hover, .code-editor-button:focus-visible {
+  background: var(--state-hover); color: var(--accent);
+}
+.code-editor-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* The textarea provides input, selection and a caret above inert colorized markup. */
+.modal.custom-code-modal {
+  width: min(98vw, 1600px);
   max-width: none;
-  height: min(82dvh, 820px);
-  max-height: calc(100dvh - 32px);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  overflow: hidden;
+  height: min(94dvh, 1100px);
+  max-height: calc(100dvh - 16px);
+  display: flex; flex-direction: column; gap: 12px; overflow: hidden;
+  padding: clamp(12px, 1.5vw, 24px);
 }
 .custom-code-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.custom-code-header h2 { margin: 0; }
-.custom-code-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-.custom-code-tabs button { padding: 8px 12px; border-bottom: 2px solid transparent; color: var(--text-2); }
-.custom-code-tabs button.is-active { color: var(--text); border-bottom-color: var(--accent); }
-.custom-code-input {
-  flex: 1; min-height: 0; resize: none; overflow: auto;
-  font-size: 13px !important; line-height: 1.65 !important;
-  tab-size: 2; white-space: pre;
+.custom-code-header h2 { margin: 0; overflow-wrap: anywhere; }
+.custom-code-stage {
+  position: relative; flex: 1; min-height: 0; overflow: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--field);
 }
-.custom-code-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.custom-code-stage:focus-within { border-color: var(--accent); }
+.custom-code-highlight,
+.modal .custom-code-input {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  margin: 0; padding: 14px 18px; box-sizing: border-box;
+  font: 13px/1.65 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: normal; tab-size: 2; text-align: left;
+  white-space: pre; overflow-wrap: normal;
+}
+.custom-code-highlight { overflow: hidden; pointer-events: none; color: var(--text); }
+.custom-code-highlight code { font: inherit; }
+.modal .custom-code-input, .modal .custom-code-input:focus {
+  resize: none; overflow: auto; border: 0; border-radius: 0;
+  color: transparent; -webkit-text-fill-color: transparent;
+  background: transparent; box-shadow: none; caret-color: var(--text);
+}
+.modal .custom-code-input::placeholder { color: var(--text-3); -webkit-text-fill-color: var(--text-3); }
+.modal .custom-code-input::selection { background: var(--accent-soft); }
+.code-token-comment { color: #7a8699; }
+.code-token-tag, .code-token-keyword { color: #a143b7; }
+.code-token-attribute, .code-token-property { color: #286eb3; }
+.code-token-string { color: #18764e; }
+.code-token-number { color: #b45e20; }
+.code-token-selector { color: #ab4469; }
+.code-token-punctuation { color: var(--text-2); }
+.custom-code-footer {
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 8px;
+}
 .custom-code-footer .hint { margin: 0; }
+@media (max-width: 600px) {
+  .modal.custom-code-modal { width: calc(100vw - 12px); height: calc(100dvh - 12px); }
+  .custom-code-highlight, .modal .custom-code-input { padding: 10px; font-size: 12px; }
+}

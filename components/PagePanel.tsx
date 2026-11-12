@@ -50,7 +50,7 @@ export default function PagePanel() {
   const normalZipRef = useRef<HTMLInputElement>(null);
   const [normalImportMessage, setNormalImportMessage] = useState<string | null>(null);
   const [zipMessage, setZipMessage] = useState<string | null>(null);
-  const [codeEditorOpen, setCodeEditorOpen] = useState(false);
+  const [codeEditorOpen, setCodeEditorOpen] = useState<{ pageId: string; field: "html" | "top" | "end" } | null>(null);
   const openScriptEditor = useEditor((s) => s.openScriptEditor);
 
   const page = doc.pages[activePageId];
@@ -473,7 +473,6 @@ export default function PagePanel() {
         defaultOpen={pageKind === "html"}
         tutorialTarget="page-code"
         help="page-code-snippet"
-        tools={pageKind === "redirect" ? undefined : <CodeEditorButton onClick={() => setCodeEditorOpen(true)} />}
       >
         <Grp
           label={tr("Page type")}
@@ -651,10 +650,13 @@ export default function PagePanel() {
               {zipMessage}
             </p>
           )}
-          <label className="lbl lbl-info" htmlFor={`page-${page.id}-rawhtml`}>
-            {tr("HTML code")}
-            <InfoTip text={tr("Serves the HTML, including scripts and CSS, as is (Next.js layouts and metadata don't apply to this page).")} />
-          </label>
+          <div className="code-field-heading">
+            <label className="lbl lbl-info" htmlFor={`page-${page.id}-rawhtml`}>
+              {tr("HTML code")}
+              <InfoTip text={tr("Serves the HTML, including scripts and CSS, as is (Next.js layouts and metadata don't apply to this page).")} />
+            </label>
+            <CodeEditorButton label={tr("HTML code")} onClick={() => setCodeEditorOpen({ pageId: page.id, field: "html" })} />
+          </div>
           <CommitTextarea
             key={`${page.id}-rawhtml`}
             id={`page-${page.id}-rawhtml`}
@@ -674,10 +676,13 @@ export default function PagePanel() {
         <>
           {/* ---- このページのみ ---- */}
           <div className="stack" style={{ gap: 4 }}>
-            <label className="lbl lbl-info" htmlFor={`page-${page.id}-top`}>
-              {tr("Head code (this page only)")}
-              <InfoTip text={tr("Inserted at the start or end of this page's HTML. Use it for page-specific tracking tags, structured data (JSON-LD) and so on. Set the title and description under \"Search & sharing\".")} />
-            </label>
+            <div className="code-field-heading">
+              <label className="lbl lbl-info" htmlFor={`page-${page.id}-top`}>
+                {tr("Head code (this page only)")}
+                <InfoTip text={tr("Inserted at the start or end of this page's HTML. Use it for page-specific tracking tags, structured data (JSON-LD) and so on. Set the title and description under \"Search & sharing\".")} />
+              </label>
+              <CodeEditorButton label={tr("Head code (this page only)")} onClick={() => setCodeEditorOpen({ pageId: page.id, field: "top" })} />
+            </div>
             <CommitTextarea
               key={`${page.id}-top`}
               id={`page-${page.id}-top`}
@@ -692,10 +697,13 @@ export default function PagePanel() {
             />
           </div>
           <div className="stack" style={{ gap: 4 }}>
-            <label className="lbl lbl-info" htmlFor={`page-${page.id}-end`}>
-              {tr("End code (this page only)")}
-              <InfoTip text={tr("Inserted at the start or end of this page's HTML. Use it for page-specific tracking tags, structured data (JSON-LD) and so on. Set the title and description under \"Search & sharing\".")} />
-            </label>
+            <div className="code-field-heading">
+              <label className="lbl lbl-info" htmlFor={`page-${page.id}-end`}>
+                {tr("End code (this page only)")}
+                <InfoTip text={tr("Inserted at the start or end of this page's HTML. Use it for page-specific tracking tags, structured data (JSON-LD) and so on. Set the title and description under \"Search & sharing\".")} />
+              </label>
+              <CodeEditorButton label={tr("End code (this page only)")} onClick={() => setCodeEditorOpen({ pageId: page.id, field: "end" })} />
+            </div>
             <CommitTextarea
               key={`${page.id}-end`}
               id={`page-${page.id}-end`}
@@ -711,29 +719,32 @@ export default function PagePanel() {
         </>
       )}
       </Sec>
-      {codeEditorOpen && pageKind !== "redirect" && (
+      {codeEditorOpen?.pageId === page.id &&
+        ((codeEditorOpen.field === "html" && pageKind === "html") ||
+         (codeEditorOpen.field !== "html" && pageKind === "normal")) && (
         <CustomCodeEditorModal
-          title={tr("Custom code")}
-          fields={pageKind === "html"
-            ? [{ id: "html", label: tr("HTML code"), value: page.rawHtml ?? "",
-                 placeholder: "<!DOCTYPE html>\n<html>\n  <head></head>\n  <body></body>\n</html>" }]
-            : [
-                { id: "head", label: tr("Head code (this page only)"), value: page.customTopHtml ?? "" },
-                { id: "body", label: tr("End code (this page only)"), value: page.customEndHtml ?? "" },
-              ]}
-          onApply={(changes) => {
-            if (pageKind === "html" && changes.html !== undefined) {
+          key={page.id + ":" + codeEditorOpen.field}
+          title={codeEditorOpen.field === "html" ? tr("HTML code")
+            : codeEditorOpen.field === "top" ? tr("Head code (this page only)")
+            : tr("End code (this page only)")}
+          value={codeEditorOpen.field === "html" ? page.rawHtml ?? ""
+            : codeEditorOpen.field === "top" ? page.customTopHtml ?? "" : page.customEndHtml ?? ""}
+          placeholder={codeEditorOpen.field === "html"
+            ? "<!DOCTYPE html>\n<html>\n  <head></head>\n  <body></body>\n</html>"
+            : codeEditorOpen.field === "top" ? '<script type="application/ld+json">...</script>'
+            : "<script>...</script>"}
+          onApply={(value) => {
+            if (codeEditorOpen.field === "html") {
               pending.cancel();
               setZipMessage(null);
-              updatePage(page.id, { rawHtml: changes.html });
-            } else if (pageKind === "normal") {
-              updatePage(page.id, {
-                ...(changes.head !== undefined ? { customTopHtml: changes.head.trim() || undefined } : {}),
-                ...(changes.body !== undefined ? { customEndHtml: changes.body.trim() || undefined } : {}),
-              });
+              updatePage(page.id, { rawHtml: value });
+            } else if (codeEditorOpen.field === "top") {
+              updatePage(page.id, { customTopHtml: value.trim() || undefined });
+            } else {
+              updatePage(page.id, { customEndHtml: value.trim() || undefined });
             }
           }}
-          onClose={() => setCodeEditorOpen(false)}
+          onClose={() => setCodeEditorOpen(null)}
         />
       )}
     </div>
