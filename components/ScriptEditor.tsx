@@ -654,7 +654,7 @@ function ScriptEditorInner({
       h: r.height / z,
       // プレビューは左右に 1px ずつ枠線を加える。一時的にアニメーションしている矩形ではなく、
       // ドラッグした行の、倍率のかかっていないレイアウト上の幅を使う。
-      w: key?.startsWith("script:") ? (sourceStackWidth ?? target.offsetWidth) : target.offsetWidth + 2,
+      w: sourceStackWidth ?? target.offsetWidth + 2,
       modalScale,
       sourceStackWidth,
       sourceStackIdle,
