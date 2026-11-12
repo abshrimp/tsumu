@@ -9,6 +9,7 @@ import type { SiteDoc } from "../lib/types";
 test("exported sharpened SVG preserves shrink-to-fit layout and responsive overlays", async ({ page }) => {
   const root = { ...makeBox(), id: "root" };
   const doc: SiteDoc = {
+    schemaVersion: 1,
     siteName: "Crisp SVG layout",
     pageOrder: ["home"],
     pages: {
