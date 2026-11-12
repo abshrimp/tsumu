@@ -43,9 +43,9 @@ test("generated browser and SSR engines avoid inherited-key reads and nested __p
   const plan = {
     steps: [
       { kind: "transform", id: "fallback", source: "constructor", into: "safe",
-        transform: { kind: "fallback", text: "default" } },
+        transform: { kind: "fallback", when: "missing", text: "default" } },
       { kind: "transform", id: "missing", source: "__proto__.polluted", into: "clean",
-        transform: { kind: "fallback", text: "not inherited" } },
+        transform: { kind: "fallback", when: "missing", text: "not inherited" } },
       { kind: "fetch", id: "api", url: "/api/test.json", as: "nested.__proto__.polluted" },
     ],
     listOps: {},

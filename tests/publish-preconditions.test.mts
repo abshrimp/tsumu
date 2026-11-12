@@ -26,12 +26,12 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
   let recorded = 0;
   const writes: { path: string; body: any }[] = [];
   const calls: string[] = [];
-  let entries = [{ path: "manual.txt", mode: "100755", type: "blob", sha: "manual" }];
+  let entries = [
+    { path: "manual.txt", mode: "100755", type: "blob", sha: "manual" },
+    { path: files.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "generated-manifest" },
+  ];
   if (options.rollbackGeneratedFile) {
-    entries.push(
-      { path: "app/new.ts", mode: "100644", type: "blob", sha: "generated" },
-      { path: files.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "generated-manifest" },
-    );
+    entries.push({ path: "app/new.ts", mode: "100644", type: "blob", sha: "generated" });
   }
   const conf = (d: typeof dest, target: string) => ({ repo: d.repo, branch: target === "test" ? d.previewBranch : d.branch, token: "fake" });
   const client = (config: ReturnType<typeof conf>) => {
@@ -67,8 +67,13 @@ function fixture(options: { empty?: boolean; absent?: boolean; lateMove?: boolea
           : options.rollbackSourceContainsCredentials && path.includes("old-tree")
           ? [{ path: files.DOC_PATH, mode: "100644", type: "blob", sha: "historic-secret" }]
           : options.rollbackSourceHasOlderManual && path.includes("old-tree")
-            ? [{ path: "manual.txt", mode: "100644", type: "blob", sha: "older" }]
-          : options.rollbackSourceMissingManual && path.includes("old-tree") ? [] : entries,
+            ? [
+                 { path: "manual.txt", mode: "100644", type: "blob", sha: "older" },
+                 { path: files.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "historical-manifest" },
+               ]
+          : options.rollbackSourceMissingManual && path.includes("old-tree")
+             ? [{ path: files.GENERATED_MANIFEST_PATH, mode: "100644", type: "blob", sha: "historical-manifest" }]
+             : entries,
         ...(options.truncatedRollback ? { truncated: true } : {}),
       });
       if (path === "/git/blobs/historic-secret") return NextResponse.json({
