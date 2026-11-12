@@ -495,7 +495,7 @@ export default function Home() {
 
   useEffect(() => installNoDblClickSelect(), []);
 
-  const runFileImport = useCallback(async (file: File) => {
+  const runFileImport = useCallback(async (file: File, notifyOnConversion = false) => {
     if (!store || importActive.current) return;
     importActive.current = true;
     setImportStatus({ kind: "loading", message: tr("Reading edit data…") });
@@ -503,7 +503,7 @@ export default function Home() {
       const { createSiteFromFile } = await import("../lib/import-site-file");
       const { id } = await createSiteFromFile(file, store,
         (message) => setImportStatus({ kind: "loading", message }),
-        () => showAlert(tr("No editing data was found in the ZIP. The HTML will be converted and imported.")));
+        notifyOnConversion ? () => showAlert(tr("No editing data was found in the ZIP. The HTML will be converted and imported.")) : undefined);
       window.location.assign(sitePath(id));
     } catch (error) {
       setImportStatus({ kind: "error", message: error instanceof Error
@@ -548,7 +548,7 @@ export default function Home() {
       event.preventDefault(); // 未対応ファイルでもブラウザのファイル表示への遷移を防ぐ
       const file = event.dataTransfer?.files[0];
       clear();
-      if (file && store && !importActive.current) void runFileImport(file);
+      if (file && store && !importActive.current) void runFileImport(file, true);
     };
     window.addEventListener("dragenter", onEnter);
     window.addEventListener("dragover", onOver);
