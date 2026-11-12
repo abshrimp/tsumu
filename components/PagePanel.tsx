@@ -3,6 +3,7 @@
 import { isEnterKey } from "../lib/keys";
 import { useLayoutEffect, useRef, useState } from "react";
 import { FileUp } from "lucide-react";
+import { CodeEditorButton, CustomCodeEditorModal } from "./CustomCodeEditor";
 import { applyHtmlZipPage, readHtmlZip } from "../lib/html-zip";
 import { convertHtmlFile } from "../lib/html-file-import";
 import { normalizeBreakpoints } from "../lib/style";
@@ -49,6 +50,7 @@ export default function PagePanel() {
   const normalZipRef = useRef<HTMLInputElement>(null);
   const [normalImportMessage, setNormalImportMessage] = useState<string | null>(null);
   const [zipMessage, setZipMessage] = useState<string | null>(null);
+  const [codeEditorOpen, setCodeEditorOpen] = useState(false);
   const openScriptEditor = useEditor((s) => s.openScriptEditor);
 
   const page = doc.pages[activePageId];
@@ -471,6 +473,7 @@ export default function PagePanel() {
         defaultOpen={pageKind === "html"}
         tutorialTarget="page-code"
         help="page-code-snippet"
+        tools={pageKind === "redirect" ? undefined : <CodeEditorButton onClick={() => setCodeEditorOpen(true)} />}
       >
         <Grp
           label={tr("Page type")}
@@ -708,7 +711,31 @@ export default function PagePanel() {
         </>
       )}
       </Sec>
-
+      {codeEditorOpen && pageKind !== "redirect" && (
+        <CustomCodeEditorModal
+          title={tr("Custom code")}
+          fields={pageKind === "html"
+            ? [{ id: "html", label: tr("HTML code"), value: page.rawHtml ?? "",
+                 placeholder: "<!DOCTYPE html>\n<html>\n  <head></head>\n  <body></body>\n</html>" }]
+            : [
+                { id: "head", label: tr("Head code (this page only)"), value: page.customTopHtml ?? "" },
+                { id: "body", label: tr("End code (this page only)"), value: page.customEndHtml ?? "" },
+              ]}
+          onApply={(changes) => {
+            if (pageKind === "html" && changes.html !== undefined) {
+              pending.cancel();
+              setZipMessage(null);
+              updatePage(page.id, { rawHtml: changes.html });
+            } else if (pageKind === "normal") {
+              updatePage(page.id, {
+                ...(changes.head !== undefined ? { customTopHtml: changes.head.trim() || undefined } : {}),
+                ...(changes.body !== undefined ? { customEndHtml: changes.body.trim() || undefined } : {}),
+              });
+            }
+          }}
+          onClose={() => setCodeEditorOpen(false)}
+        />
+      )}
     </div>
   );
 }
