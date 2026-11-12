@@ -171,7 +171,7 @@ test("a changed head rejects a stale kept-path plan before creating any tree", a
   assert.deepEqual(f.writes, []); assert.equal(f.recorded, 0); assert.equal(f.heads.main, newer);
   // 意図して再試行すると、新しいスナップショットを取り、新しく追加したファイルも含める。
   const fresh = await (await f.post({ action: "tree" })).json();
-  const retry = await f.post({ action: "commit", files: { "page.txt": "p" }, expectedHead: fresh.head, keptPaths: Object.keys(fresh.blobs) });
+  const retry = await f.post({ action: "commit", files: { "page.txt": "p" }, expectedHead: fresh.head, keptPaths: Object.keys(files.planPublish(fresh.blobs, fresh.generated, ["page.txt"]).kept) });
   assert.equal(retry.status, 200);
   assert.ok(f.writes.find(w => w.path === "/git/trees")!.body.tree.some((e: any) => e.path === "manual-new.txt"));
 });
