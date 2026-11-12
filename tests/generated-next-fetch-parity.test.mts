@@ -168,7 +168,7 @@ test("mutating a fetched list preserves sibling text, other lists and conditions
     { id: "count", kind: "transform", source: "data", into: "count", transform: { kind: "length" } },
     { id: "read", kind: "transform", source: "data.0.heading", into: "heading", transform: { kind: "field", key: "name" } },
     { id: "if", kind: "if", conditions: [{ subject: "var", target: "", left: "{heading}", op: "eq", value: "Reports", and: true },
-      { subject: "var", target: "", left: "{count}", op: "eq", value: "1", and: true }],
+      { subject: "var", target: "", left: "{count}", op: "eq", value: "2", and: true }],
       cond: { subject: "var", target: "", left: "{data.0.status}", op: "eq", value: "open" },
       then: [{ id: "ok", kind: "open-url", url: "/open", newTab: true }] },
   ]);
@@ -178,7 +178,7 @@ test("mutating a fetched list preserves sibling text, other lists and conditions
   doc.pages.p.children.push("title", "related");
   const html = await publishedComponentList(doc, "app/page.tsx", [{
     title: "Catalogue", rows: ["A", "B"], related: [{ label: "X", extra: "unreferenced-field" }], status: "open", heading: { name: "Reports" }, private: "unreferenced-field",
-  }]);
+  }, { private: "unreferenced-field" }]);
   assert.doesNotMatch(html, /unreferenced-field/);
   const urls: string[] = [];
   const dom = listRuntimeDom(html, generateProject(doc).files["public/scripts.js"], {
@@ -192,4 +192,21 @@ test("mutating a fetched list preserves sibling text, other lists and conditions
   assert.deepEqual(visible("#tag"), ["X"]);
   assert.deepEqual(visible("#title"), ["Catalogue"]);
   assert.deepEqual(urls, ["/open"]);
+});
+
+test("Next length counts both fetched records and new keys in a browser-edited record", async () => {
+  const doc = fetchedListDoc([
+    { id: "count-record", kind: "transform", source: "data.0.static", into: "before", transform: { kind: "length" } },
+    { id: "write-key", kind: "set-var", into: "data.0.mutable.added", value: "1" },
+    { id: "count-edited", kind: "transform", source: "data.0.mutable", into: "after", transform: { kind: "length" } },
+  ]);
+  doc.nodes.counts = { ...makeText("{before}/{after}"), id: "counts", attrId: "counts" };
+  doc.pages.p.children.push("counts");
+  const html = await publishedComponentList(doc, "app/page.tsx", [{
+    static: { label: "private-immutable-field", enabled: true }, mutable: { original: true }, rows: [],
+  }]);
+  assert.doesNotMatch(html, /private-immutable-field/);
+  const dom = listRuntimeDom(html, generateProject(doc).files["public/scripts.js"]);
+  await dom.click("act");
+  assert.equal(dom.active("#counts")[0].textContent, "2/2");
 });

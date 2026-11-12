@@ -908,6 +908,28 @@ test("canvas transform menu exposes four groups without explicit text conversion
   ]);
 });
 
+test.describe("English transform menu", () => {
+  test.use({ locale: "en-US" });
+
+  test("operation groups, list operations and arithmetic choices use English", async ({ page }) => {
+    await page.setContent('<html><body><div id="app"></div></body></html>');
+    await page.addScriptTag({ content: bundle });
+    const block = page.locator('[data-sel-key="step:numeric"]');
+    const operations = block.getByRole("combobox", { name: "Operation", exact: true });
+    await expect(operations).toHaveValue("math");
+    expect(await operations.locator("optgroup").evaluateAll((groups) =>
+      groups.map((group) => (group as HTMLOptGroupElement).label)
+    )).toEqual(["Extract and fallback", "Number and text operations", "List operations", "JSON conversion"]);
+    await expect(operations.locator("option")).toHaveText([
+      "Get an item from a list", "Use another value if missing",
+      "Calculate a number", "Split text", "Replace text", "Join a list as text",
+      "Count list items", "Sort a list", "Append to list", "Convert to JSON text", "Parse JSON text",
+    ]);
+    await expect(block.getByRole("combobox", { name: "Arithmetic operation" }).locator("option"))
+      .toHaveText(["Add", "Subtract", "Multiply", "Divide", "Remainder"]);
+  });
+});
+
 test("canvas removal block switches between value and position/key", async ({ page }) => {
   await page.evaluate(() => {
     (window as any).dataPickerStore.getState().updateDoc((doc: any) => {

@@ -68,7 +68,7 @@ function ExportModal({ onClose }: { onClose: () => void }) {
       // The scope error is already included in the compatibility list.
     }
     return [
-      ...(scoped ? runChecks(scoped) : []),
+      ...(scoped ? runChecks(scoped, { requireHomePage: scope === "project" }) : []),
       ...compatibility.map((message): CheckResult => ({ level: "error", message })),
     ];
   }, [doc, activePageId, selectedNodeId, format, language, style, scope]);

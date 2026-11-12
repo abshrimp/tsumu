@@ -19,6 +19,25 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('textarea[rows="14"]')).toBeVisible();
 });
 
+test("empty HTML files preserve the existing source, ZIP association and undo history", async ({ page }) => {
+  await page.evaluate(() => (window as any).htmlEditor.getState().updatePage("p", {
+    htmlZip: { path: "site/index.html", assetIds: [] },
+  }));
+  const snapshot = () => page.evaluate(() => {
+    const state = (window as any).htmlEditor.getState();
+    return { page: state.doc.pages.p, past: state.past.length, future: state.future.length };
+  });
+  const before = await snapshot();
+  for (const contents of ["", "  \n\t"]) {
+    await page.locator('input[accept=".html,.htm,text/html"]').setInputFiles({
+      name: "empty.html", mimeType: "text/html", buffer: Buffer.from(contents),
+    });
+    await page.evaluate(() => (window as any).htmlReads.shift()());
+    await expect(page.getByRole("status")).toContainText("ファイルが空です");
+    expect(await snapshot()).toEqual(before);
+  }
+});
+
 for (const zip of [false, true]) for (const interruption of ["edit", "kind", "undo", "page", "unmount", "success", "gesture"]) {
   test(`Slow ${zip ? "ZIP" : "HTML"} import handles ${interruption}`, async ({ page }) => {
     let release!: () => void;

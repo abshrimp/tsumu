@@ -17,7 +17,7 @@ import { cssValue, generateSiteCss, rawHtmlWithBodyStyles, usedGoogleFonts } fro
 import { headHtmlToJsx } from "./generator/head";
 import { SAFE_FETCH_SOURCE } from "./generator/safe-fetch-source";
 import { buildAssetNames, buildClassNames, buildComponentNames } from "./generator/names";
-import { htmlZipExportSource, importedAssetPath, importedAssetUrl, isZipJavascript } from "./generator/imported-assets";
+import { htmlZipExportSource, htmlZipExportUrl, importedAssetPath, isZipJavascript } from "./generator/imported-assets";
 import { generatePageFile, needsPageStepRunner, queryDispatcherFile, routeDir, unnestLinks } from "./generator/page";
 import { imageRefSrc, jsxString, raiseOverCrispSvg, smartLinkComponent } from "./generator/render-helpers";
 import { renderNode, type JsxContext } from "./generator/render";
@@ -171,17 +171,11 @@ export function generateProject(
     if (page.rawHtml?.trim()) {
       // HTMLページ: Route Handler でそのまま配信（script / css込みで動く）
       const path = dir ? `app/${dir}/route.ts` : "app/route.ts";
-      const htmlWithAssets = rawHtmlWithBodyStyles(
-        doc,
-        page,
-        cssValue(doc, "rawHtml", htmlZipSource(page.rawHtml, page.htmlZip, doc.assets, htmlZipExportSource), assetNames),
-        assetNames
-      );
-      const htmlWithScriptAssets = rewriteHtmlZipScriptUrls(htmlWithAssets, page.htmlZip, doc.assets, asset => {
-        const name = assetNames.get(asset.id);
-        if (!name) return "";
-        return isZipJavascript(asset) ? importedAssetUrl(asset) ?? "/assets/" + name : "/assets/" + name;
-      });
+      const source = htmlZipSource(page.rawHtml, page.htmlZip, doc.assets,
+        asset => htmlZipExportSource(asset, assetNames));
+      const htmlWithAssets = rawHtmlWithBodyStyles(doc, page, cssValue(doc, "rawHtml", source, assetNames), assetNames);
+      const htmlWithScriptAssets = rewriteHtmlZipScriptUrls(htmlWithAssets, page.htmlZip, doc.assets,
+        asset => htmlZipExportUrl(asset, assetNames));
       files[path] = `const html = ${JSON.stringify(htmlWithScriptAssets)};
 
 export const dynamic = "force-static";

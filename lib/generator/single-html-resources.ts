@@ -1,3 +1,4 @@
+import { zipMediaMime } from "../zip-mime";
 import { createIntegrityVerifier } from "../resource-integrity";
 import type { GeneratedProject } from "../generator";
 import { readAssetBytes } from "../assets";
@@ -8,11 +9,6 @@ export const SINGLE_HTML_LIMIT = 48 * 1024 * 1024;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 const types: Record<string, string> = {
-  avif: "image/avif", bmp: "image/bmp", gif: "image/gif", ico: "image/x-icon",
-  jpeg: "image/jpeg", jpg: "image/jpeg", png: "image/png", svg: "image/svg+xml",
-  webp: "image/webp", apng: "image/apng", mp4: "video/mp4", webm: "video/webm",
-  mp3: "audio/mpeg", m4a: "audio/mp4", wav: "audio/wav", ogg: "audio/ogg",
-  woff: "font/woff", woff2: "font/woff2", ttf: "font/ttf", otf: "font/otf",
   json: "application/json", webmanifest: "application/manifest+json",
   css: "text/css", js: "text/javascript", mjs: "text/javascript", txt: "text/plain",
 };
@@ -112,7 +108,8 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
     if (cached) return cached;
     if (resources.size >= 2048) throw new Error("Too many single HTML resources.");
     const ext = url.pathname.split(".").pop()?.toLowerCase() ?? "";
-    let mime = Object.hasOwn(types, ext) ? types[ext] : "application/octet-stream";
+    const mediaType = zipMediaMime(url.pathname);
+    let mime = mediaType ?? (Object.hasOwn(types, ext) ? types[ext] : "application/octet-stream");
     let charset: string | undefined;
     let base = url;
     let bytes: Uint8Array<ArrayBuffer>;
@@ -150,8 +147,9 @@ export function singleHtmlResources(source: GeneratedProject, request: ResourceR
       const contentType = response.headers.get("content-type") ?? "";
       charset = httpCharset(contentType);
       const type = contentType.split(";")[0].trim().toLowerCase();
-      if (type && /^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*$/.test(type)) mime = type;
-      else if (mime === "text/css" || mime === "text/javascript") mime = "application/octet-stream";
+      if (type && /^[a-z0-9][a-z0-9.+-]*\/[a-z0-9][a-z0-9.+-]*$/.test(type)) {
+        mime = local && type === "application/octet-stream" && mediaType ? mediaType : type;
+      } else if (mime === "text/css" || mime === "text/javascript") mime = "application/octet-stream";
     }
     inputBytes += bytes.length;
     const result = { bytes, mime, base, charset };

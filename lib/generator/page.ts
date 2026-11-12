@@ -133,7 +133,7 @@ export function generatePageFile(
   ctx.usedComponents = new Set();
   ctx.varsExpr = "vars";
   const plan = pagePlan(doc, pageId);
-  const writes = new Set(plan.clientWritePaths);
+  const writes = new Set([...plan.clientAssignmentPaths, ...plan.clientListTargets]);
   for (const n of idVarNodesOf(doc, pageId)) if (n.type === "field") fieldVarNames(n).forEach((v) => writes.add(v));
   const loads = nf ? [] : plan.steps.filter((st) => st.kind !== "fetch" || st.url.trim());
   const fetchedRoots = new Set(loads.flatMap(step => step.kind === "fetch" && step.as ? [step.as] : []));
@@ -141,9 +141,9 @@ export function generatePageFile(
   // Existing browser-owned variable roots include array aliases such as -1.
   // Narrow only fetched roots, whose untouched siblings remain on the server.
   for (const root of plan.clientVars) if (!fetchedRoots.has(root)) writes.add(root);
-  const isLivePath = matchVariableWrites(writes);
-  ctx.isLive = name => {
-    if (!isLivePath(name)) return false;
+  const isLivePath = matchVariableWrites(writes, plan.clientAssignmentPaths);
+  ctx.isLive = (name, usage) => {
+    if (!isLivePath(name, usage)) return false;
     // When a script explicitly reads a parent of a mutable fetched list, it
     // needs the parent record/array with its original structure and fields.
     if (fetchedRoots.has(name.split(".")[0])) seedPaths.add(name);

@@ -12,29 +12,31 @@ import type {
 } from "../../lib/script-model/compose";
 
 export const VALUE_TRANSFORM_LABELS: Record<ValueTransformKind, string> = {
-  field: "リストから項目を取り出す",
-  length: "リストの項目数を数える",
-  math: "数値を計算する",
-  stringify: "JSON文字列に変換する",
-  parse: "JSON文字列を読み取る",
-  split: "文字列を分割する",
-  join: "リストを文字列につなぐ",
-  replace: "文字列を置き換える",
-  sort: "リストを並べ替える",
-  append: "リストに要素を追加する",
-  fallback: "値がないとき別の値を使う",
+  field: "Get an item from a list",
+  length: "Count list items",
+  math: "Calculate a number",
+  stringify: "Convert to JSON text",
+  parse: "Parse JSON text",
+  split: "Split text",
+  join: "Join a list as text",
+  replace: "Replace text",
+  sort: "Sort a list",
+  append: "Append to list",
+  fallback: "Use another value if missing",
 };
 
 export const VALUE_TRANSFORM_GROUPS: readonly { label: string; kinds: readonly ValueTransformKind[] }[] = [
-  { label: "値の取得・補完", kinds: ["field", "fallback"] },
-  { label: "数値・文字列の加工", kinds: ["math", "split", "replace", "join"] },
-  { label: "リストの操作", kinds: ["length", "sort", "append"] },
-  { label: "JSONの変換", kinds: ["stringify", "parse"] },
+  { label: "Extract and fallback", kinds: ["field", "fallback"] },
+  { label: "Number and text operations", kinds: ["math", "split", "replace", "join"] },
+  { label: "List operations", kinds: ["length", "sort", "append"] },
+  { label: "JSON conversion", kinds: ["stringify", "parse"] },
 ];
-const MATH: readonly { value: NumericOperation; label: string }[] = [
-  { value: "add", label: "足す" }, { value: "subtract", label: "引く" },
-  { value: "multiply", label: "掛ける" }, { value: "divide", label: "割る" },
-  { value: "remainder", label: "余り" },
+const MATH: readonly { value: NumericOperation; label: () => string }[] = [
+  { value: "add", label: () => tr("Add", "add_variant_1") },
+  { value: "subtract", label: () => tr("Subtract") },
+  { value: "multiply", label: () => tr("Multiply", "multiply_variant_1") },
+  { value: "divide", label: () => tr("Divide") },
+  { value: "remainder", label: () => tr("Remainder") },
 ];
 
 /** Native select sized to the longest translated option, regardless of the selected value. */
@@ -286,7 +288,7 @@ function RecipeStepSettings({ transform, options, onChange, samples, excludedVar
     <div className="se-composer-step-settings">
       <FixedOptionSelect aria-label={tr("Arithmetic operation")} value={transform.operation}
         onChange={(e) => onChange({ ...transform, operation: e.target.value as NumericOperation })}>
-        {MATH.map((method) => <option key={method.value} value={method.value}>{tr(method.label)}</option>)}
+        {MATH.map((method) => <option key={method.value} value={method.value}>{method.label()}</option>)}
       </FixedOptionSelect>
       <div className="se-composer-operand">
         <TextIn vars value={transform.operandType === "variable"

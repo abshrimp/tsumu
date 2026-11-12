@@ -8,7 +8,7 @@ import { obfuscateVarNames } from "../data";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
 import { assetMediaUrl, assetSrc } from "../assets";
-import { htmlZipExportSource, importedAssetUrl, isZipJavascript } from "./imported-assets";
+import { htmlZipExportSource, htmlZipExportUrl, importedAssetUrl, isZipJavascript } from "./imported-assets";
 import { cssValue, rawHtmlWithBodyStyles, usedGoogleFonts } from "./css";
 import { htmlZipElements, htmlZipSource } from "../html-zip-source";
 import { rewriteHtmlZipScriptUrls } from "../html-zip-script-assets";
@@ -540,16 +540,14 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject): Ge
     if (page.rawHtml?.trim()) {
       // Render with the shared HTML/CSS generators. Next.js route filenames and
       // serialized TypeScript are framework output, not a source of page data.
-      const html = rawHtmlWithBodyStyles(normalized, page,
-        cssValue(normalized, "rawHtml",
-          htmlZipSource(page.rawHtml, page.htmlZip, normalized.assets, htmlZipExportSource), assets), assets);
+      const source = htmlZipSource(page.rawHtml, page.htmlZip, normalized.assets,
+        asset => htmlZipExportSource(asset, assets));
+      const html = rawHtmlWithBodyStyles(normalized, page, cssValue(normalized, "rawHtml", source, assets), assets);
       const base = page.htmlZip && standaloneZipBase(html, path);
       const assetPrefix = base?.prefix ?? prefix;
       let htmlWithScriptAssets = rewriteHtmlZipScriptUrls(html, page.htmlZip, normalized.assets, asset => {
-        const name = assets.get(asset.id);
-        if (!name) return "";
-        const url = isZipJavascript(asset) ? importedAssetUrl(asset) ?? "/assets/" + name : "/assets/" + name;
-        return assetPrefix + url.slice(1);
+        const url = htmlZipExportUrl(asset, assets);
+        return url ? assetPrefix + url.slice(1) : "";
       });
       if (base) {
         // A script preceding <base> can change its source offsets.

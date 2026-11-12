@@ -461,7 +461,7 @@ export interface PagePlan {
   /** 画面上（ブラウザ）で値が決まる変数・配列の名前 */
   clientVars: Set<string>;
   /** Exact destinations, used to distinguish mutable paths from their server-only siblings. */
-  clientWritePaths: Set<string>;
+  clientAssignmentPaths: Set<string>;
   /** Exact list paths mutated by browser actions, for initializing their runtime values. */
   clientListTargets: Set<string>;
   /**
@@ -541,7 +541,7 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
   const mayRunOnServer = (st: ScriptStep) => loadRoot.has(st) || nestedLoad.has(st);
   const clientVars = new Set<string>();
   const clientListTargets = new Set<string>();
-  const clientWritePaths = new Set<string>();
+  const clientAssignmentPaths = new Set<string>();
   const watchedRoots = new Set((page?.pageScripts ?? []).flatMap((s) =>
     s.trigger === "change" && s.changeVariable && s.steps.length ? [rootName(s.changeVariable)] : []));
   const runtimeScripts = scriptsInPage(doc, pageId, true);
@@ -551,8 +551,8 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
     const name = writeTarget(st);
     if (!name) return;
     clientVars.add(rootName(name));
-    clientWritePaths.add(name);
     if (st.kind === "set-list-item" || st.kind === "remove-list-item") clientListTargets.add(name);
+    else clientAssignmentPaths.add(name);
   };
   const fieldIds = new Set(
     idVarNodesOf(doc, pageId)
@@ -690,7 +690,7 @@ export function pagePlan(doc: SiteDoc, pageId: string): PagePlan {
       }
     }
   }
-  return { steps, serverIds, clientVars, clientWritePaths, clientListTargets, listOps };
+  return { steps, serverIds, clientVars, clientAssignmentPaths, clientListTargets, listOps };
 }
 
 /**
@@ -1534,7 +1534,8 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
         }
       }
       if (st.kind === "open-url") addQueryKeys(st.url);
-      if ("into" in st && st.into) defined.add(st.into);
+      // A dotted assignment updates a field of its root variable.
+      if ("into" in st && st.into) defined.add(rootName(st.into));
     });
   }
 
@@ -1572,7 +1573,7 @@ export function obfuscateVarNames(doc: SiteDoc): SiteDoc {
   for (const steps of stepLists) {
     walkAll(steps, (st) => {
       if (st.kind === "fetch" && st.as) st.as = names.get(st.as) ?? st.as;
-      if ("into" in st && st.into) st.into = names.get(st.into) ?? st.into;
+      if ("into" in st && st.into) st.into = fn(st.into) ?? st.into;
     });
   }
   return out;

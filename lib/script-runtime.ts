@@ -425,6 +425,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           return true;
         };
         active.resetBudget = function () { stepsRun = 0; };
+        active.variableScripts = firingVariableScripts;
         return active;
       }
       // 画面上の変数（ストレージから読み込んだ値・分解した配列など）
@@ -672,13 +673,11 @@ export const SCRIPT_RUNTIME = `function (env) {
         watching.forEach(function (entry) {
           if (Object.is(entry.before, getVar(entry.name)) ||
               !alive || owner !== root.querySelector("[data-page-body]") ||
-              firingVariableScripts.has(entry.script)) return;
-          firingVariableScripts.add(entry.script);
-          try {
-            runSteps(entry.script.steps || [], owner, undefined, activeRun());
-          } finally {
-            firingVariableScripts.delete(entry.script);
-          }
+              (firingVariableScripts && firingVariableScripts.has(entry.script))) return;
+          var run = activeRun();
+          run.variableScripts = new Set(firingVariableScripts);
+          run.variableScripts.add(entry.script);
+          runSteps(entry.script.steps || [], owner, undefined, run);
         });
       }
       // Inputs can contain a literal value, a list, one raw reference, or mixed text.
@@ -1403,14 +1402,15 @@ export const SCRIPT_RUNTIME = `function (env) {
             var sourceRoot = st.source.split(".")[0];
             var localShadows = !!(sc && (has(sc, st.source) || has(sc, sourceRoot)));
             var shadowed = localShadows || (!st.serverSource && (has(vars, st.source) || has(vars, sourceRoot)));
+            // A server-computed count includes siblings omitted from a partially seeded root.
+            if (!localShadows && st.serverSource && "serverValue" in st) {
+              setVar(st.into, st.serverValue);
+              break;
+            }
             if (inputValue === undefined && !localShadows) inputValue = getVar(st.source);
             /*#clist*/
             if (inputValue === undefined && !shadowed && st.rawRef) inputValue = scriptReference(st.rawRef, self, sc);
             /*/clist*/
-            if (inputValue === undefined && !shadowed && "serverValue" in st) {
-              setVar(st.into, st.serverValue);
-              break;
-            }
             if (inputValue === undefined && !shadowed && "raw" in st) inputValue = st.raw;
             // An explicitly missing local variable must not fall back to stale server data
             // or a similarly named element. This keeps connected fallback blocks reliable.
@@ -1575,7 +1575,12 @@ export const SCRIPT_RUNTIME = `function (env) {
               return each(st, self, cx, 0, active, null, depth, nesting || 0).then(next);
             }
             /*/each*/
-            exec(st, self, cx);
+            // Restore the watcher chain for each continuation after an if, loop or wait.
+            // Independent events can still run the same watcher while one is waiting.
+            var previous = firingVariableScripts;
+            firingVariableScripts = active.variableScripts;
+            try { exec(st, self, cx); }
+            finally { firingVariableScripts = previous; }
           }
           return Promise.resolve();
         }
@@ -1586,7 +1591,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       // same handler (e.g. two set-value blocks alternating between values).
       // Allow distinct triggers, but prevent a synchronous recursion cycle.
       var firingTriggers = new WeakMap();
-      var firingVariableScripts = new Set();
+      var firingVariableScripts;
       function fire(el, trigger, keep) {
         var running = firingTriggers.get(el);
         if (!running) {

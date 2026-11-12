@@ -39,7 +39,7 @@ export function assetUsage(doc: SiteDoc): Map<string, number> {
     if (usage.has(a.id)) continue;
     const src = assetSrc(a);
     const alias = importedAssetUrl(a);
-    if (text.includes(a.id) || (src && text.includes(src)) || (alias && text.includes(alias))) usage.set(a.id, 1);
+    if (text.includes(a.id) || (src && text.includes(src)) || (alias && (text.includes(alias) || text.includes(decodeURIComponent(alias))))) usage.set(a.id, 1);
   }
   for (const id of zipAssetClosure(doc.assets, usage.keys())) if (!usage.has(id)) usage.set(id, 1);
   // A ZIP JavaScript module can refer to sibling files by relative paths:

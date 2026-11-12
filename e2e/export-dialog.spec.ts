@@ -4,7 +4,7 @@ import { loadLocale } from "../lib/i18n";
 import JSZip from "jszip";
 import { readFile } from "node:fs/promises";
 
-async function openExport(page: import("@playwright/test").Page) {
+async function openExport(page: import("@playwright/test").Page, firstPageSlug?: string) {
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
   const result = await page.request.post("/api/sites", { data: { name: "Export UI" } });
   expect(result.ok()).toBeTruthy();
@@ -14,6 +14,7 @@ async function openExport(page: import("@playwright/test").Page) {
   await loadLocale();
   const doc = createInitialDoc();
   doc.siteName = "Export UI";
+  if (firstPageSlug) doc.pages[doc.pageOrder[0]].slug = firstPageSlug;
   // The starter site has a dynamic route unsupported by non-Next.js formats.
   // Hide it only in this download-focused fixture; keep the restriction intact.
   for (const item of Object.values(doc.pages)) {
@@ -139,8 +140,9 @@ test("native HTML export downloads ready-to-open HTML, CSS and JavaScript withou
   expect(names.some((p) => p.endsWith("/next.config.mjs"))).toBe(false);
 });
 
-test("single HTML format downloads an actual HTML file with inline CSS and scripts", async ({ page }) => {
-  const modal = await openExport(page);
+test("single HTML downloads the current non-home page with inline CSS and scripts", async ({ page }) => {
+  const modal = await openExport(page, "news/today");
+  await expect(modal.getByRole("button", { name: "zipをダウンロード" })).toBeDisabled();
   await modal.getByRole("button", { name: "フレームワーク" }).click();
   await page.getByRole("button", { name: "単一のHTML" }).click();
   await modal.getByRole("button", { name: "出力範囲" }).click();

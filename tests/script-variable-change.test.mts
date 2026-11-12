@@ -201,6 +201,23 @@ for (const published of [false, true]) {
     assert.deepEqual(browserRun(published, doc).notifications.filter((n) => n.name === "seen").map((n) => n.value), [1, 2]);
   });
 
+  test(where + " prevents recursive variable triggers across asynchronous script continuations", async () => {
+    const doc = fixture([
+      watcher("self", "count", [
+        { id: "seen", kind: "set-var", into: "seen", value: "{count}" },
+        { id: "loop", kind: "repeat", times: 1, then: [
+          { id: "mark", kind: "set-var", into: "marker", value: "true" },
+        ] },
+        { id: "replace", kind: "set-var", into: "count", value: "2" },
+      ]),
+    ], [{ id: "start", kind: "set-var", into: "count", value: "1" }]);
+    const harness = browserRun(published, doc);
+    harness.click();
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.deepEqual(harness.notifications.filter(n => n.name === "count").map(n => n.value), [1, 2]);
+    assert.deepEqual(harness.notifications.filter(n => n.name === "seen").map(n => n.value), [1]);
+  });
+
   test(where + " prevents recursive variable-trigger updates", () => {
     const doc = fixture([
       watcher("self", "count", [
