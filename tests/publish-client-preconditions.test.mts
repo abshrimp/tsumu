@@ -7,13 +7,15 @@ import * as React from "react";
 import { generateProject } from "../lib/generator";
 import { GENERATED_MANIFEST_PATH, parseGeneratedManifest } from "../lib/publish-files";
 import type { SiteDoc } from "../lib/types";
+import type { detectSvgFilters } from "../lib/assets";
 
 const require = createRequire(new URL("../components/PublishModal.tsx", import.meta.url));
 const source = readFileSync(new URL("../components/PublishModal.tsx", import.meta.url), "utf8");
 const code = transformSync(source, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
 const old = "a".repeat(40);
-function fixture({ conflict = false, missingHead = false, asset = false, document, snapshot }: {
+function fixture({ conflict = false, missingHead = false, asset = false, document, snapshot, analyzeSvg }: {
   conflict?: boolean; missingHead?: boolean; asset?: boolean; document?: SiteDoc;
+  analyzeSvg?: typeof detectSvgFilters;
   snapshot?: { blobs: Record<string, string>; generated: Record<string, string> | null };
 } = {}) {
   let branch = "main", site = "example";
@@ -22,7 +24,17 @@ function fixture({ conflict = false, missingHead = false, asset = false, documen
   const writes: any[] = [], published: string[] = [], updates: { index: number; value: any }[] = [];
   const confirmations: string[] = [];
   const doc = document ?? { siteName: "Example", assets: {} };
-  const store = { doc, markPublished: (fingerprint: string) => published.push(fingerprint) };
+  let documentWrites = 0;
+  const store = {
+    doc,
+    markPublished: (fingerprint: string) => published.push(fingerprint),
+    updateDoc: (edit: (draft: SiteDoc) => void) => {
+      documentWrites++;
+      const draft = structuredClone(store.doc) as SiteDoc;
+      edit(draft);
+      store.doc = draft;
+    },
+  };
   const useEditor = Object.assign((fn: any) => fn(store), { getState: () => store });
   const conf = {
     site: "example", configured: true, previewEnabled: true,
@@ -40,7 +52,7 @@ function fixture({ conflict = false, missingHead = false, asset = false, documen
     "../lib/store": { useEditor, docFingerprint: () => "published" },
     "./HelpCenter": {}, "./controls": {},
     "../lib/dialog": { showConfirm: (message: string) => new Promise<boolean>(resolve => { confirmations.push(message); confirm = resolve; waiting = true; }) },
-    "../lib/assets": { detectSvgFilters: async () => ({}) },
+    "../lib/assets": { detectSvgFilters: analyzeSvg ?? (async () => ({})) },
     "../lib/generator": { generateProject: document ? generateProject : () => ({ files: { "app/page.tsx": "NEW" }, binaries: asset ? { "public/p.png": "eA==" } : {}, remoteAssets: {} }) },
     "../lib/export-formats": {
       DEFAULT_EXPORT_OPTIONS: { framework: "nextjs", language: "typescript", style: "css", scope: "project" },
@@ -71,7 +83,7 @@ function fixture({ conflict = false, missingHead = false, asset = false, documen
   const button = elements(tree).find(e => e.type === "button" && e.props.className === "btn btn-primary");
   const run = () => button.props.onClick() as Promise<void>;
   const settle = () => new Promise(resolve => setImmediate(resolve));
-  return { run, settle, writes, updates, published, confirmations, get waiting() { return waiting; }, confirm: (yes = true) => confirm(yes), changeBranch: () => { branch = "release"; }, navigate: () => { site = "other"; } };
+  return { run, settle, writes, updates, published, confirmations, store, get documentWrites() { return documentWrites; }, get waiting() { return waiting; }, confirm: (yes = true) => confirm(yes), changeBranch: () => { branch = "release"; }, navigate: () => { site = "other"; } };
 }
 
 test("confirmation cannot retarget a publish after another Home tab changes local settings", async () => {
@@ -181,5 +193,60 @@ test("publication without destination ownership preserves a manual worker and do
     assert.equal(commit.files["public/sw.js"], undefined);
     assert.deepEqual(commit.keptPaths, ["public/sw.js"]);
     assert.equal(parseGeneratedManifest(commit.files[GENERATED_MANIFEST_PATH])!["public/sw.js"], undefined);
+  }
+});
+
+test("publishing uses the checked document when the live SVG changes during analysis", async () => {
+  const logo = { id: "logo", name: "logo.svg", path: "assets/original.svg", width: 0, height: 0 };
+  const doc = { ...pwaDoc, siteName: "Reviewed", assets: { logo } };
+  let finish!: () => void;
+  const analysis = new Promise<void>(resolve => { finish = resolve; });
+  const f = fixture({ document: doc, snapshot: { blobs: {}, generated: null }, analyzeSvg: async assets => {
+    assert.equal(assets, doc.assets);
+    await analysis;
+    return { logo: { svgFilter: true, width: 100, height: 50 } };
+  } });
+  const run = f.run();
+  await f.settle();
+  const replacement = { ...doc, siteName: "New edit", assets: { logo: { ...logo, path: "assets/new.svg" } } };
+  f.store.doc = replacement;
+  finish();
+  await run;
+  const commit = f.writes.find(request => request.action === "commit");
+  const exported = JSON.parse(commit.files["_tsumu/doc.json"]);
+  assert.equal(exported.siteName, "Reviewed");
+  assert.deepEqual(exported.assets.logo, { ...logo, svgFilter: true, width: 100, height: 50 });
+  assert.equal(f.store.doc, replacement);
+  assert.equal(f.documentWrites, 0);
+});
+
+test("publishing records new SVG metadata and skips an editor write when it already matches", async () => {
+  const logo = { id: "logo", name: "logo.svg", path: "assets/logo.svg", width: 20, height: 10 };
+  for (const svgFilter of [undefined, true]) {
+    const doc = { ...pwaDoc, assets: { logo: { ...logo, svgFilter } } };
+    const f = fixture({ document: doc, snapshot: { blobs: {}, generated: null },
+      analyzeSvg: async () => ({ logo: { svgFilter: true } }) });
+    await f.run();
+    const committed = JSON.parse(f.writes.find(request => request.action === "commit").files["_tsumu/doc.json"]);
+    assert.deepEqual(committed.assets.logo, { ...logo, svgFilter: true });
+    assert.deepEqual(f.store.doc.assets, committed.assets);
+    assert.equal(f.documentWrites, svgFilter === undefined ? 1 : 0);
+  }
+});
+
+test("recreating a deleted GitHub file requires confirmation before uploading or committing", async () => {
+  for (const accepted of [false, true]) {
+    const f = fixture({ asset: true, snapshot: { blobs: {}, generated: { "app/page.tsx": "prior" } } });
+    const run = f.run();
+    await f.settle();
+    assert.deepEqual(f.writes.map(w => w.action), ["tree"]);
+    assert.match(f.confirmations[0], /app\/page\.tsx/);
+    f.confirm(accepted);
+    await run;
+    assert.deepEqual(f.writes.map(w => w.action), accepted ? ["tree", "upload", "commit"] : ["tree"]);
+    if (accepted) {
+      assert.equal(f.writes.at(-1).files["app/page.tsx"], "NEW");
+      assert.equal(f.writes.at(-1).expectedHead, old);
+    }
   }
 });

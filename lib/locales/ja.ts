@@ -633,7 +633,7 @@ const ja: Dict = {
   "Committing to GitHub…": "GitHubへコミットしています…",
   "Couldn't publish": "公開できませんでした",
   "and {count} more": "ほか{count}件",
-  "These files were edited on GitHub after the last publish, or were added by hand with the same name as a generated file. Publishing replaces them with the editor's version (the previous content stays in the Git history).\n\n{list}": "次のファイルは、前回の公開の後にGitHubで編集されたか、書き出すファイルと同じ名前で手動で追加されたものです。公開すると、エディタの内容で上書きされます（上書きする前の内容は、Gitの履歴に残ります）。\n\n{list}",
+  "These files were edited or deleted on GitHub after the last publish, or were added by hand with the same name as a generated file. Publishing applies the editor's changes to these paths. Previous versions remain in Git history.\n\n{list}": "次のファイルは、前回の公開後に GitHub で編集・削除されたか、書き出すファイルと同じ名前で手動追加されました。公開すると、これらのパスにエディタの変更が反映されます。以前の版は Git の履歴に残ります。\n\n{list}",
   "Overwrite changes made on GitHub?": "GitHub上の変更を上書きしますか？",
   "Overwrite and publish": "上書きして公開",
   "Sign-in is not configured": "ログインが設定されていません",

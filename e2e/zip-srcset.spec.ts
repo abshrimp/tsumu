@@ -12,9 +12,11 @@ const source = `<!doctype html><html><head>
   <picture><source srcset="images/photo,wide.svg 1x"><img id="picture" src="${inline}"></picture>
   <img id="mixed" srcset="${inline} 1x, images/photo,wide.svg 2x">
 </body></html>`;
-const bundle = build({
-  stdin: {
-    contents: `
+let bundle: string;
+test.beforeAll(async () => {
+  const result = await build({
+    stdin: {
+      contents: `
 import JSZip from "jszip";
 import { readHtmlZip } from "./lib/html-zip";
 window.importFixture = async () => {
@@ -28,11 +30,13 @@ window.importFixture = async () => {
   document.body.append(frame);
   return { html: result.html, assets: result.assets };
 };`,
-    resolveDir: resolve("."), loader: "ts", sourcefile: "zip-srcset-fixture.ts",
-  },
-  bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
-  define: { "process.env.NODE_ENV": '"development"' },
-}).then(result => result.outputFiles[0].text);
+      resolveDir: resolve("."), loader: "ts", sourcefile: "zip-srcset-fixture.ts",
+    },
+    bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
+    define: { "process.env.NODE_ENV": '"development"' },
+  });
+  bundle = result.outputFiles[0].text;
+});
 
 for (const storage of ["local", "remote"] as const) {
   test(`ZIP srcset ${storage}: data URLs and comma filenames survive native import and decode`, async ({ page }) => {
@@ -56,7 +60,7 @@ for (const storage of ["local", "remote"] as const) {
       return route.abort();
     });
     await page.goto("https://srcset.test/");
-    await page.addScriptTag({ content: await bundle });
+    await page.addScriptTag({ content: bundle });
     const imported = await page.evaluate(async () => (window as any).importFixture());
     const frame = page.frameLocator("#imported");
     const mapped = storage === "local" ? imported.assets[0].dataUrl : "/api/assets/file?path=assets%2Fuploaded.svg";

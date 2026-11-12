@@ -74,7 +74,7 @@ const fixtureFiles: Record<string, string | Buffer> = {
 };
 
 /** CSS の変換の写しではなく、実際の取り込みの処理と React のフックを使う。 */
-export const zipCssBrowserBundle = buildSync({
+const buildZipCssBundle = () => buildSync({
   stdin: {
     contents: `
       import { createElement } from "react";
@@ -124,6 +124,8 @@ export const zipCssBrowserBundle = buildSync({
   bundle: true, write: false, format: "iife", platform: "browser", jsx: "automatic",
   define: { "process.env.NODE_ENV": '"development"' },
 }).outputFiles[0].text;
+
+let bundle: string;
 
 type Uploaded = { name: string; mimeType: string; body: Buffer };
 export type Signature = { paths: string[]; token: string; release: () => void; settled: Promise<void> };
@@ -220,7 +222,7 @@ export async function zipCssBrowser(page: Page, storage: "local" | "remote") {
       return send(url, init);
     };
   });
-  await page.addScriptTag({ content: zipCssBrowserBundle });
+  await page.addScriptTag({ content: bundle ??= buildZipCssBundle() });
   const zip = new JSZip();
   const integrity = "sha256-" + createHash("sha256").update(fixtureFiles["site/css/main.css"]).digest("base64");
   for (const [name, source] of Object.entries(fixtureFiles)) {

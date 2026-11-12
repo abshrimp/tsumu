@@ -1,13 +1,12 @@
 import { tr } from "./i18n";
 import type JSZip from "jszip";
 import { IMPORT_LIMITS } from "./site-import";
-import { zipEntrySize } from "./zip-directory";
+import { checkZipRecordCount, zipEntrySize } from "./zip-directory";
 import { ZIP_CSS_LIMITS } from "./zip-css";
 
 export const isHtmlIndex = (path: string) => /(^|\/)index\.html?$/i.test(path);
 
 export const HTML_ZIP_LIMITS = {
-  zipBytes: IMPORT_LIMITS.zipBytes,
   entries: 200,
   expandedBytes: IMPORT_LIMITS.expandedBytes,
   htmlBytes: IMPORT_LIMITS.docBytes,
@@ -29,7 +28,10 @@ export function inspectHtmlZip(zip: JSZip): {
   htmlEntry: JSZip.JSZipObject;
   assetEntries: JSZip.JSZipObject[];
 } {
-  const files = Object.values(zip.files).filter((entry) => !entry.dir) as ZipEntry[];
+  const records = Object.values(zip.files);
+  // ホームの形式判定では編集用 ZIP の上限で開くため、ここで HTML 用の上限を適用する。
+  checkZipRecordCount(records.length, HTML_ZIP_LIMITS.entries);
+  const files = records.filter((entry) => !entry.dir) as ZipEntry[];
   if (files.length > HTML_ZIP_LIMITS.entries) {
     throw new Error(tr("A zip can contain up to 200 files"));
   }

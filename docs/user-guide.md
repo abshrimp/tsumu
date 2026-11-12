@@ -240,7 +240,7 @@ Create the site's repository before the first publish. It can be empty or initia
 
 ## Output formats
 
-**Publish** and **⋯ → Export as zip** both let you pick a framework, a language and a style. The choice isn't saved: Next.js is selected each time the dialog opens.
+**Publish** and **⋯ → Export as zip** both let you pick a framework, a language and a style. With server storage configured, Publish remembers the framework, language and style from the site's last successful GitHub push, whether to its test or production branch. The first publish and each ZIP export start with Next.js, TypeScript and CSS.
 
 | Framework | What you get | Running it |
 |---|---|---|
@@ -448,7 +448,7 @@ Where to put them:
 ### Editor and export
 
 - **Publishing is a normal commit.** Files Tsumu generated are replaced with the editor's version, and files you added by hand are kept. `_tsumu/generated.json` tells the two apart.
-- **Edits on GitHub are detected.** If someone edited a generated file on GitHub, the editor asks before overwriting it. If you want to keep changing generated files by hand, do it on another branch.
+- **Changes on GitHub are detected.** The editor asks before overwriting a generated file that someone edited on GitHub. If someone deleted the file on GitHub and the next publish would recreate it, the editor also asks before restoring it. If you want to keep changing generated files by hand, do it on another branch.
 - **The first publish is careful too.** It keeps existing files and asks before overwriting any file at the same path.
 - **`_tsumu/` is reserved** for Tsumu's metadata. If the list of generated files there is malformed, publishing stops.
 - Page-specific custom code is inserted at the start and end of the page body, not in `<head>`.

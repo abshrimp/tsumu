@@ -1,14 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
 import { frameResizeBundle } from "../tests/helpers/frame-resize-browser";
 
-const bundle = frameResizeBundle();
+let bundle: string;
+test.beforeAll(async () => { bundle = await frameResizeBundle(); });
 test.use({ hasTouch: true });
 
 test.beforeEach(async ({ page }) => {
   await page.setContent('<div id="app"></div>');
   await page.addStyleTag({ path: "app/globals.css" });
   await page.addStyleTag({ content: "#app { display: flex; height: 700px; } .canvas-area { flex: none; width: 1056px; }" });
-  await page.addScriptTag({ content: await bundle });
+  await page.addScriptTag({ content: bundle });
   await expect(page.locator(".frame-handle.is-right")).toBeVisible();
 });
 

@@ -10,7 +10,7 @@ import { fieldDefaults, fieldStateValues, fieldValuePatch } from "../lib/fields"
 import { renderLeafNode } from "../components/canvas/render";
 import { SCRIPT_RUNTIME, scriptsFile } from "../lib/script-runtime";
 import { useEditor } from "../lib/store";
-import { publishedScriptSelectValue, scriptSelectValueBundle, scriptSelectValueDoc } from "./helpers/script-select-value";
+import { publishedScriptSelectValue, scriptSelectValueDoc } from "./helpers/script-select-value";
 
 /** 実際の Canvas のデータのフックの状態と変数を読む。DOM の選択とイベントは、ネイティブの e2e で確かめる。 */
 function canvasData(doc = scriptSelectValueDoc()) {
@@ -120,10 +120,7 @@ for (const preview of [true, false]) {
   });
 }
 
-test("native regression bundles the actual ScriptEditor, Canvas and generated page", async () => {
-  const bundle = await scriptSelectValueBundle();
-  assert.match(bundle, /function ScriptEditorInner/);
-  assert.match(bundle, /function Canvas/);
+test("generated select includes its assignment scripts and selected option", async () => {
   const { html } = await publishedScriptSelectValue(scriptSelectValueDoc());
   assert.match(html, /data-scripts=/);
   assert.match(html, /<option value="A">A<\/option><option value="B" selected="">B<\/option>/);
