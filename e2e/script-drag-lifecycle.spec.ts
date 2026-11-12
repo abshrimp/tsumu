@@ -149,6 +149,77 @@ test("dropping over the right side of a wide step shows the insertion bar and in
   expect(scripts[0].steps.map((step: { kind: string }) => step.kind)).toEqual(["wait", "wait"]);
 });
 
+test("drag previews stay outside the clipped dialog while crossing its edge", async ({ page }) => {
+  await scaleScriptModal(page);
+  const dialog = (await page.locator(".se").boundingBox())!;
+  for (const kind of ["palette", "step", "script"]) {
+    await start(page, kind);
+    const ghost = page.locator(".se-ghost");
+    await expect(visibleGhost(page)).toBeVisible();
+    // The dialog clips its descendants and its scale animation changes the
+    // containing block of position:fixed. The preview must escape both.
+    expect(await ghost.evaluate((element) => element.parentElement === document.body)).toBe(true);
+
+    const x = dialog.x + dialog.width - 35;
+    const y = dialog.y + dialog.height - 85;
+    await pointer(page, "pointermove", { x, y });
+    await expect.poll(async () => (await visibleGhost(page).boundingBox())?.x ?? 0)
+      .toBeGreaterThan(dialog.x + dialog.width - 100);
+    await expect(visibleGhost(page)).toBeVisible();
+    await pointer(page, "pointercancel", { x, y, buttons: 0 });
+    await expect(transient(page)).toHaveCount(0);
+  }
+});
+
+test("palette block stays visible when dragged across both conditional branches into Else", async ({ page }) => {
+  await page.evaluate(() => (window as any).scriptDragEditor.getState().updateDoc((doc: any) => {
+    doc.pages.p.pageScripts[0].steps = [{
+      id: "condition", kind: "if",
+      cond: { subject: "var", target: "", left: "ready", op: "eq", value: "true" },
+      then: [], else: [],
+    }];
+  }));
+  await scaleScriptModal(page);
+  const condition = page.locator('.se-ws [data-sel-key="step:condition"]').locator("..");
+  const thenSlot = condition.locator(".se-c-body").nth(0).locator(".se-slot.is-empty");
+  const elseSlot = condition.locator(".se-c-body").nth(1).locator(".se-slot.is-empty");
+  await expect(thenSlot).toBeVisible();
+  await expect(elseSlot).toBeVisible();
+
+  const paletteBlock = page.locator('[data-tutorial="se-block-wait"]');
+  await paletteBlock.scrollIntoViewIfNeeded();
+  const start = (await paletteBlock.boundingBox())!;
+  let previous = { x: start.x + 28, y: start.y + 18 };
+  await page.mouse.move(start.x + 8, start.y + 8);
+  await page.mouse.down();
+  await page.mouse.move(start.x + 28, start.y + 18, { steps: 3 });
+  await expect(visibleGhost(page)).toBeVisible();
+
+  // Move over the If branch, down to Else, back to If, then into Else again.
+  // The drag preview must remain mounted during every intermediate move.
+  for (const slot of [thenSlot, elseSlot, thenSlot, elseSlot]) {
+    const r = (await slot.boundingBox())!;
+    const target = { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    // Inspect intermediate points instead of checking only the final drop target.
+    for (let n = 1; n <= 8; n++) {
+      const x = previous.x + (target.x - previous.x) * n / 8;
+      const y = previous.y + (target.y - previous.y) * n / 8;
+      await page.mouse.move(x, y);
+      await expect(visibleGhost(page)).toBeVisible();
+    }
+    previous = target;
+    await expect(slot).toHaveClass(/is-active/);
+    expect(await page.locator(".se-ghost").evaluate(el => el.parentElement === document.body)).toBe(true);
+  }
+
+  await page.mouse.up();
+  await expect(transient(page)).toHaveCount(0);
+  const scripts = (await snapshot(page)).doc.pages.p.pageScripts;
+  expect(scripts).toHaveLength(1);
+  expect(scripts[0].steps[0].then).toEqual([]);
+  expect(scripts[0].steps[0].else.map((step: { kind: string }) => step.kind)).toEqual(["wait"]);
+});
+
 test("dragged steps retain their width without narrowing the source stack", async ({ page }) => {
   // 幅の広い手順が、元の並びの幅を決める。それを取り除くと、通常は並びが縮む。
   await page.addStyleTag({ content: '.se-ws [data-sel-key="step:wait"] { min-width: 480px; }' });
