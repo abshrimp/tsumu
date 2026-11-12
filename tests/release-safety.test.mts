@@ -6,10 +6,10 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 
-const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
-const backupScript = [...readme.matchAll(/```bash\n([\s\S]*?)```/g)]
+const userGuide = readFileSync(new URL("../docs/user-guide.md", import.meta.url), "utf8");
+const backupScript = [...userGuide.matchAll(/```bash\n([\s\S]*?)```/g)]
   .map((match) => match[1]).find((script) => script.includes("docker stop tsumu"));
-assert.ok(backupScript, "README must provide the Docker backup procedure");
+assert.ok(backupScript, "user guide must provide the Docker backup procedure");
 const runbook = readFileSync(new URL("../docs/releasing.md", import.meta.url), "utf8");
 const integrityScript = runbook.match(/<!-- restore-integrity-check -->\n```sh\n([\s\S]*?)```/)?.[1];
 assert.ok(integrityScript, "runbook must provide the disposable restore check");
