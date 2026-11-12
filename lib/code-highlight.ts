@@ -4,10 +4,11 @@
  */
 const MAX_COLORED_CHARS = 160_000;
 
+const ENTITIES: Record<string, string> = {
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+};
 const escapeHtml = (value: string) =>
-  value.replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-  })[char]!);
+  value.replace(/[&<>"']/g, (char) => ENTITIES[char]);
 
 type Color = "comment" | "tag" | "attribute" | "string" | "keyword" |
   "number" | "selector" | "property" | "punctuation";
