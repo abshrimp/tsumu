@@ -15,7 +15,7 @@ import { PAGE_TARGET, type ScriptStep, type ScriptTrigger } from "../../lib/type
 import { tr } from "../../lib/i18n";
 import { AnyArraySelect, itemFieldsOf } from "./arrays";
 import { Ctx, LoopCtx, ScriptNodeCtx, ScriptOwnerCtx, ScriptStepCtx, type FetchPreviewScope } from "./context";
-import { FetchResult } from "./fetch";
+import { FetchResult, PathMenu } from "./fetch";
 import { CondEditor, NumericVariableIn, Phrase, TextIn } from "./inputs";
 import { CAT_OF, Ico, STEP_ICON, TRIGGER_ICON } from "./palette";
 import { slotKey, type Loc } from "./step-tree";
@@ -81,6 +81,19 @@ function ForEachView({
       </div>
     </div>
   );
+}
+
+function ConditionEditor({ cond, onChange }: {
+  cond: Parameters<typeof CondEditor>[0]["cond"];
+  onChange: Parameters<typeof CondEditor>[0]["onChange"];
+}) {
+  return <CondEditor cond={cond} onChange={onChange}
+    renderPathMenu={(root, path, onPick) => (
+      <PathMenu root={root} path={path} onChange={onPick}
+        mode="any" allowRoot={false} portalZIndex={550}
+        ariaLabel={tr("Source variable")} placeholder={tr("Select a variable")} />
+    )}
+  />;
 }
 
 function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
@@ -163,7 +176,7 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
           <div className="se-if-conditions">
             <div className="se-if-condition-line">
               <Phrase text={conditions.length ? "If {cond}" : "If {cond} then"} parts={{
-                cond: <CondEditor cond={step.cond}
+                cond: <ConditionEditor cond={step.cond}
                   onChange={(cond) => ctx.updateStep(step.id, (current) =>
                     current.kind === "if" ? { ...current, cond } : current)} />,
               }} />
@@ -183,7 +196,7 @@ function StepView({ step, loc }: { step: ScriptStep; loc: Loc }) {
                         <option value="or">{tr("or")}</option>
                       </select>
                     ),
-                    cond: <CondEditor cond={condition}
+                    cond: <ConditionEditor cond={condition}
                       onChange={(next) => changeCondition(index, next)} />,
                   }}
                 />
