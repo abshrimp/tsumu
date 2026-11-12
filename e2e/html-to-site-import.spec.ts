@@ -95,22 +95,22 @@ test("HTML conversion preserves inline separators in block containers without im
   const html = [
     '<!doctype html><html><head><title>Inline spacing</title></head><body>',
     '<div id="inline-gap"><span>First</span> <em>Second</em></div>',
-    '<div id="inline-newline"><a>One</a>\\n<strong>Two</strong></div>',
-    '<section id="block-gap"><div>First</div>\\n<div>Second</div></section>',
+    '<div id="inline-newline"><a>One</a>\n<strong>Two</strong></div>',
+    '<section id="block-gap"><div>First</div>\n<div>Second</div></section>',
     '<div id="styled-block-gap"><span style="display:block">First</span> <span style="display:block">Second</span></div>',
     '</body></html>',
-  ].join("").replaceAll("\\\\n", "\\n");
+  ].join("");
   await page.goto("/");
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
   await page.getByLabel("ZIP・doc.json・HTMLファイルを選択").setInputFiles({
     name: "inline-spacing.html", mimeType: "text/html", buffer: Buffer.from(html),
   });
-  await expect(page).toHaveURL(/\\/sites\\/[a-z0-9-]+$/, { timeout: 30000 });
+  await expect(page).toHaveURL(/\/sites\/[a-z0-9-]+$/, { timeout: 30000 });
   const doc = await importedDoc(page);
   const find = (id: string) => Object.values(doc.nodes).find((item: any) => item.attrId === id) as any;
   const contents = (id: string) => find(id).children.map((childId: string) => doc.nodes[childId].text?.content);
   expect(contents("inline-gap")).toEqual(["First", " ", "Second"]);
-  expect(contents("inline-newline")).toEqual(["One", "\\n", "Two"]);
+  expect(contents("inline-newline")).toEqual(["One", "\n", "Two"]);
   expect(find("block-gap").children).toHaveLength(2);
   expect(find("styled-block-gap").children).toHaveLength(2);
 });
