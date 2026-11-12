@@ -815,11 +815,9 @@ function ScriptEditorInner({
       aria-hidden="true"
       inert
       style={{ left: 0, top: 0,
-        scale: drag.modalScale ?? 1,
-        transformOrigin: "top left",
         transform: `translate3d(${drag.x - drag.ox * zoom}px, ${drag.y - drag.oy * zoom}px, 0)` }}
     >
-      <div style={{ zoom }}>
+      <div style={{ zoom, scale: drag.modalScale ?? 1, transformOrigin: "top left" }}>
       <Ctx.Provider value={{ ...ctx, readOnly: true, activeSlot: null }}>
         {drag.payload.type === "trigger" ? (
           <div className="se-stack" style={{ width: drag.w }}>
