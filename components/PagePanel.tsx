@@ -501,21 +501,21 @@ export default function PagePanel() {
             <button className="btn btn-sm" disabled={pending.busy}
               onClick={() => normalHtmlRef.current?.click()}>
               <FileUp size={12} />
-              {tr("Load an HTML file")}
+              {tr("Convert HTML to editable elements")}
             </button>
             <button className="btn btn-sm" disabled={pending.busy}
               onClick={() => normalZipRef.current?.click()}>
               <FileUp size={12} />
-              {tr("Load a zip of HTML and assets")}
+              {tr("Convert HTML and assets from ZIP")}
             </button>
-            <input id={`page-${page.id}-import-html`} aria-label={tr("Load an HTML file")} ref={normalHtmlRef} type="file"
+            <input id={`page-${page.id}-import-html`} aria-label={tr("Convert HTML to editable elements")} ref={normalHtmlRef} type="file"
               accept=".html,.htm,text/html" style={{ display: "none" }}
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) void importAsEditablePage(file);
                 e.target.value = "";
               }} />
-            <input id={`page-${page.id}-import-zip`} aria-label={tr("Load a zip of HTML and assets")} ref={normalZipRef} type="file"
+            <input id={`page-${page.id}-import-zip`} aria-label={tr("Convert HTML and assets from ZIP")} ref={normalZipRef} type="file"
               accept=".zip,application/zip" style={{ display: "none" }}
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -588,7 +588,7 @@ export default function PagePanel() {
               onClick={() => htmlFileRef.current?.click()}
             >
               <FileUp size={12} />
-              {tr("Load an HTML file")}
+              {tr("Load HTML without converting")}
             </button>
             <button
               className="btn btn-sm"
@@ -597,12 +597,12 @@ export default function PagePanel() {
               onClick={() => htmlZipRef.current?.click()}
             >
               <FileUp size={12} />
-              {zipBusy ? tr("Loading zip…") : tr("Load a zip of HTML and assets")}
+              {zipBusy ? tr("Loading zip…") : tr("Load HTML and assets from ZIP without converting")}
             </button>
             <input
               ref={htmlFileRef}
               id={`page-${page.id}-raw-html-import`}
-              aria-label={tr("Load an HTML file")}
+              aria-label={tr("Load HTML without converting")}
               type="file"
               accept=".html,.htm,text/html"
               style={{ display: "none" }}
@@ -632,7 +632,7 @@ export default function PagePanel() {
             <input
               ref={htmlZipRef}
               id={`page-${page.id}-raw-zip-import`}
-              aria-label={tr("Load a zip of HTML and assets")}
+              aria-label={tr("Load HTML and assets from ZIP without converting")}
               type="file"
               accept=".zip,application/zip"
               style={{ display: "none" }}
