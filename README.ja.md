@@ -36,7 +36,7 @@ Tsumu は、キャンバス上でウェブサイトを制作し、標準的な�
 <table>
   <tr>
     <td width="50%"><img src="docs/screenshots/ja/ai.png" alt="AIにページの編集を頼む"><br><sub><b>AIに頼む</b></sub></td>
-    <td width="50%"><img src="docs/screenshots/ja/publish.png" alt="テストサイトと本番サイトを選べる公開画面"><br><sub><b>公開</b>: チェックの後、テストサイトか本番へ</sub></td>
+    <td width="50%"><img src="docs/screenshots/ja/publish.png" alt="テストサイトと本番サイトを選べる公開画面"><br><sub><b>公開</b>: GitHubにpush</sub></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/ja/comments.png" alt="見出しに付けたコメント"><br><sub><b>コメント</b></sub></td>
@@ -44,7 +44,7 @@ Tsumu は、キャンバス上でウェブサイトを制作し、標準的な�
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/ja/responsive.png" alt="スマホの見た目を編集"><br><sub><b>画面幅ごとの編集</b></sub></td>
-    <td width="50%"><img src="docs/screenshots/ja/scripts.png" alt="クリック時とページを開いたときのブロックを並べたスクリプト編集画面"><br><sub><b>コード不要のスクリプト</b>: 「きっかけ → 動作」のブロック</sub></td>
+    <td width="50%"><img src="docs/screenshots/ja/scripts.png" alt="クリック時とページを開いたときのブロックを並べたスクリプト編集画面"><br><sub><b>ノーコードのスクリプト</b></sub></td>
   </tr>
 </table>
 
@@ -63,7 +63,7 @@ npm run dev
 
 ## 公開とデプロイ
 
-公開するには GitHub リポジトリを作成し、**Contents: Read and write** 権限を持つ fine-grained トークンを `GITHUB_TOKEN` に設定して、サイトの設定から公開先を選択します。ZIP の書き出しにはトークンは不要です。
+Tsumuから公開（push）するには GitHub リポジトリを作成し、**Contents: Read and write** 権限を持つ fine-grained トークンを `GITHUB_TOKEN` に設定して、サイトの設定から公開先を選択します。ZIP の書き出しにはトークンは不要です。
 
 エディタは **Cloudflare Workers**・**Node.js**・**Docker** で動作します。サーバーに保存するには、Cloudflare では D1・Durable Objects・KV、Node.js・Docker では `TSUMU_DATA_DIR` を設定します。サーバーの保存先がない場合、編集データはブラウザ内だけに保存されます。
 
