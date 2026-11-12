@@ -16,6 +16,7 @@ import { SELF_TARGET, type FieldContent, type ScriptCond, type ScriptOp } from "
 import { tr, trc, trNodes } from "../../lib/i18n";
 import { Ctx, LoopCtx, ScriptNodeCtx, ScriptStepCtx } from "./context";
 import { TargetSelect } from "./targets";
+import { PathMenu } from "./fetch";
 
 export function TextIn({
   value,
@@ -437,11 +438,18 @@ export function CondEditor({
   cond: ScriptCond;
   onChange: (c: ScriptCond) => void;
 }) {
-  const { samples } = useContext(Ctx);
+  const { samples, variableIndex } = useContext(Ctx);
+  const variableOptions = useMemo(() => {
+    const names = variableIndex?.names ?? [];
+    return Object.fromEntries([
+      ...Object.entries(samples).filter(([name]) => !name.startsWith("#")),
+      ...names.filter((name) => !Object.hasOwn(samples, name)).map((name) => [name, undefined] as const),
+    ]);
+  }, [samples, variableIndex]);
   const subject = cond.subject;
   const op = cond.op ?? "eq";
   const isVar = cond.subject === "var";
-  // 比べるもの: 要素（値・チェック・表示など）か、変数（{変数} と文字を混ぜて書ける）
+  // 比較元は単一の変数参照を選び、比較値は文字列と変数を自由に組み合わせられる。
   const kindSelect = (
     <select
       className="se-in"
@@ -466,13 +474,18 @@ export function CondEditor({
           text="{left} {cond}"
           parts={{
             left: (
-              <TextIn
-                value={cond.left ?? ""}
-                placeholder={tr("{variable}")}
-                width={96}
-                vars
-                valueContext="value"
-                onCommit={(v) => onChange({ ...cond, ...changeIfVariableLeft(cond, v, samples) })}
+              <PathMenu
+                root={variableOptions}
+                path={singleValueReference(cond.left ?? "") ?? ""}
+                placeholder={tr("Select a variable")}
+                ariaLabel={tr("Source variable")}
+                mode="any"
+                allowRoot={false}
+                portalZIndex={550}
+                onChange={(path) => onChange({
+                  ...cond,
+                  ...changeIfVariableLeft(cond, path ? `{${path}}` : "", samples),
+                })}
               />
             ),
             cond: (
