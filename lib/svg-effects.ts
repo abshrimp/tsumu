@@ -77,7 +77,8 @@ function containsBlurPrimitive(filter: Html.Element): boolean {
 }
 
 export function svgUsesBlurOrShadow(source: string): boolean {
-  if (!source || !/<svg(?:\s|>)/i.test(source)) return false;
+  // Most imported SVGs have no filters. Skip full markup parsing for those files.
+  if (!source || !/<svg(?:\s|>)/i.test(source) || !/(?:filter|blur|shadow)/i.test(source)) return false;
   const fragment = parseFragment(source);
   const elements: Html.Element[] = [];
   const walk = (node: Html.Node): void => {
