@@ -4,7 +4,7 @@ import { singleValueReference } from "./variable-choice";
 import { lookupVar } from "./vars";
 import { parseValueLiteral } from "./value-semantics";
 
-/** A sample informs the editor's choices; unknown runtime variables are not restricted. */
+/** 見本はエディタの選択肢の参考にするだけで、実行時の不明な変数は制限しない。 */
 export function ifVariableSample(input: string, samples: Record<string, unknown>): unknown {
   const ref = singleValueReference(input);
   if (ref !== null) return lookupVar(samples, ref);
@@ -17,7 +17,7 @@ export function ifVariableOperators(input: string, samples: Record<string, unkno
   return filterFieldOperators(ifVariableSample(input, samples));
 }
 
-/** Changing the condition's left side should select a meaningful operation for lists. */
+/** 条件の左辺を変えたときは、リストに意味のある比較を選ぶ。 */
 export function changeIfVariableLeft(
   condition: { left?: string; op?: ScriptOp; value?: string },
   nextLeft: string,

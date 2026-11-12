@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * ページをほかのサイトへコピーする。
+ * ページを他のサイトへコピーする。
  * ページと中の要素を、使っているアセット・コンポーネント・フォントと一緒にまとめ、
- * コピー先のサイトの編集データ（サーバー / このブラウザの保存）へ書き足す
+ * コピー先のサイトの編集データ（サーバー / このブラウザの保存）に書き足す
  */
 
 import type { BreakpointDef, DocNode, NodeStyles, Page, ScriptStep, SiteDoc } from "./types";
@@ -24,14 +24,14 @@ export interface PagePayload {
   pages: Page[];
   /** ページの中の要素（入れ子も含む） */
   nodes: DocNode[];
-  /** ページが入っていたフォルダの名前（ページID → 名前） */
+  /** ページが入っていたフォルダの名前（ページ ID → 名前） */
   folders: Record<string, string>;
-  /** コピー元の全ページのURL（ページID → slug。コピーしなかったページへのリンクを付け替えるため） */
+  /** コピー元のすべてのページの URL（ページ ID → slug。コピーしなかったページへのリンクを付け替えるため） */
   slugs: Record<string, string>;
-  /** 同じslugのページを区別するクエリ */
+  /** 同じ slug のページを区別するクエリ */
   queries: Record<string, string>;
   deps: ClipPayload;
-  /** コピー元のサイトの言語（ページで言語を選んでいなければ、こちらの言語で書かれている） */
+  /** コピー元のサイトの言語（ページで言語を選んでいなければ、この言語で書かれている） */
   lang?: string;
 }
 
@@ -59,7 +59,7 @@ export function buildPagePayload(doc: SiteDoc, pageIds: string[]): PagePayload {
     slugs[p.id] = p.slug;
     queries[p.id] = p.query ?? "";
   }
-  // ページの設定（OGP画像・背景・ページのスクリプト）で使うアセットも拾うため、ページごと渡す
+  // ページの設定（OGP 画像・背景・ページのスクリプト）で使うアセットも拾うため、ページごと渡す
   const deps = buildClipPayload(doc, { nodes, rootIds: [], pages });
   deps.nodes = [];
   return { pages, nodes, folders, slugs, queries, deps, lang: siteLangOf(doc), breakpoints: structuredClone(doc.breakpoints ?? DEFAULT_BREAKPOINTS) };
@@ -76,15 +76,15 @@ function mapSteps(steps: ScriptStep[] | undefined, fn: (pageId: string) => strin
 }
 
 /**
- * まとめたページを、コピー先のドキュメントに足す（d を直接書き換える）。
- * ページ・要素には新しいIDを振り、名前・URLが重なれば「のコピー」を付ける。
- * ページへのリンクは、一緒にコピーしたページ → コピー先の同じURLのページの順に付け替える。
- * 戻り値は足したページの数
+ * まとめたページを、コピー先の文書に追加する（d を直接書き換える）。
+ * ページと要素には新しい ID を振り、名前や URL が重なれば「のコピー」を付ける。
+ * ページへのリンクは、一緒にコピーしたページ → コピー先の同じ URL のページ の順に付け替える。
+ * 戻り値は、追加したページの数
  */
-/** Validate before importing any assets or components. Never change destination breakpoints. */
+/** アセットやコンポーネントを取り込む前に検証する。コピー先のブレークポイントは決して変えない。 */
 function prepareResponsivePayload(d: SiteDoc, payload: PagePayload): PagePayload {
-  // A page copy is accepted only when its complete, current metadata exists.
-  // Reject malformed imports before mergeClipDeps can mutate the destination.
+  // ページのコピーは、完全で現在の形の情報がある場合だけ受け付ける。
+  // mergeClipDeps がコピー先を書き換える前に、不正な取り込みを拒否する。
   if (!payload || !payload.slugs || !payload.queries ||
       typeof payload.slugs !== "object" || Array.isArray(payload.slugs) ||
       typeof payload.queries !== "object" || Array.isArray(payload.queries)) {
@@ -110,8 +110,8 @@ function prepareResponsivePayload(d: SiteDoc, payload: PagePayload): PagePayload
     value && Object.fromEntries(Object.entries(value).map(([key, style]) => [id(key), style]));
   const p = structuredClone(payload);
   for (const page of p.pages) page.bodyStyles = styles(page.bodyStyles);
-  // A foreign master may have the same ID as a destination component. All
-  // source masters can be imported with fresh IDs, so normalize their styles.
+  // 外から来たマスターが、コピー先のコンポーネントと同じ ID を持つことがある。
+  // コピー元のマスターはすべて新しい ID で取り込めるため、そのスタイルを正規化する。
   for (const node of [...p.nodes, ...p.deps.componentNodes]) {
     node.styles = styles(node.styles)!;
     if (node.hiddenOn) node.hiddenOn = node.hiddenOn.map(id);
@@ -137,14 +137,14 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
     return (slug !== undefined && byUrl.get(urlKey(slug, p.queries[id]))) || id;
   };
 
-  // 新しく取り込んだマスター内のリンクも付け替える。既存のマスターは変更しない。
+  // 新しく取り込んだマスターの中のリンクも付け替える。既存のマスターは変えない。
   for (const n of componentNodes) {
     if (n.link?.kind === "page" && n.link.pageId) n.link.pageId = toPage(n.link.pageId);
     for (const s of n.scripts ?? []) mapSteps(s.steps, toPage);
   }
 
-  // The page script editor addresses scripts and their nested blocks by ID.
-  // Copying the same page twice must not make edits or selection ambiguous.
+  // ページのスクリプトの画面は、スクリプトとその入れ子のブロックを ID で扱う。
+  // 同じページを2回コピーしても、編集や選択の対象があいまいにならないようにする。
   const cloneScripts = <T extends { id: string; steps: ScriptStep[] }>(scripts: T[] | undefined): T[] | undefined =>
     scripts?.map((s) => ({ ...s, id: scriptUid(), steps: cloneSteps(s.steps) }));
   const nodeMap = new Map<string, string>();
@@ -209,8 +209,8 @@ async function readJson(res: Response): Promise<Record<string, any>> {
 }
 
 /**
- * ページをほかのサイトへコピーする。
- * server = サーバーに保存しているサイト（ほかの人が編集中でも、版を確かめて書き足す）、
+ * ページを他のサイトへコピーする。
+ * server = サーバーに保存しているサイト（他の人が編集中でも、版を確かめて書き足す）、
  * local = このブラウザに保存しているサイト
  */
 export async function copyPagesToSite(
@@ -222,15 +222,15 @@ export async function copyPagesToSite(
     let doc: SiteDoc;
     let expected: string | null;
     try {
-      // The destination list can be stale while the copy dialog is open.
-      // Never recreate content for a site explicitly deleted in another tab.
+      // コピーのダイアログを開いている間に、コピー先の一覧が古くなることがある。
+      // 別のタブで明示的に削除したサイトの内容を、決して作り直さない。
       if (isLocalSiteDeleted(target.id) ||
           !loadLocalSites({ strict: true }).some(site => site.id === target.id)) {
         throw new Error("Local destination missing");
       }
       const raw = await readBrowserDoc(target.id);
-      // A local site is seeded with a document when it is created. Missing or
-      // corrupt bytes must never be silently replaced with an empty site.
+      // ブラウザ内のサイトは、作成したときに文書が入る。文書が無かったり壊れていたりしても、
+      // 気づかないうちに空のサイトに置き換えてはいけない。
       if (raw === null) throw new Error("Local destination document missing");
       const parsed: unknown = JSON.parse(raw);
       if (!validSiteDoc(parsed)) throw new Error("Invalid destination document");
@@ -255,7 +255,7 @@ export async function copyPagesToSite(
 
   const q = (extra: Record<string, string> = {}) => new URLSearchParams({ site: target.id, ...extra }).toString();
   let data = await readJson(await fetch(`/api/doc?${q()}`));
-  // ほかの人が同時に保存したときは、新しい版に書き足し直す
+  // 他の人が同時に保存したときは、新しい版に書き足し直す
   for (let attempt = 0; attempt < 4; attempt++) {
     let doc: SiteDoc;
     let base: string | null = null;
@@ -263,7 +263,7 @@ export async function copyPagesToSite(
       doc = data.doc as SiteDoc;
       base = String(data.rev);
     } else {
-      // まだ一度も開いていないサイト（開いたときと同じ初期の内容に足す）
+      // まだ一度も開いていないサイト（開いたときと同じ初期の内容に追加する）
       doc = createInitialDoc();
       doc.siteName = target.name;
     }

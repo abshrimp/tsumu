@@ -801,7 +801,7 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
 export function routeDir(slug: string): string {
   return slug
     .split("/")
-    // 「.」「..」の区切りや使えない文字は、プロジェクトの外を指すパスにしない（AI・取り込んだデータの URL も通る）
+    // 「.」「..」の区切りや使えない文字で、プロジェクトの外を指すパスを作らない（AI や取り込んだデータの URL もここを通る）
     .filter((seg) => seg && seg !== "." && seg !== "..")
     .map((seg) => seg.replace(/[^A-Za-z0-9._~\-\[\]]/g, "-"))
     .map((seg) => (seg.startsWith("_") ? `%5F${seg.slice(1)}` : seg))
@@ -809,8 +809,8 @@ export function routeDir(slug: string): string {
 }
 
 /**
- * リンクの中のリンクを「クリックしたとき → 開く」のスクリプトにする（doc を書き換える）。
- * <a> の中に <a> は置けず、ブラウザが外側のリンクを途中で閉じるため、サーバーの HTML と
+ * リンクの中のリンクを、「クリックしたとき → 開く」のスクリプトにする（doc を書き換える）。
+ * <a> の中には <a> を置けず、ブラウザが外側のリンクを途中で閉じるため、サーバーの HTML と
  * React の描画が食い違う（ハイドレーションエラー）。リンクの中でクリックのスクリプトを持つ要素は、
  * ランタイムが外側のリンクを開かずに動かす。コンポーネントは、リンクの中で使われていれば変える
  */
@@ -837,7 +837,7 @@ export function unnestLinks(doc: SiteDoc) {
     const n = doc.nodes[id];
     const l = n.link!;
     const newTab = l.newTab ? { newTab: true } : {};
-    // 行き先は <a> の href と同じ（ページ未選択は URL、URL も空なら #）
+    // 行き先は <a> の href と同じ（ページが未選択なら URL、URL も空なら #）
     const step: ScriptStep =
       l.kind === "page" && l.pageId
         ? { id: `${id}_link`, kind: "open-page", pageId: l.pageId, ...newTab }

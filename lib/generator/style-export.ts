@@ -1,7 +1,7 @@
 import type { GeneratedProject } from "../generator";
 import type { ExportFormat, ExportStyle } from "../export-formats";
 
-/** Split generated CSS by real brace boundaries, respecting strings and comments. */
+/** 生成した CSS を、文字列とコメントを考慮して、実際の波括弧の境界で分ける。 */
 function blocks(css: string): { prelude: string; body: string }[] {
   const result: { prelude: string; body: string }[] = [];
   const n = css.length;
@@ -14,7 +14,7 @@ function blocks(css: string): { prelude: string; body: string }[] {
         if (ch === "*" && css[i + 1] === "/") { comment = false; i++; }
         continue;
       }
-      // 文字列の外でも、エスケープした引用符・括弧・コメント開始は構文ではない。
+      // 文字列の外でも、エスケープした引用符・括弧・コメントの開始は構文ではない。
       if (ch === "\\") { i++; continue; }
       if (!quote && ch === "/" && css[i + 1] === "*") { comment = true; i++; continue; }
       if (quote) {
@@ -71,7 +71,7 @@ function splitSelectors(source: string): string[] {
   return out.filter(Boolean);
 }
 
-/** Keep document-wide body rules and keyframes global; scope node classes to the module root. */
+/** 文書全体の body のルールとキーフレームはグローバルに保ち、ノードのクラスはモジュールのルートに閉じ込める。 */
 export function splitCssModule(source: string): { global: string; module: string } {
   const global: string[] = [], module: string[] = [];
   for (const { prelude, body } of blocks(source)) {
@@ -84,9 +84,9 @@ export function splitCssModule(source: string): { global: string; module: string
     }
     if (outer.startsWith("@")) {
       global.push(prelude + " {" + body + "}");
-      // CSS Modules localizes animation names even when the keyframes were
-      // placed in another stylesheet. Keep a local definition too; the global
-      // copy remains necessary for document-wide rules such as body animations.
+      // CSS Modules は、キーフレームが別のスタイルシートにあっても、アニメーションの名前をローカルにする。
+      // そのためローカルの定義も残す。body のアニメーションのような文書全体のルールのために、
+      // グローバルな写しも引き続き必要。
       if (/^@(?:-[a-z]+-)?keyframes\b/i.test(outer)) module.push(prelude + " {" + body + "}");
       continue;
     }
@@ -159,7 +159,7 @@ function addCssModules(files: Record<string, string>, framework: ExportFormat) {
 function addTailwind(files: Record<string, string>, framework: ExportFormat) {
   const css = framework === "react" || framework === "vue" || framework === "sveltekit"
     ? "src/globals.css" : framework === "nuxt" ? "app/assets/globals.css" : "app/globals.css";
-  // Do not import Preflight: it changes authored headings, layouts and form defaults.
+  // Preflight は読み込まない。書かれた見出し・レイアウト・フォームの既定値を変えてしまうため。
   files[css] = '@import "tailwindcss/theme.css";\n@import "tailwindcss/utilities.css";\n\n' + files[css];
   const pkg = JSON.parse(files["package.json"]) as { devDependencies: Record<string, string> };
   pkg.devDependencies.tailwindcss = "^4.1.0";
@@ -172,9 +172,9 @@ function addTailwind(files: Record<string, string>, framework: ExportFormat) {
     if (framework === "vue") files[config] = files[config]
       .replace("plugins: [vue()]", "plugins: [vue(), tailwindcss()]");
     else if (framework === "sveltekit") {
-      // SvelteKit's scaffold calls sveltekit({ adapter: adapter() }), not
-      // sveltekit(). Matching only the zero-argument call silently left
-      // Tailwind's Vite plugin disabled and utility classes ungenerated.
+      // SvelteKit の雛形は sveltekit() ではなく、sveltekit({ adapter: adapter() }) を呼ぶ。
+      // 引数の無い呼び出しだけに一致させると、Tailwind の Vite のプラグインが気づかないうちに
+      // 無効のまま残り、ユーティリティのクラスが生成されなかった。
       const vitePlugins = "plugins: [sveltekit(";
       if (!files[config].includes(vitePlugins)) {
         throw new Error("Cannot enable Tailwind: missing SvelteKit Vite plugin");

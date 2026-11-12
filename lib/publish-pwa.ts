@@ -2,10 +2,10 @@ import type { SiteDoc } from "./types";
 import type { ExportFormat } from "./export-formats";
 
 /**
- * 公開先で管理していた Worker だけを終了用に置き換える。
+ * 公開先で管理していた Service Worker だけを、終了用のものに置き換える。
  * sw.js を削除するだけでは、更新に失敗したブラウザに古い Worker が残る。
- * 一覧にも残すことで、後日の訪問者や繰り返しのオフ公開にも同じ終了処理を配信する。
- * ZIP 書き出しには公開先の所有情報がないため、この処理を行わない。
+ * 一覧にも残しておくことで、後日の訪問者や、繰り返しオフにして公開した場合にも、同じ終了処理を配信する。
+ * ZIP での書き出しには公開先の所有の情報が無いため、この処理は行わない。
  */
 export function addPwaRetirementWorker(
   doc: Pick<SiteDoc, "pwa">,
@@ -14,7 +14,7 @@ export function addPwaRetirementWorker(
   outputPaths: string[],
   format: ExportFormat = "nextjs",
 ): void {
-  // 単一 HTML は PWA を出力しない。ほかの形式は各フレームワークの公開場所に合わせる。
+  // 単一の HTML は PWA を出力しない。他の形式は、各フレームワークの公開場所に合わせる。
   const swPath = format === "html" || format === "single-html" ? "sw.js"
     : format === "sveltekit" ? "static/sw.js" : "public/sw.js";
   if ((doc.pwa?.enabled && format !== "single-html") ||

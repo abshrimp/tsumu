@@ -1,10 +1,10 @@
 import type { SiteDoc } from "./types";
 
 /**
- * Public, self-contained representation of a Tsumu document.
- * Raw SiteDoc JSON is always accepted. A compact document is a small JSON
- * envelope containing gzip-compressed UTF-8 SiteDoc bytes encoded as Base64.
- * This is a transport format, not a replacement for the editor's object model.
+ * Tsumu の文書の、公開用の自己完結した表現。
+ * 生の SiteDoc の JSON は常に受け付ける。圧縮した文書は、gzip で圧縮した UTF-8 の
+ * SiteDoc のバイト列を Base64 で符号化して収めた、小さな JSON の封筒。
+ * これは受け渡しのための形式で、エディタのオブジェクトのモデルの代わりではない。
  */
 export const PORTABLE_DOC_FORMAT = "tsumu-doc";
 export const PORTABLE_DOC_VERSION = 1;
@@ -22,7 +22,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function base64(bytes: Uint8Array): string {
   let text = "";
-  // Avoid spreading huge arrays into a single function call.
+  // 巨大な配列を、1回の関数呼び出しに展開しない。
   for (let i = 0; i < bytes.length; i += 0x8000) {
     text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   }
@@ -42,9 +42,9 @@ function fromBase64(value: string, maxBytes: number): Uint8Array {
 }
 
 /**
- * Encode a document without information loss. Return plain, minified SiteDoc
- * when it takes fewer bytes than the gzip+Base64 envelope. Do not mutate doc.
- * For ZIP archives keep the plain JSON and DEFLATE the archive instead.
+ * 情報を失わずに文書を符号化する。gzip+Base64 の封筒より少ないバイト数で済むなら、
+ * 圧縮していない最小化した SiteDoc を返す。doc は書き換えない。
+ * ZIP のアーカイブでは、プレーンな JSON のまま、アーカイブを DEFLATE で圧縮する。
  */
 export async function serializePortableDoc(doc: SiteDoc, maxBytes: number): Promise<string> {
   const plain = JSON.stringify(doc);
@@ -65,9 +65,9 @@ export async function serializePortableDoc(doc: SiteDoc, maxBytes: number): Prom
 }
 
 /**
- * Decode a compact envelope, or return an ordinary SiteDoc unchanged.
- * The maximum *decompressed* size is enforced while streaming; malformed or
- * unsupported envelopes never fall through as a SiteDoc.
+ * 圧縮した封筒をデコードする。通常の SiteDoc なら、そのまま返す。
+ * *展開後の* 大きさの上限はストリームの途中で確かめる。不正な封筒や対応していない封筒を、
+ * SiteDoc として通すことは決してない。
  */
 export async function decodePortableDoc(value: unknown, maxBytes: number): Promise<unknown> {
   if (!isRecord(value) || value.format !== PORTABLE_DOC_FORMAT) return value;

@@ -1,7 +1,7 @@
 import { ASSET_FETCH_CONCURRENCY, mapLimit } from "./assets";
 import { newSiteId } from "./sites";
 
-/** Only the outermost import owns rollback. Record paths returned by new uploads. */
+/** 取り消しを受け持つのは、最も外側の取り込みだけ。新しいアップロードで返されたパスを記録する。 */
 export async function withImportUploads<T>(
   run: (paths: string[]) => Promise<T>, existing?: string[],
 ): Promise<T> {
@@ -11,7 +11,7 @@ export async function withImportUploads<T>(
     return await run(paths);
   } catch (error) {
     if (paths.length) {
-      // The destination may not exist yet. Check every saved site's references.
+      // 取り込み先はまだ存在しないことがある。保存済みのすべてのサイトの参照を確かめる。
       const site = newSiteId();
       await mapLimit([...new Set(paths)], ASSET_FETCH_CONCURRENCY, async path => {
         await fetch("/api/assets?site=" + encodeURIComponent(site) + "&path=" + encodeURIComponent(path),

@@ -6,14 +6,14 @@ export const LAYER_OVERSCAN = 8;
 export interface VisibleLayer {
   id: string;
   depth: number;
-  /** Whether this element is immediately under a page (not a component master). */
+  /** この要素が、ページの直下にあるか（コンポーネントのマスターではないか）。 */
   isTop: boolean;
 }
 
 /**
- * Flatten only expanded branches in visual order. The layer panel can then
- * render a bounded window of rows, instead of mounting the whole recursive tree.
- * An explicit stack also handles deep documents without a recursive call stack.
+ * 展開している枝だけを、表示される順に平らに並べる。こうすることで、レイヤーのパネルは
+ * ツリー全体を再帰的にマウントせずに、範囲を限った行だけを描画できる。
+ * 明示的なスタックを使うため、深い文書でも再帰呼び出しのスタックを使わずに処理できる。
  */
 export function visibleLayerRows(
   doc: Pick<SiteDoc, "nodes">,
@@ -43,7 +43,7 @@ export function visibleLayerRows(
   return rows;
 }
 
-/** Fixed 28px rows allow O(1) window calculations while preserving scroll height. */
+/** 行の高さを 28px に固定し、スクロールの高さを保ったまま、表示範囲を O(1) で計算する。 */
 export function layerWindow(
   count: number,
   scrollTop: number,

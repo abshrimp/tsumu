@@ -1,7 +1,7 @@
 /**
- * Lightweight language metadata for middleware and the browser.
- * Add lib/locales/<BCP-47>.ts; scripts/sync-locales.mjs discovers it.
- * Source English needs no file. Missing translations fall back to English.
+ * middleware とブラウザで使う、軽量な言語の情報。
+ * lib/locales/<BCP-47>.ts を追加すれば、scripts/sync-locales.mjs が見つけて登録する。
+ * 原文の英語にはファイルが要らない。訳が無い文は英語で表示する。
  */
 import { REGISTERED_LANGUAGES } from "./locales/languages.generated";
 
@@ -9,20 +9,20 @@ export const LANGUAGES = REGISTERED_LANGUAGES;
 
 export type Lang = keyof typeof LANGUAGES;
 
-/** The source strings in tr() are written in English. */
+/** tr() の原文は英語で書く。 */
 export const SOURCE_LANG: Lang = "en";
 
-/** 対応していない言語の人に出す言語。訳が無い文もこの言語の訳を使う */
+/** 対応していない言語の人に使う言語。訳が無い文も、この言語で表示する */
 export const FALLBACK_LANG: Lang = "en";
 
-/** サーバー（APIのエラー文）にも言語を伝えるクッキー */
+/** サーバー（API のエラー文）にも言語を伝えるためのクッキー */
 export const LANG_COOKIE = "tsumu-lang";
 
 export function isLang(v: unknown): v is Lang {
   return typeof v === "string" && Object.prototype.hasOwnProperty.call(LANGUAGES, v);
 }
 
-/** 優先する順の言語コード（"zh-TW" など）から、対応している言語を選ぶ */
+/** 優先する順に並んだ言語コード（"zh-TW" など）から、対応している言語を選ぶ */
 export function pickLang(prefs: readonly string[]): Lang {
   for (const p of prefs) {
     let code: string;
@@ -31,7 +31,7 @@ export function pickLang(prefs: readonly string[]): Lang {
     } catch {
       continue;
     }
-    // A script- or region-specific dictionary can also match a more specific tag.
+    // 文字体系や地域を指定した辞書は、それより細かいタグにも一致できる。
     for (;;) {
       if (isLang(code)) return code;
       const hyphen = code.lastIndexOf("-");
@@ -42,7 +42,7 @@ export function pickLang(prefs: readonly string[]): Lang {
   return FALLBACK_LANG;
 }
 
-/** Accept-Language を優先順（q の大きい順）の言語コードにする */
+/** Accept-Language を、優先する順（q の大きい順）の言語コードの並びにする */
 export function parseAcceptLanguage(header: string | null | undefined): string[] {
   return (header ?? "")
     .split(",")
@@ -56,7 +56,7 @@ export function parseAcceptLanguage(header: string | null | undefined): string[]
     .map((x) => x.code);
 }
 
-/** リクエストのクッキー・Accept-Language から言語を決める（サーバー側） */
+/** リクエストのクッキーと Accept-Language から言語を決める（サーバー側） */
 export function langOfRequest(req: Request): Lang {
   const cookie = req.headers.get("cookie") ?? "";
   const m = new RegExp(`(?:^|;\\s*)${LANG_COOKIE}=([\\w-]+)`).exec(cookie);

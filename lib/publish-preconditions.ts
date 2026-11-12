@@ -2,9 +2,9 @@ import type { PublishTarget } from "./generator";
 import type { TargetConfig } from "./github";
 
 /**
- * The destination shown when the user chose this operation, never an override.
- * Validation binds a request to its resolved settings; it is not a transaction
- * spanning D1 settings and GitHub. Later settings edits cannot retarget that request.
+ * 利用者がこの操作を選んだときに表示していた公開先（上書きの指定ではない）。
+ * 検証は、リクエストを解決済みの設定に結び付けるもので、D1 の設定と GitHub にまたがる
+ * トランザクションではない。後から設定を編集しても、そのリクエストの公開先は変わらない。
  */
 export interface ExpectedPublishTarget {
   site: string;

@@ -1,7 +1,7 @@
 /**
- * Webマニュアルの記事（Q&A）。
- * guide の target は画面の data-tutorial の値。新しい場所を案内するときは、
- * 画面側に data-tutorial を足してからここで使う
+ * ウェブのマニュアルの記事（Q&A）。
+ * guide の target は、画面の data-tutorial の値。新しい場所を案内するときは、
+ * 画面側に data-tutorial を追加してから、ここで使う
  */
 
 import type { EditorState, Topic } from "./manual";
@@ -13,7 +13,7 @@ import { tr, trc } from "./i18n";
 
 const node = (s: EditorState) => (s.selection ? s.doc.nodes[s.selection] : undefined);
 
-/** 選んでいる要素の、いまの画面幅・状態で効いているスタイル */
+/** 選んでいる要素の、いまの画面幅と状態で効いているスタイル */
 const style = (s: EditorState, prop: string): string | undefined => {
   const n = node(s);
   return n ? resolveStyles(n, s.breakpoint, s.styleState)[prop] : undefined;
@@ -1899,7 +1899,7 @@ export const TOPICS: Topic[] = [
     see: ["pub-site"],
   },
 
-  /* ================= Webデザインの基本 ================= */
+  /* ================= ウェブデザインの基本 ================= */
   {
     id: "d-units",
     cat: "design",

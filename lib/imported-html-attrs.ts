@@ -1,7 +1,7 @@
 /**
- * The limited HTML attributes that an imported visual element can retain.
- * Script handlers, URL-bearing attributes and Tsumu's internal data-* markers
- * must never be copied from an untrusted HTML document.
+ * 取り込んだ視覚的な要素が残せる、限られた HTML の属性。
+ * スクリプトの処理、URL を持つ属性、Tsumu の内部の data-* の印は、
+ * 信頼できない HTML の文書から決して写してはいけない。
  */
 const EXTRA_ATTRIBUTES = new Set(["title", "role", "lang", "dir", "tabindex", "for", "htmlfor"]);
 const RESERVED_DATA = /^(?:node|ghost|sel|bound|scripts|raw|array|tpl|inview|toggle-show|page-body|instance-node|instance-hidden|live(?:-.+)?|text-parts|href-parts|field-.+|tutorial|item|limit|client-list|list-ops|site-state|edited|row|list-fallback|image-src-parts|static-href|static-src|static-option|loader|page-plan|page-variants|variant-root|driven)$/;

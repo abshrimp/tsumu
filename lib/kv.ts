@@ -2,21 +2,21 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { nodeAssetStore } from "./node-storage";
 
 /**
- * 画像・動画・音声アセットの保存先（Cloudflare Workers KV）。
- * R2と違いカード登録なしの無料プランで使える（1GB・1値25MBまで）。
- * wrangler.jsonc の ASSETS_KV バインディング経由でアクセスし、
- * 配信は /api/assets/file プロキシで行う。
+ * 画像・動画・音声のアセットの保存先（Cloudflare Workers KV）。
+ * R2 と違い、カードを登録しない無料プランで使える（合計 1GB、1つの値は 25MB まで）。
+ * wrangler.jsonc の ASSETS_KV バインディングを経由してアクセスし、
+ * 配信は /api/assets/file のプロキシで行う。
  * Cloudflare の外では、TSUMU_DATA_DIR のフォルダを同じ形で使う（lib/node-storage.ts）。
  */
 
-/** アセットのメタデータ（KVのmetadataに保存） */
+/** アセットのメタデータ（KV の metadata に保存する） */
 export interface AssetMeta {
   contentType?: string;
-  /** Known size for GC estimates. Older KV objects may lack this field. */
+  /** GC の見積もりに使う、分かっている大きさ。古い KV のオブジェクトには、この項目が無いことがある。 */
   bytes?: number;
 }
 
-/** 使用するKV APIの最小型（@cloudflare/workers-types の型衝突を避ける） */
+/** 使う KV の API の最小限の型（@cloudflare/workers-types との型の衝突を避けるため） */
 export interface KVLikeNamespace {
   put(
     key: string,
@@ -29,7 +29,7 @@ export interface KVLikeNamespace {
     options: { type: "stream" }
   ): Promise<{ value: ReadableStream | null; metadata: AssetMeta | null }>;
   delete(key: string): Promise<void>;
-  /** Workers KV enumeration. The Node/Docker filesystem store need not implement this. */
+  /** Workers KV の列挙。Node.js・Docker のファイルシステムの保存先では、実装しなくてよい。 */
   list?(options: { prefix: string; cursor?: string; limit?: number }): Promise<{
     keys: { name: string; metadata?: AssetMeta | null }[];
     list_complete: boolean;
@@ -37,7 +37,7 @@ export interface KVLikeNamespace {
   }>;
 }
 
-/** アセット用KV（バインディングも TSUMU_DATA_DIR も無ければ null） */
+/** アセット用の KV（バインディングも TSUMU_DATA_DIR も無ければ null） */
 export function assetStore(): KVLikeNamespace | null {
   try {
     const env = getCloudflareContext().env as unknown as Record<
@@ -52,5 +52,5 @@ export function assetStore(): KVLikeNamespace | null {
   return nodeAssetStore();
 }
 
-/** KVの1値あたりの上限（25MB） */
+/** KV の1つの値の上限（25MB） */
 export const MAX_ASSET_BYTES = 25 * 1024 * 1024;

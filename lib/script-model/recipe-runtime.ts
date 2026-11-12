@@ -6,9 +6,9 @@ export type RecipeEvaluation =
   | { kind: "error"; code: string };
 
 /**
- * Pure, self-contained evaluator shared by editor samples, SSR and client JS.
- * Do not capture imports or local helpers: the exported site embeds this function.
- * Undefined is missing; null is a real value. No input object is mutated.
+ * エディタの見本・SSR・クライアントの JS で共有する、純粋で自己完結した評価器。
+ * import やローカルの補助を取り込んではいけない。書き出したサイトに、この関数をそのまま埋め込む。
+ * undefined は値が無いことを、null は実際の値を表す。入力のオブジェクトは書き換えない。
  */
 export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransform[], variables: Record<string, unknown> = {}): RecipeEvaluation {
   const failure = (code: string): RecipeEvaluation => ({ kind: "error", code });

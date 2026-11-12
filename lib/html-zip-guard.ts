@@ -21,8 +21,8 @@ type ZipEntry = JSZip.JSZipObject & {
 };
 
 /**
- * Validate paths and advertised sizes before unpacking or uploading anything.
- * JSZip normalizes traversal paths; unsafeOriginalName preserves that evidence.
+ * 展開やアップロードを始める前に、パスと申告された大きさを検証する。
+ * JSZip はパスの遡りを正規化してしまうため、その証拠を unsafeOriginalName に残しておく。
  */
 export function inspectHtmlZip(zip: JSZip): {
   htmlEntries: JSZip.JSZipObject[];
@@ -44,13 +44,13 @@ export function inspectHtmlZip(zip: JSZip): {
         name.split("/").some((part) => !part || part === "." || part === "..")) {
       throw new Error(tr("The ZIP contains an unsafe path."));
     }
-    // Avoid overwriting distinct assets on case-insensitive or Unicode-normalizing hosts.
+    // 大文字と小文字を区別しない、または Unicode を正規化するホストで、別々のアセットを上書きしないようにする。
     const canonical = name.normalize("NFC").toLowerCase();
     if (paths.has(canonical)) throw new Error(tr("The ZIP contains duplicate file paths."));
     paths.add(canonical);
 
     const size = zipEntrySize(entry);
-    // Unknown/unsafe sizes cannot be used to bound a ZIP bomb before extraction.
+    // 大きさが分からない・信頼できない場合は、展開の前に ZIP 爆弾を防ぐ上限に使えない。
     if (size === null) {
       throw new Error(tr("A file in the ZIP has an invalid size."));
     }
@@ -72,7 +72,7 @@ export function inspectHtmlZip(zip: JSZip): {
     !entry.name.startsWith("__MACOSX/") && !entry.name.endsWith(".DS_Store"));
   const htmlEntries = entries.filter((entry) => /\.html?$/i.test(entry.name));
   if (!htmlEntries.length) throw new Error(tr("No HTML file found in the zip"));
-  // Archives may list a nested index before the site's home page.
+  // アーカイブでは、サイトのトップページより先に、入れ子の index が並んでいることがある。
   let htmlEntry = htmlEntries[0];
   let indexDepth = Infinity;
   for (const entry of htmlEntries) {
