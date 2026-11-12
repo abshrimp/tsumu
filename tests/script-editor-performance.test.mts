@@ -2,9 +2,59 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { SlotIndex, type SlotPoint } from "../components/script-editor/slot-index";
 import { filterNumbersOf, insertAt, listIn, mapStep, numberFilters, removeKeys, takeAt } from "../components/script-editor/step-tree";
-import { dataVarNames, firstListItem, ITEM_VALUE, pageVariableIndex, scriptInputDoc, toListItems } from "../lib/data";
+import { dataVarNames, firstListItem, ITEM_VALUE, pageVariableIndex, scopeAt, scriptInputDoc, toListItems } from "../lib/data";
 import { PAGE_TARGET, type ScriptStep, type SiteDoc } from "../lib/types";
-import { applyPageScripts, pageScriptsOf, withPageScripts, type PageScript } from "../lib/script";
+import { applyPageScripts, pageNodeIds, pageScriptsOf, withPageScripts, type PageScript } from "../lib/script";
+import { buildTree, searchNodePickerRows } from "../components/script-editor/targets";
+import { makeBox } from "../lib/presets";
+import { scriptDragDoc } from "./helpers/script-drag";
+
+test("element search retains the placement of a component and its following siblings", () => {
+  const doc = scriptDragDoc();
+  const box = (id: string, children: string[] = []) => ({ ...makeBox(), id, name: id, children });
+  doc.nodes = {
+    group: box("group", ["instance", "sibling"]),
+    instance: { ...box("instance"), type: "instance", componentId: "c" },
+    master: box("master", ["nested"]),
+    nested: box("nested"),
+    sibling: box("sibling"),
+    again: { ...box("again"), type: "instance", componentId: "c" },
+    extra: box("extra"),
+  };
+  doc.pages.p.children = ["group", "again"];
+  doc.components = { c: { id: "c", name: "Component", rootId: "master" } };
+  const rows = buildTree(doc, "p", ["extra", "master"]);
+  assert.deepEqual(rows.map(r => [r.id, r.depth, r.hasChildren]), [
+    ["group", 0, true], ["master", 1, true], ["nested", 2, false],
+    ["sibling", 1, false], ["extra", 0, false],
+  ]);
+  assert.deepEqual(pageNodeIds(doc, "p", ["extra"], true), [
+    "group", "instance", "master", "nested", "sibling", "again", "extra",
+  ]);
+  const search = (q: string) => searchNodePickerRows(rows, q, new Set(), new Set()).rows.map(r => r.id);
+  assert.deepEqual(search("sibling"), ["group", "sibling"]);
+  assert.deepEqual(search("nested"), ["group", "master", "nested"]);
+  // A repeated child reference cannot make the picker walk a parent cycle.
+  doc.nodes.nested.children = ["group"];
+  assert.deepEqual(buildTree(doc, "p", ["extra"]), rows);
+});
+
+test("script input scope reads only the first item and scans a deep node tree once for parents", () => {
+  const doc = scriptDragDoc();
+  doc.pages.p.children = ["list"];
+  const list = { ...makeBox(), id: "list", type: "list" as const, list: { from: "products" }, children: ["n0"] };
+  doc.nodes = { list };
+  for (let i = 0; i < 100; i++)
+    doc.nodes["n" + i] = { ...makeBox(), id: "n" + i, children: i < 99 ? ["n" + (i + 1)] : [] };
+  const products = [{ title: "first" }, { title: "second" }];
+  Object.defineProperty(products, "1", { enumerable: true, get() { throw new Error("unrelated item read"); } });
+  doc.pages.p.pageScripts![0].steps = [{ id: "load", kind: "fetch", as: "products",
+    url: "/products", preview: { sample: products, fetchedAt: 1 } }];
+  let scans = 0;
+  doc.nodes = new Proxy(doc.nodes, { ownKeys(nodes) { scans++; return Reflect.ownKeys(nodes); } });
+  assert.deepEqual(scopeAt(doc, "p", "n99").item, { title: "first" });
+  assert.equal(scans, 1);
+});
 
 function brute(slots: SlotPoint[], kind: SlotPoint["kind"], x: number, y: number) {
   let best: string | null = null;

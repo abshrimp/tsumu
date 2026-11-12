@@ -166,24 +166,37 @@ export function pageNodeIds(
   includeInstances = false
 ): string[] {
   const out: string[] = [];
-  const walked = new Set<string>();
-  const walk = (id: string) => {
-    if (walked.has(id)) return;
-    walked.add(id);
-    const n = doc.nodes[id];
-    if (!n) return;
-    if (n.type === "instance") {
-      if (includeInstances) out.push(id);
-      const comp = doc.components?.[n.componentId ?? ""];
-      if (comp) walk(comp.rootId);
-      return;
-    }
-    out.push(id);
-    n.children.forEach(walk);
-  };
-  doc.pages[pageId]?.children.forEach(walk);
-  extraRootIds.forEach(walk);
+  visitPageNodes(doc, pageId, extraRootIds, (id) => out.push(id), includeInstances);
   return out;
+}
+
+/** 表示順にたどり、インスタンスの位置でコンポーネントのマスターを展開する。 */
+export function visitPageNodes(
+  doc: SiteDoc,
+  pageId: string,
+  extraRootIds: string[],
+  visit: (id: string, node: DocNode, depth: number) => void,
+  includeInstances = false
+) {
+  const walked = new Set<string>();
+  const pending = [...(doc.pages[pageId]?.children ?? []), ...extraRootIds]
+    .reverse().map((id) => ({ id, depth: 0 }));
+  while (pending.length) {
+    const { id, depth } = pending.pop()!;
+    if (walked.has(id)) continue;
+    walked.add(id);
+    const node = doc.nodes[id];
+    if (!node) continue;
+    if (node.type === "instance") {
+      if (includeInstances) visit(id, node, depth);
+      const master = doc.components?.[node.componentId ?? ""];
+      if (master) pending.push({ id: master.rootId, depth: includeInstances ? depth + 1 : depth });
+    } else {
+      visit(id, node, depth);
+      for (let i = node.children.length - 1; i >= 0; i--)
+        pending.push({ id: node.children[i], depth: depth + 1 });
+    }
+  }
 }
 
 /** Reuse immutable view wrappers for unchanged scripts across editor updates. */

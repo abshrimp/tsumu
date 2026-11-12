@@ -271,11 +271,12 @@ export function numberFilters(scripts: PageScript[]): PageScript[] {
   // Renumber only the affected filter blocks and their enclosing branches.
   // Deep cloning here discarded mapStep's sharing on every normal input edit.
   const assigned = new Map<ScriptStep, number>();
+  const nextNumber = new Map<string, number>();
   for (const st of need) {
     const set = used.get(st.array)!;
-    let n = 1;
+    let n = nextNumber.get(st.array) ?? 1;
     while (set.has(n)) n++;
-    set.add(n);
+    nextNumber.set(st.array, n + 1);
     assigned.set(st, n);
   }
   const updateList = (steps: ScriptStep[]): ScriptStep[] => {

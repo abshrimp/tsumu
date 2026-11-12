@@ -7,7 +7,7 @@ import { componentOf, useEditor } from "../lib/store";
 import SafeBoundary from "./SafeBoundary";
 import { glyphs } from "./Glyph";
 import { InfoTip } from "./controls";
-import { applyPageScripts, cloneSteps, pageNodeIds, pageScriptsOf, scriptUid, walkSteps, TRIGGER_LABELS, type PageScript } from "../lib/script";
+import { applyPageScripts, cloneSteps, pageScriptsOf, scriptUid, walkSteps, TRIGGER_LABELS, type PageScript } from "../lib/script";
 import { stepText } from "../lib/script-text";
 import { pageArrays, pagePlan, pageVariableIndex, previewDataVars, renameVarInPage, type FetchStep } from "../lib/data";
 import { PAGE_TARGET, type Script, type ScriptStep } from "../lib/types";
@@ -210,19 +210,15 @@ function ScriptEditorInner({
   // コンポーネント編集中・コンポーネント内の要素から開いたときは、そのマスターも含める
   // Component ownership indexes the node tree. Recompute it only when the
   // document or editor focus changes, never on every drag/selection render.
-  const extraRootsKey = useMemo(() => [
+  const extraRootIds = useMemo(() => [
     editingComponentId ? doc.components?.[editingComponentId]?.rootId : null,
     focusNodeId
       ? doc.components?.[componentOf(doc, focusNodeId) ?? ""]?.rootId
       : null,
   ]
-    .filter(Boolean)
-    .join(","), [doc, editingComponentId, focusNodeId]);
-  const nodeIds = useMemo(
-    () =>
-      pageNodeIds(doc, activePageId, extraRootsKey ? extraRootsKey.split(",") : []),
-    [doc, activePageId, extraRootsKey]
-  );
+    .filter((id): id is string => !!id), [doc, editingComponentId, focusNodeId]);
+  const tree = useMemo(() => buildTree(doc, activePageId, extraRootIds), [doc, activePageId, extraRootIds]);
+  const nodeIds = useMemo(() => tree.map((row) => row.id), [tree]);
   const scripts = useMemo(
     () => pageScriptsOf(doc, nodeIds, activePageId),
     [doc, nodeIds, activePageId]
@@ -245,7 +241,6 @@ function ScriptEditorInner({
   ), [scripts]);
   const serverStepIds = useMemo(() => pagePlan(doc, activePageId).serverIds, [doc, activePageId]);
   const targets = useMemo(() => collectTargets(doc, nodeIds), [doc, nodeIds]);
-  const tree = useMemo(() => buildTree(doc, nodeIds), [doc, nodeIds]);
   const targetLookup = useMemo(() => {
     const firstByAttr = new Map<string, (typeof tree)[number]>();
     const firstNodeIds = new Set<string>();
@@ -440,7 +435,7 @@ function ScriptEditorInner({
     const owners = scripts.filter((script) => ids.has(script.id)).map((script) => script.id);
     if (!owners.length) return;
     setFront((prev) => {
-      const next = [...prev.filter((id) => !owners.includes(id)), ...owners];
+      const next = [...prev.filter((id) => !ids.has(id)), ...owners];
       return next.length === prev.length && next.every((id, i) => id === prev[i]) ? prev : next;
     });
     // 選択が変わったときだけ並べ替える（スクリプトの編集では動かさない）
@@ -662,7 +657,7 @@ function ScriptEditorInner({
   const view = useMemo(() => {
     const p = drag?.payload;
     if (!p) return scripts;
-    if (p.type === "steps" && p.from) return takeAt(scripts, p.from)[0];
+    if (p.type === "steps" && p.from) return p.from.remaining;
     if (p.type === "script") {
       const ids = new Set(p.group.map((s) => s.id));
       return scripts.filter((s) => !ids.has(s.id));
@@ -673,7 +668,7 @@ function ScriptEditorInner({
   const sharedCtx = useMemo<EdCtx>(() => ({
     doc,
     pageId: activePageId,
-    scriptRootIds: extraRootsKey ? extraRootsKey.split(",") : [],
+    scriptRootIds: extraRootIds,
     targets,
     tree,
     targetLookup,
@@ -725,11 +720,10 @@ function ScriptEditorInner({
     beginSteps: (e, loc, stepId) =>
       begin(
         e,
-        () => ({
-          type: "steps",
-          steps: takeAt(latest.current.scripts, loc)[1],
-          from: loc,
-        }),
+        () => {
+          const [remaining, steps] = takeAt(latest.current.scripts, loc);
+          return { type: "steps", steps, from: { loc, remaining } };
+        },
         `step:${stepId}`
       ),
     beginScript: (e, script) =>
@@ -737,10 +731,10 @@ function ScriptEditorInner({
         e,
         () => {
           // 選択中のスクリプトがあれば一緒に動かす
-          const sel = latest.current.selectedList;
-          const group = latest.current.scripts.filter(
-            (s) => s.id === script.id || sel.includes(`script:${s.id}`)
-          );
+          // 選択数がプレビューの表示上限を超えても、つかんだブロックは必ず表示する。
+          const group = [script, ...latest.current.scripts.filter(
+            (s) => s.id !== script.id && selectedRef.current.has(`script:${s.id}`)
+          )];
           return { type: "script", script, group };
         },
         `script:${script.id}`
@@ -751,7 +745,7 @@ function ScriptEditorInner({
       if (!selectedRef.current.has(key)) setSelectedList([key]);
       setMenu({ x: e.clientX, y: e.clientY, target, key });
     },
-  }), [doc, activePageId, extraRootsKey, targets, tree, targetLookup, fieldLookup, scripts,
+  }), [doc, activePageId, extraRootIds, targets, tree, targetLookup, fieldLookup, scripts,
     stepOwners, variableIndex, transformSources, pageLoadScriptIds, serverStepIds, elements, focusNodeId,
     commit, updateDoc, nodeIds, arrays, samples, begin]);
   const ctx = useMemo<EdCtx>(() => ({ ...sharedCtx, selected, zOrder }),
@@ -786,10 +780,14 @@ function ScriptEditorInner({
     }
     const script = scripts.find((x) => x.id === t.loc.scriptId);
     const list = script && listIn(script, t.loc.list);
-    const step = list?.[t.loc.index];
-    if (!step) return;
-    const [copy] = cloneSteps([step]);
-    commit(insertAt(scripts, { ...t.loc, index: t.loc.index + 1 }, [copy]));
+    if (!list) return;
+    // A collaborative edit can insert or remove siblings while the menu is open.
+    const stepId = menu.key.slice("step:".length);
+    const index = list[t.loc.index]?.id === stepId
+      ? t.loc.index : list.findIndex((step) => step.id === stepId);
+    if (index < 0) return;
+    const [copy] = cloneSteps([list[index]]);
+    commit(insertAt(scripts, { ...t.loc, index: index + 1 }, [copy]));
     setSelectedList([`step:${copy.id}`]);
   };
 
@@ -1037,7 +1035,7 @@ function ScriptEditorInner({
                 <ScopedStackView key={s.id} script={s} shared={sharedCtx}
                   selectedKeys={scopedSelections.get(s.id) ?? EMPTY_SCRIPT_KEYS}
                   zIndex={zOrder.get(s.id)}
-                  frozenWidth={drag?.payload?.type === "steps" && drag.payload.from?.scriptId === s.id
+                  frozenWidth={drag?.payload?.type === "steps" && drag.payload.from?.loc.scriptId === s.id
                     ? drag.sourceStackWidth : undefined} />
               ))}
             </div>

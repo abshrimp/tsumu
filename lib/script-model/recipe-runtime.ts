@@ -476,12 +476,13 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
             keyType = typeof key;
             pairs.push({ item, sourceKey, key, order: i });
           }
+          const collator = keyType === "string" ? new Intl.Collator("ja", { numeric: true }) : undefined;
           pairs.sort((a, b) => {
             // The list-display block uses natural Japanese collation for text
             // (so "2" precedes "10"), while numeric fields use arithmetic.
             let order = typeof a.key === "number" && typeof b.key === "number"
               ? a.key - b.key
-              : String(a.key).localeCompare(String(b.key), "ja", { numeric: true });
+              : collator!.compare(String(a.key), String(b.key));
             if (step.direction === "desc") order *= -1;
             return order || a.order - b.order;
           });
