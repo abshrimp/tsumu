@@ -1,13 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
 import { motionEditorBundle } from "../tests/helpers/motion-editor-browser";
 
-const bundle = motionEditorBundle();
+let bundle: string;
+test.beforeAll(async () => { bundle = await motionEditorBundle(); });
 test.use({ hasTouch: true });
 
 test.beforeEach(async ({ page }) => {
   await page.setContent('<div id="app"></div>');
   await page.addStyleTag({ path: "app/globals.css" });
-  await page.addScriptTag({ content: await bundle });
+  await page.addScriptTag({ content: bundle });
   await expect(page.locator(".kfe-modal")).toBeVisible();
   await page.locator(".kfe-modal").evaluate((element) =>
     Promise.all(element.getAnimations().map((animation) => animation.finished)));

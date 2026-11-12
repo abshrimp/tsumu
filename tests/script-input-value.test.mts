@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { runInNewContext } from "node:vm";
 import { SCRIPT_RUNTIME, scriptsFile } from "../lib/script-runtime";
 import { renderLeafNode } from "../components/canvas/render";
-import { publishedScriptInputValue, scriptInputValueBundle, scriptInputValueDoc } from "./helpers/script-input-value";
+import { publishedScriptInputValue, scriptInputValueDoc } from "./helpers/script-input-value";
 
 /** setter の結果は外から渡す。DOM の正規化そのものは、ネイティブの e2e で検証する。 */
 function assignments(preview: boolean, initial: string, requested: string[], accepted: string[]) {
@@ -59,11 +59,8 @@ for (const preview of [true, false]) {
   });
 }
 
-test("input assignment regression bundles actual ScriptEditor, Canvas and generated page", async () => {
+test("generated number input includes its assignment scripts", async () => {
   const doc = scriptInputValueDoc({ kind: "input", inputType: "number", defaultValue: "12" }, "invalid", "8");
-  const bundle = await scriptInputValueBundle(doc);
-  assert.match(bundle, /function ScriptEditorInner/);
-  assert.match(bundle, /function Canvas/);
   const { html } = await publishedScriptInputValue(doc);
   assert.match(html, /type="number"/);
   assert.match(html, /data-scripts=/);

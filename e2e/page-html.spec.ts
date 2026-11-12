@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { PAGE_HTML_COMPONENT } from "../lib/generator/templates";
 
 // 実際のハイドレーションを試すため、実際に書き出したコンポーネントを React と一緒にバンドルする。
-const bundle = buildSync({
+const buildFixture = () => buildSync({
   stdin: {
     contents: `
 ${PAGE_HTML_COMPONENT.replace("export default function PageHtml", "function PageHtml")}
@@ -48,7 +48,7 @@ test("Page-level scripts do not run twice during hydration and run on subsequent
   expect(await page.evaluate(() => (window as any).recorded)).toEqual([]);
   expect(await page.locator("#marquee").textContent()).toBe("WELCOME");
 
-  await page.addScriptTag({ content: bundle });
+  await page.addScriptTag({ content: buildFixture() });
   await expect.poll(() => page.evaluate(() => (window as any).ready)).toBe("a");
   await expect.poll(() => page.evaluate(() => (window as any).recorded)).toEqual(["a"]);
   expect(await page.locator("#marquee").textContent()).toBe("WELCOME WELCOME");

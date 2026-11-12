@@ -10,24 +10,34 @@ let connection: Promise<IDBDatabase> | null = null;
 function openDatabase(): Promise<IDBDatabase> {
   if (!window.indexedDB) return Promise.reject(new Error("IndexedDB is unavailable"));
   if (connection) return connection;
-  connection = new Promise<IDBDatabase>((resolve, reject) => {
+  const clear = () => {
+    if (connection === opening) connection = null;
+  };
+  const opening = new Promise<IDBDatabase>((resolve, reject) => {
     const request = window.indexedDB.open(DB_NAME, 1);
     request.onupgradeneeded = () => request.result.createObjectStore(STORE_NAME);
     request.onerror = () => reject(request.error ?? new Error("IndexedDB open failed"));
     request.onblocked = () => reject(new Error("IndexedDB upgrade blocked"));
     request.onsuccess = () => {
       const db = request.result;
+      // ブロック中に失敗を返した要求が後で開いた場合は、その接続を残さない。
+      if (connection !== opening) {
+        db.close();
+        return;
+      }
+      db.onclose = clear;
       db.onversionchange = () => {
         db.close();
-        connection = null;
+        clear();
       };
       resolve(db);
     };
   }).catch((error: unknown) => {
-    connection = null;
+    clear();
     throw error;
   });
-  return connection;
+  connection = opening;
+  return opening;
 }
 
 export async function readBrowserDoc(id: string): Promise<string | null> {

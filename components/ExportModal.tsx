@@ -168,7 +168,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
             onClick={async () => {
               setBusy(true);
               try {
-                const missing = await exportProjectZip(await docWithSvgFilters(), options);
+                const missing = await exportProjectZip(await docWithSvgFilters(doc), options);
                 onClose();
                 if (missing.length) {
                   void showAlert(

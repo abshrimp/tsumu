@@ -1,5 +1,5 @@
 import { withImportUploads } from "./import-uploads";
-import { openImportZip } from "./zip-directory";
+import type JSZip from "jszip";
 import type { Asset, BreakpointDef, SiteDoc } from "./types";
 import { readHtmlZip, readHtmlZipPages } from "./html-zip";
 import { isHtmlIndex } from "./html-zip-guard";
@@ -21,35 +21,28 @@ export function requireEditableHtmlContent(result: HtmlConversion): HtmlConversi
   return result;
 }
 
-/**
- * ZIP の取り込み先を決める前に、アーカイブのファイル名だけを調べる。編集可能な Tsumu の
- * ZIP は損なわずに復元し、通常のウェブサイトの ZIP はノードに変換する。
- */
-export async function isEditableSiteZip(data: Uint8Array): Promise<boolean> {
-  const zip = await openImportZip(data, IMPORT_LIMITS.entries);
-  const names = Object.values(zip.files).filter((item) => !item.dir).map((item) => item.name);
-  return names.some((name) => /^(?:[^/]+\/)?_tsumu\/doc\.json$/i.test(name));
+/** ホームからの HTML ZIP 取り込みでは、開いたアーカイブの全ページを変換する。 */
+export async function convertHtmlZipSite(
+  zip: JSZip, progress: (message: string) => void, paths: string[],
+): Promise<HtmlConversion> {
+  progress(tr("Reading HTML and assets…"));
+  const archive = await readHtmlZipPages(zip, progress, paths);
+  return requireEditableHtmlContent(convertHtmlPages(archive.pages, archive.assets));
 }
 
 export async function convertHtmlFile(
   file: File,
-  options: { breakpoints?: BreakpointDef[]; progress?: (message: string) => void; allPages?: boolean } = {},
+  options: { breakpoints?: BreakpointDef[]; progress?: (message: string) => void } = {},
   uploaded?: string[],
 ): Promise<HtmlConversion> {
   if (!file.size) throw new Error(tr("The file is empty."));
   if (file.name.toLowerCase().endsWith(".zip")) {
-    if (file.size > IMPORT_LIMITS.zipBytes) throw new Error(tr("The import file is too large."));
-    // readHtmlZip / readHtmlZipPages は、アップロードの前に、同じ厳格なパスと展開の検査を行う。
     options.progress?.(tr("Reading HTML and assets…"));
     return withImportUploads(async paths => {
-      if (!options.allPages) {
-        const converted = await readHtmlZip(file, options.progress, paths);
-        return requireEditableHtmlContent(convertHtmlToSite(converted.html, {
-          breakpoints: options.breakpoints, assets: converted.assets,
-        }));
-      }
-      const archive = await readHtmlZipPages(file, options.progress, paths);
-      return requireEditableHtmlContent(convertHtmlPages(archive.pages, archive.assets, options.breakpoints));
+      const converted = await readHtmlZip(file, options.progress, paths);
+      return requireEditableHtmlContent(convertHtmlToSite(converted.html, {
+        breakpoints: options.breakpoints, assets: converted.assets,
+      }));
     }, uploaded);
   }
   if (!isHtmlFile(file.name)) throw new Error(tr("Choose an HTML file or ZIP containing HTML."));
@@ -66,7 +59,6 @@ export async function convertHtmlFile(
 function convertHtmlPages(
   pages: { name: string; html: string }[],
   assets: Asset[],
-  initialBreakpoints?: BreakpointDef[],
 ): HtmlConversion {
   if (!pages.length) throw new Error(tr("No HTML file found in the zip"));
   const main = pages[0];
@@ -80,7 +72,7 @@ function convertHtmlPages(
   const slugs = new Set<string>();
   const warnings: string[] = [];
   const originForPage = new Map<string, string>();
-  let breakpoints = initialBreakpoints;
+  let breakpoints: BreakpointDef[] | undefined;
   const canonical = (raw: string) => {
     const parts: string[] = [];
     for (const part of raw.replace(/\\/g, "/").split("/")) {

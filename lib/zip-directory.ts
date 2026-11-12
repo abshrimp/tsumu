@@ -73,9 +73,18 @@ async function verifyEmptyStream(bytes: Uint8Array) {
   } finally { reader.releaseLock(); }
 }
 
+/** ファイルと明示的なディレクトリを合わせた物理レコードの上限。 */
+export function checkZipRecordCount(records: number, maxFiles: number): void {
+  if (records > maxFiles * 4) throw new Error(tr("The ZIP contains too many files."));
+}
+
 // JSZip は、まず物理的なすべての項目を実体化し、その後で正規化した名前で索引を作る。
 // そのどちらの割り当てや重複の除去よりも前に、セントラルディレクトリの記録を数える。
-export async function openImportZip(bytes: Uint8Array, maxFiles: number): Promise<JSZip> {
+export async function openImportZip(source: File | Uint8Array, maxFiles: number): Promise<JSZip> {
+  if ((source instanceof Uint8Array ? source.byteLength : source.size) > IMPORT_LIMITS.zipBytes) {
+    throw new Error(tr("The import file is too large."));
+  }
+  const bytes = source instanceof Uint8Array ? source : new Uint8Array(await source.arrayBuffer());
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const u16 = (i: number) => view.getUint16(i, true);
   const u32 = (i: number) => view.getUint32(i, true);
@@ -105,14 +114,12 @@ export async function openImportZip(bytes: Uint8Array, maxFiles: number): Promis
   } else if (u16(end + 4) !== 0 || u16(end + 6) !== 0 || u16(end + 8) !== records) throw invalid();
   const start = centralEnd - size;
   if (start < 0 || offset > start) throw invalid();
-  // 形式のファイル数の上限に加えて、明示的なディレクトリの記録も許す。
-  const maxRecords = maxFiles * 4;
-  if (records > maxRecords) throw new Error(tr("The ZIP contains too many files."));
+  checkZipRecordCount(records, maxFiles);
   const members: ReturnType<typeof member>[] = [];
   let pos = start;
   while (pos < centralEnd) {
     if (pos + 46 > centralEnd || u32(pos) !== 0x02014b50) throw invalid();
-    if (members.length >= maxRecords) throw new Error(tr("The ZIP contains too many files."));
+    checkZipRecordCount(members.length + 1, maxFiles);
     const m = member(view, pos, start, centralEnd, start - offset);
     members.push(m);
     pos = m.next;

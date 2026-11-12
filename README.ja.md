@@ -31,7 +31,7 @@ Tsumu を使うと、ドラッグなどの直感的な操作だけで Web サイ
 - **ノーコードのスクリプト**：直感的なブロックの組み立てだけで JavaScript のコードが構築できます。
 - **外部データ連携**：API から JSON を取得して利用できます。
 - **インポート**：Tsumu のフォーマットはもちろん、既存の HTML やウェブサイトも編集可能な要素として取り込めます。
-- **選べる出力形式**：Next.js・React・Vue・Nuxt・SvelteKit・HTML にの出力に対応。TypeScript・JavaScript、CSS の形式も選択可能。
+- **選べる出力形式**：Next.js・React・Vue・Nuxt・SvelteKit・HTML への出力に対応。TypeScript・JavaScript、CSS の形式も選択可能。
 - **GitHub への公開**：ボタンひとつで GitHub への公開ができます。本番・テスト用ブランチにも対応。
 - **リアルタイム共同編集**：複数人での同時編集に対応。コメントも残すことができます。
 - **AI による編集（任意）**：文章で指示してページを編集できます。

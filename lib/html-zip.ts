@@ -1,5 +1,6 @@
 import { withImportUploads } from "./import-uploads";
 import { openImportZip } from "./zip-directory";
+import type JSZip from "jszip";
 import { assetSrc, uploadStaticAsset } from "./assets";
 import { archiveBaseUrl, archiveResolver } from "./zip-references";
 import { rewriteSrcsetUrls } from "./srcset";
@@ -185,15 +186,8 @@ export function applyHtmlZipPage(doc: SiteDoc, pageId: string, imported: { asset
 
 /** 何かをアップロードする前に、アーカイブを事前に確認する。JavaScript の依存関係は解決しない。 */
 async function prepareHtmlZip(
-  file: File | Uint8Array, progress: (message: string) => void, paths: string[],
-  existing: Asset[] = [],
+  zip: JSZip, progress: (message: string) => void, paths: string[], existing: Asset[] = [],
 ) {
-  const compressedBytes = file instanceof Uint8Array ? file.byteLength : file.size;
-  if (compressedBytes > HTML_ZIP_LIMITS.zipBytes) {
-    throw new Error(tr("The import file is too large."));
-  }
-  const bytes = file instanceof Uint8Array ? file : new Uint8Array(await file.arrayBuffer());
-  const zip = await openImportZip(bytes, HTML_ZIP_LIMITS.entries);
   const { htmlEntries, htmlEntry, assetEntries } = inspectHtmlZip(zip);
 
   // アップロードを始める前に、HTML と CSS のバイト列を検証する。不正なスタイルシートがあっても、
@@ -264,8 +258,9 @@ export async function readHtmlZip(
   uploaded?: string[], existing: Asset[] = [], sourceOnly = false,
 ) {
   return withImportUploads(async paths => {
+    const zip = await openImportZip(file, HTML_ZIP_LIMITS.entries);
     const { assets, htmlEntry, urls, htmlText, pristineHtmlText } =
-      await prepareHtmlZip(file, progress, paths, existing);
+      await prepareHtmlZip(zip, progress, paths, existing);
     const path = cleanZipPath(htmlEntry.name);
     const source = pristineHtmlText.get(htmlEntry.name) ?? "";
     if (!source.trim()) throw new Error(tr("The HTML file in the ZIP is empty. The existing page has not been replaced."));
@@ -280,14 +275,12 @@ export async function readHtmlZip(
 }
 
 /** 編集可能なサイトへの取り込み: アセットは1回だけアップロードしながら、すべての HTML のページを取り込む。 */
-export async function readHtmlZipPages(file: File | Uint8Array, progress: (message: string) => void = () => {}, uploaded?: string[]) {
-  return withImportUploads(async paths => {
-    const { assets, htmlEntries, htmlEntry, urls, htmlText } = await prepareHtmlZip(file, progress, paths);
-    const entries = [htmlEntry, ...htmlEntries.filter((entry) => entry !== htmlEntry)];
-    const pages = entries.map((entry) => ({
-      name: cleanZipPath(entry.name),
-      html: rewriteZipReferences(htmlText.get(entry.name) ?? "", cleanZipPath(entry.name), urls),
-    }));
-    return { assets, pages };
-  }, uploaded);
+export async function readHtmlZipPages(zip: JSZip, progress: (message: string) => void, paths: string[]) {
+  const { assets, htmlEntries, htmlEntry, urls, htmlText } = await prepareHtmlZip(zip, progress, paths);
+  const entries = [htmlEntry, ...htmlEntries.filter((entry) => entry !== htmlEntry)];
+  const pages = entries.map((entry) => ({
+    name: cleanZipPath(entry.name),
+    html: rewriteZipReferences(htmlText.get(entry.name) ?? "", cleanZipPath(entry.name), urls),
+  }));
+  return { assets, pages };
 }

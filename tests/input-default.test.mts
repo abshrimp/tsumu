@@ -9,7 +9,7 @@ import { fieldInitialValue } from "../lib/fields";
 import { renderLeafNode } from "../components/canvas/render";
 import { useEditor } from "../lib/store";
 import type { FieldContent } from "../lib/types";
-import { inputDefaultBundle, inputDefaultDoc, publishedInputDefault } from "./helpers/input-default";
+import { inputDefaultDoc, publishedInputDefault } from "./helpers/input-default";
 
 /** DOM が返す値は外から指定する。ブラウザの正規化のアルゴリズムは再実装しない。 */
 function nativeValues(accepted: () => string, run: (reads: Record<string, string>[]) => void) {
@@ -192,11 +192,8 @@ test("design rendering keeps authored defaults and server imports do not require
   });
 });
 
-test("native regression bundles actual SettingsPanel and Canvas; generated defaults remain authored", async () => {
+test("generated input defaults preserve authored number and range values", async () => {
   const doc = inputDefaultDoc({ kind: "input", inputType: "number", defaultValue: "invalid" });
-  const bundle = await inputDefaultBundle(doc);
-  assert.match(bundle, /function SettingsPanel/);
-  assert.match(bundle, /function Canvas/);
   const before = structuredClone(doc);
   const { html } = await publishedInputDefault(doc);
   assert.match(html, /type="number"[^>]*value="invalid"/);

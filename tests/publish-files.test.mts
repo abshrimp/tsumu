@@ -34,6 +34,10 @@ test("手で追加したファイルは残し、直接編集された書き出�
   assert.deepEqual(plan.edited, ["app/page.tsx"]);
   assert.deepEqual(plan.clashing, []);
   assert.deepEqual(plan.kept, { "app/api/hello/route.ts": "mine", "_next/static/build.js": "static" });
+  const deleted = planPublish({}, {
+    "app/page.tsx": "page", "app/old.tsx": "retired", [DOC_PATH]: "doc",
+  }, ["app/page.tsx", "app/new.tsx", DOC_PATH]);
+  assert.deepEqual(deleted, { edited: ["app/page.tsx"], clashing: [], kept: {} });
 });
 
 test("Tsumu managed metadata is never preserved as a manually authored file", () => {

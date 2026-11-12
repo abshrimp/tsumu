@@ -7,7 +7,7 @@ import {
   EDITABLE_DOC_PATH, EDITABLE_ASSETS_PATH, IMPORT_LIMITS,
   parseSiteImport, validateImportedDoc,
 } from "../lib/site-import";
-import { importFileKind } from "../lib/import-site-file";
+import { createSiteFromFile, importFileKind } from "../lib/import-site-file";
 
 const enc = new TextEncoder();
 
@@ -51,11 +51,15 @@ test("nested export ZIP includes editable source and exact original asset mappin
   assert.equal(new TextDecoder().decode(result.assets.get("original-image")), svg);
 });
 
-test("editable ZIPs without the current asset manifest are rejected", async () => {
+test("home opens an editable ZIP once and rejects its missing asset manifest", async (t) => {
   const zip = new JSZip();
   zip.file(EDITABLE_DOC_PATH, JSON.stringify(fixture()));
-  await assert.rejects(parseSiteImport(
-    await zip.generateAsync({ type: "uint8array" }), "zip"), /_tsumu\/assets\.json/);
+  const file = new File([await zip.generateAsync({ type: "uint8array" })], "site.zip");
+  const reads = t.mock.method(file, "arrayBuffer");
+  const opens = t.mock.method(JSZip, "loadAsync");
+  await assert.rejects(createSiteFromFile(file, "server"), /_tsumu\/assets\.json/);
+  assert.equal(reads.mock.callCount(), 1);
+  assert.equal(opens.mock.callCount(), 1);
 });
 
 test("missing asset bytes in a current ZIP produce warnings without guessing paths", async () => {

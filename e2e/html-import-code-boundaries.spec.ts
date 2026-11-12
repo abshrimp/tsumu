@@ -27,9 +27,11 @@ const source = `<!doctype html><html><head>
   <script type="module">window.importOrder.push("module");</script>
 </body></html>`;
 
-const bundle = build({
-  stdin: {
-    contents: `
+let bundle: string;
+test.beforeAll(async () => {
+  const result = await build({
+    stdin: {
+      contents: `
       import JSZip from "jszip";
       import { readHtmlZip } from "./lib/html-zip";
       import { convertHtmlToSite } from "./lib/html-to-site";
@@ -39,14 +41,16 @@ const bundle = build({
         const imported = await readHtmlZip(await zip.generateAsync({ type: "uint8array" }));
         return convertHtmlToSite(imported.html, { assets: imported.assets }).doc;
       };`,
-    resolveDir: resolve("."), loader: "ts", sourcefile: "html-import-code-boundaries-fixture.ts",
-  },
-  bundle: true, write: false, format: "iife", platform: "browser",
-}).then(result => result.outputFiles[0].text);
+      resolveDir: resolve("."), loader: "ts", sourcefile: "html-import-code-boundaries-fixture.ts",
+    },
+    bundle: true, write: false, format: "iife", platform: "browser",
+  });
+  bundle = result.outputFiles[0].text;
+});
 
 for (const archive of [false, true]) {
   test(`${archive ? "ZIP" : "HTML"} import preserves inert code contexts and intentional published scripts`, async ({ page, context }) => {
-    await page.addScriptTag({ content: await bundle });
+    await page.addScriptTag({ content: bundle });
     const doc: SiteDoc = await page.evaluate(async ({ source, archive }) =>
       (window as any).importFixture(source, archive), { source, archive });
     expect(await page.evaluate(() => [

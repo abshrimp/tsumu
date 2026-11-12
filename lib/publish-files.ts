@@ -16,7 +16,7 @@ export const ASSET_MANIFEST_PATH = `${MANAGED_DIR}assets.json`;
 export const GENERATED_MANIFEST_PATH = `${MANAGED_DIR}generated.json`;
 
 export interface PublishPlan {
-  /** 前回の公開の後に直接編集された、書き出したファイル（今回の公開で上書きされる） */
+  /** 前回の公開後に直接変更された生成ファイル。今回の公開で再作成する削除済みファイルも含む */
   edited: string[];
   /** 手動で追加したファイルのうち、今回書き出すファイルと同じパスのもの（上書きされる） */
   clashing: string[];
@@ -46,6 +46,13 @@ export function planPublish(
       plan.clashing.push(path);
     } else {
       Object.defineProperty(plan.kept, path, { value: sha, enumerable: true, configurable: true, writable: true });
+    }
+  }
+  // 直接削除されたファイルは現在のツリーにない。再び書き出す場合にだけ確認する。
+  if (generated) {
+    for (const path of outputs) {
+      if (!Object.hasOwn(blobs, path) && Object.hasOwn(generated, path) &&
+          !path.startsWith(MANAGED_DIR) && isSafeCommitPath(path)) plan.edited.push(path);
     }
   }
   plan.edited.sort();
