@@ -1,5 +1,6 @@
 import { tr } from "./i18n";
 import type JSZip from "jszip";
+import { zipEntrySize } from "./zip-directory";
 
 /** アーカイブの項目を展開している途中で、許される最大のバイト数を超えた。 */
 export class ZipEntryTooLargeError extends Error {
@@ -36,12 +37,15 @@ export async function verifyZipEntry(entry: JSZip.JSZipObject, maxBytes: number)
 
 function consumeZipEntry(entry: JSZip.JSZipObject, maxBytes: number, retain: boolean): Promise<Uint8Array<ArrayBuffer>> {
   return new Promise((resolve, reject) => {
+    const declared = zipEntrySize(entry);
+    if (declared !== null && declared > maxBytes) throw new ZipEntryTooLargeError();
+    const limit = declared ?? maxBytes;
+    // 検証済みの長さがある項目は、展開したチャンクを出力先に直接書き込む。
+    const output = retain && declared !== null ? new Uint8Array(declared) : null;
     const stream = (entry as JSZip.JSZipObject & {
       internalStream(type: "uint8array"): ZipByteStream;
     }).internalStream("uint8array");
     const metadata = (entry as { _data?: { uncompressedSize?: number; crc32?: number } })._data;
-    const declared = metadata?.uncompressedSize;
-    const limit = typeof declared === "number" ? Math.min(declared, maxBytes) : maxBytes;
     const chunks: Uint8Array[] = [];
     let length = 0;
     let settled = false;
@@ -56,7 +60,8 @@ function consumeZipEntry(entry: JSZip.JSZipObject, maxBytes: number, retain: boo
         return;
       }
       if (metadata?.crc32 !== undefined) for (const byte of chunk) crc = (crc >>> 8) ^ crcTable[(crc ^ byte) & 255];
-      if (retain) chunks.push(chunk.slice());
+      if (output) output.set(chunk, length - chunk.byteLength);
+      else if (retain) chunks.push(chunk.slice());
     }).on("error", (error) => {
       if (settled) return;
       settled = true;
@@ -68,6 +73,11 @@ function consumeZipEntry(entry: JSZip.JSZipObject, maxBytes: number, retain: boo
         reject(new Error("ZIP CRC-32 mismatch: " + entry.name));
         return;
       }
+      if (declared !== null && length !== declared) {
+        reject(new Error("ZIP length mismatch: " + entry.name));
+        return;
+      }
+      if (output) { resolve(output); return; }
       const result = new Uint8Array(retain ? length : 0);
       let offset = 0;
       for (const chunk of chunks) {

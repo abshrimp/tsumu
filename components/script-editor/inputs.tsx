@@ -11,7 +11,7 @@ import { dataVarNames, fieldLabel, flattenFields, ITEM_VALUE, scriptInputDoc, va
 import { lookupVar } from "../../lib/vars";
 import { canPickVariable, localVariableNames, variableChoiceSamples, singleValueReference, type ValueContext } from "../../lib/variable-choice";
 import { changeIfVariableLeft, ifVariableOperators } from "../../lib/if-variable-conditions";
-import { fieldVarName, isRadioItem } from "../../lib/fields";
+import { fieldVarName, isRadioItem, radioValue } from "../../lib/fields";
 import { SELF_TARGET, type FieldContent, type ScriptCond, type ScriptOp } from "../../lib/types";
 import { tr, trc, trNodes } from "../../lib/i18n";
 import { Ctx, LoopCtx, ScriptNodeCtx, ScriptStepCtx } from "./context";
@@ -235,7 +235,7 @@ function useTargetField(target: string): { kind: FieldContent["kind"]; choices: 
       const group = fieldVarName(node!);
       const labels = nodes
         .filter((n) => n.field?.kind === "radio" && group && fieldVarName(n) === group)
-        .map((n) => n.field!.label ?? "");
+        .map((n) => radioValue(n.field!));
       return { kind: f.kind, choices: [...new Set(labels)].filter(Boolean), bool: false };
     }
     return { kind: f.kind, choices: [], bool: false };

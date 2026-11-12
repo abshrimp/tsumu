@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { submissionAttributes, submissionProps } from "../lib/imported-form";
 import { importedAttributes, importedClass } from "../lib/imported-html-attrs";
 
 test("safe imported HTML attributes preserve original CSS and accessibility hooks", () => {
@@ -53,4 +54,14 @@ test("untrusted HTML cannot override editor markers or inject handlers and URLs"
     "data-allowed": "safe",
   });
   assert.deepEqual(attrs, { "data-allowed": "safe" });
+});
+
+test("form attributes retain native defaults and apply only to their controls", () => {
+  const fields = { form: "signup", formaction: "", formmethod: "POST", type: "submit", formnovalidate: "yes" };
+  assert.deepEqual(submissionAttributes(fields, "textarea"), { form: "signup" });
+  assert.deepEqual(submissionAttributes(fields, "input"), { form: "signup" });
+  assert.deepEqual(submissionProps(submissionAttributes(fields, "button")), {
+    form: "signup", formAction: "", formMethod: "post", formNoValidate: true, type: "submit",
+  });
+  assert.deepEqual(submissionAttributes({ action: "/apply", method: 1, target: {} }, "form", () => "file:///local"), { action: "#" });
 });

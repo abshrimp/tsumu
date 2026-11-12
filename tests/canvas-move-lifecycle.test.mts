@@ -8,6 +8,11 @@ import { useEditor } from "../lib/store";
 import type { UseCanvasDragDeps } from "../components/canvas/useCanvasDrag";
 import { canvasMoveDoc } from "./helpers/canvas-move";
 
+const hookPath = resolve("components/canvas/useCanvasDrag.ts");
+const requireHookImport = createRequire(hookPath);
+const hookCode = transformSync(readFileSync(hookPath, "utf8"), { loader: "ts", format: "cjs" }).code;
+const loadHook = new Function("require", "module", "exports", "window", "document", "getComputedStyle", hookCode);
+
 const state = () => useEditor.getState();
 const snapshot = () => structuredClone({ doc: state().doc, past: state().past, future: state().future });
 
@@ -36,13 +41,10 @@ function mount() {
     useRef: (value: any) => refs[refIndex++] ?? (refs[refIndex - 1] = { current: value }),
     useLayoutEffect: (fn: () => () => void) => { if (!mounted) cleanups.push(fn()); },
   };
-  const path = "components/canvas/useCanvasDrag.ts";
-  const require = createRequire(resolve(path));
   const mod = { exports: {} as any };
-  const code = transformSync(readFileSync(path, "utf8"), { loader: "ts", format: "cjs" }).code;
-  new Function("require", "module", "exports", "window", "document", "getComputedStyle", code)(
-    (id: string) => id === "react" ? hooks : id === "../../lib/store" ? { ...require(id), useEditor } :
-      id === "../../lib/image-drop" ? { useImageDrop: () => ({ uploading: false, dropFiles() {} }) } : require(id),
+  loadHook(
+    (id: string) => id === "react" ? hooks : id === "../../lib/store" ? { ...requireHookImport(id), useEditor } :
+      id === "../../lib/image-drop" ? { useImageDrop: () => ({ uploading: false, dropFiles() {} }) } : requireHookImport(id),
     mod, mod.exports, win, doc, () => ({ display: "block", flexDirection: "column" }),
   );
   const moveState: UseCanvasDragDeps["moveState"] = { current: null };

@@ -6,6 +6,7 @@ import { generateProject } from "../lib/generator";
 import { generateExportProject } from "../lib/export-formats";
 import { importedAssetPath, importedAssetUrl } from "../lib/generator/imported-assets";
 import { browserDoc } from "./helpers/browser-doc";
+import { publishedComponentList } from "../tests/helpers/component-list-export";
 import { storageKey } from "../lib/storage-keys";
 
 const listKey = storageKey("sites-v1");
@@ -27,13 +28,13 @@ async function importedDoc(page: Page) {
 test("HTML file import generates editable nodes and responsive CSS, not rawHtml", async ({ page }) => {
   await localMode(page);
   const html = [
-    "<!doctype html><html><head><title>Editable HTML</title><style>",
+    '<!doctype html><html><head><title>Editable HTML</title><base href="https://forms.example.test/inbox/?lang=ja"><style>',
     ".card { display: flex; gap: 24px; }",
     "@media screen and (max-width: 768px) { .card { flex-direction: column; gap: 12px; } }",
     "@media (min-width: 1000px) { .card { color: rgb(10, 20, 30); } }",
     "</style></head><body>",
     '<section class="card" id="card"><h1>Converted heading</h1><p>Converted text</p></section>',
-    "</body></html>",
+    '<form id="inquiry" action="send"><button formaction="#">Inbox</button><button formaction="">This page</button></form></body></html>',
   ].join("");
   await page.goto("/");
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
@@ -48,6 +49,10 @@ test("HTML file import generates editable nodes and responsive CSS, not rawHtml"
   expect(doc.pageOrder).toHaveLength(1);
   const home = doc.pages[doc.pageOrder[0]];
   expect(home.rawHtml).toBeUndefined();
+  const form = Object.values(doc.nodes).find((node: any) => node.attrId === "inquiry") as any;
+  expect(form.htmlAttrs.action).toBe("https://forms.example.test/inbox/send");
+  expect(form.children.map((id: string) => doc.nodes[id].htmlAttrs.formaction))
+    .toEqual(["https://forms.example.test/inbox/?lang=ja#", ""]);
   const card = Object.values(doc.nodes).find((node: any) => node.attrId === "card") as any;
   expect(card).toBeTruthy();
   expect(card.children).toHaveLength(2);
@@ -172,7 +177,11 @@ test("HTML import preserves selector classes and safe attributes in editor and e
     '<style>:root { --base-color: #123456; } .card::before { content: "before"; } .card:focus-within { outline: 1px solid red; } .card { display: grid; color: var(--base-color) !important; }</style>',
     '</head><body><section id="card" class="card highlighted" data-topic="design"',
     ' aria-label="Featured card" title="Details" role="region" onclick="alert(1)">',
-    '<h2>Visible text</h2></section></body></html>',
+    '<h2>Visible text</h2></section>',
+    '<input id="quantity" type="number" min="-1.5" max="10" step="0.25" maxlength="4">',
+    '<input id="short-text" maxlength="0"><textarea id="notes" rows="3" maxlength="0"></textarea>',
+    '<input id="attachments" type="file" accept=".pdf,image/*" multiple>',
+    '</body></html>',
   ].join("");
   await page.goto("/");
   await expect(page.getByRole("button", { name: "インポート", exact: true })).toBeEnabled();
@@ -191,6 +200,14 @@ test("HTML import preserves selector classes and safe attributes in editor and e
   });
   expect(node.htmlAttrs.onclick).toBeUndefined();
   expect(doc.pages[doc.pageOrder[0]].customTopHtml).toContain(".card::before");
+  const field = (id: string) => (Object.values(doc.nodes).find((item: any) => item.attrId === id) as any).field;
+  expect(field("quantity")).toMatchObject({ kind: "input", inputType: "number", min: "-1.5", max: "10", step: "0.25" });
+  expect(field("quantity").maxLength).toBeUndefined();
+  expect(field("short-text").maxLength).toBe(0);
+  expect(field("notes")).toMatchObject({ kind: "textarea", rows: 3, maxLength: 0 });
+  expect(field("attachments")).toMatchObject({ kind: "file", accept: ".pdf,image/*", multiple: true });
+  await expect(page.locator('.cv-root input[maxlength="0"]')).toHaveCount(1);
+  await expect(page.locator('.cv-root textarea[maxlength="0"]')).toHaveCount(1);
   const project = generateProject(doc);
   const source = Object.entries(project.files)
     .filter(([name]) => name.endsWith("/page.tsx"))
@@ -198,6 +215,16 @@ test("HTML import preserves selector classes and safe attributes in editor and e
   expect(source).toContain("card highlighted");
   expect(source).toContain('"data-topic":"design"');
   expect(source).not.toContain("onclick");
+  expect(source.match(/ maxLength=\{0\}/g)).toHaveLength(2);
+  await page.setContent(generateExportProject(doc, "html").files["index.html"]);
+  await expect(page.locator("#quantity")).toHaveAttribute("min", "-1.5");
+  await expect(page.locator("#quantity")).toHaveAttribute("max", "10");
+  await expect(page.locator("#quantity")).toHaveAttribute("step", "0.25");
+  await expect(page.locator("#short-text")).toHaveAttribute("maxlength", "0");
+  await expect(page.locator("#notes")).toHaveAttribute("maxlength", "0");
+  await expect(page.locator("#notes")).toHaveAttribute("rows", "3");
+  await expect(page.locator("#attachments")).toHaveAttribute("accept", ".pdf,image/*");
+  await expect(page.locator("#attachments")).toHaveJSProperty("multiple", true);
 });
 
 test("class styles are distributed to element controls and per-element custom CSS", async ({ page }) => {
@@ -352,9 +379,18 @@ test("multi-page HTML ZIP imports every page and converts internal page links", 
   zip.file("docs.html", '<html><head><title>Docs file</title><base href="./docs/index.htm?view=full"></head><body>' +
     '<a id="base-page" href="index.htm">Docs index</a><a id="base-section" href="#chapter">Chapter</a>' +
     '<a id="empty-fragment" href="#">Top</a><a id="outside-zip" href="appendix.html">Appendix</a></body></html>');
-  zip.file("docs/index.htm", '<html><head><title>Docs</title></head><body><a id="home" href="../">Home</a></body></html>');
+  zip.file("docs/index.htm", '<html><head><title>Docs</title></head><body><a id="home" href="../">Home</a>' +
+    '<form id="feedback" action="send?lang=en#reply"><button formaction="/api/review">Review</button></form></body></html>');
   zip.file("index.htm", '<html><head><title>Multi HTML</title></head><body><a id="next" href="about.html">About</a>' +
-    '<a id="docs" href="docs/">Documentation</a><a id="root" href="/?lang=en#home">Home</a></body></html>');
+    '<a id="docs" href="docs/">Documentation</a><a id="root" href="/?lang=en#home">Home</a>' +
+    '<form id="signup" action="https://forms.example.test/signup" method="post" enctype="multipart/form-data">' +
+    '<input id="display-name" name="attendee" value="Sora"><input id="internal-note" value="private">' +
+    '<input type="radio" name="session" value="morning" checked><input type="radio" name="session" value="evening">' +
+    '<input type="checkbox" name="meal" value="vegetarian" checked><input type="checkbox" name="updates" checked>' +
+    '<select name="seat"><option value="window">Window</option><option selected value="">Any seat</option></select>' +
+    '<input id="send" type="submit" name="intent" value="reserve">' +
+    '<button id="review" type="submit" name="intent" value="review" formaction="docs/" formmethod="get">Review</button>' +
+    '</form></body></html>');
   zip.file("about.html", '<html><head><title>About</title></head><body><h1>About us</h1>' +
     '<a id="query-only" href="?lang=en#details">English details</a></body></html>');
   await page.goto("/");
@@ -378,9 +414,51 @@ test("multi-page HTML ZIP imports every page and converts internal page links", 
   expect(linkFor("base-section")).toMatchObject({ kind: "url", url: "/docs-2?view=full#chapter" });
   const output = generateExportProject(doc, "html");
   expect(output.files["docs/index.html"]).toContain('href="../docs-2/index.html?view=full#chapter"');
+  const feedback = Object.values(doc.nodes).find((node: any) => node.attrId === "feedback") as any;
+  expect(new URL(feedback.htmlAttrs.action, "https://site.test/mount/docs-2").pathname).toBe("/mount/docs/send");
+  const markup = output.files["docs-2/index.html"];
+  const endpoints = await page.evaluate(html => {
+    const form = new DOMParser().parseFromString(html, "text/html").querySelector("#feedback")!;
+    const address = "https://site.test/mount/docs-2/index.html";
+    return [new URL(form.getAttribute("action")!, address).href,
+      new URL(form.querySelector("button")!.getAttribute("formaction")!, address).href];
+  }, markup);
+  expect(endpoints).toEqual(["https://site.test/mount/docs/send?lang=en#reply", "https://site.test/api/review"]);
   const aboutId = doc.pageOrder.find((id: string) => doc.pages[id].slug === "about");
   expect(linkFor("next")).toMatchObject({ kind: "page", pageId: aboutId });
   expect(linkFor("query-only")).toMatchObject({ kind: "url", url: "/about?lang=en#details" });
+
+  for (const [format, html, reviewPath] of [
+    ["HTML", output.files["index.html"], "./docs-2/index.html"],
+    ["Next.js", await publishedComponentList(doc), "/docs-2"],
+  ] as const) {
+    const submission = await page.evaluate(html => {
+      const parsed = new DOMParser().parseFromString(html, "text/html");
+      const form = parsed.querySelector<HTMLFormElement>("#signup")!;
+      const send = form.querySelector<HTMLButtonElement>("#send")!;
+      const review = form.querySelector<HTMLButtonElement>("#review")!;
+      return {
+        action: form.getAttribute("action"), method: form.method, encoding: form.enctype,
+        reviewAction: review.getAttribute("formaction"), reviewMethod: review.formMethod,
+        withSend: [...new FormData(form, send).entries()],
+        withReview: [...new FormData(form, review).entries()],
+      };
+    }, html);
+    const fields = [["attendee", "Sora"], ["session", "morning"], ["meal", "vegetarian"], ["updates", "on"], ["seat", ""]];
+    expect(submission, format).toEqual({
+      action: "https://forms.example.test/signup", method: "post", encoding: "multipart/form-data",
+      reviewAction: reviewPath, reviewMethod: "get",
+      withSend: [...fields, ["intent", "reserve"]], withReview: [...fields, ["intent", "review"]],
+    });
+  }
+  for (const [format, path] of [["vue", "src/pages/Page0.vue"], ["sveltekit", "src/lib/pages/Page0.svelte"]] as const) {
+    const template = generateExportProject(doc, format).files[path];
+    expect(template).toContain('action="https://forms.example.test/signup"');
+    expect(template).toContain('method="post"');
+    expect(template).toContain('enctype="multipart/form-data"');
+    expect(template).toContain('formaction="/docs-2"');
+    expect(template).toContain('formmethod="get"');
+  }
 });
 
 

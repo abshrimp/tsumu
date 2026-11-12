@@ -288,7 +288,11 @@ If you drop a ZIP without editing data onto the home screen, Tsumu alerts you be
 
 In the editor, a page's settings can also load an HTML file or a zip into that page. A normal page converts the HTML into editable elements, asking before it replaces the page's current elements. An HTML page uses the HTML as is. From a zip, `index.html` is loaded first.
 
-Limits: a zip can be up to 100 MB and a `doc.json` or HTML file up to 12 MB. A zip of a website can hold up to 200 files and 2 MB of CSS, which must be UTF-8.
+Editable forms retain their submission method, action URL, field names and submit-button overrides. Serve the exported site with the endpoint that handles the form. Number and date fields retain their limits, and file fields retain their allowed file types and multiple-file setting.
+
+When converted to an editable image, a plain `<img>` keeps its `src` and drops `srcset` and `sizes`. Use an HTML page to preserve its responsive image candidates. A `<picture>` is retained as a custom code element.
+
+Limits: a zip can be up to 100 MB and a `doc.json` or HTML file up to 12 MB. A zip of a website can hold up to 200 files and 2 MB of CSS. Save HTML and CSS files in the zip as UTF-8.
 
 > [!TIP]
 > `skills/tsumu-site/` is an agent skill that describes the `doc.json` format, so an AI agent can generate a site you then import and keep editing.

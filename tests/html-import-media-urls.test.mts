@@ -7,6 +7,9 @@ import { assetSrc, mediaSrc } from "../lib/assets";
 import { createSiteFromFile } from "../lib/import-site-file";
 import type { SiteDoc } from "../lib/types";
 import { parseSiteImport, restoreImportAssets } from "../lib/site-import";
+import { prepareExportProject } from "../lib/export-formats";
+import { convertHtmlToSite } from "../lib/html-to-site";
+import { readHtmlZip } from "../lib/html-zip";
 import { exportProjectZip } from "../lib/exportZip";
 import { buildAssetNames } from "../lib/generator/names";
 
@@ -175,6 +178,30 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
       for (const asset of Object.values(doc.assets)) {
         assert.deepEqual(imported.assets.get(asset.id), await zip.file(asset.zip!.path)!.async("uint8array"));
       }
+    }
+    const responsive = new JSZip()
+      .file("site/index.html", '<html><head><link rel="preload" as="image" href="small.svg" ' +
+        'imagesrcset="small.svg 1x, large.svg#wide 2x" imagesizes="100vw"></head><body>' +
+        '<picture><source srcset="small.svg 1x, large.svg#wide 2x"><img src="small.svg"></picture></body></html>')
+      .file("site/small.svg", '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"/>')
+      .file("site/large.svg", '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"/>');
+    const result = await readHtmlZip(await responsive.generateAsync({ type: "uint8array" }));
+    const { doc: converted } = convertHtmlToSite(result.html, { assets: result.assets });
+    const pageId = converted.pageOrder[0];
+    const raw = structuredClone(converted);
+    Object.assign(raw.pages[pageId], { rawHtml: result.source, htmlZip: result.zip, children: [], customTopHtml: undefined });
+    for (const site of [converted, raw]) {
+      const project = await prepareExportProject(site, { framework: "single-html", language: "javascript",
+        style: "css", scope: "page", pageId });
+      const markup = parse(project.files["index.html"]);
+      const data = await Promise.all(["small", "large"].map(async (name) => "data:image/svg+xml;base64," +
+        await responsive.file("site/" + name + ".svg")!.async("base64")));
+      const candidates = data[0] + " 1x, " + data[1] + "#wide 2x";
+      assert.equal(markup.querySelector('link[rel="preload"]').getAttribute("href"), data[0]);
+      assert.equal(markup.querySelector('link[rel="preload"]').getAttribute("imagesrcset"), candidates);
+      assert.equal(markup.querySelector('link[rel="preload"]').getAttribute("imagesizes"), "100vw");
+      assert.equal(markup.querySelector("picture source").getAttribute("srcset"), candidates);
+      assert.deepEqual(Object.keys(project.files), ["index.html"]);
     }
     if (local) {
       embed = false;

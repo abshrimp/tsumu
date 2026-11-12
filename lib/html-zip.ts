@@ -194,9 +194,16 @@ async function prepareHtmlZip(
   // アップロードを始める前に、HTML と CSS のバイト列を検証する。不正なスタイルシートがあっても、
   // 同じ取り込みで先にアップロードしたアセットが残ってしまわないようにする。
   const htmlText = new Map<string, string>();
+  const htmlDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
   for (const entry of htmlEntries) {
     const bytes = await readZipEntryLimited(entry, HTML_ZIP_LIMITS.htmlBytes);
-    htmlText.set(entry.name, new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes));
+    let source: string;
+    try { source = htmlDecoder.decode(bytes); }
+    catch { throw new Error(tr("The HTML file {name} must use UTF-8.", { name: entry.name })); }
+    if (entry === htmlEntry && !source.trim()) {
+      throw new Error(tr("The HTML file in the ZIP is empty. The existing page has not been replaced."));
+    }
+    htmlText.set(entry.name, source);
   }
   const stylesheets = new Map<string, { bytes: Uint8Array<ArrayBuffer>; source: string }>();
   const decoder = new TextDecoder("utf-8", { fatal: true });
@@ -264,7 +271,6 @@ export async function readHtmlZip(
       await prepareHtmlZip(zip, progress, paths, existing);
     const path = cleanZipPath(htmlEntry.name);
     const source = pristineHtmlText.get(htmlEntry.name) ?? "";
-    if (!source.trim()) throw new Error(tr("The HTML file in the ZIP is empty. The existing page has not been replaced."));
     // HTML モードでの取り込みでは、書かれたソースを解析・直列化しない。
     // 視覚的なノードへの取り込みでは、変換のために解決した参照が必要になる。
     const html = sourceOnly ? source : rewriteZipReferences(htmlText.get(htmlEntry.name) ?? "", path, urls).html;

@@ -1,5 +1,6 @@
 import type { Asset, BreakpointDef, DocNode, LinkSetting, NodeStyles, Page, SiteDoc, StyleMap, StyleState } from "./types";
 import { genId } from "./presets";
+import { RANGED_INPUTS, TEXT_INPUTS } from "./fields";
 import { escapeStyleContent } from "./css-assets";
 import { MAX_NODE_DEPTH } from "./doc-tree";
 import { assetSrc } from "./assets";
@@ -7,6 +8,8 @@ import { DEFAULT_BREAKPOINTS, MAX_BREAKPOINTS, normalizeBreakpoints } from "./st
 import { zipStylesheet } from "./zip-css";
 import { tr } from "./i18n";
 import { importedClass, readImportedAttributes } from "./imported-html-attrs";
+import { importedFormAction } from "./imported-form";
+import { archiveBaseUrl, archiveFileUrl } from "./zip-references";
 import { sanitizeImportedSvg } from "./imported-svg";
 import { safeNavigationUrl, safeResourceUrl } from "./url-policy";
 import { expandZipCss } from "./html-css-import";
@@ -18,7 +21,8 @@ type Options = {
   assets?: Asset[];
   breakpoints?: BreakpointDef[];
   pageId?: string;
-  resolvePageLink?: (href: string) => LinkSetting | undefined;
+  sourceName?: string;
+  resolvePageLink?: (href: string, asUrl?: boolean) => LinkSetting | undefined;
 };
 
 const TAGS = new Set([
@@ -152,6 +156,18 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
   if (typeof DOMParser === "undefined") throw new Error(tr("HTML parsing is not available in this environment."));
   // DOMParser は何も実行しない。変換の間に、取り込んだスクリプトが実行されることはない。
   const parsed = new DOMParser().parseFromString(html, "text/html");
+  const baseHref = options.resolvePageLink ? undefined : Array.from(parsed.querySelectorAll("base"))
+    .find(element => element.namespaceURI === "http://www.w3.org/1999/xhtml" && element.getAttribute("href") !== null)?.getAttribute("href");
+  const sourceName = options.sourceName ?? "index.html";
+  const sourceFile = archiveFileUrl(sourceName);
+  const formBase = archiveBaseUrl(sourceName, baseHref) ?? sourceFile;
+  const resolveAction = (action: string) => {
+    if (options.resolvePageLink) return options.resolvePageLink(action, true)?.url ?? action;
+    if (/^https?:/i.test(action)) return action;
+    const url = new URL(action, formBase);
+    if (url.protocol === "file:" && url.pathname === sourceFile.pathname) return url.href.slice(sourceFile.href.length);
+    return importedFormAction(action, url, baseHref, "");
+  };
   const warnings: string[] = [];
   const warn = (message: string) => { if (!warnings.includes(message)) warnings.push(message); };
   const assets = options.assets || [];
@@ -510,7 +526,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     const visual = nodeStyle(element);
     const sourceClass = keepOriginalClasses
       ? importedClass(element.getAttribute("class") || undefined) : undefined;
-    const sourceAttrs = readImportedAttributes(element);
+    const sourceAttrs = readImportedAttributes(element, resolveAction);
     const common: DocNode = {
       id, type: "box", name: htmlName(tag), semantic: SEMANTICS.has(tag) ? tag as DocNode["semantic"] : "auto",
       text: null, link: null, children: [], ...visual,
@@ -556,24 +572,40 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
         label: option.textContent || "",
         value: option.getAttribute("value") ?? option.textContent ?? "",
       })) : undefined;
-      if (!common.attrId && element.getAttribute("name")) common.attrId = element.getAttribute("name")!;
+      const fieldName = element.getAttribute("name") ?? "";
+      const defaultValue = tag === "textarea" ? element.textContent ?? "" :
+        tag === "select" ? (element as HTMLSelectElement).selectedOptions[0]?.value :
+        kind === "input" ? element.getAttribute("value") ?? undefined : undefined;
       common.field = {
+        ...(kind === "radio" ? { group: fieldName } : { name: fieldName }),
+        ...(["radio", "checkbox"].includes(kind) ? { submitValue: element.getAttribute("value") ?? "on" } : {}),
+        ...(kind === "submit" && element.hasAttribute("value")
+          ? { label: element.getAttribute("value")!, submitValue: element.getAttribute("value")! } : {}),
         kind: kind as NonNullable<DocNode["field"]>["kind"],
         ...(kind === "input" ? { inputType: inputType as NonNullable<DocNode["field"]>["inputType"] } : {}),
         ...(options ? { options } : {}),
         ...(element.getAttribute("placeholder") ? { placeholder: element.getAttribute("placeholder")! } : {}),
-        ...((tag === "textarea" ? element.textContent || "" :
-          tag === "select" ? (element as HTMLSelectElement).selectedOptions[0]?.value || "" :
-          element.getAttribute("value") || "") ? {
-            defaultValue: tag === "textarea" ? element.textContent || "" :
-              tag === "select" ? (element as HTMLSelectElement).selectedOptions[0]?.value || "" :
-              element.getAttribute("value") || "",
-          } : {}),
+        ...(defaultValue !== undefined ? { defaultValue } : {}),
         ...(element.hasAttribute("checked") ? { checked: true } : {}),
         ...(element.hasAttribute("required") ? { required: true } : {}),
         ...(element.hasAttribute("disabled") ? { disabled: true } : {}),
-        ...(element.getAttribute("name") ? { group: element.getAttribute("name")! } : {}),
       };
+      if (kind === "input" && RANGED_INPUTS.has(inputType)) {
+        for (const key of ["min", "max", "step"] as const) {
+          const value = element.getAttribute(key);
+          if (value) common.field[key] = value;
+        }
+      }
+      if ((tag === "textarea" || TEXT_INPUTS.has(inputType)) && element.hasAttribute("maxlength")) {
+        const limit = (element as HTMLInputElement | HTMLTextAreaElement).maxLength;
+        if (limit >= 0) common.field.maxLength = limit;
+      }
+      if (tag === "textarea" && element.hasAttribute("rows")) common.field.rows = (element as HTMLTextAreaElement).rows;
+      if (kind === "file") {
+        const file = element as HTMLInputElement;
+        if (file.accept) common.field.accept = file.accept;
+        if (file.multiple) common.field.multiple = true;
+      }
       return add(common);
     }
     if (tag === "video" || tag === "audio") {

@@ -30,7 +30,7 @@ Tsumu lets you create websites with intuitive actions such as dragging and dropp
 - **Visual editing:** Edit styles, hover states, other state changes, and animations without prior web development knowledge.
 - **No-code scripts:** Build JavaScript by intuitively assembling blocks.
 - **External data:** Fetch and use JSON from APIs.
-- **Import:** Restore a project from a Tsumu ZIP or `doc.json`. Drop an HTML file or a website ZIP on the home screen to convert its pages into editable elements.
+- **Import:** Restore a project from a Tsumu ZIP or `doc.json`. Drop an HTML file or a website ZIP on the home screen to convert its pages into editable elements. Imported forms retain their submission method and field names.
 - **Flexible output:** Export to Next.js, React, Vue, Nuxt, SvelteKit, or HTML, with a choice of TypeScript, JavaScript, and CSS formats.
 - **GitHub publishing:** Publish to GitHub with one click, including support for production and preview branches.
 - **Real-time collaboration:** Edit together with others and leave comments.

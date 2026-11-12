@@ -5,6 +5,7 @@ import { readHtmlZip, readHtmlZipPages } from "./html-zip";
 import { safeNavigationUrl } from "./url-policy";
 import { genId } from "./presets";
 import { archiveBaseUrl, archiveFileUrl } from "./zip-references";
+import { importedFormAction } from "./imported-form";
 import { isHtmlIndex } from "./html-zip-guard";
 import { convertHtmlToSite, type HtmlConversion } from "./html-to-site";
 import { IMPORT_LIMITS } from "./site-import";
@@ -44,7 +45,7 @@ export async function convertHtmlFile(
     return withImportUploads(async paths => {
       const converted = await readHtmlZip(file, options.progress, paths);
       return requireEditableHtmlContent(convertHtmlToSite(converted.html, {
-        breakpoints: options.breakpoints, assets: converted.assets,
+        breakpoints: options.breakpoints, assets: converted.assets, sourceName: converted.zip.path.split("/").pop(),
       }));
     }, uploaded);
   }
@@ -52,7 +53,7 @@ export async function convertHtmlFile(
   if (file.size > IMPORT_LIMITS.docBytes) throw new Error(tr("The import file is too large."));
   const html = new TextDecoder("utf-8", { fatal: true }).decode(await file.arrayBuffer());
   options.progress?.(tr("Converting HTML into editable elements…"));
-  return requireEditableHtmlContent(convertHtmlToSite(html, { breakpoints: options.breakpoints }));
+  return requireEditableHtmlContent(convertHtmlToSite(html, { breakpoints: options.breakpoints, sourceName: file.name }));
 }
 
 /**
@@ -108,7 +109,7 @@ function convertHtmlPages(
     const base = archiveBaseUrl(name, source.baseHref);
     const pageBase = base ?? archiveFileUrl(name);
     const archiveFile = root ? archiveBaseUrl(source.name, source.baseHref) ?? archiveFileUrl(source.name) : undefined;
-    const resolvePageLink = (href: string): LinkSetting | undefined => {
+    const resolvePageLink = (href: string, asUrl = false): LinkSetting | undefined => {
       if (/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(href) || (!base && (!href || href.startsWith("#")))) return;
       const url = new URL(href, pageBase);
       if (url.protocol !== "file:") return { kind: "url", url: url.href };
@@ -116,7 +117,8 @@ function convertHtmlPages(
       const page = lookupUrl(url, root) ?? (archiveFile && lookupUrl(new URL(href, archiveFile), ""));
       const suffixAt = url.href.search(/[?#]/);
       const suffix = suffixAt < 0 ? "" : url.href.slice(suffixAt);
-      if (page) return suffix ? { kind: "url", url: "/" + page.slug + suffix } : { kind: "page", pageId: page.id };
+      if (page) return suffix || asUrl ? { kind: "url", url: "/" + page.slug + suffix } : { kind: "page", pageId: page.id };
+      if (asUrl) return { kind: "url", url: importedFormAction(href, url, source.baseHref, target.slug) };
       if (base) return { kind: "url", url: safeNavigationUrl(url.pathname + suffix) };
     };
     const converted = convertHtmlToSite(source.html, { assets, breakpoints, pageId: target.id, resolvePageLink });

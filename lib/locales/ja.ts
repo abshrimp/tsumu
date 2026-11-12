@@ -390,6 +390,7 @@ const ja: Dict = {
   "The ZIP stylesheet preview is too large. Reduce the CSS dependencies and import the ZIP again.": "ZIPのCSSのプレビューが大きすぎます。CSSの依存関係を減らしてから、ZIPを読み込み直してください。",
   "The ZIP stylesheet data could not be read. Import the ZIP again.": "ZIPのCSSのデータを読み込めません。ZIPを読み込み直してください。",
   "ZIP stylesheets must total 2 MB or less.": "ZIPの中のCSSは、合計2MBまでにしてください",
+  "The HTML file {name} must use UTF-8.": "HTMLファイル「{name}」の文字コードをUTF-8に変換してから、読み込み直してください。",
   "ZIP stylesheets must use UTF-8. Convert the CSS files to UTF-8 and import the ZIP again.": "ZIPの中のCSSは、UTF-8でなければなりません。CSSファイルの文字コードをUTF-8に変換してから、ZIPを読み込み直してください。",
   "The HTML preview assets could not be loaded.": "HTMLのプレビューのアセットを読み込めませんでした",
   "The master ID “{id}” takes priority. This instance’s ID will not be published.": "マスターのID「{id}」が優先されます。この使用箇所のIDは公開されません。",

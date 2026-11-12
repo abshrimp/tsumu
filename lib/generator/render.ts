@@ -2,6 +2,7 @@
  * 要素のツリーを JSX に書き出す
  */
 
+import { fieldSubmissionAttributes, submissionAttributes, submissionProps } from "../imported-form";
 import { assetMediaUrl } from "../assets";
 import { safeNavigationUrl } from "../url-policy";
 import type { SiteDoc } from "../types";
@@ -405,35 +406,40 @@ ${indent}</div>`;
       if (!v) return "";
       return hasVars(v) ? ` ${name}={${textExpr(v)}}` + partsOf(name === "defaultValue" ? "value" : name, v) : ` ${name}=${jsxString(v)}`;
     };
-    // ID 属性（ラジオではグループ名）が、フォームを送信するときの項目名（= {変数} の名前）を兼ねる
-    const fieldName = fieldVarName(node);
-    const nameAttr = fieldName ? ` name=${jsxString(fieldName)}` : "";
+    // 取り込んだフォームは、DOM の ID と別に送信用の name を保持する。
+    const fieldName = f.name ?? (f.kind === "submit" ? "" : fieldVarName(node));
+    const submission = submissionProps(fieldSubmissionAttributes(node));
+    const formAttrs = Object.keys(submission).length ? ` {...${JSON.stringify(submission)}}` : "";
+    const nameAttr = formAttrs + (fieldName ? ` name=${jsxString(fieldName)}` : "");
     const reqAttr = (f.required ? " required" : "") + (f.disabled ? " disabled" : "");
     const phAttr = attr("placeholder", f.placeholder) + liveOf("data-live-placeholder", f.placeholder);
-    const defaultValueAttr = attr("defaultValue", f.defaultValue) + liveOf("data-live-value", f.defaultValue) +
+    const defaultValueAttr = (f.kind === "select" && f.defaultValue === "" ? ' defaultValue=""' : attr("defaultValue", f.defaultValue)) + liveOf("data-live-value", f.defaultValue) +
       (!hasVars(f.defaultValue) && (
         (f.kind === "select" && f.defaultValue && (f.options ?? []).some((o) => hasVars(o.label) || hasVars(o.value))) ||
         (f.kind === "input" && RANGED_INPUTS.has(f.inputType ?? "text") && [f.min, f.max, f.step].some(hasVars))
       ) ? partsOf("value", f.defaultValue ?? "", true) : "");
-    const lenAttr = f.maxLength && f.maxLength > 0 ? ` maxLength={${Math.round(f.maxLength)}}` : "";
+    const lenAttr = f.maxLength != null && f.maxLength >= 0 ? ` maxLength={${Math.round(f.maxLength)}}` : "";
     if (f.kind === "textarea") {
       const rowsAttr = f.rows && f.rows > 0 ? ` rows={${Math.round(f.rows)}}` : "";
       return `${indent}<textarea${idAttr} className=${jsxString(cls)}${nameAttr}${phAttr}${defaultValueAttr}${rowsAttr}${lenAttr}${reqAttr} />`;
     }
     if (f.kind === "select") {
       const opts = (f.options ?? [])
-        .map((o) => `${indent}  <option${attr("value", o.value)}${liveOf("data-live-value", o.value)}${partsOf("value", o.value)}${liveOf("data-live", o.label)}${partsOf("text", o.label)}>{${textExpr(o.label)}}</option>`)
+        .map((o) => `${indent}  <option${attr("value", o.value) || ' value=""'}${liveOf("data-live-value", o.value)}${partsOf("value", o.value)}${liveOf("data-live", o.label)}${partsOf("text", o.label)}>{${textExpr(o.label)}}</option>`)
         .join("\n");
       return `${indent}<select${idAttr} className=${jsxString(cls)}${nameAttr}${defaultValueAttr}${reqAttr}>\n${opts}\n${indent}</select>`;
     }
     if (f.kind === "checkbox" || f.kind === "radio") {
       // ラジオは表示テキストを値にする（プレビューの {変数} とそろえる）。
       // チェックボックスは、送信するときに「true」になる（{ID} の値とそろえる）
-      const valueAttr =
+      const valueAttr = f.submitValue !== undefined ? ` value=${jsxString(f.submitValue)}` :
         f.kind === "radio"
           ? (attr("value", f.label ?? "") || ` value=""`) + liveOf("data-live-value", f.label)
           : ` value="true"`;
       const checkedAttr = f.checked ? " defaultChecked" : "";
+      if (f.submitValue !== undefined && !f.label) {
+        return `${indent}<input${idAttr} className=${jsxString(cls)} type="${f.kind}"${nameAttr}${valueAttr}${checkedAttr}${reqAttr} />`;
+      }
       const liveLbl = liveOf("data-live", f.label) + partsOf("text", f.label);
       const lblBody = liveLbl
         ? `<span${liveLbl}>{${textExpr(f.label ?? "")}}</span>`
@@ -442,7 +448,7 @@ ${indent}</div>`;
     }
     if (f.kind === "submit") {
       const label = f.label ?? "送信";
-      return `${indent}<button${idAttr} type="submit" className=${jsxString(cls)}${f.disabled ? " disabled" : ""}${liveOf("data-live", label)}${partsOf("text", label)}>\n${indent}  {${textExpr(label)}}\n${indent}</button>`;
+      return `${indent}<button${idAttr} type="submit"${nameAttr}${f.submitValue === undefined ? "" : ` value=${jsxString(f.submitValue)}`} className=${jsxString(cls)}${f.disabled ? " disabled" : ""}${liveOf("data-live", label)}${partsOf("text", label)}>\n${indent}  {${textExpr(label)}}\n${indent}</button>`;
     }
     if (f.kind === "file") {
       const acceptAttr = attr("accept", f.accept);
@@ -540,14 +546,16 @@ ${indent}</div>`;
   ctx.inForm = prevInForm;
 
   let attrs = `${idAttr} className=${jsxString(cls)}${liveAttr}${pAttr}`;
-  if (tag === "button") {
+  const submission = submissionAttributes(node.htmlAttrs, tag);
+  if (Object.keys(submission).length) attrs += ` {...${JSON.stringify(submissionProps(submission))}}`;
+  if (tag === "button" && !submission.type) {
     // 「クリックしたとき」のスクリプトがあるボタンは、フォームの中でも送信しない
     const submit = ctx.inForm && !node.scripts?.some((s) => s.trigger === "click");
     attrs += ` type="${submit ? "submit" : "button"}"`;
   }
   let openTag = tag;
   let closeTag = tag;
-  if (tag === "form") {
+  if (tag === "form" && !submission.method) {
     ctx.usesSearchForm = true;
     openTag = "SearchForm";
     closeTag = "SearchForm";
