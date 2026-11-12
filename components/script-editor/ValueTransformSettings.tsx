@@ -371,7 +371,7 @@ export function ValueTransformSettings({ transform, options, onChange, samples, 
     <div className="se-composer-step-settings">
       <select className="se-in se-fixed-select"
         aria-label={tr("When to use a fallback")}
-        value={transform.when ?? "missing"}
+        value={transform.when}
         onChange={(event) => onChange({ kind: "fallback", text: transform.text,
           when: event.target.value === "nullish" ? "nullish" : "missing" })}>
         <option value="missing">{tr("When the value is missing")}</option>

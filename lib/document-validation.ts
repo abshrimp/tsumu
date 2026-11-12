@@ -27,7 +27,7 @@ function validTransform(v: unknown): v is ValueTransform {
   switch (v.kind) {
     case "field": return str(v.key);
     case "length": case "stringify": case "parse": return true;
-    case "fallback": return str(v.text) && optional(v.when, x => oneOf(x, ["missing", "nullish"]));
+    case "fallback": return str(v.text) && oneOf(v.when, ["missing", "nullish"]);
     case "math": return oneOf(v.operation, ["add", "subtract", "multiply", "divide", "remainder"]) &&
       finiteOrString(v.operand) && oneOf(v.operandType, ["number", "variable"]);
     case "split": case "join": return str(v.separator);

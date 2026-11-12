@@ -312,7 +312,8 @@ export function evaluateValueRecipe(input: unknown, steps: readonly ValueTransfo
       if (!step || typeof step !== "object" || !("kind" in step)) return failure("invalid-recipe");
       switch (step.kind) {
         case "fallback": {
-          if (typeof step.text !== "string" || step.text.length > 10000) return failure("invalid-recipe");
+          if (typeof step.text !== "string" || step.text.length > 10000 ||
+              (step.when !== "missing" && step.when !== "nullish")) return failure("invalid-recipe");
           if (absent || (step.when === "nullish" && current === null)) {
             const replacement = interpolateText(step.text, 10000);
             if (!replacement.ok) return failure("missing-value");
