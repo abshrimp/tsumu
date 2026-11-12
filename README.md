@@ -70,12 +70,12 @@ Open [http://localhost:3000](http://localhost:3000) and create a site. Local dev
 
 ## Publishing and deployment
 
-To publish, create a GitHub repository, set `GITHUB_TOKEN` to a fine-grained token with **Contents: Read and write** access, then select the repository in the site's settings. You can also export a ZIP without a token.
+To push a site from Tsumu, create a GitHub repository, give a fine-grained token **Contents: Read and write** access to that repository, and set it as `GITHUB_TOKEN`. Select the repository in the site's settings. You can also export a ZIP without a token.
 
 The editor runs on **Cloudflare Workers**, **Node.js** or **Docker**. For persistent storage, configure D1, Durable Objects and KV on Cloudflare, or `TSUMU_DATA_DIR` on Node.js/Docker. Without server storage, site data is stored only in the browser.
 
 > [!IMPORTANT]
-> Configure Google sign-in before exposing the editor publicly. `npm run dev` skips sign-in; `ALLOW_ANONYMOUS=true` also allows anyone with the URL to edit and publish. Use anonymous access only locally or for an isolated demo.
+> Configure [Google sign-in](docs/user-guide.md#google-sign-in) before exposing the editor publicly. When sign-in is unconfigured, `npm run dev` and `ALLOW_ANONYMOUS=true` both grant anonymous access. Anyone who can reach that instance can edit and, if a GitHub token is configured, publish.
 
 See the [detailed guide](docs/user-guide.md) for deployment commands, authentication, publishing formats, environment variables, backups and limitations.
 

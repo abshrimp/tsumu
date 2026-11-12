@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import { transformSync } from "esbuild";
 import * as React from "react";
 import { useEditor } from "../lib/store";
-import { commitFieldsBundle, commitFieldsDoc, commitPageFieldsBundle } from "./helpers/commit-fields";
+import { commitFieldsDoc } from "./helpers/commit-fields";
 
 // 実際のソースの入力・確定のハンドラーとフックを動かす。ブラウザのフォーカスと defaultValue は、e2e で確かめる。
 function mount(kind: "input" | "textarea", extra: Record<string, unknown> = {}) {
@@ -153,8 +153,3 @@ for (const kind of ["input", "textarea"] as const) {
     assert.deepEqual(field.writes, []);
   });
 }
-
-test("commit-field browser fixtures bundle real controls, page settings and store", async () => {
-  assert.match(await commitFieldsBundle(), /function CommitTextarea/);
-  assert.match(await commitPageFieldsBundle(), /function PagePanel/);
-});

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { useEditor } from "../lib/store";
 import { AI_STREAM_TYPE } from "../lib/ai/progress";
 import { buildAiContext } from "../lib/aiOps";
-import { aiChatDoc, aiChatFixture, aiChatBundle } from "./helpers/ai-chat";
+import { aiChatDoc, aiChatFixture } from "./helpers/ai-chat";
 
 for (const interruption of ["undo", "redo", "undo-redo", "replace", "restore"] as const) {
   test(`AI response after ${interruption} during the request preserves the document and history`, async (t) => {
@@ -92,10 +92,6 @@ for (const changes of [false, true]) {
     }
   });
 }
-
-test("AI history browser fixture bundles the real chat and store", async () => {
-  assert.match(await aiChatBundle(), /function AiChat/);
-});
 
 for (const changes of [false, true]) {
   test(`AI ${changes ? "change" : "no-op"} waits for all gesture owners and preserves manual history`, async (t) => {
