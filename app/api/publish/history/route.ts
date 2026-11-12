@@ -240,7 +240,7 @@ export async function POST(req: Request) {
     const manifestSha = currentBlobs[GENERATED_MANIFEST_PATH];
     const sourceManifestSha = sourceBlobs[GENERATED_MANIFEST_PATH];
     if (!manifestSha || !sourceManifestSha) {
-      return NextResponse.json({ error: tr("Publishing stopped because the generated file manifest is missing.") }, { status: 409 });
+      return NextResponse.json({ error: tr("Publishing stopped because the generated file manifest is invalid.") }, { status: 409 });
     }
     const readGenerated = async (sha: string): Promise<Record<string, string>> => {
       const res = await gh(`/git/blobs/${sha}`);
