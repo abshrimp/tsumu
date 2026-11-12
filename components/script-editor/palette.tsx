@@ -147,7 +147,7 @@ function colorVar(cat: Cat): CSSProperties {
 
 export type Payload =
   | { type: "trigger"; trigger: ScriptTrigger }
-  | { type: "steps"; steps: ScriptStep[]; from?: Loc }
+  | { type: "steps"; steps: ScriptStep[]; from?: { loc: Loc; remaining: PageScript[] } }
   /** group: 一緒に動かす選択中のスクリプト（script を含む） */
   | { type: "script"; script: PageScript; group: PageScript[] };
 

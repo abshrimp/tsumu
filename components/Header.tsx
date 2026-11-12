@@ -485,8 +485,9 @@ export default function Header({
           className="btn btn-primary"
           data-tutorial="publish"
           onClick={() => openModal(setPublishing)}
+          aria-busy={publishing}
         >
-          <Globe size={13} />
+          {publishing ? <LoaderCircle size={13} className="spin" /> : <Globe size={13} />}
           {tr("Publish")}
         </button>
         {mode === "design" && (

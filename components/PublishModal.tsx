@@ -293,11 +293,13 @@ export default function PublishModal({
     setStyle(targets.lastExportOptions.style);
   }, [targets]);
   const options: ExportOptions = { framework: format, language, style, scope: "project" };
-  const checks = useMemo<CheckResult[]>(() => [
+  // 公開先が読み込まれるまでは重い同期チェックを実行しない。
+  // 初回のローディングを先に描画してから、公開先が揃った時点で検証する。
+  const checks = useMemo<CheckResult[]>(() => configuredTargets ? [
     ...runChecks(doc),
     ...exportLimitations(doc, { framework: format, language, style, scope: "project" })
       .map((message): CheckResult => ({ level: "error", message })),
-  ], [doc, format, language, style]);
+  ] : [], [configuredTargets, doc, format, language, style]);
   const hasError = checks.some((c) => c.level === "error");
   useEscapeToClose(onClose, phase !== "busy");
 
@@ -315,6 +317,13 @@ export default function PublishModal({
     setSite(site);
     setPhase("busy");
     setProgress("");
+    // ブラウザーでは重いファイル生成の前に進捗表示を描画する。
+    // Node のユニットテストではブラウザー用 API を呼ばない。
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => window.setTimeout(resolve, 0));
+      });
+    }
     // 公開中に編集されても、実際に公開した内容で公開済み判定する
     let target = doc;
     try {
