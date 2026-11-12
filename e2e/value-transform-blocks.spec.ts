@@ -903,7 +903,7 @@ test("canvas transform menu exposes four groups without explicit text conversion
     })))).toEqual([
     { label: "値の取得・補完", values: ["field", "fallback"] },
     { label: "数値・文字列の加工", values: ["math", "split", "replace", "join"] },
-    { label: "リストの操作", values: ["length", "sort", "append"] },
+    { label: "リストの操作", values: ["length", "sort"] },
     { label: "JSONの変換", values: ["stringify", "parse"] },
   ]);
 });
@@ -923,7 +923,7 @@ test.describe("English transform menu", () => {
     await expect(operations.locator("option")).toHaveText([
       "Get an item from a list", "Use another value if missing",
       "Calculate a number", "Split text", "Replace text", "Join a list as text",
-      "Count list items", "Sort a list", "Append to list", "Convert to JSON text", "Parse JSON text",
+      "Count list items", "Sort a list", "Convert to JSON text", "Parse JSON text",
     ]);
     await expect(block.getByRole("combobox", { name: "Arithmetic operation" }).locator("option"))
       .toHaveText(["Add", "Subtract", "Multiply", "Divide", "Remainder"]);
@@ -950,25 +950,6 @@ test("canvas removal block switches between value and position/key", async ({ pa
     (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps
       .find((step: any) => step.id === "remove-entry")
   )).toMatchObject({ kind: "remove-list-item", list: "data.tags", mode: "key", value: "1" });
-});
-
-test("canvas append values use one typed input", async ({ page }) => {
-  await page.evaluate(() => {
-    (window as any).dataPickerStore.getState().updateDoc((doc: any) => {
-      doc.pages.p.pageScripts[0].steps.push({
-        id: "append-value", kind: "transform", source: "data.tags", into: "added",
-        transform: { kind: "append", operand: "", operandType: "text" },
-      });
-    });
-  });
-  const box = page.locator('[data-sel-key="step:append-value"]');
-  const input = box.getByPlaceholder("追加・削除する値 / {変数}");
-  await input.fill("42");
-  await input.blur();
-  await expect.poll(() => page.evaluate(() =>
-    (window as any).dataPickerStore.getState().doc.pages.p.pageScripts[0].steps
-      .find((step: any) => step.id === "append-value").transform
-  )).toMatchObject({ kind: "append", operand: "42", operandType: "number" });
 });
 
 test("canvas field picker leaves Japanese composition keys to the IME", async ({ page }) => {
