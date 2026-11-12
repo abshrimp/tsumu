@@ -194,7 +194,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       }
       return true;
     }
-    if (tag !== "link" || !(element.getAttribute("rel") || "").toLowerCase().split(/\\s+/).includes("stylesheet")) {
+    if (tag !== "link" || !(element.getAttribute("rel") || "").toLowerCase().split(/\s+/).includes("stylesheet")) {
       return false;
     }
     const href = element.getAttribute("href") || "";
@@ -214,7 +214,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
         // CSS and its original media attribute as an executable stylesheet.
         const media = (element.getAttribute("media") || "").replace(/&/g, "&amp;")
           .replace(/"/g, "&quot;").replace(/</g, "&lt;");
-        unusedHead.push(`<style media="${media}">\\n${escapeStyleContent(expanded)}\\n</style>`);
+        unusedHead.push(`<style media="${media}">\n${escapeStyleContent(expanded)}\n</style>`);
         warn(tr("Unsupported CSS media conditions were kept as custom code."));
       }
     } else {
