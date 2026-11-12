@@ -79,6 +79,6 @@ test("export preserves imported ZIP queries without replacing longer CSS URLs or
   assert.equal(cssValue(doc, 'content', `"${source}&v=1"`, names), `"${source}&v=1"`);
   assert.equal(cssValue(doc, 'backgroundImage', `url('${source}&amp;v=1&amp;theme=dark#mark')`, names),
     `url('${target}?v=1&amp;theme=dark#mark')`);
-  // 書き出しのクエリ変換を、使用箇所判定や削除へ広げない。
+  // 書き出しでのクエリの変換を、使用箇所の判定や削除にまで広げない。
   assert.equal(cssUsesAssetUrl(`url('${source}&v=1')`, source), false);
 });

@@ -3,11 +3,11 @@ import { zipCssUrl, zipStylesheet } from "../zip-css";
 import type { Asset } from "../types";
 
 /**
- * A ZIP-imported script module must remain in its original relative directory:
- * import "./chunk.js" and new URL("./icon.svg", import.meta.url) resolve against
- * the script file, not against Tsumu's flattened asset name.
+ * ZIP から取り込んだスクリプトのモジュールは、元の相対的なディレクトリに置かなければならない。
+ * import "./chunk.js" や new URL("./icon.svg", import.meta.url) は、Tsumu が平らにした
+ * アセット名ではなく、そのスクリプトファイルを基準に解決される。
  *
- * Keep the normal flattened output as well for existing document references.
+ * 既存の文書からの参照のために、通常の平らにした出力も残す。
  */
 export function importedAssetPath(asset: Asset): string | null {
   const zip = asset.zip;
@@ -34,7 +34,7 @@ export function isZipJavascript(asset: Asset): boolean {
     /\.(?:js|mjs|cjs)$/i.test(asset.zip.path));
 }
 
-/** Resolve the page's ZIP member before identical stored bytes from other archives are considered. */
+/** 他のアーカイブの同じ内容を考える前に、そのページの ZIP の中のファイルを解決する。 */
 export function htmlZipExportUrl(asset: Asset, names: Map<string, string>): string {
   const name = names.get(asset.id);
   if (!name) return "";

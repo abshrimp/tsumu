@@ -11,7 +11,7 @@ import { canvasMoveBundle, canvasMoveDoc } from "./helpers/canvas-move";
 const state = () => useEditor.getState();
 const snapshot = () => structuredClone({ doc: state().doc, past: state().past, future: state().future });
 
-// 実フックと実ストアを使う。DOMの寸法とフックの描画だけを固定し、ブラウザ操作はe2eで確認する。
+// 実際のフックと実際のストアを使う。DOM の寸法とフックの描画だけを固定し、ブラウザの操作は e2e で確かめる。
 function mount() {
   state().replaceDoc(canvasMoveDoc());
   state().setActivePage("p");

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { buildSync } from "esbuild";
 import { resolve } from "node:path";
 
-// Exercise paste into a duplicated site with the real store and canvas, without external requests.
+// 実際のストアとキャンバスで、複製したサイトへの貼り付けを試す。外部へのリクエストは行わない。
 const bundle = buildSync({
   stdin: {
     contents: `
@@ -75,7 +75,7 @@ test("Editing, deleting, and undoing components pasted into a copied site does n
   const errors: string[] = [];
   const requests: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  // Do not contact the editor server or outside services; intercept unexpected network traffic as well.
+  // エディタのサーバーにも外部のサービスにも接続しない。想定外の通信も横取りする。
   await page.route("**/*", async (route) => {
     requests.push(route.request().url());
     await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });

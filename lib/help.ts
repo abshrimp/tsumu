@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * ヘルプ（Webマニュアル）と操作ガイドの表示状態。
+ * ヘルプ（ウェブのマニュアル）と操作ガイドの表示状態。
  * どこからでも openHelp("記事ID") で記事を開き、startGuide で画面の場所を示しながら案内する
  */
 
@@ -25,7 +25,7 @@ export const useHelp = create<HelpState>(() => ({
   guide: null,
 }));
 
-/** ヘルプを開く（topicId を渡すとその記事を開く）。操作ガイドの途中なら終える */
+/** ヘルプを開く（topicId を渡すと、その記事を開く）。操作ガイドの途中なら終える */
 export function openHelp(topicId: string | null = null) {
   useHelp.setState({ open: true, topicId, back: [], guide: null });
 }

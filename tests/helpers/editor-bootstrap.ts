@@ -2,7 +2,7 @@ import { build } from "esbuild";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 
-/** Run the real Editor/store/sync lifecycle; only unrelated presentation panels are omitted. */
+/** 実際の Editor・ストア・同期の流れを動かす。省くのは、関係の無い表示のパネルだけ。 */
 export async function editorBootstrapBundle(browser = false) {
   const repo = resolve(".");
   const result = await build({

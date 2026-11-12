@@ -56,7 +56,7 @@ type TutorialTask =
 interface TutorialStep {
   target?: string;
   placement: Placement;
-  /** 章の名前（カード上部に出す） */
+  /** 章の名前（カードの上部に表示する） */
   chapter: string;
   title: string;
   body: string;
@@ -71,12 +71,12 @@ interface TutorialStep {
     openSection?: string;
     clearSelection?: boolean;
   };
-  /** 画面幅別の手順（ブレークポイントが無いサイトでは省く） */
+  /** 画面幅ごとの手順（ブレークポイントが無いサイトでは省く） */
   needsBreakpoint?: boolean;
 }
 
 /*
- * 文中の {slug} は練習ページのURL、{mobile} / {mobileId} はいちばん小さいブレークポイントの名前・IDに置き換える
+ * 文中の {slug} は練習用ページの URL に、{mobile} / {mobileId} は最も小さいブレークポイントの名前と ID に置き換える
  */
 const ALL_STEPS: TutorialStep[] = [
   {
@@ -483,7 +483,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
   ).current;
   const [index, setIndex] = useState(0);
   const rightTab = useEditor((s) => s.rightTab);
-  /** スマホ対応の手順で使う、いちばん小さいブレークポイント（無ければその手順を省く） */
+  /** スマホ対応の手順で使う、最も小さいブレークポイント（無ければその手順を省く） */
   const mobileBp = useRef(BP_ORDER.length > 1 ? BP_ORDER[BP_ORDER.length - 1] : null).current;
   const STEPS = useMemo(
     () => ALL_STEPS.filter((st) => !st.needsBreakpoint || mobileBp),
@@ -519,7 +519,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
     .map((id) => doc.nodes[id])
     .filter((node) => node?.name === tr("Button"));
   const button = childButtons[0];
-  // 操作に必要な要素を選んだ状態にする（追加は、選んだ要素の後ろ・中に入る）
+  // 操作に必要な要素を選んだ状態にする（追加した要素は、選んだ要素の後ろか中に入る）
   const preparedSelectionId =
     step.task === "edit-heading" || step.task === "style-heading" || step.task === "add-text"
       ? heading?.id
@@ -639,7 +639,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
   })();
 
 
-  // 操作に必要なページ・タブ・選択・セクションが閉じられても自動で復元する。
+  // 操作に必要なページ・タブ・選択・セクションが閉じられても、自動で元に戻す。
   useLayoutEffect(() => {
     let cancelled = false;
     const restore = () => {
@@ -649,7 +649,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
         state.setActivePage(createdPageId);
         return;
       }
-      // スクリプト画面はリンクの手順でだけ使う（開いたままだと次の操作の場所が隠れる）
+      // スクリプトの画面はリンクの手順でだけ使う（開いたままだと、次の操作の場所が隠れる）
       if (state.scriptEditor && step.task !== "link-button") {
         state.openScriptEditor(null);
         return;
@@ -789,7 +789,7 @@ export default function Tutorial({ onClose }: { onClose: () => void }) {
         target.tagName === "INPUT" ||
         target.tagName === "TEXTAREA" ||
         target.isContentEditable;
-      // ドロップダウン・色の選択・右クリックメニューなどを閉じる Esc では、チュートリアルを終えない
+      // ドロップダウン・色の選択・右クリックメニューなどを閉じるための Esc では、チュートリアルを終えない
       const popupOpen = !!document.querySelector(
         ".dd-menu, .color-pop, .modal-backdrop:not(.is-leaving), [data-se-popover]"
       );

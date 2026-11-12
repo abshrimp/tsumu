@@ -20,8 +20,8 @@ type PublicRequest = (uri: string, init: RequestInit, base: string,
   localFetch: (uri: string, init: RequestInit) => Promise<Response>) => Promise<Response>;
 
 test("server API and generated SSR refuse private destinations before any HTTP request", async () => {
-  // The exported SSR runtime is loaded as actual generated JavaScript, not
-  // copied from lib/safe-fetch. A regression in the snapshot is independently caught.
+  // 書き出した SSR のランタイムは、lib/safe-fetch から写したものではなく、実際に生成した JavaScript
+  // として読み込む。写しのほうの回帰は、別に見つけられる。
   const project = generateExportProject(fixture(), "sveltekit");
   const generated = project.files["src/lib/server-request.js"];
   assert.ok(generated, "SvelteKit must ship its request policy");
@@ -63,16 +63,15 @@ test("server API and generated SSR refuse private destinations before any HTTP r
         );
       }
     }
-    // URL username/password must not let a public hostname bypass the policy.
+    // URL のユーザー名やパスワードで、公開のホスト名が方針を迂回できてはならない。
     const credentialed = "https://user:secret@1.1.1.1/private";
     await assert.rejects(assertPublicUrl(credentialed), BlockedUrlError);
     await assert.rejects(requestPublic(credentialed, {}, "https://published.example", localFetch));
     assert.equal(outbound, 0, "a private address was fetched");
     assert.equal(local, 0, "a private address was sent to the local fetch");
 
-    // Positive controls distinguish the API's network policy from the
-    // generated SSR's stricter explicit-origin allowlist. A public IP is
-    // permitted by the API, but not by a site that did not allowlist it.
+    // 通るべきものも確かめ、API のネットワークの方針と、生成した SSR のより厳しい明示的なオリジンの
+    // 許可リストを区別する。公開の IP は、API では許されるが、それを許可リストに入れていないサイトでは許されない。
     const allowed = "https://1.1.1.1/public";
     assert.equal((await assertPublicUrl(allowed)).href, allowed);
     await assert.rejects(
@@ -82,8 +81,8 @@ test("server API and generated SSR refuse private destinations before any HTTP r
     assert.equal(outbound, 0);
     assert.equal(local, 0);
 
-    // Relative same-origin data APIs must continue working through the
-    // generated framework's local fetch without an external network call.
+    // 同じオリジンの相対のデータの API は、外部のネットワークに接続せず、生成したフレームワークの
+    // ローカルの fetch を通して、引き続き動かなければならない。
     const response = await requestPublic("/api/safe", {}, "https://published.example", localFetch);
     assert.equal(response.status, 200);
     assert.equal(local, 1);

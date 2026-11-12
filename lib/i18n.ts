@@ -1,7 +1,7 @@
 /**
- * Use English source strings in tr("Save"), tr("Delete {name}?", { name }),
- * or trc("context", "Save"). Translations live in lib/locales/{lang}.ts.
- * The selected language is loaded before the editor; switching reloads the page.
+ * tr("Save")、tr("Delete {name}?", { name })、trc("context", "Save") のように、英語の原文を使う。
+ * 翻訳は lib/locales/{lang}.ts に置く。
+ * 選んだ言語はエディタより先に読み込み、言語を切り替えるとページを読み込み直す。
  */
 
 import { createElement, Fragment, type ReactNode } from "react";
@@ -33,7 +33,7 @@ function detectLang(): Lang {
     const saved = window.localStorage.getItem(STORAGE_KEY);
     if (isLang(saved)) return saved;
   } catch {
-    // localStorage が使えない環境ではブラウザの言語に合わせる
+    // localStorage が使えない環境では、ブラウザの言語に合わせる
   }
   return pickLang(navigator.languages?.length ? navigator.languages : [navigator.language || ""]);
 }
@@ -41,7 +41,7 @@ function detectLang(): Lang {
 let current: Lang = detectLang();
 /** 訳を探す辞書（今の言語 → 予備の言語の順） */
 let dicts: Dict[] = [];
-/** 辞書の読み込み（読み込み中・読み込み済みのもの） */
+/** 辞書の読み込み（読み込み中のものと、読み込み済みのもの） */
 let loading: Promise<void> | null = null;
 
 export function getLang(): Lang {
@@ -53,7 +53,7 @@ export function setLang(lang: Lang) {
   try {
     window.localStorage.setItem(STORAGE_KEY, lang);
   } catch {
-    // 保存できなくてもクッキーで引き継ぐ
+    // 保存できなくても、クッキーで引き継ぐ
   }
   document.cookie = `${LANG_COOKIE}=${lang}; path=/; max-age=31536000; samesite=lax`;
   window.location.reload();
@@ -61,7 +61,7 @@ export function setLang(lang: Lang) {
 
 /** 言語の辞書を、予備の言語の分も含めて読み込む */
 export async function loadDicts(lang: Lang): Promise<Dict[]> {
-  // English is the source language and needs no lookup table.
+  // 英語は原文の言語なので、対応表は必要ない。
   if (lang === SOURCE_LANG) return [];
   const chain = [lang, FALLBACK_LANG].filter(
     (l, i, a) => l !== SOURCE_LANG && a.indexOf(l) === i
@@ -74,19 +74,19 @@ export async function loadDicts(lang: Lang): Promise<Dict[]> {
   return out;
 }
 
-/** 今の言語の辞書を読み込む（エディタ本体より先に呼ぶ） */
+/** 今の言語の辞書を読み込む（エディタの本体より先に呼ぶ） */
 export async function loadLocale(): Promise<void> {
   if (typeof document !== "undefined") {
     document.documentElement.lang = current;
-    // Opaque-origin browser fixtures (about:blank) do not allow cookies.
-    // The translations should still load even when persistence is unavailable.
+    // オリジンを持たないブラウザのテスト用ページ（about:blank）では、クッキーを使えない。
+    // 保存できない場合でも、翻訳は読み込めるようにする。
     try {
       document.cookie = `${LANG_COOKIE}=${current}; path=/; max-age=31536000; samesite=lax`;
     } catch {
-      // Ignore cookie access errors in embedded and isolated documents.
+      // 埋め込まれた文書や隔離された文書での、クッキーへのアクセスのエラーは無視する。
     }
   }
-  // 同時に何か所から呼ばれても読み込みは1回にする（失敗したら次の呼び出しで読み込み直す）
+  // 何か所から同時に呼ばれても、読み込みは1回にする（失敗したら、次の呼び出しで読み込み直す）
   loading ??= loadDicts(current).then(
     (list) => {
       dicts = list;
@@ -108,7 +108,7 @@ function lookup(list: Dict[], key: string): string | undefined {
   return undefined;
 }
 
-/** 訳した文（userMessage が「自分たちで書いた案内文」と見分けるため） */
+/** 訳した文（userMessage が「自分たちで書いた案内文」を見分けるため） */
 const own = new Set<string>();
 function remember(s: string): string {
   if (own.size > 1000) own.clear();
@@ -124,7 +124,7 @@ export function format(s: string, vars?: Record<string, string | number>): strin
   return s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
 }
 
-/** Translate English source text, optionally distinguishing a context. */
+/** 英語の原文を訳す。文脈を区別することもできる。 */
 type Vars = Record<string, string | number>;
 
 export function tr(key: string, varsOrContext?: Vars | string, contextVars?: Vars): string {
@@ -134,7 +134,7 @@ export function tr(key: string, varsOrContext?: Vars | string, contextVars?: Var
   return remember(format(value, vars));
 }
 
-/** Use the same lookup rules for server rendering and API responses. */
+/** サーバーでの描画と API の応答で、同じ探し方の規則を使う。 */
 export function translate(
   lang: Lang,
   list: Dict[],
@@ -148,15 +148,15 @@ export function translate(
   return remember(format(value, vars));
 }
 
-/** Insert React nodes into translated text: trNodes("Run {cmd}", { cmd: <code>…</code> }) */
+/** 訳文に React のノードを差し込む: trNodes("Run {cmd}", { cmd: <code>…</code> }) */
 export function trNodes(key: string, nodes: Record<string, ReactNode>, context?: string): ReactNode[] {
   return (context ? tr(key, context) : tr(key))
     .split(/\{(\w+)\}/)
-    // 配列で返すので、差し込んだ要素にも key を付ける（React の警告が出ないように）
+    // 配列で返すため、差し込んだ要素にも key を付ける（React の警告が出ないように）
     .map((part, i) => (i % 2 ? createElement(Fragment, { key: i }, nodes[part] ?? `{${part}}`) : part));
 }
 
-/** Different translations of the same English source in different contexts. */
+/** 同じ英語の原文を、文脈ごとに別の訳にする。 */
 export function trc(context: string, key: string, vars?: Record<string, string | number>): string {
   return tr(key, context, vars);
 }

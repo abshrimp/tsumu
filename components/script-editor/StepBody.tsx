@@ -384,7 +384,7 @@ function OpenKindSelect({ step }: { step: Extract<ScriptStep, { kind: "open-page
   );
 }
 
-/** Store a literal, interpolated text or a raw variable value. */
+/** 固定の文字、変数を差し込んだ文字、または変数の値そのものを保存する。 */
 function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }) {
   const { doc, pageId, updateStep, samples, renameVar } = useContext(Ctx);
   const src = setVarSource(step);
@@ -413,7 +413,7 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
   );
 }
 
-/** One native block applies one pure operation. Stacking blocks composes them. */
+/** 1つのブロックが1つの純粋な処理を行う。ブロックを積み重ねると処理を組み合わせられる。 */
 function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform" }> }) {
   const { doc, pageId, updateStep, samples, variableIndex, transformSources } = useContext(Ctx);
   const set = (patch: Partial<typeof step>) => updateStep(step.id, (s) => ({ ...s, ...patch }) as ScriptStep);
@@ -424,8 +424,8 @@ function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform"
       ...[...available].filter((name) => !Object.hasOwn(samples, name)).map((name) => [name, undefined]),
     ]);
   })();
-  // A block must not suggest its own, as-yet-unavailable output. Keep the
-  // shared source object intact and exclude that name only in opened menus.
+  // ブロックが、まだ使えない自分自身の出力を候補に出してはいけない。
+  // 共有している値の候補のオブジェクトはそのままにし、開いたメニューでだけその名前を除く。
   const excludedSourceName = variableIndex && step.into &&
     !variableIndex.hasOther(step.into, step.id) && !Object.hasOwn(samples, step.into)
       ? step.into : undefined;
@@ -449,7 +449,7 @@ function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform"
             excludeRootKey={excludedSourceName}
             onChange={(source) => updateStep(step.id, (s) => {
               if (s.kind !== "transform") return s;
-              // Reuse the source variable by default; blocks can share one name.
+              // 既定では元の変数の名前をそのまま使う。複数のブロックで同じ名前を使ってもよい。
               return { ...s, source,
                 into: !s.into || s.into === s.source ? source : s.into };
             })} />,
@@ -481,7 +481,7 @@ function TransformBody({ step }: { step: Extract<ScriptStep, { kind: "transform"
   );
 }
 
-/** 「サブドメインと共有」（公開URLのドメインの全サブドメインで同じ値を読み書きする） */
+/** 「サブドメインと共有」（公開 URL のドメインのすべてのサブドメインで、同じ値を読み書きする） */
 function SharedCheck({ step }: { step: Extract<ScriptStep, { kind: "store-save" | "store-load" }> }) {
   const { doc, updateStep } = useContext(Ctx);
   const domain = sharedCookieDomain(doc);

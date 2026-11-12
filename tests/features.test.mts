@@ -87,11 +87,11 @@ test("field initial values follow the published browser values", () => {
   const defaultRadio = makeField("radio");
   assert.equal(defaultRadio.field?.group, "radio");
   assert.equal(defaultRadio.attrId, "radio-1");
-  // ラジオのグループ名が空なら ID属性 へフォールバックしない
+  // ラジオボタンのグループ名が空でも、ID 属性を代わりに使わない
   const ungroupedRadio: DocNode = { ...makeBox(), id: "ur", type: "field", attrId: "radio-1", field: { kind: "radio", label: "S", checked: true } };
   assert.equal(fieldVarName(ungroupedRadio), "");
   assert.deepEqual(fieldDefaults([ungroupedRadio]), {});
-  // グループ名を付けたラジオ: {グループ名} が選んだ値、{ID} はそのボタンを選んでいるか
+  // グループ名を付けたラジオボタン: {グループ名} は選んだ値、{ID} はそのボタンを選んでいるか
   const item = (id: string, label: string, checked?: boolean): DocNode => ({ ...makeBox(), id, type: "field", attrId: id, field: { kind: "radio", label, group: "size", checked, disabled: id === "s" } });
   const group = [item("s", "S"), item("m", "M", true), item("l", "L")];
   const values = fieldDefaults(group);
@@ -179,7 +179,7 @@ test("published fields interpolate variables and keep a live template for field 
   assert.match(page, /<option[^>]* data-live=/);
   assert.match(page, /<span data-live=[^>]*>\{interpolate\("For \{name\}", vars\)\}<\/span>/);
   assert.match(page, / required/);
-  // 文字の入力欄に min は付けない
+  // 文字の入力欄には min を付けない
   assert.doesNotMatch(page, /min=/);
   assert.ok(files["public/scripts.js"], "the runtime is published so the text follows the field");
 });
@@ -192,7 +192,7 @@ test("comments: only the author can edit or delete, and resolving records who", 
   let threads: CommentThread[] = applyCommentAction([], create!, ann, 1);
   threads = applyCommentAction(threads, { action: "reply", threadId: "t1", id: "m2", body: "yo" }, bob, 2);
   assert.equal(threads[0].messages.length, 2);
-  // Bob は Ann のコメントを消せない
+  // Bob は、Ann のコメントを消せない
   assert.equal(applyCommentAction(threads, { action: "delete-thread", threadId: "t1" }, bob)[0]?.id, "t1");
   assert.equal(applyCommentAction(threads, { action: "edit", messageId: "t1-0", body: "x" }, bob)[0].messages[0].body, "hi");
   threads = applyCommentAction(threads, { action: "resolve", threadId: "t1", resolved: true }, bob, 3);
@@ -212,16 +212,16 @@ test("buttons, switches and radio groups are exported as working HTML", () => {
   doc.nodes.b = btn;
   const { files } = generateProject(doc);
   const page = Object.entries(files).find(([p]) => p.endsWith("page.tsx"))![1];
-  // フォームの中のボタンは送信、外は普通のボタン
+  // フォームの中のボタンは送信のボタン、外は普通のボタン
   assert.match(page, /<button[^>]*type="submit"/);
   assert.match(page, /<button[^>]*type="button"/);
-  // スイッチは非表示のチェックボックスとオン・オフのボックス＋スクリプトで構成される
+  // スイッチは、非表示のチェックボックスと、オン・オフのボックスと、スクリプトで構成される
   assert.match(page, /id="toggle"[^>]*>[\s\S]*?<input type="checkbox" name="toggle" value="true"/);
   assert.match(page, /id="switch-off"/);
   assert.match(page, /id="switch-on"[^>]*data-toggle-show="flex"/);
   assert.match(page, /data-scripts=/);
   assert.match(page, /type="radio" name="size" value="S"[^/]* disabled/);
-  // 2つ目のスイッチを追加したときは、チェックボックスとオン・オフのID・スクリプト参照が一括で付け替わる
+  // 2つ目のスイッチを追加したときは、チェックボックスとオン・オフの ID、スクリプトの参照が、まとめて付け替わる
   const sw2 = makeSwitch();
   refreshClonedIds(doc, "p", sw2.nodes);
   assert.ok(sw2.nodes.some((n) => n.attrId === "toggle-2"));
@@ -230,7 +230,7 @@ test("buttons, switches and radio groups are exported as working HTML", () => {
   assert.match(JSON.stringify(sw2.root.scripts), /toggle-2/);
   assert.match(JSON.stringify(sw2.root.scripts), /switch-off-2/);
   assert.match(JSON.stringify(sw2.root.scripts), /switch-on-2/);
-  // SearchForm は data-* 属性を受け取れ、クエリ無し時は defaultChecked を保つ
+  // SearchForm は data-* 属性を受け取れ、クエリが無いときは defaultChecked を保つ
   const searchForm = files["components/SearchForm.tsx"];
   assert.match(searchForm, /ComponentPropsWithoutRef<"form">/);
   assert.match(searchForm, /input\.defaultChecked/);
@@ -334,7 +334,7 @@ test("obfuscateVarNames renames variable tokens and cloning renames grouped radi
   const obf = obfuscateVarNames(doc);
   assert.match(obf.nodes.it.text?.content ?? "", /^\{_\d+\}$/);
 
-  // ラジオボタンはデフォルトで group="radio", attrId="radio-1" を持ち、追加・複製時に個別ID（radio-2, radio-3）へ自動採番される
+  // ラジオボタンは既定で group="radio"、attrId="radio-1" を持ち、追加・複製のときに、個別の ID（radio-2, radio-3）が自動で振られる
   const r1 = makeField("radio");
   const rDoc = docWith([r1]);
   const r2 = makeField("radio");
@@ -343,7 +343,7 @@ test("obfuscateVarNames renames variable tokens and cloning renames grouped radi
   assert.equal(r2.attrId, "radio-2");
   assert.equal(r2.field?.group, "radio");
 
-  // コンポーネント内の h1 と入力欄もチェック・変数候補で認識される
+  // コンポーネントの中の h1 と入力欄も、点検と変数の候補で認識される
   const compH1: DocNode = { ...makeBox(), id: "ch1", type: "field", attrId: "comp-input", field: { kind: "input" } };
   const compRoot: DocNode = { ...makeBox(), id: "cr", text: { content: "Heading", heading: 1 }, children: ["ch1"] };
   const inst: DocNode = { ...makeBox(), id: "inst", type: "instance", componentId: "c1" };
@@ -361,12 +361,12 @@ test("obfuscateVarNames renames variable tokens and cloning renames grouped radi
 });
 
 test("shadowed SVG images are drawn at 2x and positioned siblings stay on top of them", () => {
-  // 前にある位置指定の要素（重ねた文字）と後ろの位置指定の要素
+  // 前にある位置指定の要素（重ねた文字）と、後ろの位置指定の要素
   const before: DocNode = { ...makeBox(), id: "a", styles: { base: { default: { position: "absolute", top: "0" } } } };
   const after: DocNode = { ...makeBox(), id: "z", styles: { base: { default: { position: "sticky", top: "0", zIndex: "0" } } } };
   const own: DocNode = { ...makeBox(), id: "o", styles: { base: { default: { position: "absolute", zIndex: "5" } } } };
   const img: DocNode = { ...makeImage(), id: "i" };
-  // 実寸が 0 の画像はアセットの実寸を使う
+  // 実寸が 0 の画像には、アセットの実寸を使う
   img.image = { ...img.image!, assetId: "s", src: "", width: 0, height: 0 };
   const doc = docWith([before, img, after, own]);
   doc.assets.s = { id: "s", name: "s.svg", path: "assets/s.svg", mimeType: "image/svg+xml", width: 120, height: 40, svgFilter: true };
@@ -376,13 +376,13 @@ test("shadowed SVG images are drawn at 2x and positioned siblings stay on top of
   assert.match(page, /viewBox="0 0 120 40"/);
   assert.match(page, /width=\{240\}\s+height=\{80\}/);
   assert.match(files["app/globals.css"], /transform: scale\(0\.5\)/);
-  // 前後の位置指定の要素は z-index: 1 になり、自分の z-index がある要素はそのまま
+  // 前後の位置指定の要素は z-index: 1 になり、自分の z-index を持つ要素はそのまま
   assert.equal((files["styles/site.css"].match(/z-index: 1;/g) ?? []).length, 2);
   assert.match(files["styles/site.css"], /z-index: 5;/);
   // 元の編集データは書き換えない
   assert.equal(doc.nodes.a.styles.base?.default?.zIndex, undefined);
 
-  // チェックを外したら通常の画像
+  // チェックを外したら、通常の画像になる
   img.image.crispShadow = false;
   const plain = Object.entries(generateProject(doc).files).find(([p]) => p.endsWith("page.tsx"))![1];
   assert.doesNotMatch(plain, /crisp-svg/);
@@ -398,7 +398,7 @@ test("embedded images use asset IDs without duplicated node data URLs", () => {
   const doc = docWith([a, b, bg]);
   doc.assets.s = { id: "s", name: "s.png", mimeType: "image/png", width: 10, height: 10, dataUrl: data };
 
-  // 要素へ複製しない（表示は assetId から引く）。サーバーに置いたアセットはパスを持たせる
+  // 要素には複製しない（表示は assetId から引く）。サーバーに置いたアセットには、パスを持たせる
   assert.equal(nodeAssetSrc(doc.assets.s), "");
   assert.equal(nodeAssetSrc({ ...doc.assets.s, dataUrl: undefined, path: "assets/s.png" }), "/api/assets/file?path=assets%2Fs.png");
   assert.equal(doc.nodes.a.image!.src, "");
@@ -408,7 +408,7 @@ test("embedded images use asset IDs without duplicated node data URLs", () => {
   const page = Object.entries(generateProject(doc).files).find(([p]) => p.endsWith("page.tsx"))![1];
   assert.match(page, /src="\/assets\/[^"]+\.png"/);
 
-  // サーバーへ移すと、要素の src と背景画像のスタイルも差し替わる
+  // サーバーに移すと、要素の src と、背景画像のスタイルも差し替わる
   replaceEmbeddedAsset(doc, "s", "assets/s.png");
   const src = "/api/assets/file?path=assets%2Fs.png";
   assert.equal(doc.assets.s.dataUrl, undefined);

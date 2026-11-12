@@ -39,7 +39,7 @@ for (const preview of [true, false]) test(`${preview ? "preview" : "exported"}: 
   expect(await snapshot(page)).toEqual(before);
   if (preview) {
     await page.getByRole("button", { name: "Toggle preview", exact: true }).click();
-    // Design mode shows template text rather than resolving variable references.
+    // デザインのモードでは、変数の参照を解決せず、テンプレートの文字を表示する。
     const designDetails = page.locator('[id="detail"]');
     await expect(designDetails).toHaveCount(4);
     for (let i = 0; i < 4; i++) {

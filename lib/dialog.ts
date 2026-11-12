@@ -1,6 +1,6 @@
 /**
  * ブラウザ標準の alert / confirm / prompt の代わりに使う、エディタのダイアログ。
- * どこからでも呼べ、結果は Promise で受け取る（DialogHost が表示する）
+ * どこからでも呼べ、結果は Promise で受け取る（表示は DialogHost が行う）
  */
 
 import { create } from "zustand";
@@ -10,7 +10,7 @@ export interface DialogOptions {
   /** 決定ボタンの文字 */
   okLabel?: string;
   cancelLabel?: string;
-  /** 削除など取り消せない操作（決定ボタンを赤くし、初期フォーカスをキャンセルに置く） */
+  /** 削除など、取り消せない操作（決定ボタンを赤くし、最初のフォーカスをキャンセルに置く） */
   danger?: boolean;
 }
 
@@ -32,7 +32,7 @@ export type DialogRequest =
       resolve: (value: string | null) => void;
     };
 
-/** 表示待ちのダイアログ（先頭を表示する） */
+/** 表示を待っているダイアログ（先頭を表示する） */
 export const useDialogs = create<{ queue: DialogRequest[] }>(() => ({ queue: [] }));
 
 let nextId = 1;

@@ -5,45 +5,45 @@ import { assetUsage } from "./asset-usage";
 import { sameJson } from "./doc-share";
 
 /**
- * ドキュメントの三方向マージ（同時編集の競合解決）。
- * base = 最後に同期した版、local = 自分の現在、remote = サーバーの最新。
- * ノード・ページなどID単位で「自分が触っていなければ相手、相手が触って
- * いなければ自分、両方触っていたら自分優先」で合成する。
+ * 文書の3方向マージ（同時編集の競合の解決）。
+ * base = 最後に同期した版、local = 自分の現在の内容、remote = サーバーの最新版。
+ * ノードやページなどを ID ごとに、「自分が触っていなければ相手、相手が触って
+ * いなければ自分、両方が触っていたら自分を優先」の規則で合成する。
  */
 
-/** JSON values distinguish a missing property from an explicit null. */
+/** JSON の値では、項目が無いことと、明示的な null を区別する。 */
 const sameValue = sameJson;
 
-/** Preserve arbitrary user data keys without triggering __proto__ setters. */
+/** __proto__ のセッターを動かさずに、利用者のデータの任意のキーを残す。 */
 function setOwn<T>(record: Record<string, T>, key: string, value: T): void {
   Object.defineProperty(record, key, { value, enumerable: true, writable: true, configurable: true });
 }
 
-/** 値単位の三方向選択 */
+/** 値ごとの3方向の選択 */
 function pick<T>(
   base: T | undefined,
   local: T | undefined,
   remote: T | undefined
 ): T | undefined {
-  if (sameValue(local, base)) return remote; // 自分は未変更 → 相手の変更（削除含む）を採用
-  if (sameValue(remote, base)) return local; // 相手は未変更 → 自分の変更を採用
-  return local; // 両方変更（競合）→ 保存しようとしている自分を優先
+  if (sameValue(local, base)) return remote; // 自分は変更していない → 相手の変更（削除を含む）を採用する
+  if (sameValue(remote, base)) return local; // 相手は変更していない → 自分の変更を採用する
+  return local; // 両方が変更した（競合）→ 保存しようとしている自分を優先する
 }
 
 const isPlain = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
 
 /**
- * まとまり（オブジェクト）は項目ごとに三方向で選ぶ。同じ要素の別の項目（文字と色など）を
- * 2人が同時に変えても、両方の変更を残す。同じ項目を両方が変えたときだけ自分を優先する。
+ * オブジェクトは、項目ごとに3方向で選ぶ。同じ要素の別の項目（文字と色など）を
+ * 2人が同時に変えても、両方の変更を残す。同じ項目を両方が変えたときだけ、自分を優先する。
  * 配列（スクリプトの並びなど）は1つの値として扱う
  */
 function pickDeep<T>(base: T | undefined, local: T | undefined, remote: T | undefined): T | undefined {
   if (sameValue(local, base)) return remote;
   if (sameValue(remote, base) || sameValue(remote, local)) return local;
   if ((base !== undefined && !isPlain(base)) || !isPlain(local) || !isPlain(remote)) return local;
-  // 同時に初めて追加した設定・スタイルの別々の項目も残す。
-  // null やスカラーからの置き換えは、通常の競合としてローカルを優先する。
+  // 同時に初めて追加した、設定やスタイルの別々の項目も残す。
+  // null や単一の値からの置き換えは、通常の競合として自分を優先する。
   const before: Record<string, unknown> = isPlain(base) ? base : {};
   const out: Record<string, unknown> = {};
   for (const key of new Set([...Object.keys(local), ...Object.keys(remote), ...Object.keys(before)])) {
@@ -54,15 +54,15 @@ function pickDeep<T>(base: T | undefined, local: T | undefined, remote: T | unde
 }
 
 /**
- * Rebase a history checkpoint for a document patch that changes only existing
- * node properties. Most collaborative edits change a node's style or text.
- * Re-merging every node and rebuilding the entire element tree for each of
- * up to 100 Undo checkpoints is unnecessary for these changes.
+ * 既存のノードの項目だけを変える文書の差分について、履歴の時点を付け替える。
+ * 同時編集の変更の多くは、ノードのスタイルやテキストを変えるだけ。
+ * こうした変更のたびに、最大100件の元に戻す履歴のそれぞれで、すべてのノードを
+ * マージし直し、要素のツリー全体を作り直す必要は無い。
  *
- * Return null for structural edits: callers must use the full three-way merge
- * to preserve moves, deletions, and component graph invariants.
+ * 構造を変える編集では null を返す。呼び出し側は、移動・削除・コンポーネントの
+ * グラフの条件を保つため、完全な3方向マージを使わなければならない。
  *
- * base/updated must be the exact documents before/after the supplied patch.
+ * base と updated は、渡した差分を適用する前と後の、まさにその文書でなければならない。
  */
 export function rebaseNodePatch(
   base: SiteDoc,
@@ -86,8 +86,8 @@ export function rebaseNodePatch(
         before.componentId !== after.componentId ||
         !sameValue(before.children, after.children)) return null;
 
-    // Match mergeDocs(base, updated, checkpoint)'s property-level conflict
-    // precedence without traversing any other node or rewriting its identity.
+    // 他のノードをたどったり、その同一性を書き換えたりせずに、
+    // mergeDocs(base, updated, checkpoint) と同じ、項目ごとの競合の優先順位に合わせる。
     const merged = pickDeep(before, after, historical);
     if (!merged ||
         merged.id !== historical.id || merged.type !== historical.type ||
@@ -98,14 +98,14 @@ export function rebaseNodePatch(
       setOwn(nodes, id, merged);
     }
   }
-  // 古い履歴に無い画像・CSS/HTML アセットを新しい参照が使う可能性がある。
-  // 依存を復元できる完全マージへ任せ、Undo で欠損した文書を作らない。
+  // 古い履歴に無い画像や、CSS・HTML のアセットを、新しい参照が使っている可能性がある。
+  // 依存関係を戻せる完全なマージに任せ、元に戻す操作で欠けた文書を作らないようにする。
   if (nodes && checkpoint.assets !== updated.assets &&
       Object.keys(updated.assets).some(id => !Object.hasOwn(checkpoint.assets, id))) return null;
   return nodes ? { ...checkpoint, nodes } : checkpoint;
 }
 
-/** ID keyed なコレクションをID単位でマージ */
+/** ID をキーにしたコレクションを、ID ごとにマージする */
 function mergeRecord<T>(
   base: Record<string, T> | undefined,
   local: Record<string, T> | undefined,
@@ -117,7 +117,7 @@ function mergeRecord<T>(
   const out: Record<string, T> = {};
   const ids = new Set([...Object.keys(b), ...Object.keys(l), ...Object.keys(r)]);
   for (const id of ids) {
-    // 同じIDの別々の新規要素は混ぜない。深い合成は既存要素のプロパティだけ。
+    // 同じ ID の別々の新しい要素は混ぜない。深く合成するのは、既存の要素の項目だけ。
     const v = b[id] === undefined ? pick(b[id], l[id], r[id]) : pickDeep(b[id], l[id], r[id]);
     if (v !== undefined) setOwn(out, id, v);
   }
@@ -125,7 +125,7 @@ function mergeRecord<T>(
 }
 
 /**
- * 子の削除・移動元からの取り外しだけでは、相手が消した空の親を復活させない。
+ * 子の削除や、移動元からの取り外しだけでは、相手が消した空の親を復活させない。
  * 残すべき子の編集があれば、後で必要な祖先として戻す。
  */
 function mergeContainers<T extends { children: string[] }>(
@@ -137,7 +137,7 @@ function mergeContainers<T extends { children: string[] }>(
     const { children: before, ...baseProps } = base[id];
     const { children: after, ...localProps } = local[id];
     if (after.length >= before.length || !sameJson(baseProps, localProps)) continue;
-    // 順序変更・追加は取り消さず、元の並びから取り除いただけの場合に限る。
+    // 順序の変更や追加は取り消さず、元の並びから取り除いただけの場合に限る。
     let index = 0;
     for (const child of before) if (child === after[index]) index++;
     if (index === after.length) delete out[id];
@@ -145,11 +145,11 @@ function mergeContainers<T extends { children: string[] }>(
   return out;
 }
 
-/** ID単位でマージするコレクション（設定の値としては扱わない） */
+/** ID ごとにマージするコレクション（設定の値としては扱わない） */
 const COLLECTION_KEYS = new Set(["pages", "pageOrder", "pageFolders", "nodes", "assets", "components"]);
 
-/** Preserve the chosen sibling order. Group additions from the other list by
- * the next surviving sibling, so a wide parent needs only one scan per list. */
+/** 選んだ兄弟の順序を保つ。もう一方の並びで追加されたものは、その次に残る兄弟ごとにまとめ、
+ * 子の多い親でも、並びごとに1回の走査で済むようにする。 */
 function mergeOrder(
   base: string[] | undefined,
   local: string[] | undefined,
@@ -181,7 +181,7 @@ function mergeOrder(
   return result.concat(additions);
 }
 
-/** フォルダの名前・存在と並び順を分け、別々のフォルダへの同時編集を残す。 */
+/** フォルダの名前・存在と並び順を分けて扱い、別々のフォルダへの同時の編集を残す。 */
 function mergePageFolders(
   base: PageFolder[] | undefined,
   local: PageFolder[] | undefined,
@@ -197,9 +197,9 @@ function mergePageFolders(
   return order.map((id) => folders[id]);
 }
 
-/** 親子関係は要素の見た目とは独立してマージする。同時追加や移動で要素を失わないため。 */
+/** 親子関係は、要素の見た目とは別にマージする。同時の追加や移動で、要素を失わないため。 */
 function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteDoc) {
-  // 親は "page:<id>" / "node:<id>" の形で表す。要素数ぶんの索引を文書ごとに作らず、文書から直接引く
+  // 親は "page:<id>" / "node:<id>" の形で表す。要素の数だけの索引を文書ごとに作らず、文書から直接探す
   const owner = (doc: SiteDoc, key: string) => (key.startsWith("page:") ? doc.pages : doc.nodes);
   const listOf = (doc: SiteDoc, key: string): string[] | undefined => {
     const id = key.slice(5);
@@ -226,15 +226,15 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
   const roots = new Set(Object.values(merged.components ?? {}).map((c) => c.rootId));
   for (const id of Object.keys(merged.nodes)) {
     if (roots.has(id)) continue;
-    // 編集と削除が競合して要素を残した場合は、配置もローカルから残す。
+    // 編集と削除が競合して要素を残した場合は、その配置も自分の側から残す。
     const parent = local.nodes[id] && !remote.nodes[id]
       ? lp.get(id)
       : pick(bp.get(id), lp.get(id), rp.get(id));
     if (parent && available(parent)) parents.set(id, parent);
   }
 
-  // AをBへ、BをAへと別々に動かした場合、合成後にだけ循環が生じる。
-  // 循環に含まれるリモート移動をローカルの位置へ戻して解消する。
+  // A を B の中へ、B を A の中へと、別々に動かした場合、合成した後にだけ循環が生じる。
+  // 循環に含まれる相手の移動を、自分の側の位置に戻して解消する。
   const findCycle = (): string[] | null => {
     const done = new Set<string>();
     for (const start of parents.keys()) {
@@ -253,7 +253,7 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
   let cycle: string[] | null;
   while ((cycle = findCycle())) {
     const id = cycle.find((id) => parents.get(id) !== lp.get(id));
-    // 元データ自体が循環していても、描画時に無限再帰させない。
+    // 元のデータ自体が循環していても、描画のときに無限に再帰させない。
     if (!id) {
       parents.delete(cycle[0]);
       continue;
@@ -263,9 +263,8 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
     else parents.delete(id);
   }
 
-  // Individually valid edits can compose into a tree deeper than the editor
-  // can save. Keep every node and prefer an original placement over dropping
-  // the concurrently added subtree.
+  // それぞれは正しい編集でも、組み合わさるとエディタが保存できない深さのツリーになることがある。
+  // すべてのノードを残し、同時に追加した部分木を落とすより、元の配置を優先する。
   const pathToRoot = (start: string): string[] => {
     const path: string[] = [];
     const seen = new Set<string>();
@@ -305,10 +304,10 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
       path = pathToRoot(id);
     }
   }
-  // Component references form a second graph beyond child ownership. Two
-  // editors can each add a legal nested instance and together create A→B→A.
-  // Move the conflicting remote instance outside the master rather than
-  // deleting its settings or either component's definition.
+  // コンポーネントの参照は、子の所有とは別の2つ目のグラフを作る。2人の編集者が
+  // それぞれ正しい入れ子のインスタンスを追加しても、合わせると A→B→A になることがある。
+  // その設定やどちらかのコンポーネントの定義を消す代わりに、競合する相手のインスタンスを
+  // マスターの外へ動かす。
   const componentRoots = new Map(Object.values(merged.components ?? {}).map(c => [c.rootId, c.id]));
   const componentGraph = () => {
     const graph = new Map<string, { target: string; nodeId: string }[]>();
@@ -370,9 +369,9 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
   while ((referenceCycle = componentCycle())) {
     const id = referenceCycle.find(id => !local.nodes[id] ||
       local.nodes[id].componentId !== merged.nodes[id].componentId || parents.get(id) !== lp.get(id)) ?? referenceCycle[0];
-    // A master root which itself is an instance cannot be detached from its
-    // definition. Keep its local reference if possible; malformed input is
-    // otherwise made non-recursive without removing the root node.
+    // それ自体がインスタンスであるマスターのルートは、その定義から切り離せない。
+    // できれば自分の側の参照を残し、不正な入力の場合は、ルートのノードを消さずに
+    // 再帰しないようにする。
     if (componentRoots.has(id)) {
       merged.nodes[id] = { ...merged.nodes[id], componentId: local.nodes[id]?.componentId };
       if (instanceIsCyclic(id)) merged.nodes[id] = { ...merged.nodes[id], componentId: undefined };
@@ -394,7 +393,7 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
       }
     }
   }
-  // Fallback placements may not occur in either input's sibling list.
+  // 代わりの配置は、どちらの入力の兄弟の並びにも無いことがある。
   for (const [id, parent] of parents) {
     if (originalParents.get(id) === parent) continue;
     const list = overflowPlacements.get(parent) ?? [];
@@ -407,13 +406,13 @@ function mergeTree(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteD
     const repaired = overflowPlacements.get(key);
     return repaired ? [...new Set([...order, ...repaired])] : order;
   };
-  // 入力の履歴スナップショットは書き換えない。
+  // 入力の履歴のスナップショットは書き換えない。
   for (const [id, page] of Object.entries(merged.pages)) {
     merged.pages[id] = { ...page, children: mergeChildren(`page:${id}`) };
   }
   for (const [id, node] of Object.entries(merged.nodes)) {
     const children = mergeChildren(`node:${id}`);
-    // 子の並びが変わらない要素は入力の参照のまま残す（次のマージや差分保存が参照の比較だけで済む）
+    // 子の並びが変わらない要素は、入力の参照のまま残す（次のマージや差分保存が、参照の比較だけで済む）
     if (!sameList(children, node.children)) merged.nodes[id] = { ...node, children };
   }
 }
@@ -425,11 +424,11 @@ function sameList(a: string[], b: string[]): boolean {
 }
 
 /**
- * ローカルの編集を優先して残した要素が、リモートで消された親の下に取り残されないようにする。
- * 必要な祖先だけを戻す。未編集の兄弟や、ローカルで削除した要素は戻さない。
+ * 自分の編集を優先して残した要素が、相手が消した親の下に取り残されないようにする。
+ * 戻すのは必要な祖先だけ。編集していない兄弟や、自分の側で削除した要素は戻さない。
  */
 function restoreEditedTreePaths(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteDoc) {
-  // 戻す対象は、ローカルにあってリモートに無い要素・コンポーネントと、その祖先だけ。
+  // 戻す対象は、自分の側にあって相手の側に無い要素・コンポーネントと、その祖先だけ。
   // どちらも無ければ（履歴の付け替えの大半）、親子関係の索引を作らずに終える
   const localOnly = (mine: Record<string, unknown> | undefined, theirs: Record<string, unknown> | undefined) => {
     for (const id of Object.keys(mine ?? {})) if (mine![id] && !theirs?.[id]) return true;
@@ -443,8 +442,8 @@ function restoreEditedTreePaths(base: SiteDoc, local: SiteDoc, remote: SiteDoc, 
   for (const node of Object.values(local.nodes)) {
     for (const id of node.children) parents.set(id, { kind: "node", id: node.id });
   }
-  // 移動は親の children だけを変えるため、ノード単体の比較では未編集に見える。
-  // ローカルで別の親へ動かした要素は、削除との競合でも中身ごと残す。
+  // 移動は親の children だけを変えるため、ノード単体で比べると編集していないように見える。
+  // 自分の側で別の親へ動かした要素は、削除と競合しても中身ごと残す。
   const baseParents = new Map<string, string>();
   for (const page of Object.values(base.pages)) {
     for (const id of page.children) baseParents.set(id, `page:${page.id}`);
@@ -474,7 +473,7 @@ function restoreEditedTreePaths(base: SiteDoc, local: SiteDoc, remote: SiteDoc, 
     if (!comp || remote.components?.[id] || restoredComponents.has(id)) return;
     restoredComponents.add(id);
     (merged.components ??= {})[id] ??= comp;
-    // 残したインスタンス・コンポーネント設定に必要なマスターは、内容も一緒に残す。
+    // 残したインスタンスやコンポーネントの設定に必要なマスターは、その内容も一緒に残す。
     const stack = [comp.rootId];
     const visited = new Set<string>();
     for (let nodeId = stack.pop(); nodeId !== undefined; nodeId = stack.pop()) {
@@ -499,8 +498,8 @@ function restoreEditedTreePaths(base: SiteDoc, local: SiteDoc, remote: SiteDoc, 
     const parent = parents.get(id);
     if (!parent) {
       const comp = localComponents.find((c) => c.rootId === id);
-      // マスター内部の編集だけが残った場合は、コンポーネント定義を戻す。
-      // この経路では、消された未編集の兄弟までは戻さない。
+      // マスターの中の編集だけが残った場合は、コンポーネントの定義を戻す。
+      // この経路では、消された、編集していない兄弟までは戻さない。
       if (comp && !merged.components?.[comp.id]) (merged.components ??= {})[comp.id] = comp;
       continue;
     }
@@ -527,9 +526,9 @@ export function mergeDocs(
 ): SiteDoc {
   const merged = mergeOnce(base, local, remote);
   if (merged.pageOrder.length) return merged;
-  // 残りのページを別々の人が1つずつ消すと、どちらも1ページは残しているのに合成後は0ページになる。
+  // 残りのページを別々の人が1つずつ消すと、どちらも1ページは残しているのに、合成した後は0ページになる。
   // ページの無いデータは開けないため、相手が消したページのうち自分の側に残っているものを、
-  // 相手は触っていない扱い（元の版のまま）にして合成し直す。中の要素も自分の側の内容で残る
+  // 相手は触っていないもの（元の版のまま）として合成し直す。中の要素も、自分の側の内容で残る
   const kept = local.pageOrder.filter((id) => local.pages[id] && base.pages[id] && !remote.pages[id]);
   if (!kept.length) return merged;
   const pages = { ...remote.pages };
@@ -548,8 +547,8 @@ export function mergeDocs(
 }
 
 /**
- * 一方で未使用アセットを削除し、もう一方で使い始めた場合は、残った参照を優先する。
- * 画像だけでなく CSS・HTML・ZIP 内の依存も、未使用判定と同じ規則で保護する。
+ * 一方が未使用のアセットを削除し、もう一方がそれを使い始めた場合は、残っている参照を優先する。
+ * 画像だけでなく、CSS・HTML・ZIP の中の依存関係も、未使用の判定と同じ規則で守る。
  */
 function restoreReferencedAssets(base: SiteDoc, local: SiteDoc, remote: SiteDoc, merged: SiteDoc): void {
   const missing = new Map<string, SiteDoc["assets"][string]>();
@@ -558,7 +557,7 @@ function restoreReferencedAssets(base: SiteDoc, local: SiteDoc, remote: SiteDoc,
       if (!Object.hasOwn(merged.assets, id)) missing.set(id, asset);
     }
   }
-  // 通常の同時編集ではアセットの削除が無いため、本文の使用箇所検索は不要。
+  // 通常の同時編集ではアセットを削除しないため、本文から使用箇所を探す必要は無い。
   if (!missing.size) return;
   const available = { ...merged.assets };
   for (const [id, asset] of missing) setOwn(available, id, asset);
@@ -576,21 +575,21 @@ function mergeOnce(
   const nodes = mergeContainers(base.nodes, local.nodes, remote.nodes);
   const pages = mergeContainers(base.pages, local.pages, remote.pages);
 
-  // ページ順: 変更した側を採用し、存在と過不足を整える
+  // ページの順序: 変更した側を採用し、存在と過不足を整える
   let pageOrder = [
     ...(pick(base.pageOrder, local.pageOrder, remote.pageOrder) ??
       remote.pageOrder),
   ];
   pageOrder = pageOrder.filter((id) => pages[id]);
-  // 片方で足したページを並びに加える。並びに入っていないページ（ローディング画面の
-  // 編集用ページ）は、どちらの並びにも無いので加えない
+  // 片方で追加したページを並びに加える。並びに入っていないページ（ローディング画面の
+  // 編集用のページ）は、どちらの並びにも無いため加えない
   const listed = new Set([...local.pageOrder, ...remote.pageOrder]);
   for (const id of Object.keys(pages)) {
     if (!pageOrder.includes(id) && listed.has(id)) pageOrder.push(id);
   }
 
-  // サイト設定（siteName・pwa・dataRevalidate など）は値ごとに三方向で選ぶ。
-  // 項目を列挙すると、あとから足した設定がマージのたびに消えるため、すべてのキーを対象にする
+  // サイトの設定（siteName・pwa・dataRevalidate など）は、値ごとに3方向で選ぶ。
+  // 項目を列挙すると、後から追加した設定がマージのたびに消えるため、すべてのキーを対象にする
   const settings: Record<string, unknown> = {};
   const b = base as unknown as Record<string, unknown>;
   const l = local as unknown as Record<string, unknown>;
@@ -616,7 +615,7 @@ function mergeOnce(
   restoreEditedTreePaths(base, local, remote, merged);
   mergeTree(base, local, remote, merged);
   restoreReferencedAssets(base, local, remote, merged);
-  // 移動とフォルダ削除が重なっても、存在しないフォルダへの所属を残さない。
+  // 移動とフォルダの削除が重なっても、存在しないフォルダへの所属を残さない。
   const folderIds = new Set((pageFolders ?? []).map((folder) => folder.id));
   for (const page of Object.values(merged.pages)) {
     if (page.folderId && !folderIds.has(page.folderId)) delete page.folderId;

@@ -1,11 +1,11 @@
 import type { SiteDoc } from "./types";
 
 /**
- * GitHub Push also commits the full editable doc.json. Do not silently put
- * credential-bearing fetch settings into a repository that may be public.
+ * GitHub への公開では、編集可能な doc.json 全体もコミットする。認証情報を含む取得の設定を、
+ * 公開されているかもしれないリポジトリに、気づかないうちに入れてはいけない。
  *
- * This is deliberately a conservative high-confidence check, not a guarantee
- * that arbitrary user-authored HTML or scripts contain no secrets.
+ * これは意図的に、確度の高いものだけを検出する控えめな検査で、利用者が書いた任意の
+ * HTML やスクリプトに秘密が含まれていないことを保証するものではない。
  */
 export function hasPublishCredentials(doc: SiteDoc): boolean {
   const seen = new WeakSet<object>();
@@ -48,7 +48,7 @@ export function hasPublishCredentials(doc: SiteDoc): boolean {
       })) return true;
       const body = typeof object.body === "string" ? object.body : "";
       if (containsParam(body, false)) return true;
-      // Keep inspecting templated or incomplete JSON that cannot yet be parsed.
+      // まだ解析できない、テンプレートを含む JSON や書きかけの JSON も調べ続ける。
       for (const match of body.matchAll(bodyKey)) {
         if (literal(decodeURIComponentSafe(match[1]))) return true;
       }
@@ -72,9 +72,9 @@ export function hasPublishCredentials(doc: SiteDoc): boolean {
 }
 
 /**
- * History restores are fetched from a repository that can be edited outside
- * the application. Bound the response before JSON parsing or using it as a
- * SiteDoc. The stream limit applies even when Content-Length is missing.
+ * 履歴からの復元は、アプリの外でも編集できるリポジトリから取得する。JSON として解析したり、
+ * SiteDoc として使ったりする前に、応答の大きさを制限する。
+ * Content-Length が無くても、ストリームでの上限を適用する。
  */
 export async function readRestoreJson(response: Response, maxBytes: number): Promise<unknown> {
   const sizeHeader = response.headers.get("Content-Length");
@@ -98,7 +98,7 @@ export async function readRestoreJson(response: Response, maxBytes: number): Pro
       chunks.push(value);
     }
   } catch (error) {
-    // A cloned response may wait for another reader to finish cancellation.
+    // 複製した応答は、もう一方の読み手が取り消しを終えるのを待つことがある。
     void reader.cancel(error).catch(() => {});
     throw error;
   } finally {

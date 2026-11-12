@@ -1,7 +1,7 @@
 /**
- * Build-time language discovery. Add lib/locales/<BCP-47>.ts and run npm run
- * dev/build/typecheck/test: the lightweight language list and lazy import map
- * are regenerated without manually maintaining registries.
+ * ビルドのときに言語を見つける。lib/locales/<BCP-47>.ts を追加して、npm run
+ * dev/build/typecheck/test を実行すると、軽量な言語の一覧と、遅延 import の対応表が
+ * 作り直される。登録の一覧を手で保守する必要は無い。
  */
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -33,7 +33,7 @@ export function generateLocaleSources(fileNames) {
   }
   if (!seen.has("ja")) throw new Error("lib/locales/ja.ts is required");
 
-  // Preserve the existing language chooser order and labels.
+  // 既存の言語の選択肢の順序と表示名を保つ。
   const other = languages.filter((item) => item.code !== "ja").sort((a, b) => a.code.localeCompare(b.code));
   const list = [
     { code: "ja", label: "日本語" },

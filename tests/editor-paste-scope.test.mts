@@ -8,7 +8,7 @@ import { useEditor } from "../lib/store";
 import { makeText } from "../lib/presets";
 import * as clips from "../lib/clip-transfer";
 
-// 実Editorのpaste effectを動かす。DOMへの伝播・ネイティブ貼り付けはE2Eでも確認する。
+// 実際の Editor の paste の effect を動かす。DOM への伝播とネイティブの貼り付けは、E2E でも確かめる。
 function mount(context: "design" | "preview" | "modal" | "script" | "leaving" = "design", active = false) {
   const node = { ...makeText("Copied text"), id: "a", ...(active ? { type: "code" as const, code: { html: "<script>window.pasted = true</script>" } } : {}) };
   useEditor.getState().replaceDoc({ siteName: "Paste scope", assets: {}, pageOrder: ["p"], pages: {
@@ -35,7 +35,7 @@ function mount(context: "design" | "preview" | "modal" | "script" | "leaving" = 
       return context === "modal" || context === "script" ? {} : null;
     } },
     setPasteNotice: (notice: unknown) => notices.push(notice),
-    // Editor keeps this ref outside the paste effect; expose it to the extracted handler.
+    // Editor は、この ref を paste の effect の外に持つ。取り出したハンドラーに渡す。
     internalClipboardOwned: { current: false },
     clipboardPayload: clips.clipboardPayload, isOwnClip: clips.isOwnClip, activeContentNames: clips.activeContentNames,
     currentSiteId: () => "default",

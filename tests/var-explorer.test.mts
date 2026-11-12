@@ -16,7 +16,7 @@ function nodes(tree: any): any[] {
   return [tree, ...nodes(tree.props?.children)];
 }
 
-// 実ソースのフックとイベントを実行する。DOMのキーボード伝播・フォーカスは e2e で確かめる。
+// 実際のソースのフックとイベントを実行する。DOM のキーボードの伝播とフォーカスは、e2e で確かめる。
 function mount() {
   state().replaceDoc(varExplorerDoc()); state().setActivePage("p");
   const root = { slots: [] as any[], effects: [] as (() => void)[], changed: false };

@@ -43,8 +43,8 @@ const snapshot = (page: Page) => page.evaluate(() => {
   return { doc, past, future };
 });
 
-// Browser automation cannot drive an OS IME. Deliver both browser composition
-// signals through the real DOM/React listeners and check focus, state and routing.
+// ブラウザの自動操作では、OS の日本語入力を動かせない。ブラウザの変換中を示す2つの合図を、
+// 実際の DOM と React のリスナーを通して渡し、フォーカス・状態・振り分けを確かめる。
 async function composingEscape(input: Locator, signal: "isComposing" | "keyCode") {
   await input.dispatchEvent("compositionstart", { data: "にほん" });
   const prevented = await input.evaluate((element, signal) => {
@@ -65,8 +65,8 @@ for (const locale of ["ja-JP", "en-US"]) test.describe(locale, () => {
     ? { script: "スクリプト", search: "操作を探す", prompt: "入力してください" }
     : { script: "Scripts", search: "Find an action", prompt: "Enter a value" };
   test.beforeEach(async ({ page }) => {
-    // A routed origin lets the real locale loader persist its language cookie
-    // without depending on the application server.
+    // 横取りしたオリジンを使えば、アプリのサーバーに頼らずに、
+    // 実際の言語の読み込みが言語のクッキーを保存できる。
     await page.route("http://editor-escape.test/", route => route.fulfill({
       contentType: "text/html", body: '<html><body><div id="app"></div></body></html>',
     }));
@@ -86,7 +86,7 @@ for (const locale of ["ja-JP", "en-US"]) test.describe(locale, () => {
     await expect(search).toBeFocused();
     await expect(selectedStep(page)).toHaveClass(/is-selected/);
     expect(await snapshot(page)).toEqual(before);
-    // Once focus leaves the field, Escape still clears selection, then closes.
+    // フォーカスが欄から外れた後も、Escape は選択を解除し、その次に閉じる。
     await search.blur();
     await page.keyboard.press("Escape");
     await expect(selectedStep(page)).not.toHaveClass(/is-selected/);

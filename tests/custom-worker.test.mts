@@ -8,8 +8,8 @@ import { createDocPatch } from "../lib/doc-patch";
 import { createInitialDoc } from "../lib/presets";
 import { StructuredDocumentStore, type DocumentSqlStorage } from "../lib/structured-document-store";
 
-// Exercise the real Worker handler and document store, replacing only host
-// bindings. A D1 binding selects the production DOC_STORE RPC path.
+// 実際の Worker のハンドラーと文書の保存先を動かし、ホストのバインディングだけを置き換える。
+// D1 のバインディングがあると、本番の DOC_STORE の RPC の経路が選ばれる。
 function fixture(initialize = true, allowGenerationClose = false) {
   const sqlite = new DatabaseSync(":memory:");
   const storage: DocumentSqlStorage = {
@@ -120,8 +120,8 @@ for (const initialize of [true, false]) {
         const read = f.pauseRead();
         const pending = f.send({ type: "load", requestId: "delayed-load" });
         await read.started;
-        // Deletion/recreation can commit in D1 while a previously captured
-        // DocumentRoom response is still in transit to CollaborationRoom.
+        // 先に受け取った DocumentRoom の応答が CollaborationRoom へ届く途中で、
+        // D1 では削除や作り直しが確定することがある。
         f.setGeneration(generation);
         read.release();
         await pending;

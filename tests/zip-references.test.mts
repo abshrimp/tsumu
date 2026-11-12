@@ -65,7 +65,7 @@ test("root-relative resources in a wrapped site ZIP resolve without altering ext
   assert.equal(zipDependency("/images/logo.svg", "site/css/main.css", new Map([
     ["site/images/logo.svg", "logo"],
   ]))?.assetId, "logo");
-  // An explicit asset at the archive root takes priority over the wrapper fallback.
+  // アーカイブの直下に明示的に置いたアセットを、包むフォルダからの代わりの解決より優先する。
   const both = new Map([["images/logo.svg", "at-root"], ["site/images/logo.svg", "wrapped"]]);
   assert.equal(resolveZipReference("/images/logo.svg", "site/index.html", both), "at-root");
   assert.equal(resolveZipReference("https://cdn.example/logo.svg", "site/index.html", resources), "https://cdn.example/logo.svg");

@@ -48,7 +48,7 @@ async function fixture(stale = false, raw?: string | null) {
   return {
     ...api, doc, ui, values, pageKey, uiKey,
     async dispose() {
-      // Let the real debounced preference writer finish before replacing window.
+      // window を置き換える前に、実際の、間引いて書く設定の保存を終わらせる。
       await new Promise(resolve => setTimeout(resolve, 250));
       if (previous) Object.defineProperty(globalThis, "window", previous);
       else Reflect.deleteProperty(globalThis, "window");
@@ -102,7 +102,7 @@ for (const raw of [null, "{broken"]) {
     const f = await fixture(false, raw);
     try {
       await f.hydrateBrowserDoc();
-      // A server snapshot may still load even if the browser cache is unavailable.
+      // ブラウザのキャッシュを使えなくても、サーバーのスナップショットは読み込めることがある。
       f.useEditor.getState().replaceDoc(f.doc);
       f.useEditor.getState().setActivePage(f.doc.pageOrder[0]);
       f.useEditor.getState().select("master");

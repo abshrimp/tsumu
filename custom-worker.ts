@@ -28,7 +28,7 @@ interface WorkerEnv {
   ASSET_GC_ENABLED?: string;
   ASSET_GC_GRACE_DAYS?: string;
   ASSET_GC_MAX_DELETES?: string;
-  /** 未設定なら編集データはブラウザ内に保存する（クライアントがHTTPの503を見て切り替える） */
+  /** 未設定なら、編集データはブラウザ内に保存する（クライアントが HTTP の 503 を見て切り替える） */
   DB?: D1LikeDatabase;
   ALLOWED_EMAILS?: string;
   ALLOW_ANONYMOUS?: string;
@@ -44,11 +44,11 @@ function signInConfigured(env: WorkerEnv): boolean {
 /** siteId は接続時の ?site=、user は Worker が認証の結果から渡すログイン中の人 */
 type SocketAttachment = { clientId: string; siteId: string; roomKey?: string; user?: ActivityUser | null };
 
-/** Worker から部屋へ、ログイン中の人を渡すヘッダー（ブラウザから来た同名のヘッダーは捨てる） */
+/** Worker から部屋へログイン中の人を渡すヘッダー（ブラウザから来た同じ名前のヘッダーは捨てる） */
 const USER_HEADER = "X-Editor-User";
 const ROOM_KEY_HEADER = "X-Editor-Room-Key";
 
-// 保存層の例外には本文が含まれうるため、固定の案内文だけを公開する。
+// 保存層の例外には本文が含まれることがあるため、公開するのは固定の案内文だけにする。
 // 日本語かどうかや部分一致では判定せず、未知の例外はログにも残さない。
 const PUBLIC_DOCUMENT_ERRORS = new Set([
   "保存先が設定されていません",
@@ -76,7 +76,7 @@ type AttachableSocket = WebSocket & {
   deserializeAttachment(): SocketAttachment | null;
 };
 
-/** 1サイト分の接続を集約し、保存完了通知を配信する（部屋の名前 = サイトID）。 */
+/** 1サイト分の接続をまとめ、保存の完了を通知する（部屋の名前 = サイト ID）。 */
 export class CollaborationRoom extends DurableObject<WorkerEnv> {
   private async readAllowedEmails(): Promise<string[]> {
     if (!this.env.DB) return [];
@@ -97,7 +97,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
   }
 
   private async broadcast(raw: string, except?: WebSocket, senderId?: string): Promise<void> {
-    // 同じ配信内だけ共有する。次の配信では取り直し、許可削除を反映する。
+    // 同じ配信の中だけで共有する。次の配信では取得し直し、許可の削除を反映する。
     let allowedEmails: Promise<string[]> | undefined;
     const readExtra = () => allowedEmails ??= this.readAllowedEmails();
     for (const socket of this.ctx.getWebSockets()) {
@@ -108,7 +108,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         if (!await this.authorized(socket, readExtra)) continue;
         socket.send(raw);
       } catch {
-        // 切断済みソケットはランタイムが一覧から除外する
+        // 切断済みのソケットは、ランタイムが一覧から除く
       }
     }
   }
@@ -161,7 +161,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
 
     return new Response(null, {
       status: 101,
-      // Cloudflare Workers固有のResponse拡張
+      // Cloudflare Workers 固有の Response の拡張
       webSocket: client,
     } as ResponseInit & { webSocket: WebSocket });
   }
@@ -170,9 +170,9 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
     socket: WebSocket,
     message: string | ArrayBuffer
   ): Promise<void> {
-    // A sender may disconnect while an awaited save is committing. Failure to
-    // acknowledge it must not skip the activity record or notify other editors
-    // of a failure after the write already succeeded.
+    // 保存の確定を待っている間に、送り手が切断することがある。その返信に失敗しても、
+    // 編集の記録を省いたり、書き込みがすでに成功した後で他の編集者に失敗を
+    // 知らせたりしてはいけない。
     const reply = (raw: string) => {
       try { socket.send(raw); } catch { /* The peer disconnected. */ }
     };
@@ -210,8 +210,8 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       return;
     }
     const input = decoded as CollabClientMessage;
-    // JSON input has no runtime TypeScript guarantees. Check the type before
-    // RegExp.test can coerce arrays/numbers or throw on an object.
+    // JSON の入力は、実行時には TypeScript の型が保証されない。RegExp.test が配列や数値を
+    // 文字列に変換したり、オブジェクトで例外を投げたりしないよう、先に型を確かめる。
     if (typeof input.requestId !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(input.requestId)) {
       reply(
         JSON.stringify({
@@ -252,13 +252,13 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         throw new Error("DOC_STORE binding is missing");
       }
       if (input.type === "load") {
-        // Reconnecting editors already hold this revision. A metadata lookup
-        // avoids rebuilding and transferring the entire document on every
-        // WebSocket reconnect (and avoids parsing it again on the main thread).
+        // 再接続した編集者は、すでにこの版を持っている。メタデータだけを照会すれば、
+        // WebSocket の再接続のたびに文書全体を組み立てて送ることも、
+        // メインスレッドで改めてパースすることも避けられる。
         if (remote && typeof input.knownRev === "string" && input.knownRev.length <= 30) {
           const meta = await remote.getMetadata();
           if (meta?.rev === input.knownRev) {
-            // Even a metadata-only response must fence deleted/recreated sites.
+            // メタデータだけの応答でも、削除されたサイトや作り直されたサイトは遮断しなければならない。
             if (roomKey && await getSiteRoomKey(db, siteId) !== roomKey) {
               socket.close(1008, "Site generation changed");
               return;
@@ -274,8 +274,8 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
           }
         }
         const current = remote ? await remote.getSnapshot() : await readCurrentDoc(db, siteId);
-        // The site can be deleted/recreated while the document RPC is in flight.
-        // Fence empty results too: exists:false starts an initial client save.
+        // 文書の RPC の処理中に、サイトが削除されたり作り直されたりすることがある。
+        // 空の結果も遮断する。exists:false を返すと、クライアントが最初の保存を始めてしまう。
         if (roomKey && await getSiteRoomKey(db, siteId) !== roomKey) {
           socket.close(1008, "Site generation changed");
           return;
@@ -320,8 +320,8 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         try {
           generationChanged = await getSiteRoomKey(db, siteId) !== roomKey;
         } catch (error) {
-          // 保存は確定済み。後続の照会失敗で失敗扱いにせず、元の部屋だけへ通知する。
-          // 競合結果は本文を含むため、世代を確認できなければ返さない。
+          // 保存は確定している。その後の照会に失敗しても失敗とはせず、元の部屋にだけ通知する。
+          // 競合の結果は本文を含むため、世代を確認できなければ返さない。
           if (result.kind !== "saved") throw error;
           generationCheckFailed = true;
           console.error("[collab] committed save generation check failed");
@@ -333,11 +333,11 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       }
       if (result.kind === "missing") throw new Error("サイトが見つかりません");
       if (result.kind === "saved") {
-        // ホーム画面の「〜に編集」は D1 の saved_at/updated_at を読むので、ここでも反映する
+        // ホーム画面の「〜に編集」は D1 の saved_at / updated_at を読むため、ここでも反映する
         try {
           await recordSiteSavedAt(db, siteId, remote ? roomKey : null, result.savedAt);
         } catch (error) {
-          // 本体の保存は成功しているので、時刻の反映失敗は保存失敗扱いにしない
+          // 本体の保存は成功しているため、時刻の反映に失敗しても保存の失敗とはしない
           console.error("Failed to record site savedAt", error);
         }
       }
@@ -357,8 +357,8 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
           savedAt: result.savedAt,
         })
       );
-      // 右下の「保存」にホバーしたときに出す、最近編集した人
-      // 照会に失敗したときは、同じIDで作り直されたサイトへ履歴を書き込まない。
+      // 右下の「保存」にホバーしたときに表示する、最近編集した人を記録する。
+      // 照会に失敗したときは、同じ ID で作り直されたサイトに履歴を書き込まない。
       if (!generationCheckFailed) {
         await recordActivity(db, siteId, "edit", attachment?.user ?? null, result.savedAt, roomKey);
       }
@@ -410,8 +410,8 @@ async function authorizeWebSocket(
 
 export default {
   scheduled(event: { cron?: string }, env: WorkerEnv, ctx: ExecutionContext): void {
-    // Every day: only expired D1 candidates. Weekly: reconcile one KV page
-    // to find failed uploads or assets orphaned by deleted sites.
+    // 毎日の処理: 期限切れの D1 の候補だけを扱う。週1回の処理: KV の1ページ分を照合し、
+    // アップロードの失敗や、削除したサイトに残ったアセットを見つける。
     const discoverUntracked = event.cron === "0 19 * * SUN";
     if (!env.DB || !env.ASSETS_KV || !env.DOC_STORE ||
         (discoverUntracked && !env.ASSETS_KV.list)) return;
@@ -427,7 +427,7 @@ export default {
           discoverUntracked,
         });
       } catch {
-        // A failed run records the number of completed deletes in D1.
+        // 失敗した処理では、完了した削除の件数が D1 に記録される。
         console.error("[asset-gc] run aborted or failed; see asset_gc_runs");
       }
     })());
@@ -446,7 +446,7 @@ export default {
       return new Response("WebSocket upgrade required", { status: 426 });
     }
 
-    // Cookieが自動送信されるWebSocketのクロスサイト乗っ取りを防ぐ
+    // Cookie が自動で送られる WebSocket を、別のサイトから乗っ取られないようにする
     if (request.headers.get("Origin") !== url.origin) {
       return new Response("Invalid origin", { status: 403 });
     }
@@ -463,8 +463,8 @@ export default {
     if (!isSiteId(siteId)) {
       return new Response("Invalid site", { status: 400 });
     }
-    // Collaboration WebSockets are isolated by the same per-creation key as
-    // document storage. Old sockets never join a recreated site's new room.
+    // 同時編集の WebSocket は、文書の保存と同じサイト作成ごとのキーで分ける。
+    // 古いソケットが、作り直したサイトの新しい部屋に加わることはない。
     let roomName = siteId;
     if (env.DB && env.DB.__tsumuBackend !== "sqlite") {
       const db = await getDbFromBinding(env.DB);
@@ -482,6 +482,6 @@ export default {
   },
 };
 
-// OpenNext側でこれらを有効化した場合にもカスタムWorkerから公開できるようにする
+// OpenNext 側でこれらを有効にした場合も、カスタム Worker から公開できるようにする
 // @ts-ignore .open-next/worker.js はビルド時に生成される
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "./.open-next/worker.js";

@@ -3,8 +3,8 @@ import { prepareExportProject } from "../lib/export-formats";
 import { makeBox } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
 
-/** Audit F: exercise the actual complete single-file HTML export in Chromium.
- * The test serves only index.html; external editor assets must not be needed.
+/** 監査 F: 実際の単一ファイルの HTML の書き出し全体を、Chromium で動かす。
+ * このテストは index.html だけを配信する。エディタの外部のアセットは必要としないはず。
  */
 test("single HTML executes page-load scripts and renders dynamic variables without external files", async ({ page }) => {
   const doc: SiteDoc = {

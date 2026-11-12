@@ -22,12 +22,12 @@ export default function RightPanel() {
   const node = selection ? doc.nodes[selection] : null;
   return (
     // パソコン以外の画面幅で編集しているときは、変更済みの色を青ではなくオレンジにする
-    //（その画面幅だけの変更だと分かるように）
+    //（その画面幅だけの変更だと分かるようにするため）
     <aside
       className={`panel-r${breakpoint === "base" ? "" : " is-bp"}`}
       data-tutorial="inspector"
       onContextMenu={(e) => {
-        // 右クリックは項目のリセットなどに使うため、ブラウザのメニューは出さない
+        // 右クリックは項目のリセットなどに使うため、ブラウザのメニューは表示しない
         //（文字の入力欄だけは、コピー・貼り付けのメニューを残す）
         const t = e.target as HTMLElement;
         const editable =

@@ -86,8 +86,8 @@ test("Canvas variable suggestions stay open for menu actions but dismiss on outs
   await page.locator(".canvas-area").click({ position: { x: 8, y: 8 } });
   await expect(menu).toHaveCount(0);
 
-  // Clicking outside may end the canvas text edit session; start a new edit
-  // before testing Escape instead of expecting the old editor to remain mounted.
+  // 外側をクリックすると、キャンバスでのテキストの編集が終わることがある。古いエディタが
+  // 残っていると期待せず、Escape を試す前に、新しく編集を始める。
   await textNode(page).dblclick();
   await expect(editing(page)).toBeFocused();
   await editing(page).press("Control+/");

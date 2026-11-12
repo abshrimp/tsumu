@@ -36,8 +36,8 @@ test("resizing an imported document cannot make style editing mutate Object.prot
   const doc = createInitialDoc();
   doc.breakpoints = [{ id: "__proto__", label: "Imported width", maxWidth: 600 }];
   try {
-    // The editor also normalizes in-memory documents supplied by its own
-    // mutation paths, even when no import/API validator ran first.
+    // エディタは、取り込みや API の検証を先に通っていない、自身の変更の経路から渡された
+    // メモリの中の文書も正規化する。
     useEditor.getState().replaceDoc(doc);
     useEditor.getState().setCustomWidth(550);
     const id = Object.keys(doc.nodes)[0];
@@ -49,7 +49,7 @@ test("resizing an imported document cannot make style editing mutate Object.prot
     assert.equal(useEditor.getState().breakpoint, "base");
     assert.equal(useEditor.getState().doc.nodes[id].styles.base?.default?.color, "red");
   } finally {
-    // Preserve the test process even while verifying the vulnerable baseline.
+    // 脆弱な状態を基準として確かめる間も、テストのプロセスは壊さない。
     if (originalDefault) Object.defineProperty(Object.prototype, "default", originalDefault);
     else Reflect.deleteProperty(Object.prototype, "default");
     Object.setPrototypeOf(BP_INFO, originalPrototype);

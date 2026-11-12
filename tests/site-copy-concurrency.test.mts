@@ -73,7 +73,7 @@ test("an unsuccessful destination save is not reported as a completed copy", asy
 }));
 
 test("importing atomically creates revision one and rejects invalid or colliding imports without changing existing data", async () => database(async db => {
-  // Use a complete current SiteDoc: the import boundary must reject incomplete page metadata.
+  // 完全で現在の形の SiteDoc を使う。取り込みの境界では、不完全なページのメタデータを拒否しなければならない。
   const doc = createInitialDoc();
   doc.siteName = "Imported";
   const input = { name: doc.siteName, initialDoc: doc, importId: "0123456789" };

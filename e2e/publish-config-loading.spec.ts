@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-// The publish endpoint is mocked: these tests never write to GitHub.
+// 公開のエンドポイントは模擬する。これらのテストは、GitHub に決して書き込まない。
 for (const state of ["token", "repo", "configured", "error"] as const) {
   test(`Publish controls stay hidden until GitHub configuration resolves: ${state}`, async ({ page }) => {
     let releaseConfig: (() => void) | undefined;

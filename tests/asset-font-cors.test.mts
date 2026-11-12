@@ -5,7 +5,7 @@ import { afterEach, beforeEach, test } from "node:test";
 import { transformSync } from "esbuild";
 import { ASSET_TOKEN_TTL, signAssetPath, verifyAssetToken } from "../lib/asset-token";
 
-// 実際の認証ガード・署名検証・配信ルートを、合成フォントと置き換えた保存先で動かす。
+// 実際の認証の確認・署名の検証・配信のルートを、合成したフォントに置き換えた保存先で動かす。
 function load(path: string, mocks: Record<string, unknown>): any {
   const url = new URL(path, import.meta.url);
   const require = createRequire(url);
@@ -76,7 +76,7 @@ test("public anonymous assets can supply fonts to the opaque HTML preview", asyn
 test("signed preview URLs retain cross-origin access without a login cookie", async () => {
   const f = fixture();
   const query = await signAssetPath("assets/font.woff2");
-  // Cached no longer than the signature is valid (one hour).
+  // キャッシュの期間は、署名が有効な間（1時間）を超えない。
   const response = await f.get(`path=assets%2Ffont.woff2&${query}`);
   readableFromPreview(response, /^private, max-age=(\d+), immutable$/);
   const maxAge = Number(/max-age=(\d+)/.exec(response.headers.get("Cache-Control")!)![1]);

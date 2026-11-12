@@ -1,7 +1,7 @@
 import { build } from "esbuild";
 import { resolve } from "node:path";
 
-/** 実際のキャンバス・レイヤーとアップロード処理を、通信の完了順だけ制御して確かめる。 */
+/** 実際のキャンバス・レイヤーとアップロードの処理を、通信の完了の順序だけ制御して確かめる。 */
 export async function imageDropBundle() {
   return (await build({
     stdin: {

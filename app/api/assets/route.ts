@@ -12,10 +12,9 @@ import { recordAssetGcCandidates } from "../../../lib/asset-gc";
 import { readAssetLedger, recordUploadedAsset } from "../../../lib/asset-ledger";
 
 /**
- * Read each other site's asset index directly from its SQLite-backed DO.
- * This is intentionally conservative: a failed query aborts deletion rather
- * than risk erasing a file referenced by another site. Concurrency is limited
- * to avoid exhausting the per-request outgoing connection budget.
+ * 他のサイトのアセット一覧を、各サイトの SQLite 版 Durable Object から直接読む。
+ * 安全側に倒し、1件でも読めなければ削除を中止する（他サイトが使うファイルを消さないため）。
+ * リクエストごとの外部接続数の上限を超えないよう、同時に読む数を制限する。
  */
 async function otherSiteAssetReferences(db: Awaited<ReturnType<typeof getDb>>, siteId: string) {
   const sites = await db.execute({ sql: "SELECT id FROM sites WHERE id != ?", args: [siteId] });
@@ -44,7 +43,7 @@ export async function POST(req: Request) {
 
   let form;
   try {
-    // Leave space for multipart headers and fields in addition to the file.
+    // ファイル本体に加えて、multipart のヘッダーと他の項目の分の余裕を持たせる。
     form = await readAssetForm(req, MAX_ASSET_BYTES + 1024 * 1024);
   } catch (error) {
     if (!(error instanceof RangeError)) throw error;
@@ -94,7 +93,7 @@ export async function POST(req: Request) {
       try {
         await recordUploadedAsset(await getDb(), path, file.size);
       } catch {
-        // The file is stored. The weekly KV inventory adds a missed ledger row.
+        // ファイル自体は保存できている。台帳に載らなかった分は、週1回の KV の棚卸しで追加される。
         console.warn("Uploaded asset was not recorded in the storage ledger");
       }
     }
@@ -124,7 +123,7 @@ export async function GET(req: Request) {
   try {
     const db = await getDb();
     const ledger = await readAssetLedger(db);
-    // A complete ledger already counts every file; skip one DO call per site.
+    // 台帳が揃っていれば全ファイルを数えられるため、サイトごとの Durable Object の呼び出しを省く。
     const refs = ledger?.complete ? null : await otherSiteAssetReferences(db, siteId);
     return NextResponse.json({
       ...(ledger ? { ledger } : {}),
@@ -136,8 +135,8 @@ export async function GET(req: Request) {
 }
 
 /**
- * アセットを削除（path 指定）。Cloudflare は候補登録のみを行い、
- * 猶予期間後に全サイトの現在の参照を確認する。Node/Docker は即時に他サイトを調べる。
+ * アセットを削除する（path 指定）。Cloudflare では削除の候補として登録するだけで、
+ * 猶予期間の後に全サイトの現在の参照を確認する。Node.js・Docker では、その場で他のサイトの参照を調べる。
  */
 export async function DELETE(req: Request) {
   const tr = await serverTr();
@@ -156,16 +155,16 @@ export async function DELETE(req: Request) {
   try {
     const db = dbConfigured() ? await getDb() : null;
     if (db?.backend === "d1") {
-      // The editor has removed the asset from its local doc. Register it now
-      // rather than listing all KV objects every night. Other sites and
-      // pending saves are rechecked after the seven-day grace period.
+      // エディタは、手元の文書からすでにアセットを外している。毎晩 KV の全件を列挙する代わりに、
+      // ここで削除の候補として登録する。他のサイトの参照と保存待ちの変更は、
+      // 猶予期間（既定7日）の後に改めて確認する。
       const site = await db.execute({ sql: "SELECT 1 FROM sites WHERE id=? LIMIT 1", args: [siteId] });
       if (!site.rows.length) return NextResponse.json({ error: tr("Site not found") }, { status: 404 });
       const scheduled = await recordAssetGcCandidates(db, [path]);
       return NextResponse.json({ ok: true, kept: true, scheduled: scheduled > 0 });
     }
-    // Browser-only sites can hold references with or without a server database.
-    // Every immediate-delete path must retain files shared by those sites.
+    // ブラウザ内に保存したサイトは、サーバーのデータベースの有無にかかわらずアセットを参照し得る。
+    // その場で削除する経路では、必ずそれらのサイトと共有しているファイルを残す。
     if (params.get("browserReferenced") === "1") {
       return NextResponse.json({ ok: true, kept: true });
     }

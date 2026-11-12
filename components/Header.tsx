@@ -62,7 +62,7 @@ function ModalLoading({ onClose }: { onClose: () => void }) {
 
 /* ---------- 設定（表示言語・サイトのリセット） ---------- */
 
-/** エディタの設定（ログインできるアカウントなど全サイト共通の設定は、ホームの設定にある） */
+/** エディタの設定（ログインできるアカウントなど、全サイト共通の設定はホームの設定にある） */
 function SettingsModal({ onClose }: { onClose: () => void }) {
   const confirmReset = useDocumentConfirmation("document-reset");
   const resetDoc = useEditor((s) => s.resetDoc);
@@ -115,7 +115,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-/** ログアウトの確認（サーバーへ保存していない変更があれば知らせる） */
+/** ログアウトの確認（サーバーに保存していない変更があれば知らせる） */
 function LogoutModal({ onClose }: { onClose: () => void }) {
   const cloudState = useEditor((s) => s.cloudState);
   const [busy, setBusy] = useState(false);
@@ -163,7 +163,7 @@ export default function Header({
   panels,
   onTogglePanel,
 }: {
-  /** 左右パネルが開いているか */
+  /** 左右のパネルが開いているか */
   panels: { l: boolean; r: boolean };
   onTogglePanel: (side: "l" | "r") => void;
 }) {
@@ -213,7 +213,7 @@ export default function Header({
   const [logoutOpen, setLogoutOpen] = useState(false);
   const status = useServerStatus();
   const [historyOpen, setHistoryOpen] = useState<false | "site" | "doc">(false);
-  // サイト設定の「履歴から戻す」から開く
+  // サイト設定の「履歴から戻す」から開いた場合
   useEffect(() => {
     const open = (e: Event) => {
       closeHelp();
@@ -224,14 +224,14 @@ export default function Header({
   }, []);
   const helpOpen = useHelp((s) => s.open);
   const commenting = useComments((s) => s.active);
-  /** まだ解決していないコメントの数（ボタンに添える） */
+  /** まだ解決していないコメントの数（ボタンに添えて表示する） */
   const openComments = useComments((s) => s.unresolvedCount);
   useEffect(() => {
     void useComments.getState().load();
   }, []);
   const aiEnabled = useAiAvailability();
   const aiOpen = useAi((s) => s.open);
-  /** モーダルを開くときは、重なるヘルプを閉じる */
+  /** モーダルを開くときは、重なって表示されるヘルプを閉じる */
   const openModal = (open: (v: boolean) => void) => {
     closeHelp();
     open(true);
@@ -358,7 +358,7 @@ export default function Header({
                 }))}
               onChange={(v) => {
                 const w = Number(v);
-                // ブレークポイントの表示幅ちょうどなら、そのデバイス表示として扱う
+                // ブレークポイントの表示幅ちょうどなら、そのデバイスの表示として扱う
                 const bp = BP_ORDER.find((b) => BP_INFO[b].width === w);
                 if (bp) setBreakpoint(bp);
                 else setCustomWidth(w);
@@ -465,7 +465,7 @@ export default function Header({
               { value: "history", label: tr("History & rollback"), icon: <History size={13} /> },
               { value: "export", label: tr("Export as zip"), icon: <Download size={13} /> },
               { value: "settings", label: tr("Settings"), icon: <Settings size={13} /> },
-              // Google認証を使っていない（ログインなしで開ける）ときはログアウトを出さない
+              // Google 認証を使っていない（ログインなしで開ける）ときは、ログアウトを表示しない
               ...(status?.auth === false
                 ? []
                 : [{ value: "logout", label: tr("Sign out"), icon: <LogOut size={13} /> }]),

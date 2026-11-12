@@ -3,7 +3,7 @@
 import { useEditor } from "./store";
 import { usePendingImport } from "./use-pending-import";
 
-/** A destructive confirmation applies only to the document the user inspected. */
+/** 破壊的な操作の確認は、利用者が確かめた文書にだけ適用する。 */
 export function useDocumentConfirmation(scope: string) {
   const pending = usePendingImport(scope);
   return async (confirm: () => Promise<boolean>): Promise<boolean> => {

@@ -10,8 +10,8 @@ import { safeNavigationUrl, safeResourceUrl, NAVIGATION_RUNTIME } from "../lib/u
 import { matchesValueCondition, setVarPath, withinScriptValueLimit } from "../lib/value-semantics";
 import type { SiteDoc } from "../lib/types";
 
-// All randomized cases are deterministic and report their reproduction seed.
-// Keep this file self-contained; the root npm test command picks up tests/*.test.mts.
+// ランダムなケースはすべて決定的で、再現のためのシードを報告する。
+// このファイルは自己完結させる。ルートの npm test のコマンドが、tests/*.test.mts を拾う。
 const SEED = 0x4a202611;
 function random(seed: number) {
   let state = seed >>> 0;

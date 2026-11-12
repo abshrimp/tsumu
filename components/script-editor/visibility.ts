@@ -1,7 +1,7 @@
 /**
- * Share one viewport observer between the script stacks and step chunks.
- * Thousands of independently created IntersectionObservers are costly.
- * Keep focused views mounted until their blur handlers have committed drafts.
+ * スクリプトのスタックと手順のチャンクで、表示範囲の監視を1つ共有する。
+ * IntersectionObserver を数千個も別々に作ると、負荷が大きい。
+ * フォーカスのあるビューは、blur の処理が下書きを確定するまでマウントしたままにする。
  */
 type Listener = (visible: boolean) => void;
 interface ObservationSet {
@@ -27,16 +27,16 @@ export function observeScriptViewport(element: HTMLElement, listener: Listener):
     group = { observer, listeners };
     byWorkspace.set(workspace, group);
   }
-  // IntersectionObserver does not report focus changes. Remember visibility so
-  // a view retained for editing can be released after focus leaves, even if it
-  // never crosses the viewport boundary again.
+  // IntersectionObserver はフォーカスの変化を知らせない。見えているかを覚えておき、
+  // 編集のために残したビューを、表示範囲の境界をもう一度またがなくても、
+  // フォーカスが外れた後に解放できるようにする。
   let visible = true;
   let blurTimer: ReturnType<typeof setTimeout> | undefined;
   const update = () => listener(visible || element.contains(element.ownerDocument.activeElement));
   const onFocusOut = () => {
     if (blurTimer !== undefined) clearTimeout(blurTimer);
-    // Wait for both the blur commit and the next focus target to settle. Moving
-    // between fields inside this view must not discard either field's state.
+    // blur での確定と、次のフォーカス先の両方が落ち着くまで待つ。このビューの中で
+    // 欄を移動しても、どちらの欄の状態も失ってはいけない。
     blurTimer = setTimeout(() => {
       blurTimer = undefined;
       update();

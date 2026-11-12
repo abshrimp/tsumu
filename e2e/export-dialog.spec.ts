@@ -9,20 +9,20 @@ async function openExport(page: import("@playwright/test").Page, firstPageSlug?:
   const result = await page.request.post("/api/sites", { data: { name: "Export UI" } });
   expect(result.ok()).toBeTruthy();
   const { site } = await result.json();
-  // Preset labels are localized at creation time. Node-based E2E fixtures
-  // must load the Japanese dictionary just like the real editor does.
+  // プリセットの表示名は、作るときに翻訳される。Node.js 側の E2E の準備でも、
+  // 実際のエディタと同じように、日本語の辞書を読み込まなければならない。
   await loadLocale();
   const doc = createInitialDoc();
   doc.siteName = "Export UI";
   if (firstPageSlug) doc.pages[doc.pageOrder[0]].slug = firstPageSlug;
-  // The starter site has a dynamic route unsupported by non-Next.js formats.
-  // Hide it only in this download-focused fixture; keep the restriction intact.
+  // 初期のサイトには、Next.js 以外の形式が対応していない動的なルートがある。
+  // ダウンロードを確かめるこの準備でだけ隠し、制限そのものは変えない。
   for (const item of Object.values(doc.pages)) {
     if (/\[[^\]]+\]/.test(item.slug)) item.unpublished = true;
   }
   expect((await page.request.put("/api/doc?site=" + site.id, { data: doc })).ok()).toBeTruthy();
-  // Node-side preset generation may use the English source text; verify the
-  // document that was actually saved rather than assuming a locale in the fixture.
+  // Node.js 側でのプリセットの生成は、英語の原文を使うことがある。準備で言語を決めつけず、
+  // 実際に保存された文書を確かめる。
   const heading = Object.values(doc.nodes).find((n) =>
     n.text?.content.includes("見出しをここに") || n.text?.content.includes("Your headline here")
   );
@@ -81,8 +81,8 @@ test("compatibility errors never appear alongside the success check", async ({ p
   await page.getByRole("button", { name: "React + Vite" }).click();
   await modal.getByRole("button", { name: "出力範囲" }).click();
   await page.getByRole("button", { name: "現在のページ" }).click();
-  // A compatible page may show warnings; switching to a selection with no
-  // selected node must always show the failure and never a positive check.
+  // 対応しているページでは警告が出ることがある。要素を選んでいない選択に切り替えたときは、
+  // 必ず失敗を表示し、確認済みの表示は決して出さない。
   await modal.getByRole("button", { name: "出力範囲" }).click();
   await page.getByRole("button", { name: "選択したコンポーネント" }).click();
   await expect(modal.locator(".check-list li.is-error")).toHaveCount(1);
@@ -163,7 +163,7 @@ test("single HTML downloads the current non-home page with inline CSS and script
   expect(html).toContain("data-page-plan");
   expect(html).not.toMatch(/<script[^>]*\bsrc=["'](?!data:)/);
   expect(html).not.toMatch(/<link[^>]*rel="stylesheet"/);
-  // Internal data markers may contain the product name. External scripts and CSS must not remain.
+  // 内部のデータの印には、製品の名前が含まれていてもよい。外部のスクリプトと CSS は残ってはならない。
 });
 
 test("Vue project format downloads the actual Vue SFC and Vite config", async ({ page }) => {

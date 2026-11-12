@@ -8,10 +8,10 @@ import { promisify } from "node:util";
 
 const exec = promisify(execFile);
 
-// Requires Docker with BuildKit. Run explicitly with:
+// BuildKit の付いた Docker が必要。明示的に次のように実行する:
 // TSUMU_DOCKER_TESTS=1 node --import tsx --test tests/docker-build-context.test.mts
-// Export a scratch image so Docker itself evaluates .dockerignore; no base image,
-// application credentials, running containers or deployment changes are needed.
+// scratch のイメージを書き出すことで、.dockerignore を Docker 自身に評価させる。ベースイメージ、
+// アプリの認証情報、動いているコンテナ、デプロイの変更は、どれも必要ない。
 test("Docker COPY excludes persistent data at every depth while retaining build inputs", {
   skip: process.env.TSUMU_DOCKER_TESTS !== "1" && "Set TSUMU_DOCKER_TESTS=1 to run the Docker context regression",
   timeout: 120_000,
@@ -31,13 +31,13 @@ test("Docker COPY excludes persistent data at every depth while retaining build 
   const persisted = [
     "tsumu.db", "tsumu.db-wal", "tsumu.db-shm",
     "snapshot.sqlite", "snapshot.sqlite3", "export.sql", "tsumu-data-2026.tgz",
-    // Asset payloads and metadata have no database extension; exclude the store.
+    // アセットの中身とメタデータには、データベースの拡張子が無い。保存先のフォルダごと除く。
     "data/assets/data/upload", "data/assets/meta/upload", "data/tsumu.db",
     ".e2e-data/assets/data/upload", ".e2e-data/tsumu.db",
   ];
   const excluded = ["", "backups/", "backups/local/"].flatMap((prefix) =>
     persisted.map((path) => prefix + path));
-  // Positive controls catch accidental broad exclusions of source and assets.
+  // 含まれるべきものも確かめ、ソースやアセットを誤って広く除外していないかを見つける。
   const included = [
     "package.json", "package-lock.json", "next.config.mjs",
     "app/page.tsx", "lib/node-storage.ts", "lib/data.ts",

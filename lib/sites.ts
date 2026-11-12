@@ -2,12 +2,12 @@ import type { Db } from "./db";
 
 /**
  * サイト（1つの編集データと、その公開先）。
- * 一覧と公開先はD1のsitesテーブル、編集データはサイトごとのDocumentRoomに保存する。
- * Node/Dockerでは同じサイト情報にローカルSQLiteを使用する。
- * D1 が無いときは、ブラウザ内（lib/site.ts）に同じ形で保存する
+ * 一覧と公開先は D1 の sites テーブルに、編集データはサイトごとの DocumentRoom に保存する。
+ * Node.js・Docker では、同じサイトの情報をローカルの SQLite に保存する。
+ * D1 が無いときは、ブラウザの中（lib/site.ts）に同じ形で保存する
  */
 
-/** サイトIDの形（URL・ブラウザ保存のキーに使うため、英小文字・数字・ハイフンだけ） */
+/** サイトの ID の形（URL やブラウザの保存のキーに使うため、英小文字・数字・ハイフンだけ） */
 export const SITE_ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 export function isSiteId(v: unknown): v is string {
@@ -16,15 +16,15 @@ export function isSiteId(v: unknown): v is string {
 
 /** 公開先の設定（サイトごと） */
 export interface SiteDest {
-  /** GitHubリポジトリ（owner/name）。未設定なら公開できない */
+  /** GitHub のリポジトリ（owner/name）。未設定なら公開できない */
   repo: string | null;
   /** 本番のブランチ */
   branch: string;
   /** テスト公開のブランチ（空 = テスト公開を使わない） */
   previewBranch: string;
-  /** 公開後に開ける本番サイトのURL（任意） */
+  /** 公開した後に開ける本番のサイトの URL（任意） */
   siteUrl: string | null;
-  /** テストサイトのURL（任意） */
+  /** テストのサイトの URL（任意） */
   previewUrl: string | null;
 }
 
@@ -37,7 +37,7 @@ export interface SiteRecord extends SiteDest {
   savedAt?: number | null;
 }
 
-/** 新しいサイト・設定の変更で受け取る項目 */
+/** 新しいサイトの作成と、設定の変更で受け取る項目 */
 export type SiteInput = Partial<Pick<SiteRecord, "name" | keyof SiteDest>>;
 
 export const DEFAULT_BRANCH = "main";
@@ -48,13 +48,13 @@ const BRANCH_RE = /^[\w.][\w./-]*$/;
 
 /**
  * GitHub API のパスに入れても、別のパスへ抜けない名前か（「.」「..」の区切りを含まない）。
- * GitHub のリポジトリ名・git のブランチ名としても、そもそも使えない
+ * こうした名前は、GitHub のリポジトリ名や git のブランチ名としても、もともと使えない
  */
 export function isSafeRepo(repo: string): boolean {
   return REPO_RE.test(repo) && repo.split("/").every((s) => s !== "." && s !== "..");
 }
 
-/** git のブランチ名の決まり（git check-ref-format）のうち、パスの抜け道になるもの・使えないもの */
+/** git のブランチ名の決まり（git check-ref-format）のうち、パスの抜け道になるものと、使えないもの */
 export function isSafeBranch(branch: string): boolean {
   return (
     BRANCH_RE.test(branch) &&
@@ -69,7 +69,7 @@ export function isSafeBranch(branch: string): boolean {
 const clean = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 
 /**
- * 入力を確かめて、保存できる形にする。Validation failures return English source text for i18n.
+ * 入力を確かめて、保存できる形にする。検証に失敗したときは、翻訳のための英語の原文を返す。
  * base は変更前の値（新規作成では既定値）
  */
 export function normalizeSiteInput(
@@ -104,7 +104,7 @@ export function normalizeSiteInput(
   return { ok: true, value: { name, repo, branch, previewBranch, siteUrl, previewUrl } };
 }
 
-/** 新しいサイトのID（推測されにくい英数字10文字） */
+/** 新しいサイトの ID（推測されにくい英数字10文字） */
 export function newSiteId(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(10));
   return Array.from(bytes, (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
@@ -144,7 +144,7 @@ export async function getSite(db: Db, id: string, expectedRoomKey?: string): Pro
   const sql = db.backend === "d1"
     ? "SELECT s.*, r.saved_at FROM sites s LEFT JOIN site_document_rooms r ON r.site_id=s.id WHERE s.id=?"
     : "SELECT s.*, d.saved_at FROM sites s LEFT JOIN docs d ON d.id=s.id WHERE s.id=?";
-  // 作成直後の確認では、同じIDで作り直された別のサイトを返さない。
+  // 作成した直後の確認では、同じ ID で作り直された別のサイトを返さない。
   const fenced = expectedRoomKey !== undefined;
   if (fenced && db.backend !== "d1") return null;
   const rs = await db.execute({
@@ -154,7 +154,7 @@ export async function getSite(db: Db, id: string, expectedRoomKey?: string): Pro
   return rs.rows[0] ? toRecord(rs.rows[0]) : null;
 }
 
-/** Return the current generation's room key, not the public site ID. */
+/** サイトの公開の ID ではなく、現在の世代のルームのキーを返す。 */
 export async function getSiteRoomKey(db: Db, siteId: string): Promise<string | null> {
   if (db.backend !== "d1") return null;
   const rs = await db.execute({
@@ -189,7 +189,7 @@ export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" 
   return null;
 }
 
-/** Save only against the settings that were validated; callers retry a competing update. */
+/** 検証した設定に対してだけ保存する。競合する更新は、呼び出し元が再試行する。 */
 export async function updateSite(
   db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>,
   expected: Pick<SiteRecord, "name" | keyof SiteDest>,
@@ -203,8 +203,8 @@ export async function updateSite(
   return result.rowsAffected > 0;
 }
 
-/** Remove only the generation that the caller observed. Cloudflare cleanup is
- * queued in the same D1 transaction, and retried until its DO is sealed.
+/** 呼び出し元が見た世代だけを削除する。Cloudflare での後始末は
+ * 同じ D1 のトランザクションでキューに入れ、Durable Object を封じるまで再試行する。
  */
 export async function deleteSite(db: Db, id: string, expectedRoomKey?: string): Promise<void> {
   if (db.backend === "d1") {
@@ -236,15 +236,15 @@ export async function deleteSite(db: Db, id: string, expectedRoomKey?: string): 
 }
 
 /**
- * D1 site-list metadata is advisory; the exact revision and savedAt live in
- * the document room. Avoid two additional D1 row writes for every keystroke.
+ * D1 のサイトの一覧のメタデータは参考の情報で、正確な版と savedAt は文書のルームにある。
+ * キーを押すたびに、D1 の行への書き込みが2回増えるのを避ける。
  */
 export const SITE_EDIT_METADATA_INTERVAL_MS = 60_000;
 
 /**
- * Mirror document saves into the site list at most once a minute.
- * A matching site/room generation is checked even when no write is due;
- * otherwise a deleted and recreated site could acknowledge an old save.
+ * 文書の保存を、サイトの一覧に多くても1分に1回だけ反映する。
+ * 書き込む時期でなくても、サイトとルームの世代が一致するかは確かめる。
+ * 確かめないと、削除して作り直したサイトが、古い保存を受け入れてしまうことがある。
  */
 export async function recordSiteSavedAt(db: Db, siteId: string, roomKey: string | null, savedAt: number):
   Promise<boolean> {
@@ -260,8 +260,8 @@ export async function recordSiteSavedAt(db: Db, siteId: string, roomKey: string 
     const siteDue = Number(row.updated_at) <= cutoff;
     if (!roomDue && !siteDue) return true;
 
-    // Guard each UPDATE in SQL, not only with the preceding SELECT: multiple
-    // Workers may save simultaneously, and an old generation may disappear.
+    // 直前の SELECT だけでなく、UPDATE ごとに SQL の中で条件を確かめる。複数の
+    // Worker が同時に保存することがあり、古い世代が途中で消えることもある。
     const statements: Array<{ sql: string; args: (string | number | null)[] }> = [];
     if (roomDue) statements.push({
       sql: "UPDATE site_document_rooms SET saved_at=MAX(COALESCE(saved_at,0),?) WHERE site_id=? AND room_key=? AND (saved_at IS NULL OR saved_at<=?)",
@@ -273,8 +273,8 @@ export async function recordSiteSavedAt(db: Db, siteId: string, roomKey: string 
     });
     const results = await db.batch(statements);
     if (results.some(result => result.rowsAffected > 0)) return true;
-    // A concurrent save may have won the timestamp race. Distinguish that
-    // harmless case from a deleted/recreated generation before acknowledging.
+    // 同時の保存が、時刻の更新の競争に勝った可能性がある。受け入れる前に、その害の無い場合と、
+    // 世代が削除されたり作り直されたりした場合を区別する。
     const current = await db.execute({
       sql: "SELECT 1 FROM site_document_rooms r JOIN sites s ON s.id=r.site_id WHERE r.site_id=? AND r.room_key=?",
       args: [siteId, roomKey],
@@ -282,7 +282,7 @@ export async function recordSiteSavedAt(db: Db, siteId: string, roomKey: string 
     return current.rows.length > 0;
   }
 
-  // Node/Docker do not have a D1 write quota or room-generation binding.
+  // Node.js・Docker には、D1 の書き込みの上限も、ルームの世代のバインディングも無い。
   const rs = await db.execute({
     sql: "UPDATE sites SET updated_at=MAX(updated_at, ?) WHERE id=?",
     args: [savedAt, siteId],

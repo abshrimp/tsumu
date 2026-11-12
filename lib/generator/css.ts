@@ -2,7 +2,7 @@ import { zipCssUrl, zipStylesheet } from "../zip-css";
 import { importedAssetUrl, isZipJavascript } from "./imported-assets";
 import { tr } from "../i18n";
 /**
- * サイト全体のCSS（要素のスタイル・画面幅・状態・フォント）の書き出し
+ * サイト全体の CSS（要素のスタイル・画面幅・状態・フォント）の書き出し
  */
 
 import { escapeStyleContent, replaceCssAssetUrls } from "../css-assets";
@@ -48,7 +48,7 @@ export function usedGoogleFonts(doc: SiteDoc) {
 
 /**
  * next/font で読み込む Google フォントか。名前は生成するコード（import の名前・CSS）にそのまま入るため、
- * Google Fonts の名前の形（英数字と空白）だけを使う（ほかのサイトから貼り付けたフォントも通る）
+ * Google Fonts の名前の形（英数字と空白）のものだけを使う（他のサイトから貼り付けたフォントもこれで確かめる）
  */
 function isSafeGoogleFont(f: { value: string; google?: { importName: string } }): boolean {
   return !!f.google && /^[A-Za-z][A-Za-z0-9 ]*$/.test(f.value) && /^[A-Za-z_][A-Za-z0-9_]*$/.test(f.google.importName);
@@ -60,18 +60,18 @@ function fontFamilyCss(doc: SiteDoc, value: string): string {
   return value;
 }
 
-/* ---------- CSS生成 ---------- */
+/* ---------- CSS の生成 ---------- */
 
-/** ZIPのHTML直列化で生じる区切り文字を保ち、追加クエリの & だけを変換する。 */
+/** ZIP の HTML を直列化したときに生じる区切り文字は保ち、追加のクエリの & だけを変換する。 */
 function htmlAssetQuerySuffix(suffix: string): string {
-  // 任意の &name; を文字参照扱いすると、未知の名前のクエリを壊す。
-  // 名前付き参照は引用符・空白・山括弧・& を扱い、HTML全体は再パースしない。
+  // 任意の &name; を文字参照として扱うと、名前の分からないクエリを壊してしまう。
+  // 名前付きの参照は、引用符・空白・山括弧・& だけを扱い、HTML 全体は解析し直さない。
   const entity = /^&(?:#(?:[xX][\da-fA-F]+|\d+);?|(?:apos|Tab|NewLine);|(?:amp|AMP|quot|QUOT|lt|LT|gt|GT)(?:;|(?![A-Za-z\d=])))/.exec(suffix)?.[0];
   if (!entity) return suffix.replace(/^&/, "?");
   const name = entity.slice(1).replace(/;$/, "");
   const point = /^#[xX]/.test(name) ? parseInt(name.slice(2), 16)
     : name.startsWith("#") ? parseInt(name.slice(1), 10) : undefined;
-  // &quot; 等の引用符・空白や数値文字参照をクエリと誤認しない。
+  // &quot; などの引用符・空白や数値文字参照を、クエリと取り違えない。
   // &amp;quot; は二重にデコードせず、実際の区切りの1文字分だけを取り除く。
   return name === "amp" || name === "AMP" || point === 38
     ? "?" + suffix.slice(entity.length) : suffix;
@@ -91,15 +91,15 @@ export function cssValue(
     const source = asset.path
       ? `/api/assets/file?path=${encodeURIComponent(asset.path)}`
       : asset.dataUrl;
-    // Use the original ZIP directory for external script files so relative
-    // ESM imports continue to resolve after the site is exported.
+    // 外部のスクリプトファイルには元の ZIP のディレクトリを使い、サイトを書き出した後も
+    // 相対的な ESM の import が解決できるようにする。
     const target = prop === "rawHtml" && isZipJavascript(asset)
       ? importedAssetUrl(asset) || `/assets/${name}` : `/assets/${name}`;
     if (source) sources.set(source, target);
     if (zipStylesheet(asset)) sources.set(zipCssUrl(asset.id), `/assets/${name}`);
   }
   if (prop === "rawHtml") {
-    // HTML ZIPの参照はCSSトークンではないため、既存のHTML書き出し処理を保つ。
+    // HTML の ZIP の参照は CSS の字句ではないため、既存の HTML の書き出しの処理をそのまま使う。
     const output = value.replace(/tsumu-zip-css:([A-Za-z0-9%._~-]+)/g, (_token, encoded: string) => {
       let id = "";
       try { id = decodeURIComponent(encoded); } catch { /* explicit error below */ }
@@ -118,10 +118,10 @@ export function cssValue(
       }
       return text;
     };
-    // script/style等の本文では &quot; も文字通りのクエリになり得る。
-    // 属性内の引用符や > を保ったまま本文を分け、文字参照の扱いだけを切り替える。
-    // title/textarea内のタグ風文字列も、独立したタグとして解釈しない。
-    // <style-card> 等のカスタム要素を誤認しないよう、単語境界でなくタグ名の終端を使う。
+    // script・style などの本文では、&quot; も文字どおりのクエリになり得る。
+    // 属性の中の引用符や > を保ったまま本文を分け、文字参照の扱いだけを切り替える。
+    // title や textarea の中のタグのような文字列も、独立したタグとして解釈しない。
+    // <style-card> などのカスタム要素を取り違えないよう、単語の境界ではなくタグ名の終わりで判定する。
     const tokens = /<!--[\s\S]*?(?:-->|$)|(<(script|style|xmp|iframe|noembed|noframes|title|textarea)(?=[\t\n\f\r />])(?:"[^"]*"|'[^']*'|[^'">])*>)([\s\S]*?)(<\/\2\s*>|$)|<[A-Za-z][\w:-]*\b(?:"[^"]*"|'[^']*'|[^'">])*>/gi;
     let result = "";
     let from = 0;
@@ -194,8 +194,8 @@ export function generateSiteCss(
   for (const node of Object.values(doc.nodes)) {
     const cls = classNames.get(node.id)!;
     // モーション（transition + animation）
-    // Imported documents can carry malformed easing, custom keyframes or
-    // identifiers. Drop only the invalid motion; preserve other animations.
+    // 取り込んだ文書には、不正なイージング・カスタムのキーフレーム・識別子が含まれることがある。
+    // 不正なモーションだけを落とし、他のアニメーションは残す。
     const safeMotions = node.motions?.filter((m) =>
       ["state", "hover", "active", "load", "in-view"].includes(m.trigger) &&
       Number.isFinite(m.duration) && Number.isFinite(m.delay) &&
@@ -220,8 +220,8 @@ export function generateSiteCss(
     if (mCss.hasInView) {
       blocks.push(`.${cls}.is-inview {\n  animation-play-state: running;\n}`);
     }
-    // Match Canvas at each width: only an absolute child at that breakpoint
-    // requires an inferred containing block. Authored positioning wins.
+    // 各幅でキャンバスと同じにする。配置の基準を推定する必要があるのは、その
+    // ブレークポイントで絶対配置の子がある場合だけ。書かれた配置の指定を優先する。
     const hasCustomPosition = cssDecls(node.customCss?.replace(/[{}]/g, " ") ?? "").some((declaration) => {
       const colon = declaration.indexOf(":");
       return declaration.slice(0, colon).trim().toLowerCase() === "position" &&
@@ -237,7 +237,7 @@ export function generateSiteCss(
       const inferredPosition = autoPositioned && !wasAutoPositioned ? "relative"
         : !autoPositioned && wasAutoPositioned && !position ? "static" : undefined;
       wasAutoPositioned = autoPositioned;
-      // Even an otherwise unstyled parent needs a rule at transition widths.
+      // それ以外にスタイルの無い親でも、切り替わる幅ではルールが必要になる。
       const bpStyles = node.styles[bp] ?? (bp === "base" || inferredPosition ? {} : undefined);
       if (!bpStyles) continue;
       const customStates = Object.keys(bpStyles).filter((state) => customStateSelector(state) !== null) as Array<keyof typeof bpStyles>;
@@ -245,14 +245,14 @@ export function generateSiteCss(
         const map = { ...bpStyles[state] };
         const suffix = customStateSelector(state) ?? STATE_INFO[state as keyof typeof STATE_INFO].pseudo;
         const isBaseDefault = bp === "base" && state === "default";
-        // 画像・動画は width / height 属性の大きさで表示されるため、未指定なら auto に戻す
+        // 画像と動画は width / height 属性の大きさで表示されるため、未指定なら auto に戻す
         //（他の要素は auto が既定値なので書かない）
         if (isBaseDefault && (node.type === "image" || node.type === "media")) {
           map.width ??= "auto";
-          // 音声の未指定の高さはブラウザ標準の操作部に任せる。
+          // 音声の高さが未指定なら、ブラウザ標準の操作部に任せる。
           if (node.type !== "media" || node.media?.kind !== "audio") map.height ??= "auto";
         }
-        // 入力欄のプレースホルダー・ファイル選択ボタン（疑似要素）のスタイルは専用ルールに分離する
+        // 入力欄のプレースホルダーとファイル選択ボタン（擬似要素）のスタイルは、専用のルールに分ける
         for (const part of extractPartStyles(map)) {
           const rule = ruleFor(
             doc,
@@ -264,7 +264,7 @@ export function generateSiteCss(
           if (bp === "base") blocks.push(rule);
           else mediaBlocks[bp].push(rule);
         }
-        // テキスト選択（::selection）の色は専用ルールに分離する
+        // テキストを選択したとき（::selection）の色は、専用のルールに分ける
         const selMap = extractSelectionStyles(map);
         if (selMap) {
           const base = `.${cls}${suffix}`;
@@ -279,7 +279,7 @@ export function generateSiteCss(
           else mediaBlocks[bp].push(rule);
         }
         if (state === "default" && inferredPosition) map.position = inferredPosition;
-        // 要素のカスタムCSS・モーションは base の既定ルールに追記
+        // 要素のカスタム CSS とモーションは、base の既定のルールに追記する
         const raw = isBaseDefault
           ? (node.customCss?.replace(/[{}]/g, " ").trim() ?? "")
           : "";
@@ -307,7 +307,7 @@ export function generateSiteCss(
         if (extraDecls.length) {
           const indent = bp === "base" ? "  " : "    ";
           const lines = extraDecls.map((d) => `${indent}${d}`).join("\n");
-          // 置き換えの文字列にすると、CSS の中の「$&」「$1」が置き換えの記号として読まれる
+          // 置き換えの文字列にすると、CSS の中の「$&」「$1」が置き換えの記号として読まれてしまう
           rule = rule.replace(/\n(\s*)}$/, (_, sp: string) => `\n${lines}\n${sp}}`);
         }
         if (bp === "base") {
@@ -317,7 +317,7 @@ export function generateSiteCss(
         }
       }
     }
-    // デバイス別の非表示は、その画面幅の範囲だけに効かせる
+    // デバイスごとの非表示は、その画面幅の範囲だけに効かせる
     for (const bp of BP_ORDER) {
       if (isHiddenAt(node, bp)) {
         const selector = node.type === "instance"
@@ -352,8 +352,8 @@ export function generateSiteCss(
 /**
  * 宣言がまったく同じクラスのルールを、最初に出てきた位置で1つにまとめる
  * （例: .text, .text-2 { … }）。要素はクラスを1つずつしか持たないため、
- * 別のクラス同士のルールの順番を入れ替えても見た目は変わらない。
- * 擬似クラス付き・複数のルールを含むものはそのまま残す
+ * 別のクラスどうしのルールの順序を入れ替えても、見た目は変わらない。
+ * 擬似クラス付きのものと、複数のルールを含むものは、そのまま残す
  */
 function mergeIdenticalRules(rules: string[]): string[] {
   const RULE = /^(\s*)(\.[\w-]+) \{\n([^{}]*)\n\s*\}$/;
@@ -383,7 +383,7 @@ function mergeIdenticalRules(rules: string[]): string[] {
   );
 }
 
-/** htmlに背景を置くとbodyの背景は画面全体に広がらないため、bodyを画面の高さまで伸ばす */
+/** html に背景を置くと body の背景は画面全体に広がらないため、body を画面の高さまで伸ばす */
 function htmlBackgroundCss(color: string, htmlSel: string, bodySel: string): string {
   const background = safeCssDeclarationValue(color) ? color : "transparent";
   return `${htmlSel} {\n  background: ${background};\n}\n\n${bodySel} {\n  min-height: 100vh;\n}`;
@@ -424,8 +424,8 @@ export function rawHtmlWithBodyStyles(
 }
 
 /**
- * カスタムCSSを宣言ごとに分ける。url(data:image/png;base64,…) や引用符の中の「;」では分けない
- * （エディタのキャンバスは書いたまま当てるので、同じ宣言になるようにする）
+ * カスタム CSS を宣言ごとに分ける。url(data:image/png;base64,…) や引用符の中の「;」では分けない
+ * （エディタのキャンバスは書いたとおりに当てるため、同じ宣言になるようにする）
  */
 function cssDecls(css: string): string[] {
   const out: string[] = [];
@@ -444,8 +444,8 @@ function cssDecls(css: string): string[] {
       cur += c + (css[++i] ?? "");
       continue;
     } else if (c === "/" && css[i + 1] === "*") {
-      // Comments are whitespace between CSS tokens, not declaration delimiters.
-      // In particular, quotes and semicolons inside them must not affect parsing.
+      // コメントは CSS の字句の間の空白であって、宣言の区切りではない。
+      // 特に、コメントの中の引用符やセミコロンで、解析の結果を変えてはいけない。
       const end = css.indexOf("*/", i + 2);
       cur += " ";
       if (end < 0) break;

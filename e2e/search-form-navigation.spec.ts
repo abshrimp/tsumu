@@ -14,7 +14,7 @@ let server: ChildProcess | undefined;
 let origin = "";
 let output = "";
 
-// Run a generated Next.js application and verify state restoration through Link, RSC, and history.
+// 生成した Next.js のアプリを動かし、Link・RSC・履歴を通した状態の復元を確かめる。
 test.beforeAll(async () => {
   test.setTimeout(180_000);
   directory = await mkdtemp(join(tmpdir(), "tsumu-search-form-"));
@@ -30,7 +30,7 @@ test.beforeAll(async () => {
   build.stderr!.on("data", (chunk) => { output += chunk; });
   const [code] = await once(build, "exit");
   expect(code, output).toBe(0);
-  // Adding useSearchParams must not hide the static form or turn the whole page into CSR.
+  // useSearchParams を加えても、静的なフォームが隠れたり、ページ全体が CSR になったりしてはならない。
   const html = await readFile(join(directory, ".next/server/app/index.html"), "utf8");
   expect(html).toContain('id="static-form"');
   expect(html).toContain('value="Static form"');
@@ -91,7 +91,7 @@ test("Search forms follow client-side navigation and history while preserving in
   expect(submitted.searchParams.get("tab")).toBe("products");
   expect(submitted.searchParams.get("q")).toBe("日本語 & +");
 
-  // A response to resubmitting the same query must not overwrite text entered while the request was in flight.
+  // 同じクエリを再送信したときの応答で、リクエストの間に入力した文字を上書きしてはならない。
   const revision = await page.locator("#render-revision").textContent();
   let release!: () => void;
   let intercepted!: () => void;

@@ -4,7 +4,7 @@ import { CLOUD_SAVE_DEBOUNCE_MS, scheduleCloudSave, sendCloudDoc } from "../lib/
 import { createDocPatch } from "../lib/doc-patch";
 import { createInitialDoc } from "../lib/presets";
 
-// 実際の自動保存処理を動かし、通信とタイマーの完了順を制御する。
+// 実際の自動保存の処理を動かし、通信とタイマーが完了する順序を制御する。
 const ref = <T,>(current: T) => ({ current });
 afterEach(() => mock.reset());
 

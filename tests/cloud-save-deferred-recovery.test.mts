@@ -37,7 +37,7 @@ for (const editTiming of ["before", "after"] as const) for (const laterEdit of [
           if (input.type !== "patch") throw new Error("Expected patch");
           server = applyDocPatch(server, input.patch);
           rev = "2";
-          // 自分の保存確定後、別の編集者が独立した変更を加える。
+          // 自分の保存が確定した後、別の編集者が独立した変更を加える。
           server = { ...server, pages: { ...server.pages,
             [pageId]: { ...server.pages[pageId], name: "Collaborator page" } } };
           rev = "3";
@@ -83,10 +83,10 @@ for (const editTiming of ["before", "after"] as const) for (const laterEdit of [
     assert.equal(writes, 1, "repeat schedules cannot resend or replace the retained conflict while typing");
     assert.equal(scope.retrySaveAfterEdit.current, true);
     useEditor.setState({ editingText: null });
-    scope.retrySaveAfterEdit.current = false; // Editor の blur 購読と同じ通知。
+    scope.retrySaveAfterEdit.current = false; // Editor の blur の購読と同じ通知。
     assert.equal(unsynced, true);
     assert.equal(validSiteDoc(useEditor.getState().doc), true);
-    // 確定を待つ間に、別の編集者がさらに保存しても最新の競合を解決する。
+    // 確定を待つ間に別の編集者がさらに保存しても、最新の競合を解決する。
     if (editTiming === "after") {
       server = { ...server, pages: { ...server.pages,
         [pageId]: { ...server.pages[pageId], description: "Newer collaborator change" } } };

@@ -39,20 +39,20 @@ test('live fields initialize after client navigation without requiring typing', 
   assert.equal(output.firstChild.nodeValue, 'Hello Alice');
   assert.equal(field.value, 'Alice');
   assert.equal(field.placeholder, 'For Alice');
-  // Next Link replaces the page DOM while the layout's next/script remains mounted.
+  // Next.js の Link は、レイアウトの next/script を取り付けたまま、ページの DOM を置き換える。
   pid = 'b'; input = { value: 'Bob', type: 'text', matches: () => true }; output = text(); field = dependent();
   mutation?.();
   while (frames.length) frames.shift()!();
   assert.equal(output.firstChild.nodeValue, 'Hello Bob');
   assert.equal(field.value, 'Bob');
   assert.equal(field.placeholder, 'For Bob');
-  // Later mutation scans must preserve a value the visitor already edited.
+  // 後の変更の走査でも、訪問者がすでに編集した値を保たなければならない。
   field.value = 'Custom'; listeners.get('input')!({ target: field, isTrusted: true });
   assert.equal(field.edited, true);
   mutation?.();
   while (frames.length) frames.shift()!();
   assert.equal(field.value, 'Custom');
-  // Subsequent ordinary editing still updates the new page.
+  // その後の通常の編集でも、新しいページが更新される。
   input.value = 'Bobby'; listeners.get('input')!({ target: input, isTrusted: false });
   assert.equal(output.firstChild.nodeValue, 'Hello Bobby');
   assert.equal(field.placeholder, 'For Bobby');

@@ -27,7 +27,7 @@ if (discovery.error || discovery.status !== 0) {
 const report = JSON.parse(discovery.stdout);
 const counts = new Map();
 const normalizePath = (file) => {
-  // Playwright's JSON reporter can make paths relative to the configured testDir.
+  // Playwright の JSON のレポーターは、パスを、設定した testDir からの相対にすることがある。
   const absolute = isAbsolute(file) ? file : resolve(root, file.startsWith("e2e/") ? file : "e2e/" + file);
   const path = relative(root, absolute).replaceAll("\\", "/");
   if (!path.startsWith("e2e/") || !/\.(spec|test)\.[cm]?[jt]sx?$/.test(path) || !existsSync(absolute)) {
@@ -52,7 +52,7 @@ function collect(suites, inheritedFile) {
 collect(report.suites);
 if (counts.size === 0) throw new Error("No E2E tests were discovered; refusing to silently skip the suite");
 
-// Timings are hints only. Discover the complete current suite on every run.
+// 時間の記録は目安にすぎない。実行のたびに、現在のテストの全体を探し直す。
 const history = JSON.parse(readFileSync(resolve(root, "scripts/e2e-shard-durations.json"), "utf8"));
 const samples = Object.values(history.files);
 const averageTestMs = samples.reduce((sum, value) => sum + value[1], 0) /
@@ -87,7 +87,7 @@ if (assigned.files.length === 0) {
   console.log("No test files assigned to shard " + shard);
   process.exit(0);
 }
-// Playwright positional arguments are file-path regular expressions. Anchor and escape each one.
+// Playwright の位置引数は、ファイルのパスの正規表現になる。それぞれを固定し、エスケープする。
 const escapeRegex = (value) => Array.from(value, char =>
   ".*+?^$()[]{}|\\".includes(char) ? "\\" + char : char).join("");
 const filters = assigned.files.map(file => escapeRegex(file) + "$");

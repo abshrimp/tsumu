@@ -18,7 +18,7 @@ function candidates(doc = scriptDataPickerDoc(), local: string[] = [], valueCont
   const require = createRequire(resolve("components/script-editor/inputs.tsx"));
   const mod = { exports: {} as any };
   const hooks = { ...React, useMemo: (fn: any) => fn(),
-    // Candidate tests model an activated input (production inputs load this lazily).
+    // 候補のテストでは、有効になった入力欄を再現する（本番の入力欄は、これを遅延して読み込む）。
     useState: () => [true, () => {}],
     useContext: (ctx: any) =>
     ctx === Ctx ? { doc, pageId: "p" } : ctx === ScriptStepCtx ? "value" : ctx === ScriptNodeCtx ? "" :

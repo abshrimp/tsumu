@@ -29,8 +29,8 @@ import { useScriptDrag } from "./script-editor/useScriptDrag";
 import { useScriptEditorKeys } from "./script-editor/useScriptEditorKeys";
 import { ScriptPalette } from "./script-editor/ScriptPalette";
 
-// The global editor context changes when one selected block changes. Scope
-// selection and z-order to each script so the other block trees do not redraw.
+// 選択したブロックが1つ変わるだけで、エディタ全体の context は変わってしまう。選択と重なり順を
+// スクリプトごとに分け、他のブロックのツリーを描画し直さないようにする。
 const EMPTY_SCRIPT_KEYS: readonly string[] = [];
 const ScopedStackView = memo(function ScopedStackView({
   script, shared, selectedKeys, zIndex, frozenWidth,
@@ -53,8 +53,8 @@ const ScopedStackView = memo(function ScopedStackView({
 /* ---------- 設定パネル用の一覧 ---------- */
 
 /**
- * スクリプトを「きっかけ」と、その下に並ぶ動作の一覧として見せる
- * （element = 要素名を添える。onOpen があればクリックでスクリプト画面を開く）
+ * スクリプトを、「きっかけ」とその下に並ぶ動作の一覧として表示する
+ * （element = 要素名を添える。onOpen があれば、クリックでスクリプトの画面を開く）
  */
 export function ScriptSummary({
   items,
@@ -118,31 +118,31 @@ export interface Drag {
   sy: number;
   x: number;
   y: number;
-  /** つかんだ位置（ブロック左上からのずれ） */
+  /** つかんだ位置（ブロックの左上からのずれ） */
   ox: number;
   oy: number;
   h: number;
-  /** ドラッグ開始前のブロック幅（倍率 1 の値） */
+  /** ドラッグを始める前のブロックの幅（倍率 1 での値） */
   w?: number;
-  /** ブロックを取り除いた後も元のスタック幅を維持する */
+  /** ブロックを取り除いた後も、元のスタックの幅を保つ */
   sourceStackWidth?: number;
-  /** 複数のスタックをドラッグするときは各スタックの幅を保持する */
+  /** 複数のスタックをドラッグするときは、各スタックの幅を保つ */
   scriptWidths?: Record<string, number>;
-  /** Real DOM snapshots keep the visible controls and line wrapping unchanged during a drag. */
+  /** 実際の DOM の写しを使い、ドラッグ中も表示中の部品と行の折り返しを変えないようにする。 */
   previewNodes?: HTMLElement[];
   sourceStackIdle?: boolean;
-  /** 複数選択中のブロックをクリックだけで離したら、そのブロックだけの選択にする */
+  /** 複数選択中のブロックをクリックしただけで離したら、そのブロックだけを選択する */
   clickKey?: string;
 }
 
-/** 範囲選択（画面座標） */
+/** 範囲選択（画面上の座標） */
 export interface Marquee {
   pointerId: number;
   x0: number;
   y0: number;
   x: number;
   y: number;
-  /** Shift / ⌘ で既存の選択に追加する */
+  /** Shift / ⌘ を押していれば、既存の選択に追加する */
   base: string[];
 }
 
@@ -153,7 +153,7 @@ export interface Menu {
   key: string;
 }
 
-/** キー操作・ドラッグのイベントから参照する、ScriptEditor の最新の状態 */
+/** キー操作やドラッグのイベントから参照する、ScriptEditor の最新の状態 */
 export interface ScriptEditorLatest {
   setZoom: (next: number, anchor?: { x: number; y: number }) => void;
   stepZoom: (dir: 1 | -1) => void;
@@ -173,8 +173,8 @@ const isModifier = (e: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }
   e.shiftKey || e.metaKey || e.ctrlKey;
 
 /**
- * ページのスクリプト画面。ページ内の全要素のスクリプトを1つのワークスペースに並べる。
- * focusNodeId: 要素設定から開いたときの要素（強調表示し、新しいきっかけの要素にする）
+ * ページのスクリプトの画面。ページ内のすべての要素のスクリプトを、1つのワークスペースに並べる。
+ * focusNodeId: 要素の設定から開いたときの要素（強調表示し、新しいきっかけの要素にする）
  */
 export default function ScriptEditor(props: {
   focusNodeId?: string | null;
@@ -194,7 +194,7 @@ function ScriptEditorInner({
   onClose,
 }: {
   focusNodeId?: string | null;
-  /** 開いたときに選択して見せるスクリプト */
+  /** 開いたときに選択して表示するスクリプト */
   focusScriptId?: string | null;
   onClose: () => void;
 }) {
@@ -255,8 +255,8 @@ function ScriptEditorInner({
   const arrays = useMemo(() => pageArrays(doc, activePageId), [doc, activePageId]);
   const samples = useMemo(() => previewDataVars(doc, activePageId), [doc, activePageId]);
   const variableIndex = useMemo(() => pageVariableIndex(doc, activePageId), [doc, activePageId]);
-  // All transform blocks share the same source values. Building a fresh object
-  // of every page variable for each block made large workspaces quadratic.
+  // 値の加工のブロックは、すべて同じ値の候補を使う。ブロックごとにページの全変数の
+  // オブジェクトを作り直すと、大きなワークスペースで処理量が2乗に増えてしまう。
   const transformSources = useMemo(() => {
     const values: Record<string, unknown> = {};
     for (const [name, value] of Object.entries(samples)) {
@@ -282,7 +282,7 @@ function ScriptEditorInner({
 
   const wsRef = useRef<HTMLDivElement>(null);
   const paletteRef = useRef<HTMLDivElement>(null);
-  /** ワークスペースの表示倍率（ブラウザに覚えておく） */
+  /** ワークスペースの表示倍率（ブラウザに保存しておく） */
   const [zoom, setZoomState] = useState(() => {
     try {
       return clampZoom(Number(window.localStorage.getItem("se-zoom")) || 1);
@@ -296,10 +296,10 @@ function ScriptEditorInner({
     try {
       window.localStorage.setItem("se-zoom", String(zoom));
     } catch {
-      // 保存できなくても表示には影響しない
+      // 保存できなくても、表示には影響しない
     }
   }, [zoom]);
-  /** 倍率を変える。anchor（画面上の点）の位置にある内容が動かないようにスクロールを合わせる */
+  /** 倍率を変える。anchor（画面上の点）の位置にある内容が動かないよう、スクロールを合わせる */
   const setZoom = useCallback((next: number, anchor?: { x: number; y: number }) => {
     const ws = wsRef.current;
     const prev = zoomRef.current;
@@ -330,21 +330,21 @@ function ScriptEditorInner({
     },
     [setZoom]
   );
-  // ⌘ / Ctrl + スクロール（トラックパッドのピンチも含む）でカーソル位置を中心に拡大縮小
+  // ⌘ / Ctrl + スクロール（トラックパッドのピンチも含む）で、カーソルの位置を中心に拡大・縮小する
   useEffect(() => {
     const ws = wsRef.current;
     if (!ws) return;
     const onWheel = (e: WheelEvent) => {
       if (!e.metaKey && !e.ctrlKey) return;
       e.preventDefault();
-      // マウスホイールの1目盛り（大きな deltaY）でも変わりすぎないよう抑える
+      // マウスホイールの1目盛り（大きな deltaY）でも変わりすぎないよう、変化量を抑える
       const factor = Math.exp(-Math.max(-50, Math.min(50, e.deltaY)) * 0.006);
       setZoom(Math.round(zoomRef.current * factor * 100) / 100, { x: e.clientX, y: e.clientY });
     };
     ws.addEventListener("wheel", onWheel, { passive: false });
     return () => ws.removeEventListener("wheel", onWheel);
   }, [setZoom]);
-  /** パレット（左のブロック一覧）の幅と開閉。ブラウザに覚えておく */
+  /** パレット（左のブロック一覧）の幅と開閉の状態。ブラウザに保存しておく */
   const [palW, setPalW] = useState(() => {
     try {
       return clampPal(Number(window.localStorage.getItem("se-pal-w")) || 248);
@@ -365,7 +365,7 @@ function ScriptEditorInner({
       window.localStorage.setItem("se-pal-w", String(palW));
       window.localStorage.setItem("se-pal-closed", palOpen ? "0" : "1");
     } catch {
-      // 保存できなくても表示には影響しない
+      // 保存できなくても、表示には影響しない
     }
   }, [palW, palOpen]);
   useEffect(() => {
@@ -384,8 +384,8 @@ function ScriptEditorInner({
   const [marquee, setMarquee] = useState<Marquee | null>(null);
   const ghostRef = useRef<HTMLDivElement>(null);
   const highlightedSlotRef = useRef<HTMLElement | null>(null);
-  // A drag can cross hundreds of insertion slots. Highlight only the changed
-  // DOM node; never make the entire block editor render on pointer movement.
+  // 1回のドラッグで数百の挿入位置をまたぐことがある。変わった DOM ノードだけを強調表示し、
+  // ポインターが動くたびにブロックエディタ全体を描画し直すことはしない。
   const setActiveSlot = useCallback((key: string | null, measuredElement?: HTMLElement | null) => {
     const old = highlightedSlotRef.current;
     if (old && (old.dataset.slot !== key || !old.isConnected)) {
@@ -398,8 +398,8 @@ function ScriptEditorInner({
       return;
     }
     if (highlightedSlotRef.current?.classList.contains("is-active")) return;
-    // Reuse the DOM element from the drag hit-test index instead of querying
-    // the entire workspace whenever the active drop target changes.
+    // ドロップ先が変わるたびにワークスペース全体を検索せず、
+    // ドラッグの当たり判定の索引にある DOM 要素を使い回す。
     const el = measuredElement?.isConnected && measuredElement.dataset.slot === key
       ? measuredElement
       : wsRef.current?.querySelector<HTMLElement>(
@@ -426,7 +426,7 @@ function ScriptEditorInner({
     }
     return byScript;
   }, [selectedList, stepOwners]);
-  /** 最後に選んだスクリプトほど後ろ（= 手前に描く）。重なったブロックを選んだら前に出す */
+  /** 最後に選んだスクリプトほど後ろに置く（= 手前に描く）。重なったブロックを選んだら、前に出す */
   const [front, setFront] = useState<string[]>([]);
   useEffect(() => {
     if (!selectedList.length) return;
@@ -442,7 +442,7 @@ function ScriptEditorInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedList]);
   const zOrder = useMemo(() => new Map(front.map((id, i) => [id, i + 1])), [front]);
-  /** 取得したデータを表で見る小窓（取得ブロックのID） */
+  /** 取得したデータを表で確認する小窓（取得ブロックの ID） */
   const [peekId, setPeekId] = useState<string | null>(null);
   const [peekScope, setPeekScope] = useState<FetchPreviewScope>({ nodeId: "", localNames: [] });
   const peekStep = useMemo(() => {
@@ -474,14 +474,14 @@ function ScriptEditorInner({
     commit(result.scripts);
     setSelectedList(result.selection);
   };
-  /** ⌘A: きっかけのあるスクリプトと、きっかけの無い集まりのブロックをすべて選ぶ */
+  /** ⌘A: きっかけのあるスクリプトと、きっかけの無いブロックの集まりをすべて選ぶ */
   const selectAll = () =>
     setSelectedList(
       scripts.flatMap((s) =>
         s.trigger ? [`script:${s.id}`] : s.steps.map((x) => `step:${x.id}`)
       )
     );
-  // ウィンドウのイベントから最新の状態を参照する
+  // ウィンドウのイベントから、最新の状態を参照する
   const latest = useRef<ScriptEditorLatest>({
     setZoom,
     stepZoom,
@@ -511,9 +511,9 @@ function ScriptEditorInner({
     peekId,
   };
 
-  // 要素設定から開いたときは、その要素のスクリプトが見える位置までスクロールする
+  // 要素の設定から開いたときは、その要素のスクリプトが見える位置までスクロールする
   useEffect(() => {
-    // 一覧から選んだスクリプトがあれば、それを選択して真ん中に見せる
+    // 一覧から選んだスクリプトがあれば、それを選択して中央に表示する
     if (focusScriptId) {
       const el = wsRef.current?.querySelector<HTMLElement>(
         `[data-script-id="${CSS.escape(focusScriptId)}"]`
@@ -551,8 +551,8 @@ function ScriptEditorInner({
   useScriptEditorKeys({ dragRef, cancelGesture, latest, setPeekId, setSelectedList });
 
   /**
-   * ブロックを押したとき。key があれば選択も更新する
-   * （Shift / ⌘ は選択の追加・解除だけ、選択済みのものはそのまま複数ドラッグ）
+   * ブロックを押したときの処理。key があれば選択も更新する
+   * （Shift / ⌘ では選択の追加・解除だけを行い、選択済みのブロックはそのまま複数でドラッグする）
    */
   const begin = useCallback((e: React.PointerEvent, make: () => Payload, key?: string) => {
     if (e.button !== 0 || dragRef.current || marqueeRef.current) return;
@@ -567,20 +567,20 @@ function ScriptEditorInner({
     }
     if (key && !selectedRef.current.has(key)) setSelectedList([key]);
     if (!key) setSelectedList([]);
-    // 入力欄の操作はドラッグにしない
+    // 入力欄の操作はドラッグとして扱わない
     if (t.closest("input, select, textarea, button, label")) return;
     e.preventDefault();
-    // 入力欄にフォーカスが残っていると Backspace が文字の削除になるため外す
+    // 入力欄にフォーカスが残っていると Backspace が文字の削除になるため、フォーカスを外す
     (document.activeElement as HTMLElement | null)?.blur?.();
     const target = e.currentTarget as HTMLElement;
     const r = target.getBoundingClientRect();
-    // つかんだ位置は倍率 1 の大きさで持つ（ワークスペースの中は表示倍率がかかっている）
+    // つかんだ位置は倍率 1 での大きさで持つ（ワークスペースの中には表示倍率がかかっている）
     const z = wsRef.current?.contains(target) ? zoomRef.current : 1;
-    // The editor's entrance animation scales its entire DOM. Bounding rectangles
-    // include that temporary scale; storing them as CSS widths shrinks the ghost
-    // again (and freezes a source stack at the wrong size) while dragging.
-    // offsetWidth measures layout width, independent of both the modal scale
-    // animation and the workspace's CSS zoom.
+    // エディタの登場アニメーションは DOM 全体を拡大・縮小する。getBoundingClientRect の矩形には
+    // その一時的な倍率が含まれるため、それを CSS の幅として保存すると、ドラッグ中にゴーストが
+    // さらに縮み、元のスタックも誤った大きさで固定されてしまう。
+    // offsetWidth はレイアウト上の幅を測るため、モーダルの拡大アニメーションにも、
+    // ワークスペースの CSS の倍率にも左右されない。
     const sourceStack = target.closest<HTMLElement>(".se-stack");
     const sourceStackWidth = sourceStack?.offsetWidth;
     const sourceStackIdle = sourceStack?.classList.contains("is-idle") ?? false;
@@ -601,9 +601,9 @@ function ScriptEditorInner({
       pointerId: e.pointerId,
       make: () => {
         const payload = make();
-        // Capture the actual block DOM before the editor temporarily removes
-        // it. Rebuilding a read-only preview changes dropdowns, inputs, and
-        // condition rows even when their data has not changed.
+        // エディタがブロックを一時的に取り除く前に、実際のブロックの DOM を写し取る。
+        // 読み取り専用のプレビューを作り直すと、データが変わっていなくても、
+        // ドロップダウン・入力欄・条件の行の見た目が変わってしまう。
         if (payload.type === "script") {
           const nodes = payload.group.slice(0, 8).map((script) => {
             const element = wsRef.current?.querySelector<HTMLElement>(
@@ -617,10 +617,10 @@ function ScriptEditorInner({
         } else if (payload.type === "steps" && payload.from) {
           const item = target.closest<HTMLElement>(".se-item");
           const count = Math.min(8, payload.steps.length);
-          // Step lists interleave drop slots with items. Index only actual
-          // blocks, including visible items inside virtualized chunks, so a
-          // chained drag still snapshots every real block instead of silently
-          // falling back to a different read-only rendering.
+          // 手順の一覧では、ドロップ先の枠と項目が交互に並ぶ。実際のブロックだけを索引にし、
+          // 仮想化したチャンクの中で表示されている項目も含める。こうすることで、連なったブロックを
+          // ドラッグしたときもすべての実際のブロックを写し取り、気づかないうちに別の読み取り専用の
+          // 描画に切り替わることがない。
           const list = item?.closest<HTMLElement>(".se-list");
           const siblings = list ? Array.from(list.querySelectorAll<HTMLElement>(
             ":scope > .se-item, :scope > .se-virtual-chunk > .se-item"
@@ -644,8 +644,8 @@ function ScriptEditorInner({
       ox: (e.clientX - r.left) / z,
       oy: (e.clientY - r.top) / z,
       h: r.height / z,
-      // The preview adds a 1px border on each side. Use the unscaled layout
-      // width of the dragged row, rather than a temporarily animated rectangle.
+      // プレビューは左右に 1px ずつ枠線を加える。一時的にアニメーションしている矩形ではなく、
+      // ドラッグした行の、倍率のかかっていないレイアウト上の幅を使う。
       w: key?.startsWith("script:") ? (sourceStackWidth ?? target.offsetWidth) : target.offsetWidth + 2,
       sourceStackWidth,
       sourceStackIdle,
@@ -674,7 +674,7 @@ function ScriptEditorInner({
     targetLookup,
     fieldLookup,
     scripts,
-    // Count existing step owners rather than walking the entire tree a second time.
+    // ツリー全体をもう一度たどらず、手順を持つ要素の数を数えて判定する。
     virtualizeStacks: scripts.length > 40 || stepOwners.size > 320,
     variableIndex,
     transformSources,
@@ -686,7 +686,7 @@ function ScriptEditorInner({
     activeSlot: null,
     selected: new Set<string>(),
     zOrder: new Map<string, number>(),
-    // 取得のように後から呼ばれることがあるため、描画時点ではなく最新の状態に適用する
+    // 取得のように後から呼ばれることがあるため、描画した時点ではなく最新の状態に適用する
     updateStep: (stepId, fn) =>
       commit(
         mapStep(
@@ -756,7 +756,7 @@ function ScriptEditorInner({
     const t = menu.target;
     setMenu(null);
     if (action === "delete") {
-      // 右クリックしたブロックが選択に含まれていれば、選択中のものをまとめて削除
+      // 右クリックしたブロックが選択に含まれていれば、選択中のものをまとめて削除する
       const keys = selected.has(menu.key) ? selectedList : [menu.key];
       commit(removeKeys(scripts, keys));
       setSelectedList([]);
@@ -1006,7 +1006,7 @@ function ScriptEditorInner({
             // 方眼も倍率に合わせる
             style={{ backgroundSize: `${16 * zoom}px ${16 * zoom}px` }}
             onPointerDown={(e) => {
-              // 何もない所からドラッグすると範囲選択（Shift / ⌘ で追加）
+              // 何もない所からドラッグすると範囲選択になる（Shift / ⌘ で既存の選択に追加）
               const t = e.target as HTMLElement;
               if (e.button !== 0 || dragRef.current || marqueeRef.current) return;
               if (t !== e.currentTarget && !t.classList.contains("se-ws-inner")) {
@@ -1150,8 +1150,8 @@ function inPaletteHint(d: Drag, el: HTMLElement | null): boolean {
   return !!r && d.x >= r.left && d.x <= r.right && d.y >= r.top && d.y <= r.bottom;
 }
 
-/** Clone only the visible portion of a large tree, preserving its original
- * header instead of silently replacing all inputs with a different read-only UI. */
+/** 大きなツリーは見えている部分だけを複製する。元の見出しは残し、すべての入力欄を
+ * 気づかないうちに別の読み取り専用の表示に置き換えることはしない。 */
 function boundedDragCopy(source: HTMLElement): HTMLElement | null {
   if (source.classList.contains("se-stack")) {
     const copy = source.cloneNode(false) as HTMLElement;
@@ -1160,7 +1160,7 @@ function boundedDragCopy(source: HTMLElement): HTMLElement | null {
     const list = source.querySelector<HTMLElement>(":scope > .se-list");
     if (list) {
       const preview = list.cloneNode(false) as HTMLElement;
-      // Virtualized stacks may contain chunks rather than direct item rows.
+      // 仮想化したスタックでは、項目の行が直接ではなくチャンクの中にあることがある。
       const items = list.querySelectorAll<HTMLElement>(":scope > .se-item, :scope > .se-virtual-chunk > .se-item");
       for (const item of Array.from(items).slice(0, 8)) {
         const copyItem = cloneDragElement(item);
@@ -1188,13 +1188,12 @@ function boundedDragCopy(source: HTMLElement): HTMLElement | null {
   return null;
 }
 
-/** Match the source geometry and decorations even when a row is lifted out of
- * its original sibling/loop context in the floating drag layer. */
+/** 行を元の兄弟やループの中から取り出してドラッグ用の層に浮かせても、
+ * 元と同じ形と装飾になるようにする。 */
 function freezeDragAppearance(source: HTMLElement, copy: HTMLElement, shallow = false) {
   const selector = ".se-stack, .se-item, .se-blk, .se-c, .se-c-mid, .se-if-conditions, .se-if-condition-line, .np-btn";
-  // A shortened preview has fewer descendants than its source. Its children
-  // were already frozen while individually cloned; avoid pairing unrelated
-  // rows merely because they occupy the same index in different trees.
+  // 短くしたプレビューは、元より子孫の数が少ない。その子要素は個別に複製したときに
+  // すでに固定済みのため、別のツリーで同じ位置にあるというだけで無関係な行を対応させない。
   const original = [source, ...(shallow ? [] : source.querySelectorAll<HTMLElement>(selector))]
     .filter((el) => el.matches(selector));
   const cloned = [copy, ...(shallow ? [] : copy.querySelectorAll<HTMLElement>(selector))]
@@ -1203,8 +1202,8 @@ function freezeDragAppearance(source: HTMLElement, copy: HTMLElement, shallow = 
     const from = original[i];
     const to = cloned[i];
     const computed = getComputedStyle(from);
-    // Borders and indentation can depend on :first-child or .se-c-body,
-    // which the ghost cannot reproduce after detaching the block.
+    // 枠線や字下げは :first-child や .se-c-body に左右されることがあり、
+    // ブロックを切り離した後のゴーストではそれを再現できない。
     for (const property of [
       "padding-top", "padding-right", "padding-bottom", "padding-left",
       "border-top-width", "border-top-style", "border-top-color",
@@ -1213,10 +1212,9 @@ function freezeDragAppearance(source: HTMLElement, copy: HTMLElement, shallow = 
       "border-bottom-left-radius", "border-bottom-right-radius",
       "background-color", "color",
     ]) to.style.setProperty(property, computed.getPropertyValue(property));
-    // A nested item or wrapping condition can otherwise resize to its new
-    // parent even though drag.w keeps the outside of the ghost fixed.
-    // Selected element pickers and wrapping condition lines otherwise recompute
-    // their flex widths when a conditional block enters the drag layer.
+    // こうしないと、drag.w でゴーストの外形を固定していても、入れ子の項目や折り返した条件が
+    // 新しい親に合わせて大きさを変えてしまう。条件のブロックがドラッグ用の層に入ると、
+    // 選択済みの要素の選択欄や、折り返した条件の行もフレックスの幅を計算し直してしまう。
     if (from.matches(".se-blk, .se-item, .se-stack, .se-if-conditions, .se-if-condition-line, .np-btn")) {
       to.style.boxSizing = "border-box";
       to.style.width = `${from.offsetWidth}px`;
@@ -1224,8 +1222,8 @@ function freezeDragAppearance(source: HTMLElement, copy: HTMLElement, shallow = 
   }
 }
 
-/** Preserve the actual rendered controls rather than rebuilding them as
- * read-only placeholders. Limit huge trees to their first visible rows. */
+/** 実際に描画されている部品をそのまま使い、読み取り専用の代わりの表示に作り直さない。
+ * 巨大なツリーは、先頭の見えている行だけに限る。 */
 function cloneDragElement(source: HTMLElement): HTMLElement | null {
   const cap = 350;
   let count = 0;
@@ -1252,13 +1250,13 @@ function cloneDragElement(source: HTMLElement): HTMLElement | null {
     }
   }
   freezeDragAppearance(source, copy, count > cap);
-  // This inert copy must not duplicate label targets or editable content IDs.
+  // この操作できない複製に、label の対象や編集可能な内容の ID を重複させない。
   copy.removeAttribute("id");
   copy.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
   return copy;
 }
 
-/** Drag previews never mount a second copy of a very long step tree. */
+/** ドラッグのプレビューでは、とても長い手順のツリーの複製を2つ目としてマウントしない。 */
 function ghostPreviewSteps(steps: ScriptStep[], depth = 0): ScriptStep[] {
   if (depth >= 3) return [];
   return steps.slice(0, 8).map((step) => {

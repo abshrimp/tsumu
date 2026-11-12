@@ -11,7 +11,7 @@ import { validDocumentScripts } from "../lib/document-validation";
 import type { Drag, Marquee, ScriptEditorLatest } from "../components/ScriptEditor";
 import { scriptDragBundle, scriptDragDoc } from "./helpers/script-drag";
 
-// 実フックを読み込み、DOMの寸法とイベントだけを固定する。保存・Undoは実ストアを使う。
+// 実際のフックを読み込み、DOM の寸法とイベントだけを固定する。保存と「元に戻す」は、実際のストアを使う。
 function mount(targetSlot?: string, inputDoc = scriptDragDoc(), slotKind = "step") {
   useEditor.getState().replaceDoc(inputDoc);
   useEditor.getState().setActivePage("p");
@@ -214,7 +214,7 @@ for (const kind of ["step", "palette", "trigger"]) test(`${kind}: delimiter IDs 
   try {
     const before = snapshot();
     m.start(kind);
-    // A trigger connects at the bottom of its 40px-tall preview.
+    // きっかけのブロックは、高さ 40px のプレビューの下端でつながる。
     m.pointer("pointerup", { x: 700, y: kind === "trigger" ? 260 : 300, buttons: 0 });
     const page = state().doc.pages.p;
     const scripts = [...(page.pageScripts ?? []), ...(page.scripts ?? [])];

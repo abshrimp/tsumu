@@ -112,7 +112,7 @@ export function LoadingScreenSettings({
   const ensurePage = () => {
     const existing = setting?.pageId;
     if (existing && doc.pages[existing]) {
-      // 一度オフにしたローディング画面は、作ってあるページのまま表示をオンに戻す
+      // 一度オフにしたローディング画面は、作ってあるページのまま、表示をオンに戻す
       if (!setting?.enabled) {
         updateDoc((d) => {
           if (d.loadingScreen) d.loadingScreen.enabled = true;
@@ -270,7 +270,7 @@ const PWA_DISPLAY_MODES: {
   },
 ];
 
-/** PWA（ホーム画面に追加してアプリのように使える）の公開設定 */
+/** PWA（ホーム画面に追加して、アプリのように使える）の公開設定 */
 function PwaSettings() {
   const inputBaseId = useId();
   const pwa = useEditor((s) => s.doc.pwa);
@@ -286,7 +286,7 @@ function PwaSettings() {
   const mode =
     PWA_DISPLAY_MODES.find((m) => m.value === (pwa?.display ?? "standalone")) ??
     PWA_DISPLAY_MODES[0];
-  // 公開時と同じ順でアイコンを選ぶ（PWA用 → ホーム画面アイコン → ファビコン）
+  // 公開時と同じ優先順でアイコンを選ぶ（PWA 用 → ホーム画面のアイコン → ファビコン）
   const iconSrc = [pwa?.icon, doc.appleTouchIcon, doc.favicon]
     .map((r) => {
       if (!r) return null;
@@ -452,7 +452,7 @@ function BreakpointSettings() {
       request.finish();
       return;
     }
-    // A delayed confirmation must not remove newly edited styles or a replacement document.
+    // 遅れて確定した確認で、新しく編集したスタイルや、置き換わった文書を消してはいけない。
     if (request.current() && useEditor.getState().doc === doc) updateDoc((d) => removeBreakpoint(d, id));
     request.finish();
   };
@@ -518,7 +518,7 @@ function BreakpointSettings() {
                   defaultValue={tr(b.label)}
                   aria-label={tr("Breakpoint name")}
                   onBlur={(e) => {
-                    // 既定の名前は日本語で保存し、表示するときに訳す（訳のまま変えていなければ保存しない）
+                    // 既定の名前は日本語で保存し、表示するときに訳す（訳文のまま変えていなければ保存しない）
                     const label = e.target.value.trim();
                     if (label && label !== tr(b.label)) updateDoc((d) => updateBreakpoint(d, b.id, { label }));
                     else e.target.value = tr(b.label);
@@ -599,7 +599,7 @@ export default function SitePanel() {
     a.href = url;
     a.download = `tsumu-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
-    // すぐに破棄すると、Safari などでダウンロードが始まらないことがある
+    // URL をすぐに破棄すると、Safari などでダウンロードが始まらないことがある
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 

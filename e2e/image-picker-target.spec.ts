@@ -6,7 +6,7 @@ test("a URL draft cannot move to another page with the same saved image", async 
   await page.addScriptTag({ content: await imagePickerBundle() });
   const input = page.locator(".img-pick-row input");
   await input.fill("/draft-a.png");
-  // A remote/keyboard selection can change the target without blurring the input first.
+  // 共同編集やキーボードでの選択では、先に入力欄が blur しないまま、対象が変わることがある。
   await page.locator("#switch").evaluate((el: HTMLButtonElement) => el.click());
   await expect(page.locator("#target")).toHaveText("b");
   await expect(input).toHaveValue("/same.png");

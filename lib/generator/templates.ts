@@ -4,10 +4,10 @@
 
 import { getLang } from "../i18n";
 
-/** 画像URLが空のときに使う 1×1 の透明GIF */
+/** 画像の URL が空のときに使う、1×1 の透明な GIF */
 export const EMPTY_GIF = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
-/** PWAアイコンのMIMEタイプ（不明なら undefined） */
+/** PWA のアイコンの MIME タイプ（分からなければ undefined） */
 export function pwaIconType(mimeType: string | undefined, src: string): string | undefined {
   if (mimeType?.startsWith("image/")) return mimeType;
   const ext = src.split(/[?#]/)[0].split(".").pop()?.toLowerCase();
@@ -22,7 +22,7 @@ export function pwaIconType(mimeType: string | undefined, src: string): string |
   return ext ? types[ext] : undefined;
 }
 
-/** PWAのService Workerを登録する */
+/** PWA の Service Worker を登録する */
 export const PWA_REGISTER_SCRIPT = `
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
@@ -30,8 +30,8 @@ if ("serviceWorker" in navigator) {
 `;
 
 /**
- * PWAのService Worker。常にネットワークを優先し（更新がすぐ反映される）、
- * オフラインのときだけ最後に表示したページ・ファイルを返す。
+ * PWA の Service Worker。常にネットワークを優先し（更新がすぐに反映される）、
+ * オフラインのときだけ、最後に表示したページやファイルを返す。
  */
 export const PWA_SERVICE_WORKER = `
 var CACHE = "site-pwa-v2";
@@ -79,12 +79,12 @@ export function versionedSrc(src: string, content: string): string {
   return `${src}?v=${(h >>> 0).toString(36)}`;
 }
 
-/** 動くスクリプト（構造化データ application/ld+json などのデータ以外）を含むHTMLか */
+/** 動くスクリプト（構造化データ application/ld+json などのデータ以外）を含む HTML か */
 export const RUNNABLE_SCRIPT = /<script\b(?![^>]*\btype\s*=\s*["']?application\/(?:ld\+)?json)/i;
 
 /**
- * ページ専用コード（計測タグなど）。サーバーのHTMLから表示したときは、ブラウザが読み込みながら
- * 中の <script> を動かす。ページ遷移（Link）で表示したときは innerHTML のスクリプトは動かないため、作り直して動かす
+ * ページ専用のコード（計測タグなど）。サーバーの HTML から表示したときは、ブラウザが読み込みながら
+ * 中の <script> を動かす。ページの遷移（Link）で表示したときは innerHTML のスクリプトが動かないため、作り直して動かす
  */
 export const PAGE_HTML_COMPONENT = `"use client";
 
@@ -144,7 +144,7 @@ export default function PageHtml({ html, staticHtml }: { html: string; staticHtm
 }
 `;
 
-/** 検索フォーム: ページ全体を再読み込みせず、URLの検索パラメータだけ更新する */
+/** 検索フォーム: ページ全体を読み込み直さずに、URL の検索パラメーターだけを更新する */
 export const SEARCH_FORM_COMPONENT = `"use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -240,7 +240,7 @@ export default function SearchForm({
 
 /** 書き出したプロジェクトの README（ホスティングの選び方と手順） */
 export function generatedReadme(siteName: string, cloudflare: boolean): string {
-  // 日本語以外の言語では英語の README にする
+  // 日本語以外の言語では、英語の README にする
   if (getLang() !== "ja") {
     return `# ${siteName}
 

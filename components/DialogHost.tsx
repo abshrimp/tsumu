@@ -7,7 +7,7 @@ import { isEnterKey } from "../lib/keys";
 import { closeDialog, useDialogs, type DialogRequest } from "../lib/dialog";
 import { tr } from "../lib/i18n";
 
-/** lib/dialog の showAlert / showConfirm / showPrompt を表示する（エディタに1つ置く） */
+/** lib/dialog の showAlert / showConfirm / showPrompt を表示する（エディタに1つだけ置く） */
 export default function DialogHost() {
   const current = useDialogs((s) => s.queue[0]);
   if (!current || typeof document === "undefined") return null;
@@ -33,7 +33,7 @@ function Dialog({ req }: { req: DialogRequest }) {
     else req.resolve(ok ? value : null);
   };
 
-  // 初期フォーカス: 入力欄 → （危険な操作なら）キャンセル → 決定
+  // 最初のフォーカス: 入力欄 → （危険な操作なら）キャンセル → 決定 の順に探す
   useEffect(() => {
     const previousFocus = document.activeElement;
     if (req.kind === "prompt") {
@@ -50,9 +50,9 @@ function Dialog({ req }: { req: DialogRequest }) {
     const onKey = (e: KeyboardEvent) => {
       if (e.isComposing || e.keyCode === 229) return;
       if (e.key === "Tab") {
-        // The portal is last in the document, so native Tab at either end
-        // would reach the editor behind this modal. Re-read disabled on each
-        // keypress: typing the expected confirmation text can enable OK.
+        // ポータルは文書の最後にあるため、標準の Tab のままだと、どちらの端からも
+        // このモーダルの後ろにあるエディタへ移ってしまう。確認の文字を入力すると OK が
+        // 押せるようになることがあるため、キーを押すたびに無効状態を読み直す。
         const controls = [inputRef.current, cancelRef.current, okRef.current]
           .filter((el): el is HTMLInputElement | HTMLButtonElement => !!el && !el.disabled);
         const first = controls[0];
@@ -70,10 +70,10 @@ function Dialog({ req }: { req: DialogRequest }) {
       }
     };
     // ダイアログを開いている間は、エディタのショートカット（Delete で要素を消すなど）を動かさない。
-    // ダイアログ内の入力・ボタンの処理（React）は先に終わっているので、document で止めれば
-    // window に付けたショートカットへは届かない
+    // ダイアログ内の入力やボタンの処理（React）は先に終わっているため、document で止めれば
+    // window に付けたショートカットには届かない
     const block = (e: KeyboardEvent) => e.stopPropagation();
-    // 他の画面（スクリプト画面など）の Esc より先に受け取る
+    // 他の画面（スクリプトの画面など）より先に Esc を受け取る
     window.addEventListener("keydown", onKey, true);
     document.addEventListener("keydown", block);
     return () => {

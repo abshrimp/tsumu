@@ -13,7 +13,7 @@ export function emptyListDoc(items: readonly unknown[]) {
   return doc;
 }
 
-/** 本物の設定画面でリスト化・配列選択を行い、同じNodeViewのデザインとプレビューを切り替える。 */
+/** 実際の設定の画面でリストに変換して配列を選び、同じ NodeView のデザインとプレビューを切り替える。 */
 export async function emptyListBundle(items: readonly unknown[]) {
   return (await build({
     stdin: { contents: `
@@ -48,7 +48,7 @@ createRoot(document.getElementById("app")).render(<Example />);
   })).outputFiles[0].text;
 }
 
-/** 保存した同じ文書から実際のNext.jsページを生成し、取得データだけを固定する。 */
+/** 保存した同じ文書から実際の Next.js のページを生成し、取得するデータだけを固定する。 */
 export async function publishedEmptyList(doc: SiteDoc, items: readonly unknown[]) {
   const { files } = generateProject(doc), require = createRequire(resolve("package.json")), cache = new Map<string, any>();
   const load = (file: string): any => {

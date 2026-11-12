@@ -99,11 +99,11 @@ test("ロールバックは .github/ を戻さず、いまの先端のものを�
   const app = dir("app", "a1");
   // 同じなら置き換えない（ロールバック先のツリーをそのまま使う）
   assert.deepEqual(protectedTreeEdits([app, dir(".github", "g1")], [dir("app", "a2"), dir(".github", "g1")]), []);
-  // ほかのブランチ・フォークのワークフローは、いまの先端のもので上書きする
+  // 他のブランチやフォークのワークフローは、いまの先端のもので上書きする
   assert.deepEqual(protectedTreeEdits([app, dir(".github", "evil")], [dir(".github", "g1")]), [dir(".github", "g1")]);
-  // 先端に無い .github/（大文字小文字を変えたものも）は消す
+  // 先端に無い .github/（大文字と小文字を変えたものも含む）は消す
   assert.deepEqual(protectedTreeEdits([app, dir(".GitHub", "evil")], []), [{ ...dir(".GitHub", "evil"), sha: null }]);
-  // ロールバック先に無ければ、先端のものを足す
+  // ロールバック先に無ければ、先端のものを加える
   assert.deepEqual(protectedTreeEdits([app], [dir(".github", "g1")]), [dir(".github", "g1")]);
 });
 

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * スクリプト画面のドラッグ（パレット → ワークスペース / ワークスペース内の移動）と範囲選択
+ * スクリプトの画面のドラッグ（パレット → ワークスペース / ワークスペース内での移動）と範囲選択
  */
 import { useCallback, useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { useEditor } from "../../lib/store";
@@ -45,7 +45,7 @@ export function useScriptDrag({
   ghostRef,
   marqueeElRef,
 }: UseScriptDragDeps) {
-  // 中断はドロップにしない。元のブロックと履歴をそのまま残す。
+  // 中断はドロップとして扱わない。元のブロックと履歴をそのまま残す。
   const cancelGesture = useCallback(() => {
     if (!dragRef.current && !marqueeRef.current) return false;
     dragRef.current = null;
@@ -60,7 +60,7 @@ export function useScriptDrag({
     return true;
   }, [dragRef, marqueeRef, paletteRef, setDrag, setMarquee, setActiveSlot]);
 
-  // ドラッグ（パレット → ワークスペース / ワークスペース内の移動）と範囲選択
+  // ドラッグ（パレット → ワークスペース / ワークスペース内での移動）と範囲選択
   useEffect(() => {
     const inside = (el: HTMLElement | null, x: number, y: number) => {
       const r = el?.getBoundingClientRect();
@@ -74,8 +74,8 @@ export function useScriptDrag({
     let marqueeSelection = "";
     let marqueeRects: Array<{ key: string; left: number; right: number; top: number; bottom: number }> | null = null;
 
-    // Virtualized chunks may mount or unmount while scrolling during a drag.
-    // Never reuse hit-test coordinates from DOM nodes that no longer exist.
+    // ドラッグ中にスクロールすると、仮想化したチャンクがマウント・アンマウントされることがある。
+    // もう存在しない DOM ノードから測った当たり判定の座標は、使い回さない。
     const slotObserver = typeof MutationObserver === "undefined" ? null :
       new MutationObserver(() => {
         slotIndex = null;
@@ -114,7 +114,7 @@ export function useScriptDrag({
         slotZoom = z;
       }
       const x = d.x - d.ox * z - wr.left + ws.scrollLeft;
-      // Triggers attach by their bottom edge; ordinary steps by the top.
+      // きっかけのブロックは下端で、通常の手順は上端でつなぐ。
       const y = d.y - d.oy * z + (kind === "head" ? d.h * z : 0) -
         wr.top + ws.scrollTop;
       return slotIndex.nearest(kind, x, y);
@@ -161,7 +161,7 @@ export function useScriptDrag({
     const onMove = (e: PointerEvent) => {
       const gesture = marqueeRef.current ?? dragRef.current;
       if (!gesture || e.pointerId !== gesture.pointerId) return;
-      // ウィンドウ外で離して pointerup を受け取れなかった場合も取り消す。
+      // ウィンドウの外でボタンを離して pointerup を受け取れなかった場合も、取り消す。
       if (!(e.buttons & 1)) {
         cancelGesture();
         return;
@@ -202,12 +202,12 @@ export function useScriptDrag({
         slotElements.clear();
         setMenu(null);
         setActiveSlot(null);
-        // The initial render creates the ghost and removes the dragged blocks.
+        // 最初の描画でゴーストを作り、ドラッグしているブロックを取り除く。
         setDrag({ ...d });
         return;
       }
-      // Pointermove can be emitted far more often than the browser can paint.
-      // Batch layout reads and hit testing to one frame.
+      // pointermove は、ブラウザが描画できるよりはるかに頻繁に発生することがある。
+      // レイアウトの読み取りと当たり判定は、1フレームにまとめて行う。
       const updatePosition = () => {
         const active = dragRef.current;
         if (!active?.started || !active.payload) return;
@@ -218,7 +218,7 @@ export function useScriptDrag({
         setActiveSlot(target, target ? slotElements.get(target) : null);
       };
       if (typeof requestAnimationFrame !== "function") {
-        // Non-browser test hosts dispatch synthetic pointer events synchronously.
+        // ブラウザ以外のテスト環境では、合成したポインターのイベントが同期的に送られる。
         updatePosition();
       } else if (!animationFrame) {
         animationFrame = requestAnimationFrame(() => {
@@ -244,8 +244,8 @@ export function useScriptDrag({
         d.x = e.clientX;
         d.y = e.clientY;
       }
-      // Use the already-measured slot index for the final drop. Resetting it
-      // before this lookup forced a synchronous full-DOM measurement on release.
+      // 最後のドロップには、すでに測った差し込み位置の索引を使う。この検索の前に索引を作り直すと、
+      // ボタンを離したときに DOM 全体を同期的に測ることになっていた。
       const slot = d?.started && d.payload ? findSlot(d) : null;
       slotIndex = null;
       slotElements.clear();
@@ -266,7 +266,7 @@ export function useScriptDrag({
         base = cur.filter((s) => !ids.has(s.id));
       }
 
-      // パレットへ戻したら削除
+      // パレットに戻したら削除する
       if (inside(paletteRef.current, d.x, d.y)) {
         if (base !== cur) {
           commit(base);
@@ -278,12 +278,12 @@ export function useScriptDrag({
         if (p.type === "steps" && p.from && slot === slotKey(p.from.loc)) return;
         const loc = parseSlot(slot);
         if (p.type === "steps") {
-          // Only newly inserted blocks inherit the previous output automatically.
-          // Moving an existing chain preserves all explicit variable references.
+          // 直前の出力を自動で受け継ぐのは、新しく挿入したブロックだけ。
+          // 既存のつながりを動かしたときは、明示的な変数の参照をすべてそのまま残す。
           const nextSteps = p.from ? p.steps : connectNewTransform(base, loc, p.steps);
           const inserted = insertAt(base, loc, nextSteps);
-          // A slot in the removed subtree is no longer a valid destination.
-          // Preserve the original document and undo history in that case.
+          // 取り除いた部分木の中の差し込み位置は、もう有効なドロップ先ではない。
+          // その場合は、元の文書と元に戻す履歴をそのまま残す。
           if (inserted === base) return;
           return commit(inserted);
         }
@@ -294,7 +294,7 @@ export function useScriptDrag({
                 ? {
                     ...s,
                     trigger: p.trigger,
-                    // 「このページ」は「ページを開いたとき」だけ
+                    // 「このページ」のきっかけは「ページを開いたとき」だけ
                     nodeId:
                       s.nodeId === PAGE_TARGET && p.trigger !== "load"
                         ? focus
@@ -305,10 +305,10 @@ export function useScriptDrag({
           );
         }
       }
-      // ワークスペースの外で離したら取り消し
+      // ワークスペースの外で離したら取り消す
       if (!ws || !inside(ws, d.x, d.y)) return;
       const wr = ws.getBoundingClientRect();
-      // 位置は倍率 1 のときの座標で持つ
+      // 位置は、倍率が 1 のときの座標で持つ
       const z = zoomRef.current;
       const pos = {
         x: Math.max(8, Math.round((d.x - d.ox * z - wr.left + ws.scrollLeft) / z)),
@@ -321,7 +321,7 @@ export function useScriptDrag({
         ]);
       }
       if (p.type === "steps") {
-        // パレットから置いたデータの読み込みは「このページ｜ページを開いたとき」として置く
+        // パレットから置いたデータの読み込みは、「このページ｜ページを開いたとき」の下に置く
         const loadOnly = !p.from && p.steps.every(isDataStep);
         return commit([
           ...base,
@@ -361,7 +361,7 @@ export function useScriptDrag({
     const onHidden = () => {
       if (document.visibilityState === "hidden") cancelGesture();
     };
-    // Undo・ページ切替・外部の編集後に、古いペイロードを新しい文書へ落とさない。
+    // 元に戻す操作・ページの切り替え・外部での編集の後に、古いペイロードを新しい文書へドロップしない。
     const unsubscribe = useEditor.subscribe((state, previous) => {
       if (
         state.doc !== previous.doc ||

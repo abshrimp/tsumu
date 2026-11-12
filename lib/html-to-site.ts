@@ -12,7 +12,7 @@ import { safeNavigationUrl, safeResourceUrl } from "./url-policy";
 import { expandZipCss } from "./html-css-import";
 import { importedAssetPath, isZipJavascript } from "./generator/imported-assets";
 
-/** A single HTML page converted into individually editable Tsumu elements. */
+/** 1つの HTML のページを、個別に編集できる Tsumu の要素に変換したもの。 */
 export type HtmlConversion = { doc: SiteDoc; warnings: string[] };
 type Options = { assets?: Asset[]; breakpoints?: BreakpointDef[] };
 
@@ -71,8 +71,8 @@ function keepWhitespaceText(parent: Element, child: ChildNode): boolean {
     (inlineSibling(child.previousSibling) && inlineSibling(child.nextSibling));
 }
 function safeUrl(value: string): string {
-  // Browsers remove tab/newline characters before interpreting a scheme.
-  // Use the same URL policy as the editor and generated sites.
+  // ブラウザは、スキームを解釈する前にタブと改行を取り除く。
+  // エディタや生成したサイトと同じ URL の規則を使う。
   const safe = safeResourceUrl(value);
   return safe === "#" && value !== "#" ? "" : safe;
 }
@@ -95,7 +95,7 @@ function specificity(selector: string): number {
   const tags = (selector.replace(/#[\w-]+|\.[\w-]+|\[[^\]]+\]|::?[\w-]+/g, "").match(/(?:^|[>+~\s])[a-z][\w-]*/gi) || []).length;
   return ids * 10000 + classes * 100 + tags;
 }
-/** Split selector lists without splitting commas in attributes, strings or functions. */
+/** セレクターの並びを分ける。属性・文字列・関数の中のカンマでは分けない。 */
 function splitSelectors(input: string): string[] {
   const parts: string[] = [];
   let quote = "";
@@ -133,11 +133,11 @@ function cssRules(text: string): CSSRuleList | null {
 }
 
 function isPageCode(element: Element): boolean {
-  // DOMParser exposes noscript fallback markup with scripting disabled, and
-  // tag-name selectors also match inert MathML script/style elements. Hoisting
-  // either into HTML custom code would activate it on the published page.
-  // SVG descendants (including HTML in foreignObject) stay with the icon
-  // sanitizer instead of being promoted into page code.
+  // DOMParser は、スクリプトを無効にした状態で noscript の代わりのマークアップを見せ、
+  // タグ名のセレクターは動作しない MathML の script や style にも一致する。どちらかを
+  // HTML のカスタムコードに持ち上げると、公開したページでそれが動いてしまう。
+  // SVG の子孫（foreignObject の中の HTML も含む）は、ページのコードに持ち上げずに、
+  // アイコンの無害化の処理に任せる。
   return element.namespaceURI === "http://www.w3.org/1999/xhtml" &&
     !element.closest("noscript, svg");
 }
@@ -145,7 +145,7 @@ function isPageCode(element: Element): boolean {
 export function convertHtmlToSite(html: string, options: Options = {}): HtmlConversion {
   if (!html.trim() || html.length > MAX_HTML_CHARS) throw new Error(tr("The HTML is empty or too large."));
   if (typeof DOMParser === "undefined") throw new Error(tr("HTML parsing is not available in this environment."));
-  // DOMParser is inert: imported scripts are never executed during conversion.
+  // DOMParser は何も実行しない。変換の間に、取り込んだスクリプトが実行されることはない。
   const parsed = new DOMParser().parseFromString(html, "text/html");
   const warnings: string[] = [];
   const warn = (message: string) => { if (!warnings.includes(message)) warnings.push(message); };
@@ -167,7 +167,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     return undefined;
   };
 
-  // Read inline and packaged stylesheets in document order. Never fetch remote CSS.
+  // インラインのスタイルシートと、ZIP に含まれるスタイルシートを、文書の順に読む。外部の CSS は取得しない。
   const sheets: string[] = [];
   const unusedHead: string[] = [];
   const unresolvedStyles: string[] = [];
@@ -176,7 +176,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
   const resolveCss = (css: string, owner?: Asset): string => {
     try {
       const expanded = expandZipCss(css, assets, (warning) => {
-        // An unresolved CSS import is kept for the published site.
+        // 解決できない CSS の import は、公開するサイトのために残す。
         if (warning.includes("circular")) warn(tr("A circular CSS @import was skipped."));
         else warn(tr("A CSS @import could not be resolved and was kept as custom code."));
       }, owner);
@@ -192,7 +192,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     const condition = (element.getAttribute("media") || "").trim();
     if (!condition || /^(?:all|screen)$/i.test(condition)) return css;
     const query = condition.replace(/^(?:only\s+)?(?:all|screen)\s+and\s+/i, "");
-    // Import only width-based conditions Tsumu can express as breakpoints.
+    // 取り込むのは、Tsumu がブレークポイントとして表せる、幅に基づく条件だけ。
     if (/^\(\s*(?:min|max)-width\s*:\s*\d+(?:\.\d+)?px\s*\)(?:\s+and\s+\(\s*(?:min|max)-width\s*:\s*\d+(?:\.\d+)?px\s*\))*$/i.test(query)) {
       return `@media ${condition} {\n${css}\n}`;
     }
@@ -347,8 +347,8 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
           }
           try {
             const matches = parsed.querySelectorAll(baseSelector);
-            // Global selectors such as :root do not have a Tsumu node;
-            // retain their declarations instead of silently losing variables.
+            // :root のようなグローバルなセレクターには、対応する Tsumu のノードが無い。
+            // 変数を黙って失わないよう、その宣言は残す。
             if (Array.from(matches).some((el) => el === parsed.documentElement || el === parsed.head)) {
               retain = true;
               warn(tr("Some CSS rules were preserved as custom CSS."));
@@ -384,8 +384,8 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       warn(tr("CSS that could not be parsed was preserved as custom code."));
     }
   }
-  // Original inline declarations override authored stylesheet rules unless
-  // a stylesheet uses !important. Do not lose that ordering at narrow widths.
+  // 元のインラインの宣言は、スタイルシートが !important を使っていない限り、書かれた
+  // スタイルシートのルールより優先される。狭い幅でもその順序を失わないようにする。
   for (const element of Array.from(parsed.querySelectorAll("[style]"))) {
     const raw = (element as HTMLElement).style;
     if (!raw) continue;
@@ -432,9 +432,9 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
         for (const [key, item] of current.get(state) || []) {
           values.set(key, item.value + (item.important ? " !important" : ""));
         }
-        // Chromium's CSSOM expands the authored `gap` shorthand into row-gap
-        // and column-gap declarations. Normalize equal axes back to a single
-        // gap value so the inspector and responsive overrides stay editable.
+        // Chromium の CSSOM は、書かれた一括指定の `gap` を row-gap と column-gap の宣言に展開する。
+        // インスペクターや画面幅ごとの上書きで編集し続けられるよう、両方の軸が同じなら、
+        // 1つの gap の値に戻す。
         const rowGap = values.get("rowGap"), columnGap = values.get("columnGap");
         if (rowGap !== undefined && rowGap === columnGap && !values.has("gap")) {
           values.set("gap", rowGap);
@@ -448,7 +448,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
           const before = prev.get(key);
           const after = values.get(key);
           if (at.id === "base" || before !== after) {
-            // A rule that only applied at wider widths must be cancelled here.
+            // より広い幅でだけ適用していたルールは、ここで打ち消す必要がある。
             emittedStyleChars += key.length + (after?.length ?? 6);
             if (emittedStyleChars > MAX_HTML_CHARS) throw new Error(tr("The HTML styles are too complex."));
             if (after !== undefined) props[key] = after;
@@ -463,14 +463,14 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     }
     return styles;
   };
-  // Class selectors have already been resolved into each element's styles.
-  // Keep the original class only if unconverted CSS, linked stylesheets, or
-  // JavaScript may still depend on it. Otherwise it is redundant in SiteDoc.
+  // クラスのセレクターは、すでに各要素のスタイルに解決してある。変換していない CSS、
+  // リンクしたスタイルシート、JavaScript がまだ依存しているかもしれない場合だけ、元のクラスを残す。
+  // それ以外では、SiteDoc にとって余分になる。
   const keepOriginalClasses = unusedRules.length > 0 || scriptCount > 0 ||
     unusedHead.some((item) => /^<link\b/i.test(item));
-  // Unconditional advanced declarations belong to each element's custom CSS,
-  // rather than remaining in a class-based global stylesheet. Responsive and
-  // pseudo-state declarations must remain in NodeStyles: customCss is base-only.
+  // 条件の無い高度な宣言は、クラスに基づくグローバルなスタイルシートに残さず、
+  // 各要素のカスタム CSS に入れる。画面幅ごとの宣言と擬似状態の宣言は、
+  // NodeStyles に残す必要がある（customCss は base にしか効かない）。
   const advancedCssProperty = (name: string) =>
     name.startsWith("--") || /^(?:Webkit|Moz|ms)[A-Z]/.test(name) ||
     /^(?:clipPath|clipRule|scrollMargin(?:Top|Right|Bottom|Left)?|scrollPadding(?:Top|Right|Bottom|Left)?|scrollSnapType|mask(?:Image|Size|Position|Repeat|Clip|Origin)?|offset(?:Path|Distance|Rotate)?|container(?:Name|Type)|shapeOutside|shapeMargin)$/.test(name);
@@ -616,7 +616,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
           tag === "strong" || tag === "b" || tag === "em" || tag === "i" || tag === "small" ||
           tag === "label" || tag === "li" || tag === "pre") common.text = { content: value, heading: 0 };
       else {
-        // Preserve text-only containers as editable text; visual descendants remain independent nodes.
+        // テキストだけのコンテナは編集できるテキストとして残し、視覚的な子孫は独立したノードのままにする。
         common.text = { content: value, heading: 0 };
       }
       return add(common);
@@ -670,8 +670,8 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     ...(headMarkup ? { customTopHtml: headMarkup } : {}),
     ...(scripts.length ? { customEndHtml: scripts.join("\n") } : {}),
   };
-  // Unsupported media and selector rules are retained for export; their preview
-  // fidelity is limited because arbitrary class attributes are not part of DocNode.
+  // 対応していないメディアやセレクターのルールは、書き出しのために残す。任意のクラス属性は
+  // DocNode に含まれないため、プレビューでの再現には限りがある。
   if (unusedRules.length) warn(tr("Unconverted CSS remains in custom code. The editor and published site may look different."));
   return {
     doc: {

@@ -42,7 +42,7 @@ function reactSelection(files: Record<string, string>, query: string) {
   const module = { exports: {} as any };
   const document = { title: "", documentElement: { lang: "" }, querySelector: () => null };
   const code = transformSync(files["src/App.tsx"], { loader: "tsx", format: "cjs", jsx: "automatic" }).code;
-  // ルーターは生成コードそのものを実行し、無関係なページ本文と副作用だけを置き換える。
+  // ルーターは生成したコードそのものを実行し、関係の無いページの本文と副作用だけを置き換える。
   new Function("require", "module", "exports", "window", "document", code)((name: string) => {
     if (name === "react") return { useEffect: (fn: () => void, deps: unknown[]) => { if (deps.length) fn(); } };
     const page = /^\.\/pages\/Page(\d+)$/.exec(name);

@@ -7,7 +7,7 @@ test("copied links and script buttons navigate to the matching query variant", a
   const { source, target } = queryCopyFixture();
   applyPagePayload(target, buildPagePayload(source, ["home"]));
   const { html } = renderQueryCopyExport(target);
-  // Every navigation is served locally; no external site is contacted.
+  // 移動はすべてローカルで応答し、外部のサイトには接続しない。
   await page.route("**/*", (route) => route.fulfill({
     contentType: "text/html",
     body: new URL(route.request().url()).search === "?tab=news" ? "<main>News</main>" : "<main>Other</main>",

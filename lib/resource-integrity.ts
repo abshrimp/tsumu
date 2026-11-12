@@ -1,4 +1,4 @@
-/** Check original, immutable resource bytes before rewriting them during one import or export. */
+/** 1回の取り込みや書き出しの中で書き換える前に、元の変わらないリソースのバイト列を確かめる。 */
 export function createIntegrityVerifier() {
   const digests = new WeakMap<Uint8Array<ArrayBuffer>, Map<number, string>>();
   return async (bytes: Uint8Array<ArrayBuffer>, metadata: string) => {

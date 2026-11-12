@@ -10,10 +10,10 @@ import { readableValue } from "./DataView";
 import { tr } from "../lib/i18n";
 import { canPickVariable, localVariableNames, type ValueContext } from "../lib/variable-choice";
 
-/** Nested list or structured list. */
+/** 入れ子のリスト、または構造を持つリスト。 */
 const isNested = (v: unknown) => v != null && typeof v === "object";
 
-/** The public type system has only Value and List. */
+/** 利用者に見せる型は「値」と「リスト」の2つだけ。 */
 function kindOf(v: unknown, note?: string): string {
   if (v === undefined) return note ? "" : tr("No sample");
   if (Array.isArray(v)) return tr("List · {length} elements", { length: v.length });
@@ -21,14 +21,14 @@ function kindOf(v: unknown, note?: string): string {
   return tr("Value");
 }
 
-/** 配列の要素は先頭のみを提示し、別の添字は参照式で入力する。 */
+/** 配列の要素は先頭だけを示し、他の添字は参照式で入力してもらう。 */
 function childrenOf(v: unknown): [key: string, label: string, value: unknown][] {
   if (Array.isArray(v)) return v.slice(0, 1).map((x, i) => [String(i), tr("#{p1}", { p1: i + 1 }), x]);
   if (v && typeof v === "object") return Object.entries(v).map(([k, x]) => [k, k, x]);
   return [];
 }
 
-/** 検索用に、すべての位置を平らに並べる（4階層・配列は先頭のみ） */
+/** 検索のために、すべての位置を平らに並べる（4階層まで。配列は先頭だけ） */
 function flatten(groups: VarGroup[]): { path: string; value: unknown; note?: string }[] {
   const out: { path: string; value: unknown; note?: string }[] = [];
   const walk = (path: string, v: unknown, depth: number, note?: string) => {
@@ -87,7 +87,7 @@ function Row({
         aria-disabled={!pickable && !nested || undefined}
         onClick={() => pickable ? onPick(path) : nested && setOpen(!open)}
         onKeyDown={(e) => {
-          // 開閉ボタンの Enter は、親の変数を選ばずボタン自身に任せる。
+          // 開閉ボタンでの Enter は、親の変数を選ばずに、ボタン自身の動作に任せる。
           if (e.target !== e.currentTarget) return;
           if (isEnterKey(e)) {
             if (pickable) onPick(path);
@@ -147,11 +147,11 @@ export default function VarExplorer({
   onPick,
   onClose,
 }: {
-  /** この要素の位置で使える変数を見せる（"" = ページ全体） */
+  /** この要素の位置で使える変数を表示する（"" = ページ全体） */
   nodeId: string;
   /** 見本の無い変数（スクリプトで画面上に作る変数など） */
   extraNames?: string[];
-  /** 型が不明でも、くり返し中の名前をページの見本より優先する。 */
+  /** 型が分からなくても、くり返しの中の名前をページの見本より優先する。 */
   localNames?: string[];
   sourceStepId?: string;
   context?: ValueContext;
@@ -162,7 +162,7 @@ export default function VarExplorer({
   const activePageId = useEditor((s) => s.activePageId);
   const extraKey = (extraNames ?? []).join("\n");
   const localKey = (localNames ?? []).join("\n");
-  /** 詳細（入力欄の状態など）も出す */
+  /** 詳細（入力欄の状態など）も表示する */
   const [advanced, setAdvanced] = useState(false);
   const allGroups = useMemo(() => {
     const local = localVariableNames(localKey ? localKey.split("\n") : []);
@@ -221,7 +221,7 @@ export default function VarExplorer({
     <div
       className="modal-backdrop"
       onMouseDown={(e) => {
-        // ポータルでも React のイベントは親（キャンバス等）へ伝わるため止める
+        // ポータルでも React のイベントは親（キャンバスなど）へ伝わるため、止める
         e.stopPropagation();
         if (e.target === e.currentTarget) onClose();
       }}

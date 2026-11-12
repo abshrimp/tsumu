@@ -299,7 +299,7 @@ test("page scripts reject list values that would expand exponentially when publi
       { id: "right", kind: "set-list-item", list: "value", key: "b", value: "{old}" },
     ] },
   ];
-  // Never serialize the hostile result in the test itself.
+  // 悪意のある結果を、テストの中で決して直列化しない。
   assert.equal(run(steps, vars), false);
   assert.deepEqual(Object.keys(vars), []);
   const emitted = new Function("const __name = fn => fn; return " + PAGE_STEP_RUNNER_SOURCE)() as typeof runPurePageSteps;

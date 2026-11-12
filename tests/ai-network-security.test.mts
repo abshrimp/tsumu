@@ -69,7 +69,7 @@ test("small streaming frames cannot bypass the total upstream byte limit", async
   });
   await assert.rejects(async () => {
     for await (const _line of readLines(body)) {
-      // Consume each line: the total limit must apply across many short frames.
+      // 1行ずつ読む。合計の上限は、多数の短いフレームをまたいでかからなければならない。
     }
   }, /too large/);
 });

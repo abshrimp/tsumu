@@ -25,7 +25,7 @@ export function transformOriginDoc(): SiteDoc {
   };
 }
 
-/** 実際の書式パネル・Canvas・ストアを通して、基準点の選択と履歴を確認する。 */
+/** 実際の書式のパネル・Canvas・ストアを通して、基準点の選択と履歴を確かめる。 */
 export async function transformOriginBundle() {
   return (await build({
     stdin: { contents: `

@@ -47,7 +47,7 @@ async function setupPreview(page: Page, source: "query" | "data" | "literal") {
   await page.setContent('<html><body><div id="app" style="width:1000px;height:800px"></div></body></html>');
   await page.evaluate(() => {
     (window as any).radioLabels = { smallLabel: "S", mediumLabel: "M" };
-    // Replace only the JSON while using the real Canvas fetch, render, and script implementations.
+    // JSON だけを差し替え、Canvas の取得・描画・スクリプトは実際の実装を使う。
     window.fetch = async (input) => {
       if (input !== "/api/fetch-json") throw new Error(`Unexpected fetch: ${input}`);
       return new Response(JSON.stringify({ json: (window as any).radioLabels }), { status: 200 });
@@ -105,14 +105,14 @@ for (const source of ["query", "data"] as const) {
     const { doc, html } = await publishedDynamicRadio(source);
     await page.setContent(html);
     await page.addScriptTag({ content: scriptsFile(doc) });
-    // Compare the published radio selection state with the preview.
+    // 公開したラジオボタンの選択の状態を、プレビューと比べる。
     await exerciseRadio(page, false);
     expect(errors).toEqual([]);
   });
 }
 
-// Assignment order uses the same runtime regardless of label source. Keep one browser path.
-// Query/data resolution is separately exercised above and in Node tests.
+// 代入の順序は、ラベルの出どころによらず同じランタイムを使う。ブラウザでの経路は1つにする。
+// クエリとデータの解決は、上と Node.js のテストで別に試す。
 for (const source of ["data"] as const) {
   test(`consecutive radio assignments compose in order with ${source} labels`, async ({ page }) => {
     const { errors, snapshot } = await setupPreview(page, source);
@@ -128,7 +128,7 @@ for (const source of ["data"] as const) {
       ["group-small-clear", "", ""],
       ["small-group-clear", "", ""],
     ]) {
-      // Execute steps in order within a single script even when the preceding click already left that state active.
+      // 前のクリックですでにその状態になっていても、1つのスクリプトの中の手順は順に実行する。
       for (let repeat = 0; repeat < 3; repeat++) {
         await page.getByRole("button", { name: action, exact: true }).click();
         await expectSelection(page, value, selected);

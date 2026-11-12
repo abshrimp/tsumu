@@ -1,7 +1,7 @@
 import { build } from "esbuild";
 import { resolve } from "node:path";
 
-/** Real portals, dialog promises, localization and CSS; no server is needed. */
+/** 実際のポータル、ダイアログの Promise、翻訳、CSS を使う。サーバーは要らない。 */
 export async function dialogFocusBundle() {
   return (await build({
     stdin: { contents: `

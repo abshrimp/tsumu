@@ -55,7 +55,7 @@ test("a late comment creation cannot recreate data for a deleted site", async ()
   });
 });
 
-// 実際の API・サイトID検証・SQLite を通し、認証・翻訳・接続だけを差し替える。
+// 実際の API・サイトの ID の検証・SQLite を通し、認証・翻訳・接続だけを差し替える。
 function api(db: Db) {
   class NextResponse extends Response {
     static json(data: unknown, init?: ResponseInit) { return new NextResponse(JSON.stringify(data), init); }
@@ -124,7 +124,7 @@ for (const target of ["thread", "site"] as const) {
       const racingDb: Db = {
         ...db,
         batch: async (statements) => {
-          // Delete after any preflight reads, immediately before the reply write transaction.
+          // 事前の読み取りをすべて終えた後、返信を書き込むトランザクションの直前に削除する。
           assert.equal(intercepted, false);
           intercepted = true;
           if (target === "site") await deleteSite(db, "site");

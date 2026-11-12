@@ -2,11 +2,10 @@ import { decodeHTML } from "entities/decode";
 import { decodeCssEscapes } from "./css-escape";
 
 /**
- * Conservative asset GC planning. This module never writes to storage.
+ * 安全側に倒したアセットの GC の計画。このモジュールは保存先に書き込まない。
  *
- * Tsumu's upload key starts with a base36 millisecond timestamp followed by
- * six hexadecimal characters from a UUID. Unknown/legacy formats are never
- * considered eligible for physical deletion.
+ * Tsumu のアップロードのキーは、36進数のミリ秒の時刻と、それに続く UUID の
+ * 16進数6文字で始まる。形式の分からないキーは、物理的な削除の対象にしない。
  */
 export type GcCandidate = {
   path: string;
@@ -17,12 +16,12 @@ export type GcCandidate = {
 
 export type GcKey = { name: string; bytes?: number | null };
 
-/** Valid timestamps are from a full upload path, not an arbitrary prefix. */
+/** 有効な時刻は、任意の先頭部分ではなく、アップロードのパス全体から読み取ったものに限る。 */
 export function assetUploadedAt(path: string): number | null {
   const match = /^assets\/([0-9a-z]{7,11})([0-9a-f]{6})-[A-Za-z0-9._-]+$/.exec(path);
   if (!match) return null;
   const timestamp = Number.parseInt(match[1], 36);
-  // Milliseconds since 2020; rejecting older/ambiguous keys is intentional.
+  // 2020年以降のミリ秒。それより古いキーや、どちらとも取れるキーは意図的に除外する。
   return Number.isSafeInteger(timestamp) && timestamp >= 1_577_836_800_000
     ? timestamp : null;
 }
@@ -70,9 +69,9 @@ export function planAssetGc(input: GcPlanInput) {
     remainingEligible: Math.max(0, eligible.length - maxDeletes) };
 }
 
-/** Extract literal paths and HTML/CSS/URL-encoded paths from every JSON string.
- * Decode only when escape markers are present; never build an HTML document.
- * False positives retain data; omitted matches would put data at risk.
+/** すべての JSON の文字列から、そのままのパスと、HTML・CSS・URL のエンコードを施したパスを取り出す。
+ * デコードするのはエスケープの印があるときだけで、HTML の文書は組み立てない。
+ * 誤って一致してもデータが残るだけだが、一致を取りこぼすとデータが失われるおそれがある。
  */
 export function extractAssetReferences(raw: string): Set<string> {
   const parsed: unknown = JSON.parse(raw);
@@ -87,21 +86,21 @@ export function extractAssetReferences(raw: string): Set<string> {
       let text = value;
       for (let round = 0; round < 3; round++) {
         for (const match of text.matchAll(re)) paths.add(match[0]);
-        // Preserve the literal match above, then also protect spellings that
-        // browsers decode inside HTML attributes, CSS URLs and query values.
+        // 上の文字どおりの一致は残したうえで、HTML の属性・CSS の URL・クエリの値の中で
+        // ブラウザがデコードする書き方も保護する。
         let decoded = text;
         if (decoded.includes("&")) decoded = decodeHTML(decoded);
         if (decoded.includes("\\")) decoded = decodeCssEscapes(decoded);
         if (decoded.includes("%")) {
           try { decoded = decodeURIComponent(decoded); }
           catch {
-            // Asset keys are ASCII. Recover each valid ASCII escape even when
-            // unrelated text contains a stray percent sign or invalid UTF-8.
+            // アセットのキーは ASCII の文字だけで書かれている。関係の無い文字列に孤立した % や
+            // 不正な UTF-8 が含まれていても、有効な ASCII のエスケープはそれぞれ元に戻す。
             decoded = decoded.replace(/%([0-7][0-9a-f])/gi,
               (_match, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
           }
         }
-        // URL parsing removes ASCII tabs and line breaks even in query values.
+        // URL の解析では、クエリの値の中でも ASCII のタブと改行が取り除かれる。
         decoded = decoded.replace(/[\t\r\n]/g, "");
         if (decoded === text) break;
         text = decoded;
@@ -109,7 +108,7 @@ export function extractAssetReferences(raw: string): Set<string> {
     } else if (Array.isArray(value)) {
       for (const item of value) pending.push(item);
     } else if (value !== null && typeof value === "object") {
-      // Paths in object keys (e.g. imported lookup maps) also retain objects.
+      // オブジェクトのキーにあるパス（取り込んだ対応表など）も、参照として扱う。
       for (const key of Object.keys(value)) {
         pending.push(key, (value as Record<string, unknown>)[key]);
       }

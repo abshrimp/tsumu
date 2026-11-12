@@ -12,19 +12,19 @@ export const dynamic = "force-dynamic";
 /** 接続を保つための空のコメントを送る間隔（プロキシの無通信の切断を避ける） */
 const HEARTBEAT_MS = 25_000;
 const MAX_PENDING_MESSAGES = 32;
-// 文書保存 API の本文上限と同じ。低速な接続ごとに無制限の通知を保持しない。
+// 文書保存 API の本文の上限と同じ値。遅い接続ごとに通知を無制限に溜め込まない。
 const MAX_BUFFERED_BYTES = 64 * 1024 * 1024;
 
 /**
- * WebSocket（Durable Object）が使えないときの、保存の通知の受け取り口（Server-Sent Events）。
- * ほかの人が保存すると、WebSocket と同じ変更通知を送る。
- * 自分の保存（?clientId= と同じ送り主）は送らない
+ * WebSocket（Durable Object）が使えないときに、保存の通知を受け取る口（Server-Sent Events）。
+ * 他の人が保存すると、WebSocket と同じ変更通知を送る。
+ * 自分の保存（?clientId= と同じ送り主のもの）は送らない
  */
 export async function GET(req: Request) {
   const user = await requireAuth("user");
   if (user instanceof NextResponse) return user;
-  // Cloudflare では通知は Durable Object から WebSocket で届き、ここには来ない。
-  // 204 を返すとブラウザは再接続せず、WebSocket の再接続とポーリングで待つ
+  // Cloudflare では、通知は Durable Object から WebSocket で届くため、ここには来ない。
+  // 204 を返すと、ブラウザは SSE に再接続せず、WebSocket の再接続とポーリングで変更を待つ
   if (collabRoomAvailable()) return new Response(null, { status: 204 });
   const params = new URL(req.url).searchParams;
   const siteId = await siteIdOf(params.get("site"));
@@ -45,14 +45,14 @@ export async function GET(req: Request) {
       };
       const overflow = () => {
         cleanup();
-        // 古い差分を捨てて接続し直す。クライアントは再接続時に最新版を照合する。
+        // 古い差分を捨てて接続し直させる。クライアントは再接続のときに最新版と照合する。
         try { controller.error(new Error("Collaboration stream buffer exceeded")); } catch { /* すでに閉じている */ }
       };
       const drain = async () => {
         sending = true;
         try {
           while (!closed && pending.length) {
-            // 通知の順序を保ち、接続後に権限を外された人へ本文を送らない。
+            // 通知の順序を保ちつつ、接続後に権限を外された人には本文を送らない。
             if (!collaborationIdentityAllowed(!!user, authConfigured())) return close();
             if (user && !await isEmailAllowed(user.email)) return close();
             if (closed) return;
@@ -66,7 +66,7 @@ export async function GET(req: Request) {
       };
       const send = (text: string) => {
         if (closed) return;
-        // UTF-8 化の前にも粗い上限を置き、巨大な通知の追加コピーを避ける。
+        // UTF-8 に変換する前にも大まかな上限を設け、巨大な通知を余分にコピーしないようにする。
         if (pending.length >= MAX_PENDING_MESSAGES ||
             text.length + pendingBytes > (controller.desiredSize ?? 0)) return overflow();
         const bytes = encoder.encode(text);

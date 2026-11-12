@@ -27,7 +27,7 @@ async function beginMarker(page: Page, from: number) {
   return point;
 }
 
-// This uses browser-generated touch pointercancel, not just a synthetic event.
+// 作ったイベントだけでなく、ブラウザが生成したタッチの pointercancel を使う。
 test("cancelled touch marker stops, ignores a second pointer, and keeps separate undo steps", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -42,7 +42,7 @@ test("cancelled touch marker stops, ignores a second pointer, and keeps separate
   await sendTouch("touchStart", 0);
   await sendTouch("touchMove", 10);
   await expect(page.locator('.kfe-marker[aria-label="10%"]')).toHaveCount(1);
-  // Unrelated pointer events must neither move/finish the edit nor split its history.
+  // 関係の無いポインターのイベントで、編集を動かしたり終えたりしてはならず、その履歴を分けてもならない。
   await page.locator('.kfe-marker[aria-label="50%"]')
     .dispatchEvent("pointerdown", { pointerId: 999, pointerType: "touch", button: 0, buttons: 1 });
   await page.locator(".kfe-lane").dispatchEvent("pointerdown", {

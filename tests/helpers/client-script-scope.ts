@@ -25,7 +25,7 @@ export function clientScriptFixture(component = false, items: any[] = [
 }
 
 
-/** 実際の編集画面で値を変更し、履歴・再読込を通した文書を書き出す。 */
+/** 実際の編集画面で値を変え、履歴と再読み込みを通した文書を書き出す。 */
 export async function clientScriptBundle(doc: import('../../lib/types').SiteDoc) {
   const { build } = await import('esbuild');
   const { resolve } = await import('node:path');

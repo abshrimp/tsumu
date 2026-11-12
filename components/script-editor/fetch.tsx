@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * データの取得ブロックと、取得したデータの項目・変数名の選び方
+ * データの取得ブロックと、取得したデータの項目や変数名の選び方
  */
 
 import { isEnterKey } from "../../lib/keys";
@@ -39,7 +39,7 @@ import { getLang, tr, trc } from "../../lib/i18n";
 import { Ctx, LoopCtx, ScriptNodeCtx, ScriptOwnerCtx, type FetchPreviewScope } from "./context";
 import { Phrase, TextIn } from "./inputs";
 
-/** テスト実行で明示的に送る。未解決の値を空文字や仮の slug に置き換えない。 */
+/** テスト実行では明示的に送る。解決していない値を、空文字や仮の slug に置き換えない。 */
 export async function fetchWhole(url: string, options: FetchOptions = {}, vars: Vars = {}): Promise<unknown> {
   if (fetchPreviewInputs(url, options, vars).some((input) => input.missing)) {
     throw new Error(tr("Enter test values to continue"));
@@ -62,17 +62,17 @@ export const wholeKey = (st: FetchStep, pageId = useEditor.getState().activePage
   JSON.stringify([session, pageId, sourceKey(scope), st.id, st.url, st.method, st.headers, st.body, st.preview?.fetchedAt]);
 const ownerKey = (stepId: string, pageId: string, scope?: FetchPreviewScope) => JSON.stringify([useEditor.getState().documentSession, pageId, sourceKey(scope), stepId]);
 
-/** 見本を取得したリクエストと、保存先の現在の設定を比べる（見本の更新時刻は除く） */
+/** 見本を取得したときのリクエストと、保存されている現在の設定を比べる（見本の更新時刻は比べない） */
 export const requestKey = (url: string, options: FetchOptions) =>
   JSON.stringify([url.trim(), options.method ?? "GET", options.headers ?? [], options.body ?? ""]);
 export const fetchTestKey = (step: FetchStep, scope: FetchPreviewScope) =>
   JSON.stringify([requestKey(step.url, step), scope.nodeId, scope.localNames]);
 
-/** 時刻のある見本だけが現在の設定で確認済み。未確認の見本もフォールバックには残す。 */
+/** 時刻のある見本だけが、現在の設定で確認済みのもの。確認していない見本も、代わりに使うために残す。 */
 export const hasCurrentSample = (step: FetchStep) => step.preview?.sample !== undefined &&
   typeof step.preview?.fetchedAt === "number" && Number.isFinite(step.preview.fetchedAt) && step.preview.fetchedAt > 0;
 
-/** 設定変更は取得済みの印だけを外し、見本のフォールバックは保持する。 */
+/** 設定を変えたときは、取得済みの印だけを外し、代わりに使う見本は残す。 */
 export function changeFetchRequest(step: FetchStep, patch: FetchOptions & { url?: string }, pageId = useEditor.getState().activePageId, scope?: FetchPreviewScope): FetchStep {
   const next = { ...step, ...patch };
   if (requestKey(step.url, step) !== requestKey(next.url, next)) {
@@ -86,12 +86,12 @@ export function changeFetchRequest(step: FetchStep, patch: FetchOptions & { url?
   return next;
 }
 
-/** 子項目がないリストも含め、参照可能な名前を保持する。 */
+/** 子の項目が無いリストも含め、参照できる名前を残す。 */
 export function fetchPreviewScope(nodeId: string, loops: readonly { fields: string[]; roots?: string[] }[]): FetchPreviewScope {
   return { nodeId, localNames: localVariableNames(loops.flatMap((loop) => [...(loop.roots ?? []), ...loop.fields])) };
 }
 
-/** 画面を閉じても、送信済みの同じ要求を重ねて送らない。別設定の応答は最新だけを採用する。 */
+/** 画面を閉じても、送信済みの同じ要求を重ねて送らない。設定の異なる応答は、最新のものだけを採用する。 */
 const activeRefetches = new Map<string, symbol>();
 const pendingRefetches = new Map<string, Map<string, symbol>>();
 const attemptedRequests = new Map<string, string>();
@@ -108,7 +108,7 @@ const subscribeRequests = (listener: () => void) => {
 };
 const notifyRequests = () => requestListeners.forEach((listener) => listener());
 
-/** 実文書から探す。ドラッグ表示の一時的な除外は含まれない。 */
+/** 実際の文書から探す。ドラッグ表示のための一時的な除外は含まない。 */
 function currentFetch(doc: SiteDoc, pageId: string, id: string, scope: FetchPreviewScope, roots: string[]): FetchStep | undefined {
   const page = doc.pages[pageId];
   if (!page) return undefined;
@@ -123,11 +123,11 @@ function currentFetch(doc: SiteDoc, pageId: string, id: string, scope: FetchPrev
     if (scope.owner && script.id !== scope.owner.scriptId) continue;
     walkSteps(script.steps, (step) => { if (step.id === id && step.kind === "fetch") matches.push(step); });
   }
-  // 同じ所有範囲にも壊れた重複IDがあれば、別ブロックを推測で更新しない。
+  // 同じ持ち主の範囲にも壊れた重複 ID があれば、推測で別のブロックを更新しない。
   return matches.length === 1 ? matches[0] : undefined;
 }
 
-/** 送信の所有者は文書セッション。ブロック・小窓のmount状態には依存しない。 */
+/** 送信を管理するのは文書のセッションで、ブロックや小窓がマウントされているかには左右されない。 */
 export function useRefetch(step: FetchStep, suppliedScope?: FetchPreviewScope) {
   const { pageId, scriptRootIds = [] } = useContext(Ctx);
   const nodeId = useContext(ScriptNodeCtx);
@@ -199,7 +199,7 @@ export function useRefetch(step: FetchStep, suppliedScope?: FetchPreviewScope) {
     error: error?.key === currentKey ? error.message : null, run };
 }
 
-/** 一時入力と送信に使う見本を、文書・ブロック・リクエスト・文脈ごとに共有する。 */
+/** 一時的な入力と、送信に使う見本を、文書・ブロック・リクエスト・文脈ごとに共有する。 */
 function useFetchValues(step: FetchStep, scope: FetchPreviewScope) {
   const { doc, pageId, readOnly } = useContext(Ctx);
   const owner = ownerKey(step.id, pageId, scope);
@@ -215,7 +215,7 @@ function useFetchValues(step: FetchStep, scope: FetchPreviewScope) {
   const samples = variableChoiceSamples(varGroupsAt(doc, pageId, scope.nodeId), scope.localNames);
   const inputs = fetchPreviewInputs(step.url, step, samples);
   const vars: Vars = { ...samples };
-  // 一時入力は今も未解決の項目だけに使う。入力欄が消えた値は最新の見本に従う。
+  // 一時的な入力は、今も解決していない項目にだけ使う。入力欄が消えた値は、最新の見本に従う。
   for (const input of inputs) {
     if (input.missing && Object.hasOwn(values, input.name)) vars[input.name] = values[input.name];
   }
@@ -245,7 +245,7 @@ function FetchValues({ state, busy }: { state: ReturnType<typeof useFetchValues>
   </>;
 }
 
-/** 開くだけでは送らない。右上の更新ボタンだけが明示的な送信操作。 */
+/** 開くだけでは送らない。明示的に送信するのは、右上の更新ボタンだけ。 */
 export function FetchResult({ step, scope, onClose }: { step: FetchStep; scope: FetchPreviewScope; onClose: () => void }) {
   const { busy, error, submitted, resultSource, run } = useRefetch(step, scope);
   const state = useFetchValues(step, scope);
@@ -442,7 +442,7 @@ export function FetchBody({ step }: { step: FetchStep }) {
         disabled={!step.url.trim() || (!hasResult && !busy && (values.missing || values.invalid))}
         onPointerDown={(e) => {
           blockedClick.current = composing.current;
-          // blur で設定が変わっても、「見る」を押し始めた操作を無効化・送信に変えない。
+          // blur で設定が変わっても、「見る」を押し始めた操作を無効にしたり、送信に変えたりしない。
           if (blockedClick.current || ((hasResult || busy) && e.button === 0)) e.preventDefault();
         }}
         onClick={() => {
@@ -481,7 +481,7 @@ interface PathOption {
   value: unknown;
 }
 
-/** 位置の1段分の選択肢（オブジェクトは項目名、リストは「〇番目」と「最後」） */
+/** 位置の1段分の選択肢（オブジェクトなら項目名、リストなら「〇番目」と「最後」） */
 function childOptions(value: unknown): PathOption[] {
   if (Array.isArray(value)) {
     const out: PathOption[] = value
@@ -498,7 +498,7 @@ function childOptions(value: unknown): PathOption[] {
   return [];
 }
 
-/** 中身の分からないリスト（画面を開いてから値が決まるもの）の位置の選択肢 */
+/** 中身の分からないリスト（画面を開いてから値が決まるもの）での位置の選択肢 */
 const UNKNOWN_ITEMS: PathOption[] = [
   { key: "0", label: tr("#{p1}", { p1: 1 }), value: undefined },
   { key: "-1", label: tr("Last"), value: undefined },
@@ -506,7 +506,7 @@ const UNKNOWN_ITEMS: PathOption[] = [
 
 export const isNested = (v: unknown) => v != null && typeof v === "object";
 
-/** A list containing one string must not look like that string's scalar value. */
+/** 文字列を1つだけ含むリストを、その文字列の値そのもののように見せない。 */
 function PathValuePreview({ value }: { value: unknown }) {
   return (
     <span className="se-pm-val">
@@ -519,8 +519,8 @@ function PathValuePreview({ value }: { value: unknown }) {
 /**
  * 「取得したデータの［…］」「リストの［…］」の位置を選ぶメニュー。
  * 項目を選ぶと決まり、「›」で中の項目へ進む。
- * mode: any = どこでも / list = リスト（リスト）だけ / item = リストの何番目か（とその中）/
- *       field = 1件の中の項目（入れ子も可。比べられる値＝文字・数値と、文字や数値のリストだけ選べる）
+ * mode: any = どこでも / list = リストだけ / item = リストの何番目か（とその中）/
+ *       field = 1件の中の項目（入れ子も可。選べるのは比べられる値 = 文字・数値と、文字や数値のリストだけ）
  */
 export function PathMenu({
   root,
@@ -539,14 +539,14 @@ export function PathMenu({
   path: string;
   onChange: (path: string) => void;
   mode: "any" | "list" | "item" | "field";
-  /** Optional source-picker configuration. */
+  /** 元にする値を選ぶときの設定（任意）。 */
   placeholder?: string;
   ariaLabel?: string;
   allowRoot?: boolean;
   portalZIndex?: number;
-  /** Hide the current transform block\'s unpublished output at the root. */
+  /** 現在の値の加工のブロックがまだ出力していない値を、最上位から隠す。 */
   excludeRootKey?: string;
-  /** Filter predicates can inspect complete JSON objects without changing other pickers. */
+  /** 絞り込みの条件では、他の選択欄を変えずに、JSON のオブジェクト全体を調べられるようにする。 */
   allowContainers?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -566,9 +566,9 @@ export function PathMenu({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
-    // A click can trigger programmatic scrolling of the canvas or focused
-    // block. Only close for user scrolling outside the menu, not scroll
-    // events emitted while a picker is opening.
+    // クリックによって、キャンバスやフォーカスしたブロックがプログラムでスクロールされることがある。
+    // 閉じるのは、メニューの外で利用者がスクロールしたときだけで、
+    // 選択欄を開く途中で発生したスクロールのイベントでは閉じない。
     const onUserScroll = (e: Event) => {
       if (!menuRef.current?.contains(e.target as Node)) setOpen(false);
     };
@@ -584,7 +584,7 @@ export function PathMenu({
     };
   }, [open]);
 
-  // 見本が無ければ位置を文字で入力する（リストの何番目かは選べる）
+  // 見本が無ければ、位置を文字で入力する（リストの何番目かは選べる）
   if (root === undefined && mode !== "item") {
     return (
       <TextIn
@@ -603,13 +603,13 @@ export function PathMenu({
   }
 
   const known = root !== undefined;
-  // Building child options (often thousands of script variables) is only
-  // necessary for an open menu, not every closed dropdown on initial render.
+  // 子の選択肢を作る処理（スクリプトの変数が数千になることも多い）は、メニューを開いたときだけ行い、
+  // 最初の描画で閉じたままのドロップダウンすべてに対しては行わない。
   const levelValue = open ? (at ? digPath(root, at) : root) : undefined;
   const rows = !open ? [] : (!known ? (at ? [] : UNKNOWN_ITEMS) : childOptions(levelValue))
     .filter((option) => at || option.key !== excludeRootKey);
   const join = (key: string) => (at ? `${at}.${key}` : key);
-  /** 文字・数値だけのリスト（比べるときは「,」でつないだ文字になる） */
+  /** 文字と数値だけのリスト（比べるときは「,」でつないだ文字列になる） */
   const primitiveList = (v: unknown) =>
     Array.isArray(v) && v.every((x) => x == null || typeof x !== "object");
   const canPick = (v: unknown) =>
@@ -646,8 +646,8 @@ export function PathMenu({
   const chooseManual = () => {
     const entered = manual.trim();
     if (!entered) return;
-    // When browsing an array, a bare zero-based number selects that index.
-    // Full paths remain available for unresolved or dynamic data.
+    // 配列を見ているときは、0 から始まる番号だけを入力すれば、その番号の要素を選べる。
+    // 解決していないデータや、動的なデータには、完全な位置もそのまま使える。
     const direct = Array.isArray(levelValue) && /^(0|[1-9][0-9]*)$/.test(entered)
       ? join(entered) : entered;
     pick(direct);
@@ -752,17 +752,17 @@ export function PathMenu({
   );
 }
 
-/** 中にリスト（リスト）があるか */
+/** 中にリストがあるか */
 function findsList(value: unknown, depth = 0): boolean {
   if (Array.isArray(value)) return true;
   if (!isNested(value) || depth > 4) return false;
   return Object.values(value as object).some((v) => findsList(v, depth + 1));
 }
 
-/** 上書きできない変数名（ページのURLの slug、リストの各要素の 値） */
+/** 上書きできない変数名（ページの URL の slug、リストの各要素の「値」、ループ） */
 export const RESERVED_VARS = new Set(["slug", ITEM_VALUE, "ループ"]);
 
-/** 変数名の入力（同じ名前ならその変数を上書きする。名前を変えると、使っている箇所も書き換える） */
+/** 変数名の入力欄（同じ名前ならその変数を上書きする。名前を変えると、使っている箇所も書き換える） */
 export function VarNameIn({
   stepId,
   value,
@@ -776,14 +776,14 @@ export function VarNameIn({
   const [text, setText] = useState(value);
   const [open, setOpen] = useState(false);
   const [index, setIndex] = useState(0);
-  // The workspace supplies one shared producer index for every variable name
-  // block. In independent previews or tests, retain the usual scan fallback.
+  // ワークスペースは、すべての変数名のブロックに、値を作る側の共通の索引を渡す。
+  // 独立したプレビューやテストでは、文書を走査して求める。
   const others = variableIndex || readOnly ? null : dataVarNames(doc, pageId, stepId);
   const hasOther = (name: string) =>
     variableIndex ? variableIndex.hasOther(name, stepId) : (others?.has(name) ?? false);
   const overwrite = !!value && hasOther(value) && !RESERVED_VARS.has(value);
-  // Sorting thousands of choices in every closed input made opening a large
-  // script workspace quadratic. Compute suggestions only while editing.
+  // 閉じている入力欄のすべてで数千の候補を並べ替えていたため、大きなスクリプトの
+  // ワークスペースを開く処理量が2乗に増えていた。候補は編集中だけ計算する。
   const names = open ? (variableIndex ? variableIndex.names : [...(others ?? [])])
     .filter((name) => !RESERVED_VARS.has(name) && hasOther(name))
     .sort((a, b) => a.localeCompare(b, getLang())) : [];
@@ -800,9 +800,9 @@ export function VarNameIn({
       setText(value);
       return;
     }
-    // slug・値 は特別な意味があるため上書きしない
+    // slug と「値」は特別な意味を持つため、上書きしない
     const next = RESERVED_VARS.has(name) ? uniqueVarName(doc, pageId, name, stepId) : name;
-    // 元の名前をほかのブロックも作っているなら、使っている箇所は書き換えない
+    // 元の名前を他のブロックも作っている場合は、使っている箇所を書き換えない
     renameVar(stepId, hasOther(value) ? "" : value, next);
   };
   const place = () => {

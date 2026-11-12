@@ -6,12 +6,12 @@ export function parseAllowedEmails(raw: string | undefined): string[] {
   return (raw ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 }
 
-/** 環境変数で固定的に許可されたメールアドレス */
+/** 環境変数で常に許可しているメールアドレス */
 export function allowedEmails(): string[] {
   return parseAllowedEmails(envVar("ALLOWED_EMAILS"));
 }
 
-/** セッション・接続の作成時だけでなく、利用時にも現在の許可を確かめる。 */
+/** セッションや接続を作るときだけでなく、使うたびに現在の許可を確かめる。 */
 export async function isEmailAllowed(
   email: unknown,
   fixed = allowedEmails(),
@@ -28,9 +28,9 @@ export async function isEmailAllowed(
 }
 
 /**
- * ログインを許可するメールアドレスの動的リスト（D1に保存）。
- * 環境変数 ALLOWED_EMAILS の固定リストに追加で適用される。
- * auth.ts 経由で middleware からも読み込まれるため、Node.js 専用の機能は使わない。
+ * ログインを許可するメールアドレスの動的なリスト（D1 に保存）。
+ * 環境変数 ALLOWED_EMAILS の固定のリストに加えて適用する。
+ * auth.ts を経由して middleware からも読み込まれるため、Node.js 専用の機能は使わない。
  */
 
 /** 追加で許可したメールアドレスの一覧（追加した順） */
@@ -50,7 +50,7 @@ export async function addAllowedEmail(email: string): Promise<void> {
   });
 }
 
-/** 削除。存在しなければ false */
+/** 削除する。存在しなければ false を返す */
 export async function removeAllowedEmail(email: string): Promise<boolean> {
   const db = await getDb();
   const rs = await db.execute({
@@ -60,7 +60,7 @@ export async function removeAllowedEmail(email: string): Promise<boolean> {
   return rs.rowsAffected > 0;
 }
 
-/** サインイン判定用（未設定・失敗は空 = 環境変数の固定リストのみ有効） */
+/** ログインの判定に使う（未設定や失敗のときは空で、環境変数の固定のリストだけが有効） */
 export async function readAllowlist(): Promise<string[]> {
   if (!dbConfigured()) return [];
   try {

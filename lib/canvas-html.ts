@@ -3,14 +3,14 @@
 import DOMPurify from "dompurify";
 
 /**
- * キャンバスに表示するカスタムコード・アイコンの HTML を無害にする。
- * キャンバスはエディタと同じオリジンなので、そのまま差し込むと、編集データ（取り込んだデータ・
- * 公開履歴から戻した版・AI の提案）に書かれた onerror などがログイン中の人の権限で動いてしまう。
- * 書き出したサイトでは、書いたとおりに動く（ここで消すのは表示だけ）
+ * キャンバスに表示するカスタムコードとアイコンの HTML を無害にする。
+ * キャンバスはエディタと同じオリジンのため、そのまま差し込むと、編集データ（取り込んだデータ・
+ * 公開の履歴から戻した版・AI の提案）に書かれた onerror などが、ログイン中の人の権限で動いてしまう。
+ * 書き出したサイトでは、書いたとおりに動く（ここで取り除くのは表示用の HTML だけ）
  */
 
-/** 埋め込みの iframe は残すが、エディタの画面を移動させたりはさせない */
-// Never combine allow-scripts with allow-same-origin for untrusted custom HTML.
+/** 埋め込みの iframe は残すが、エディタの画面を移動させるなどの操作はさせない */
+// 信頼できないカスタムの HTML では、allow-scripts と allow-same-origin を決して組み合わせない。
 const IFRAME_SANDBOX = "allow-scripts allow-popups allow-forms allow-presentation";
 
 let purify: ReturnType<typeof DOMPurify> | null = null;
@@ -30,7 +30,7 @@ const cache = new Map<string, string>();
 const CACHE_LIMIT = 500;
 
 export function canvasHtml(html: string): string {
-  // ブラウザの外（サーバーでの描画）では何も出さない（無害にできないものを出さない）
+  // ブラウザの外（サーバーでの描画）では何も出さない（無害にできないものは出さない）
   if (typeof window === "undefined") return "";
   let out = cache.get(html);
   if (out === undefined) {

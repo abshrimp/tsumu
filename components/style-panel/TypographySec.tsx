@@ -43,7 +43,7 @@ import { tr, trc } from "../../lib/i18n";
 import { differsFrom } from "./BackgroundSec";
 import { Sec } from "./shared";
 
-/* ---------- フォント（カスタムGoogle Fonts対応） ---------- */
+/* ---------- フォント（追加した Google Fonts にも対応） ---------- */
 
 function FontPicker({ inheritedValue }: { inheritedValue: string }) {
   const insp = useInspector();
@@ -63,13 +63,13 @@ function FontPicker({ inheritedValue }: { inheritedValue: string }) {
     const request = pending.begin();
     setError(null);
     try {
-      // 利用可能なウェイトを実際のcss2応答から解析する
-      //（css2は存在しないウェイトを黙って間引くが、next/fontは厳格なため）
+      // 使えるウェイトを、実際の css2 の応答から読み取る
+      //（css2 は存在しないウェイトを黙って省くが、next/font は厳格に扱うため）
       const enc = encodeURIComponent(name).replace(/%20/g, "+");
       const tryFetch = async (axis: string): Promise<string | null> => {
         if (!request.current()) return null;
         try {
-          // css2のエラー応答はCORSヘッダーを持たず例外になる
+          // css2 のエラーの応答には CORS のヘッダーが無いため、例外になる
           const res = await fetch(
             `https://fonts.googleapis.com/css2?family=${enc}${axis}&display=swap`
           );
@@ -198,7 +198,7 @@ export function inheritedPropValue(
     if (value) return value;
     parent = findParentOf(doc, parent.id);
   }
-  // ページ直下まで来たら、そのページの body の設定を受け継ぐ
+  // ページの直下まで来たら、そのページの body の設定を受け継ぐ
   if (parent?.kind === "page") {
     const body = doc.pages[parent.id]?.bodyStyles;
     return resolveStyleMap(body, breakpoint, "default")[prop] || undefined;
@@ -206,7 +206,7 @@ export function inheritedPropValue(
   return undefined;
 }
 
-/** 文字の入力欄（プレースホルダーを出せるもの）か、それを中に持つ要素か */
+/** 文字の入力欄（プレースホルダーを表示できるもの）か、それを中に持つ要素か */
 function hasTextField(doc: SiteDoc, nodeId: string): boolean {
   const n = doc.nodes[nodeId];
   if (!n) return false;
@@ -225,13 +225,13 @@ export function TypographySec({ node }: { node: DocNode }) {
   const breakpoint = useEditor((s) => s.breakpoint);
   const styleState = useEditor((s) => s.styleState);
   const updateTargets = useEditor((s) => s.updateTargets);
-  // Choosing an off state is not a reset: hover/focus may need to override
-  // the normal state's styling explicitly instead of inheriting it again.
+  // オフの状態を選ぶのはリセットではない。ホバーやフォーカスでは、通常時のスタイルを
+  // 再び受け継ぐのではなく、明示的に上書きする必要がある場合がある。
   const explicitDefault = (prop: string) => isInitialValue(prop, insp.get(prop).baseline)
     ? null : initialValueOf(prop) ?? null;
   const clamp = !isInitialValue("WebkitLineClamp", insp.get("WebkitLineClamp").value);
-  // Removing the local clamp must also override one inherited from a wider
-  // breakpoint. display has element-specific defaults, not a global clear value.
+  // ここでの行数の制限を外すときは、より大きいブレークポイントから受け継いだ制限も
+  // 打ち消す必要がある。display の既定値は要素ごとに異なり、全体共通の解除の値は無い。
   const unclampedDisplay = insp.get("display").baseline === "-webkit-box" ? "block" : null;
   const nowrap = insp.get("whiteSpace").value === "nowrap";
   const deco = insp.get("textDecoration").value;
@@ -272,7 +272,7 @@ export function TypographySec({ node }: { node: DocNode }) {
               { value: "6", label: tr("Heading 6"), icon: <Heading6 size={14} /> },
             ]}
             onChange={(v) =>
-              // 複数選択中は、選択中のテキスト要素すべての見出しレベルを変える
+              // 複数を選択している間は、選択中のすべてのテキスト要素の見出しレベルを変える
               updateTargets(node.id, (n) => {
                 if (n.text) n.text = { ...n.text, heading: +v };
               })
@@ -450,7 +450,7 @@ export function TypographySec({ node }: { node: DocNode }) {
             onChange={(v) => {
               if (v === "wrap") {
                 const props: Record<string, string | null> = {
-                  // 大きい画面の「なし」を打ち消すときは、文字要素の既定（改行を保つ）に戻す
+                  // 大きい画面の「なし」を打ち消すときは、文字の要素の既定値（改行を保つ）に戻す
                   whiteSpace: explicitDefault("whiteSpace") && node.text ? "pre-wrap" : explicitDefault("whiteSpace"),
                   WebkitLineClamp: explicitDefault("WebkitLineClamp"),
                   WebkitBoxOrient: explicitDefault("WebkitBoxOrient"),

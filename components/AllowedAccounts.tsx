@@ -15,12 +15,12 @@ interface AllowedUsers {
 }
 
 /**
- * ログインできるアカウント（全サイト共通の設定。ホームの設定に置く）。
- * エディタの部品（store）を読み込まないので、ホームからも使える
+ * ログインできるアカウント（全サイト共通の設定。ホームの設定画面に置く）。
+ * エディタの部品（store）を読み込まないため、ホームからも使える
  */
 export default function AllowedAccounts() {
   const [users, setUsers] = useState<AllowedUsers | null>(null);
-  /** 一覧自体が使えない（未認証構成・保存先未設定など） */
+  /** 一覧そのものが使えない（認証を設定していない構成や、保存先が未設定の場合など） */
   const [fatal, setFatal] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [email, setEmail] = useState("");

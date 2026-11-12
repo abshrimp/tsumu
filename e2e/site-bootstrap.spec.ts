@@ -8,7 +8,7 @@ let bundle: string;
 const css = readFileSync(resolve("app/globals.css"), "utf8");
 test.beforeAll(async () => { bundle = await siteBootstrapBundle(true); });
 
-/** Exercise the real page and editor while controlling only request completion order. */
+/** リクエストが完了する順序だけを制御し、実際のページとエディタを動かす。 */
 async function prepare(page: Page, { strict = true, cached = false, localSite = false } = {}) {
   await page.route("**/sites/bootstrap-test", (route) => route.fulfill({
     contentType: "text/html", body: '<html><head></head><body><div id="app"></div></body></html>',
@@ -61,7 +61,7 @@ async function prepare(page: Page, { strict = true, cached = false, localSite = 
     }
     w.WebSocket = w.EventSource = OfflineTransport;
   }, { strict, cached, localSite });
-  // Seed a cache in the actual format before the editor's dynamic import.
+  // エディタの動的な import より前に、実際の形式でキャッシュを用意する。
   await page.addScriptTag({ content: bundle });
   if (cached) {
     const raw = await page.evaluate(() => {
@@ -88,7 +88,7 @@ async function prepare(page: Page, { strict = true, cached = false, localSite = 
     });
     w.loaderObserver.observe(document.getElementById("app"), { childList: true, subtree: true });
   });
-  // Advance the state only after the initial entrance animation ends.
+  // 最初の表示のアニメーションが終わってから、状態を進める。
   await page.waitForTimeout(420);
   await page.evaluate(() => { (window as any).startsBeforeImport = (window as any).loaderStarts; });
 }
@@ -199,7 +199,7 @@ for (const phase of ["site", "module", "document"] as const) {
     await page.waitForTimeout(100);
     await expect(page.locator(".boot, [data-bootstrap-document]")).toHaveCount(0);
     expect(await page.evaluate(() => (window as any).bootstrap.docRequests)).toBe(phase === "document" ? 1 : 0);
-    // Reopening the same route completes a new bootstrap normally.
+    // 同じルートを開き直すと、新しい起動処理が通常どおり完了する。
     await page.evaluate(() => (window as any).mountBootstrap());
     await expect(page.locator("[data-bootstrap-document]")).toHaveText("Saved server document");
     await expect(page.locator(".boot")).toHaveCount(0);

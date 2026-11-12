@@ -1,6 +1,6 @@
 /**
- * Script-editor clipboard data. Copy only selection roots: a selected parent
- * already includes its children, and a selected script includes all its steps.
+ * スクリプトエディタのクリップボードのデータ。コピーするのは選択の根元だけ。
+ * 親を選択すれば子も含まれ、スクリプトを選択すればそのすべての手順が含まれる。
  */
 import { cloneSteps, scriptUid, type PageScript } from "../../lib/script";
 import type { ScriptStep } from "../../lib/types";
@@ -77,7 +77,7 @@ function insertionAfterSelection(scripts: PageScript[], selected: readonly strin
   return null;
 }
 
-/** A paste is one undoable document edit, with fresh IDs for nested blocks. */
+/** 貼り付けは、1回で元に戻せる文書の編集として行い、入れ子のブロックには新しい ID を振る。 */
 export function pasteScriptBlocks(
   scripts: PageScript[],
   selected: readonly string[],

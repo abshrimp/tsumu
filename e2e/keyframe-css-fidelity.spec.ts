@@ -21,12 +21,12 @@ for (const item of cases) {
     const value = () => page.locator("#motion-probe").evaluate((element, property) => getComputedStyle(element).getPropertyValue(property), item.property);
     await expect.poll(value).toBe(item.expected);
     await expect(page.locator(".kfe-modal")).toBeVisible();
-    // The real editor parses CSS when it opens and serializes the visual state on Apply.
+    // 実際のエディタは、開いたときに CSS を読み、「適用」で画面の状態を直列化する。
     await page.getByRole("button", { name: "適用", exact: true }).click();
     await expect(page.locator(".kfe-modal")).toHaveCount(0);
     await expect.poll(value).toBe(item.expected);
     await page.locator("#reopen").click();
-    // Going through CSS mode and back must not accumulate or reorder declarations either.
+    // CSS のモードに行って戻っても、宣言が溜まったり、並びが変わったりしてはならない。
     await page.locator('[data-tip="CSSで編集"]').click();
     await page.locator('[data-tip="CSSで編集"]').click();
     await expect(page.locator(".kfe-lane")).toBeVisible();

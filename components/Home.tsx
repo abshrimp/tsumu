@@ -48,7 +48,7 @@ import {
   type SiteRecord,
 } from "../lib/sites";
 
-/** サイトの一覧をどこに保存しているか（server = D1 / local = このブラウザ） */
+/** サイトの一覧をどこに保存しているか（server = D1、local = このブラウザ） */
 type Store = "server" | "local";
 
 /* ---------- 保存先とのやりとり ---------- */
@@ -78,7 +78,7 @@ function localDuplicateError() {
   return new Error(tr("Could not duplicate the site. Check your browser's storage space and settings, then try again."));
 }
 
-/** サイトの編集データ（ブラウザ保存）を、新しいサイトへ写す。元に無ければ新しいサイトと同じく作る */
+/** サイトの編集データ（ブラウザ内の保存）を新しいサイトへ写す。元に無ければ、新しいサイトと同じく作る */
 async function copyLocalDoc(from: string, to: string, name: string): Promise<void> {
   const raw = await readBrowserDoc(from);
   let data = raw;
@@ -90,21 +90,21 @@ async function copyLocalDoc(from: string, to: string, name: string): Promise<voi
   if (!await createBrowserDoc(to, data)) throw localDuplicateError();
 }
 
-/** サイトを消したときに、このブラウザに残っている保存も消す */
+/** サイトを削除したときに、このブラウザに残っている保存も消す */
 async function forgetLocal(id: string): Promise<void> {
   await deleteBrowserDoc(id);
   for (const key of SITE_SCOPED_KEYS) {
     try {
       window.localStorage.removeItem(siteKey(key, id));
     } catch {
-      // Document removal is committed; UI preference cleanup is best effort.
+      // 文書の削除は確定している。画面の設定の後片付けは、できる範囲で行えばよい。
     }
   }
 }
 
 /* ---------- 表示の部品 ---------- */
 
-/** カードの「…」メニュー（エディタの部品を読み込まないよう、ホーム用に小さく作る） */
+/** カードの「…」メニュー（エディタの部品を読み込まないよう、ホーム用に小さく作ったもの） */
 function CardMenu({ items }: { items: { label: string; icon: ReactNode; danger?: boolean; onSelect: () => void }[] }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -263,13 +263,13 @@ function SiteDialog({
   onClose: () => void;
   onSave: (input: SiteInput) => Promise<void>;
 }) {
-  // 複製では公開先を写さない（同じリポジトリへ2つのサイトから公開してしまわないように）
+  // 複製では公開先を写さない（2つのサイトから同じリポジトリへ公開してしまわないため）
   const [form, setForm] = useState<FormValue>(() =>
     copyOf ? { ...toForm(null), name: tr("{name} copy", { name: copyOf.name }) } : toForm(site)
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // 新規作成では公開先を畳んでおく（あとからでも設定できる）
+  // 新規作成では公開先の欄を畳んでおく（後からでも設定できる）
   const [destOpen, setDestOpen] = useState(!!site);
   const set = (k: keyof FormValue) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -284,7 +284,7 @@ function SiteDialog({
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
-    // 送る前に同じ決まりで確かめる（サーバーでも確かめ直す）
+    // 送る前に、サーバーと同じ規則で確かめる（サーバーでも確かめ直す）
     const checked = normalizeSiteInput(form, { name: "", ...emptyDest() });
     if (!checked.ok) {
       setError(tr(checked.error));
@@ -456,7 +456,7 @@ export default function Home() {
   const [sites, setSites] = useState<SiteRecord[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  /** 開いているダイアログ（"new" = 新しいサイト / サイト = その設定 / copy = そのサイトの複製） */
+  /** 開いているダイアログ（"new" = 新しいサイト、サイト = その設定、copy = そのサイトの複製） */
   const [dialog, setDialog] = useState<"new" | SiteRecord | { copy: SiteRecord } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const importFileInput = useRef<HTMLInputElement>(null);
@@ -512,9 +512,9 @@ export default function Home() {
     }
   }, [store]);
 
-  // ホーム画面のどこに落としても受け取る。通常のテキスト/リンクのドラッグは妨げない。
+  // ホーム画面のどこにドロップしても受け取る。通常のテキストやリンクのドラッグは妨げない。
   useEffect(() => {
-    // Browser-only drag-and-drop; lightweight test window shims may not implement EventTarget.
+    // ドラッグ＆ドロップはブラウザ専用。テスト用の簡易な window には EventTarget が無い場合がある。
     if (typeof window.addEventListener !== "function" || typeof window.removeEventListener !== "function") return;
     let depth = 0;
     const hasFiles = (event: DragEvent) =>
@@ -544,7 +544,7 @@ export default function Home() {
     };
     const onDrop = (event: DragEvent) => {
       if (!hasFiles(event)) return;
-      event.preventDefault(); // 未対応ファイルでもブラウザのファイル表示への遷移を防ぐ
+      event.preventDefault(); // 未対応のファイルでも、ブラウザがファイルを表示するページへ移らないようにする
       const file = event.dataTransfer?.files[0];
       clear();
       if (file && store && !importActive.current) void runFileImport(file);
@@ -579,7 +579,7 @@ export default function Home() {
     if (store === "server") {
       const data = await api<{ site: SiteRecord }>("/api/sites", { method: "POST", body: JSON.stringify(input) });
       id = data.site.id;
-      // サーバーには登録済みなので、ブラウザに置けなくてもエディタで初期データを作れる。
+      // サーバーには登録済みのため、ブラウザに置けなくても、エディタで初期データを作れる。
       await seedDoc(id, name).catch(() => false);
     } else {
       id = newSiteId();
@@ -601,7 +601,7 @@ export default function Home() {
     window.location.href = sitePath(id);
   };
 
-  /** サイトを複製する（開かずに、一覧のいちばん上に足す） */
+  /** サイトを複製する（開かずに、一覧の先頭に追加する） */
   const duplicate = async (src: SiteRecord, input: SiteInput) => {
     let site: SiteRecord;
     let localSites: SiteRecord[] | undefined;
@@ -671,7 +671,7 @@ export default function Home() {
         await api(`/api/sites/${encodeURIComponent(site.id)}`, { method: "DELETE" });
       } else {
         try {
-          // 削除記録が保存できるまでは一覧も内容も変更しない。確定後の掃除は失敗しても取り消さない。
+          // 削除の記録を保存できるまでは、一覧も内容も変更しない。確定した後の片付けは、失敗しても取り消さない。
           await withLocalSiteListLock(() => deleteLocalSite(site.id));
         } catch {
           throw localSaveError();

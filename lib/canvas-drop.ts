@@ -1,7 +1,7 @@
 import { collectSubtreeIds, indexParents, type ParentRef } from "./store";
 import type { Component, SiteDoc } from "./types";
 
-/** 空白への移動は、描画ルート数ではなく移動先の子要素の末尾に挿入する。 */
+/** 何もない所への移動では、描画しているルートの数ではなく、移動先の子要素の末尾に挿入する。 */
 export function canvasFallbackDrop(
   doc: SiteDoc,
   editingComp: Component | null | undefined,
@@ -16,7 +16,7 @@ export function canvasFallbackDrop(
   return { parent, index: children?.length ?? 0 };
 }
 
-/** The movement gesture is cancelled when its document changes. Build each index on first use. */
+/** 文書が変わると移動の操作は取り消される。それぞれの索引は、最初に使うときに作る。 */
 export function canvasMoveTargets(doc: SiteDoc, dragIds: readonly string[]) {
   let excluded: Set<string> | undefined;
   let parents: ReturnType<typeof indexParents> | undefined;

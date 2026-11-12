@@ -6,8 +6,8 @@ import { resolve } from "node:path";
 import { transformSync } from "esbuild";
 import type { ScriptEditorLatest } from "../components/ScriptEditor";
 
-// Model capture -> focused control -> bubble, which a single EventTarget
-// cannot reproduce. Execute the real hook; browser tests cover React and focus.
+// capture → フォーカスのある操作部品 → bubble の流れを再現する。1つの EventTarget では
+// これを再現できない。実際のフックを実行し、React とフォーカスはブラウザのテストで確かめる。
 function mount() {
   const listeners: { type: string; handler: (event: Event) => void; capture: boolean }[] = [];
   const cleanups: (() => void)[] = [];

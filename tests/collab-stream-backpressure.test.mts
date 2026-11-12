@@ -62,7 +62,7 @@ test("an unread stream is bounded by UTF-8 bytes and releases its queued data on
   const response = await h.GET(new Request("https://editor.example/api/collab/events?site=site", { signal: abort.signal }));
   const reader = response.body!.getReader();
   await reader.read();
-  const large = "あ".repeat(4 * 1024 * 1024); // 12 MiB of UTF-8, only 4 MiB in code units.
+  const large = "あ".repeat(4 * 1024 * 1024); // UTF-8 では 12 MiB だが、コード単位では 4 MiB にすぎない。
   for (let i = 0; i < 6; i++) {
     h.emit(large);
     await tick();

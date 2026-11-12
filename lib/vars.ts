@@ -1,7 +1,7 @@
 /**
- * 変数テンプレート: "{name}" と "[slug]" を値に置き換える。
- * 「\{」は変数ではなく文字の「{」として扱う（\{name} → {name}）。
- * 生成サイトにも同等のランタイム（lib/vars.ts）が出力される。
+ * 変数のテンプレート: "{name}" と "[slug]" を値に置き換える。
+ * 「\{」は変数ではなく、文字の「{」として扱う（\{name} → {name}）。
+ * 生成したサイトにも、同じ働きのランタイム（lib/vars.ts）が出力される。
  */
 
 import { NAVIGATION_RUNTIME } from "./url-policy";
@@ -14,7 +14,7 @@ const TOKEN_RE = /\\\{|\{([^{}\s"'<>`]+)\}|\[slug\]/g;
 const ESCAPED_BRACE = "\\{";
 
 /**
- * vars にこのキーがあれば「\{」を「{」に戻さずに残す
+ * vars にこのキーがあれば、「\{」を「{」に戻さずに残す
  * （画面上でもう一度 {変数} を置き換える文字を作るとき。最後の置き換えで「{」に戻る）
  */
 export const KEEP_ESCAPES = "\u0000keepEscapes";
@@ -22,8 +22,8 @@ export const KEEP_ESCAPES = "\u0000keepEscapes";
 export type Vars = Record<string, unknown>;
 
 /**
- * 変数の値を取り出す。"images.0" や "meta.createdAt" のように
- * 「.」で配列の何番目・入れ子の項目をたどれる（配列の "-1" は最後の要素）
+ * 変数の値を取り出す。"images.0" や "meta.createdAt" のように、
+ * 「.」で配列の何番目かや、入れ子の項目をたどれる（配列の "-1" は最後の要素）
  */
 export function lookupVar(vars: Vars, name: string): unknown {
   const owns = (value: object, key: string | number) =>
@@ -44,7 +44,7 @@ export function varText(v: unknown): string {
   return formatValueText(v);
 }
 
-/** 通常の置換（未定義は空文字） */
+/** 通常の置換（未定義なら空文字） */
 export function interpolate(template: string, vars: Vars): string {
   return template.replace(TOKEN_RE, (m, name) => {
     if (m === ESCAPED_BRACE) return vars[KEEP_ESCAPES] ? m : "{";
@@ -52,7 +52,7 @@ export function interpolate(template: string, vars: Vars): string {
   });
 }
 
-/** URL用の置換（値をencodeURIComponent。先頭の変数がURLそのもの（https:// や / で始まる）ならそのまま使う） */
+/** URL 用の置換（値を encodeURIComponent する。先頭の変数が URL そのもの（https:// や / で始まる）なら、そのまま使う） */
 export function interpolateUrl(template: string, vars: Vars): string {
   return template.replace(TOKEN_RE, (m, name, at: number) => {
     if (m === ESCAPED_BRACE) return vars[KEEP_ESCAPES] ? m : "{";
@@ -61,7 +61,7 @@ export function interpolateUrl(template: string, vars: Vars): string {
   });
 }
 
-/** 値がURLそのものか（リンク先の先頭に置いた変数をエンコードせずに使う。// や data:text/html などは除く） */
+/** 値が URL そのものか（リンク先の先頭に置いた変数を、エンコードせずに使う。// や data:text/html などは除く） */
 function isWholeUrl(v: string): boolean {
   return (
     /^(?:https?:|mailto:|tel:|data:image\/(?:png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\.microsoft\.icon)[;,])/i.test(v) ||
@@ -71,8 +71,8 @@ function isWholeUrl(v: string): boolean {
 }
 
 /**
- * JSON の本文用の置換。文字列（"…"）の中の {変数} は値を JSON 用にエスケープした文字に、
- * 文字列の外の {変数} はJSONに従って値またはリストとして挿入する（無ければ null）
+ * JSON の本文用の置換。文字列（"…"）の中の {変数} は、値を JSON 用にエスケープした文字にし、
+ * 文字列の外の {変数} は、JSON として値かリストを挿入する（無ければ null）
  */
 export function interpolateJson(template: string, vars: Vars): string {
   let out = "";
@@ -90,9 +90,9 @@ export function interpolateJson(template: string, vars: Vars): string {
     last = at + m[0].length;
     if (m[0] === ESCAPED_BRACE) {
       if (inString) {
-        // A valid JSON string writes an escaped backslash as "\\\\". The
-        // token matcher consumes its final slash, leaving an invalid "\\{"
-        // escape unless its paired slash is removed as well.
+        // 正しい JSON の文字列では、エスケープしたバックスラッシュを "\\\\" と書く。
+        // トークンの照合がその最後のスラッシュを消費すると、不正な "\\{" のエスケープが残るため、
+        // 対になるスラッシュも一緒に取り除く。
         let trailingSlashes = 0;
         while (trailingSlashes < chunk.length &&
           chunk[chunk.length - trailingSlashes - 1] === "\\") trailingSlashes++;
@@ -107,17 +107,17 @@ export function interpolateJson(template: string, vars: Vars): string {
   return out + template.slice(last);
 }
 
-/** テンプレートが置き換える部分（変数・文字としての「{」）を含むか */
+/** テンプレートが、置き換える部分（変数や、文字としての「{」）を含むか */
 export function hasVars(template: string | undefined | null): boolean {
   if (!template) return false;
   TOKEN_RE.lastIndex = 0;
   const found = TOKEN_RE.test(template);
-  // matchAll などは lastIndex の位置から探し始めるため戻しておく
+  // matchAll などは lastIndex の位置から探し始めるため、0 に戻しておく
   TOKEN_RE.lastIndex = 0;
   return found;
 }
 
-/** テンプレート中の変数名を列挙（[slug] は "slug"） */
+/** テンプレートの中の変数名を列挙する（[slug] は "slug"） */
 export function extractVars(template: string): string[] {
   const out = new Set<string>();
   for (const m of template.matchAll(TOKEN_RE)) {
@@ -126,12 +126,12 @@ export function extractVars(template: string): string[] {
   return [...out];
 }
 
-/** テキストを {変数} トークンとそれ以外に分ける（表示・編集のハイライト用） */
+/** テキストを、{変数} のトークンとそれ以外に分ける（表示や編集での強調表示用） */
 export function splitVarTokens(text: string): { text: string; name?: string }[] {
   const out: { text: string; name?: string }[] = [];
   let last = 0;
   for (const m of text.matchAll(TOKEN_RE)) {
-    // 文字としての「{」は前後の文字と一緒に普通の文字にする
+    // 文字としての「{」は、前後の文字と一緒に普通の文字にする
     if (m[0] === ESCAPED_BRACE) continue;
     const at = m.index ?? 0;
     if (at > last) out.push({ text: text.slice(last, at) });
@@ -144,16 +144,16 @@ export function splitVarTokens(text: string): { text: string; name?: string }[] 
 
 /* ---------- 変数の予測変換 ---------- */
 
-/** 「{」なしで予測変換を出す、変数名と一致した文字数 */
+/** 「{」が無くても予測変換を表示する、変数名と一致した文字数 */
 export const VAR_AUTO_MIN = 3;
 
 export interface VarQuery {
-  /** 置き換える範囲の先頭（カーソル位置までを置き換える） */
+  /** 置き換える範囲の先頭（カーソルの位置までを置き換える） */
   start: number;
   /** 入力済みの部分 */
   partial: string;
   /**
-   * brace = 「{」の入力 / word = 変数名の先頭3文字以上と一致 /
+   * brace = 「{」を入力した / word = 変数名の先頭3文字以上と一致した /
    * manual = ショートカットで一覧を開いた
    */
   mode: "brace" | "word" | "manual";
@@ -162,9 +162,9 @@ export interface VarQuery {
 const isWordChar = (c: string | undefined) => !!c && /[A-Za-z0-9_$-]/.test(c);
 
 /**
- * カーソル直前の文字（before）から予測変換の対象を探す。
- * 「{」の後ならその続き、それ以外は直前の文字が変数名の先頭と一致する部分
- * （英数字は単語の途中から一致させない）
+ * カーソルの直前の文字（before）から、予測変換の対象を探す。
+ * 「{」の後ならその続きを、それ以外なら、直前の文字のうち変数名の先頭と一致する部分を使う
+ * （英数字は、単語の途中からは一致させない）
  */
 export function findVarQuery(
   before: string,
@@ -192,7 +192,7 @@ export function findVarQuery(
 }
 
 /**
- * 候補で置き換える範囲の終わり。「{」の途中で選んだときは、カーソルの後ろに残る
+ * 候補で置き換える範囲の終わり。「{」の途中で選んだときは、カーソルの後ろに残っている
  * 同じ {…} の続き（「s.出展カテゴリ}」など）も置き換える
  */
 export function varQueryEnd(text: string, q: VarQuery, caret: number): number {
@@ -201,7 +201,7 @@ export function varQueryEnd(text: string, q: VarQuery, caret: number): number {
   return m ? caret + m[0].length : caret;
 }
 
-/** 候補を並べる（先頭一致 → 途中一致。word は先頭一致のみ） */
+/** 候補を並べる（先頭が一致するもの → 途中が一致するもの。word では先頭の一致だけ） */
 export function matchVarNames(names: string[], q: VarQuery): string[] {
   const p = q.partial.toLowerCase();
   const pre = names.filter((n) => n.toLowerCase().startsWith(p));
@@ -213,7 +213,7 @@ export function matchVarNames(names: string[], q: VarQuery): string[] {
   return [...pre, ...mid];
 }
 
-/** 変数一覧を開くショートカット（⌘/ ・ Ctrl+/ ・ Ctrl+Space） */
+/** 変数の一覧を開くショートカット（⌘/ ・ Ctrl+/ ・ Ctrl+Space） */
 export function isVarListShortcut(e: {
   key: string;
   metaKey: boolean;
@@ -224,12 +224,12 @@ export function isVarListShortcut(e: {
   return (e.key === "/" && (e.metaKey || e.ctrlKey)) || (e.key === " " && e.ctrlKey);
 }
 
-/** ページURLが [slug] ページか */
+/** ページの URL が [slug] のページか */
 export function isSlugPage(slug: string): boolean {
   return slug.includes("[slug]");
 }
 
-/** Next.js のページとして配信しないページ（リダイレクト・外部サイトの中継・HTMLページ） */
+/** Next.js のページとして配信しないページ（リダイレクト・外部のサイトの中継・HTML のページ） */
 export function isHardNavPage(page: {
   redirectTo?: string;
   rewriteTo?: string;
@@ -240,8 +240,8 @@ export function isHardNavPage(page: {
 
 /**
  * Next.js のページ遷移（Link・router.push）を使わず、ブラウザの通常の移動にする URL のパターン
- * （正規表現の文字列）。これらへの先読み・ページ遷移はリダイレクト先が別ドメインだと CORS で失敗する。
- * 外部サイトの中継は、配下のパスも同じ先へ中継するので配下も含める
+ * （正規表現の文字列）。これらへの先読みやページ遷移は、リダイレクト先が別のドメインだと CORS で失敗する。
+ * 外部のサイトの中継は、配下のパスも同じ先へ中継するため、配下も含める
  */
 export function hardNavPatterns(pages: {
   slug: string;
@@ -267,7 +267,7 @@ export function hardNavPatterns(pages: {
     });
 }
 
-/** URL（/ から始まるサイト内のもの）が hardNavPatterns のどれかに当たるか */
+/** URL（/ から始まるサイトの中のもの）が、hardNavPatterns のどれかに当たるか */
 export function matchesHardNav(url: string, patterns: string[]): boolean {
   return /^\/(?!\/)/.test(url) && patterns.some((re) => new RegExp(re).test(url));
 }
@@ -278,21 +278,21 @@ export function pageHrefOf(page: { slug: string; query?: string }): string {
   return page.query ? `${path}?${page.query}` : path;
 }
 
-/** クエリを比較用にそろえる（キー順に並べ替え） */
+/** 比べるためにクエリをそろえる（キーの順に並べ替える） */
 export function normalizeQuery(query: string | undefined): string {
   const params = new URLSearchParams(query ?? "");
   params.sort();
   return params.toString();
 }
 
-/** ページのクエリを変数として取り出す（プレビュー・変数候補用） */
+/** ページのクエリを、変数として取り出す（プレビューや変数の候補用） */
 export function pageQueryVars(query: string | undefined): Record<string, string> {
   const out: Record<string, string> = {};
   if (!query) return out;
   try {
     for (const [k, v] of new URLSearchParams(query)) if (k) out[k] = v;
   } catch {
-    // 不正なクエリは無視
+    // 不正なクエリは無視する
   }
   return out;
 }
@@ -300,8 +300,8 @@ export function pageQueryVars(query: string | undefined): Record<string, string>
 type PageUrlTarget = { id: string; slug: string; query?: string };
 
 /**
- * ページのURL変更に合わせて、直接入力されたURL（"/blog" や "/blog/{id}"）を書き換える。
- * 対象外なら null。others は他ページ（[slug]ページの誤一致を避けるため）
+ * ページの URL の変更に合わせて、直接入力した URL（"/blog" や "/blog/{id}"）を書き換える。
+ * 対象でなければ null を返す。others は他のページ（[slug] のページへの誤った一致を避けるため）
  */
 export function retargetPageUrl(
   url: string,
@@ -336,18 +336,18 @@ export function retargetPageUrl(
     if (seg && !seg.includes("/") && !taken) newPath = newSlug.replace("[slug]", seg);
   }
   if (newPath === null) return null;
-  // 以前のクエリのまま（または無し）なら新しいクエリに、独自のクエリは残す
+  // 以前のクエリのまま（またはクエリが無い）なら新しいクエリにし、独自のクエリは残す
   const newQuery = query === (before.query ?? "") ? (after.query ?? "") : query;
   const next = `/${newPath}${newQuery ? `?${newQuery}` : ""}${hash}`;
   return next === raw ? null : next;
 }
 
-/** データソースURLが {slug} を含むか */
+/** データソースの URL が {slug} を含むか */
 export function urlHasSlug(url: string): boolean {
   return url.includes("{slug}");
 }
 
-/** [slug] の使い方が正しいか（独立セグメントとして1回だけ） */
+/** [slug] の使い方が正しいか（独立した区切りとして1回だけ使う） */
 export function validateSlugUsage(slug: string): string | null {
   const segs = slug.split("/").filter(Boolean);
   const slugSegs = segs.filter((s) => s === "[slug]");
@@ -359,7 +359,7 @@ export function validateSlugUsage(slug: string): string | null {
   return null;
 }
 
-/** 生成サイトへ出力するランタイム */
+/** 生成したサイトに出力するランタイム */
 export const VARS_RUNTIME = `export ${NAVIGATION_RUNTIME.replace("(value)", "(value: string): string")}
 
 const TOKEN_RE = /\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}|\\[slug\\]/g;

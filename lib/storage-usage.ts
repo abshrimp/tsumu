@@ -4,7 +4,7 @@ import type { AssetLedgerSummary } from "./asset-ledger";
 export interface StorageUsageResponse {
   /** Cloudflare: KV に置いたファイルの台帳（D1） */
   ledger?: AssetLedgerSummary;
-  /** 台帳が揃っていないとき・Node/Docker: ほかのサイトが使っているファイル（path → bytes） */
+  /** 台帳がそろっていないときと Node.js・Docker: 他のサイトが使っているファイル（path → bytes） */
   others?: { path: string; bytes: number | null }[];
 }
 
@@ -12,14 +12,14 @@ export interface StorageUsage {
   /** サーバーに置いたファイルの数 */
   files: number;
   bytes: number;
-  /** サイズが分からないファイルの数 */
+  /** 大きさが分からないファイルの数 */
   unknown: number;
   /**
    * true: KV の実際の中身（台帳）から数えた。
-   * false: サイトが使っているファイルだけから数えた（削除待ちなどは入らない）。
+   * false: サイトが使っているファイルだけから数えた（削除を待っているものなどは入らない）。
    */
   exact: boolean;
-  /** 削除予定（GC 待ち）のファイル。exact のときだけ分かる */
+  /** 削除する予定（GC を待っている）のファイル。exact のときだけ分かる */
   pendingCount: number;
   pendingBytes: number;
 }
@@ -27,9 +27,9 @@ export interface StorageUsage {
 type OwnAsset = { path?: string; bytes?: number };
 
 /**
- * 全サイト共通の保存先の使用量。
- * 台帳が揃っていれば台帳の合計を使い、サイズ不明のファイルだけ編集中の内容から補う。
- * 揃っていなければ、各サイトが使っているファイルを重複なしで足す（従来の数え方）。
+ * すべてのサイトで共通の保存先の使用量。
+ * 台帳がそろっていれば台帳の合計を使い、大きさの分からないファイルだけを編集中の内容から補う。
+ * そろっていなければ、各サイトが使っているファイルを、重複させずに足す。
  */
 export function computeStorageUsage(response: StorageUsageResponse | null, own: readonly OwnAsset[]): StorageUsage {
   const ledger = response?.ledger;

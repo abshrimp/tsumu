@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 
-/** サイト確認・遅延 import・実際のエディタ同期を通し、表示だけのパネルは省く。 */
+/** サイトの確認・遅延 import・実際のエディタの同期を通し、表示だけのパネルは省く。 */
 export async function siteBootstrapBundle(browser = false) {
   const repo = resolve(".");
   return (await build({
@@ -38,7 +38,7 @@ export async function siteBootstrapBundle(browser = false) {
       name: "site-bootstrap",
       setup(build) {
         build.onLoad({ filter: /app\/sites\/\[id\]\/page\.tsx$/ }, (args) => ({
-          // import の完了順だけを制御し、実際のページとエディタは差し替えない。
+          // import が完了する順序だけを制御し、実際のページとエディタは差し替えない。
           contents: readFileSync(args.path, "utf8").replace(
             'import("../../../components/Editor")',
             'Promise.resolve(globalThis.bootstrapModule).then(() => import("../../../components/Editor"))',

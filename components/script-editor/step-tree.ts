@@ -1,21 +1,21 @@
 /**
- * スクリプトの動作の木（入れ子の動作の並び）を、位置を指定して取り出し・差し込み・書き換える
+ * スクリプトの動作の木（入れ子の動作の並び）から、位置を指定して取り出す・差し込む・書き換える
  */
 
 import { type PageScript } from "../../lib/script";
 import { type ScriptStep } from "../../lib/types";
 import { stepOutName } from "../../lib/data";
 
-/* ---------- スクリプト操作（純粋関数） ---------- */
+/* ---------- スクリプトの操作（純粋関数） ---------- */
 
-/** ステップ列の位置。list = "root" | "<ifのID>:then" | "<ifのID>:else" */
+/** 手順の並びの位置。list = "root" | "<ifのID>:then" | "<ifのID>:else" */
 export interface Loc {
   scriptId: string;
   list: string;
   index: number;
 }
 
-// Only the final colon separates the branch; imported step IDs may contain colons.
+// 分岐を区切るのは最後のコロンだけ。取り込んだ手順の ID にはコロンが含まれることがある。
 function branchOf(list: string): [string, string] {
   const separator = list.lastIndexOf(":");
   return [list.slice(0, separator), list.slice(separator + 1)];
@@ -59,8 +59,8 @@ export function stepIn(steps: ScriptStep[], stepId: string): boolean {
 }
 
 /**
- * Copy only the edited list and its enclosing steps, instead of deeply cloning
- * the entire workspace whenever a block is moved or deleted.
+ * ブロックを動かしたり削除したりするたびに、ワークスペース全体を深く複製せず、
+ * 編集した一覧と、それを囲む手順だけを複製する。
  */
 function spliceScriptList(
   scripts: PageScript[],
@@ -97,7 +97,7 @@ function spliceScriptList(
   return [updated, removed];
 }
 
-/** loc 以降のステップを取り出す（下につながるブロックごと動かす） */
+/** loc 以降の手順を取り出す（下につながるブロックごと動かす） */
 export function takeAt(scripts: PageScript[], loc: Loc): [PageScript[], ScriptStep[]] {
   const [next, taken] = spliceScriptList(scripts, loc, Infinity, []);
   const script = next.find((item) => item.id === loc.scriptId);
@@ -116,8 +116,8 @@ export function insertAt(
 }
 
 /**
- * Connect a newly dropped processing block to the preceding output in the
- * same script list. Moving an existing step must never rewrite its source.
+ * 新しくドロップした加工のブロックを、同じスクリプトの一覧の直前の出力につなぐ。
+ * 既存の手順を動かしたときは、元にする値を決して書き換えない。
  */
 export function connectNewTransform(scripts: PageScript[], loc: Loc, steps: ScriptStep[]): ScriptStep[] {
   const script = scripts.find((s) => s.id === loc.scriptId);
@@ -132,7 +132,7 @@ export function connectNewTransform(scripts: PageScript[], loc: Loc, steps: Scri
   );
 }
 
-/** Delete selected scripts and steps with one immutable traversal. */
+/** 選択したスクリプトと手順を、元のデータを書き換えない1回の走査で削除する。 */
 export function removeKeys(scripts: PageScript[], keys: string[]): PageScript[] {
   const scriptIds = new Set<string>();
   const stepIds = new Set<string>();
@@ -197,7 +197,7 @@ export function mapStep(
   stepId: string,
   fn: (s: ScriptStep) => ScriptStep
 ): PageScript[] {
-  // Preserve the identity of untouched scripts, branches, and blocks.
+  // 手を付けていないスクリプト・分岐・ブロックは、同じオブジェクトのまま残す。
   const mapList = (list: ScriptStep[]): ScriptStep[] => {
     let changed: ScriptStep[] | null = null;
     list.forEach((step, index) => {
@@ -229,7 +229,7 @@ export function mapStep(
 
 /**
  * 絞り込みに番号を振る（同じ配列の中で 1, 2, 3…）。
- * 番号の無いもの・複製などで重なったものだけに、空いているいちばん小さい番号を振る
+ * 番号が無いものと、複製などで番号が重なったものだけに、空いている最も小さい番号を振る
  */
 export function numberFilters(scripts: PageScript[]): PageScript[] {
   const used = new Map<string, Set<number>>();
@@ -252,8 +252,8 @@ export function numberFilters(scripts: PageScript[]): PageScript[] {
   scripts.forEach((script) => walk(script.steps));
   if (!need.length) return scripts;
 
-  // Renumber only the affected filter blocks and their enclosing branches.
-  // Deep cloning here discarded mapStep's sharing on every normal input edit.
+  // 影響を受ける絞り込みのブロックと、それを囲む分岐だけに番号を振り直す。
+  // ここで深く複製すると、通常の入力の編集のたびに mapStep が共有していた部分が失われていた。
   const assigned = new Map<ScriptStep, number>();
   const nextNumber = new Map<string, number>();
   for (const st of need) {
@@ -292,8 +292,8 @@ export function numberFilters(scripts: PageScript[]): PageScript[] {
   });
 }
 
-// A single workspace can show many filter dropdowns. Reuse one index of
-// filter numbers for all of them instead of scanning every script repeatedly.
+// 1つのワークスペースに、絞り込みのドロップダウンがたくさん表示されることがある。
+// すべてのスクリプトを何度も調べず、絞り込みの番号の索引を1つ作って使い回す。
 const filterNumberIndex = new WeakMap<PageScript[], Map<string, number[]>>();
 
 /** ページの絞り込みの番号（配列ごと） */
@@ -321,12 +321,12 @@ export function filterNumbersOf(scripts: PageScript[], array: string): number[] 
     ));
     filterNumberIndex.set(scripts, index);
   }
-  // Preserve the previous return-value contract (a fresh array per call).
+  // 呼び出すたびに新しい配列を返す、という戻り値の約束を守る。
   return [...(index.get(array) ?? [])];
 }
 
-// These keys only address live DOM slots, never saved data. A tuple keeps IDs
-// containing pipes, quotes or other delimiters distinct without rewriting them.
+// このキーは画面上の差し込み位置を指すだけで、保存するデータには使わない。タプルにすることで、
+// 縦線・引用符などの区切り文字を含む ID も、書き換えずに区別できる。
 export const slotKey = (loc: Loc) => JSON.stringify([loc.scriptId, loc.list, loc.index]);
 export function parseSlot(key: string): Loc {
   const [scriptId, list, index] = JSON.parse(key) as [string, string, number];

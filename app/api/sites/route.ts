@@ -42,7 +42,7 @@ export async function GET() {
 }
 
 /**
- * 通常のサイトは最初に開いたときに保存し、インポート時は初版と同時に作成する。
+ * 通常のサイトは最初に開いたときに文書を保存し、インポートでは初版と同時に作成する。
  * copyFrom にサイトIDがあれば、そのサイトの編集データを複製する（公開先は受け取った値を使う）
  */
 export async function POST(req: Request) {
@@ -98,8 +98,8 @@ export async function POST(req: Request) {
     if (copyFrom && !(await getSite(db, copyFrom))) {
       return NextResponse.json({ error: tr("The site to duplicate was not found") }, { status: 404 });
     }
-    // Capture the source before creating the destination. A missing document is
-    // valid only for an existing, never-opened site, not one deleted mid-copy.
+    // 複製先を作る前に、複製元の文書を読んでおく。文書が無くてよいのは、一度も開いていない
+    // 既存のサイトだけで、複製の途中で削除されたサイトは含まない。
     const src = copyFrom ? await readSiteDocument(db, copyFrom) : null;
     if (copyFrom && !src && !(await getSite(db, copyFrom))) {
       return NextResponse.json({ error: tr("The site to duplicate was not found") }, { status: 404 });
@@ -108,8 +108,8 @@ export async function POST(req: Request) {
     if (importing && await getSite(db, id)) {
       return NextResponse.json({ error: tr("Could not create the site.") }, { status: 409 });
     }
-    // The D1 site record and DO document are different transactional stores.
-    // If document initialization fails, delete the newly created site record.
+    // D1 のサイトの記録と Durable Object の文書は、別々のトランザクションで保存される。
+    // 文書の初期化に失敗したら、作成したばかりのサイトの記録を削除する。
     const roomKey = await insertSite(db, id, parsed.value);
     createdSite = { id, db, roomKey };
     const content = initialBody ?? src?.body;
@@ -132,7 +132,7 @@ export async function POST(req: Request) {
     if (importing && e instanceof Error && /UNIQUE constraint failed: sites\.id/i.test(e.message)) {
       return NextResponse.json({ error: tr("Could not create the site.") }, { status: 409 });
     }
-    // 複製元の本文や保存先の接続情報を含む例外をログや応答に渡さない。
+    // 複製元の本文や保存先の接続情報を含む例外は、ログにも応答にも出さない。
     console.error("[api/sites POST] site creation failed");
     return NextResponse.json({ error: tr("Couldn't create it") }, { status: 502 });
   }

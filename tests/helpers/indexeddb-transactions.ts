@@ -18,7 +18,7 @@ function settled(tx: IDBTransaction): Promise<string> {
 
 export const transactionCases = ["commit", "abort", "duplicate"] as const;
 
-/** Run unchanged against the Node fixture and Chromium's native IndexedDB. */
+/** Node.js の準備と Chromium のネイティブの IndexedDB に対して、変えずに同じものを実行する。 */
 export async function transactionScenario(factory: IDBFactory, mode: typeof transactionCases[number]) {
   const db = await opened(factory, `transaction-${mode}`);
   try {
@@ -39,8 +39,8 @@ export async function transactionScenario(factory: IDBFactory, mode: typeof tran
       if (mode === "abort") tx.abort();
     };
     if (mode === "duplicate") store.add("overwrite", "source");
-    // Queue the reader before the writer settles: it must see the full commit
-    // or the original data, never an uncommitted snapshot.
+    // 書き込みが決着する前に、読み取りをキューに入れる。読み取りは、確定した全体か元のデータの
+    // どちらかを見なければならず、確定していないスナップショットを決して見てはならない。
     const read = db.transaction("documents", "readonly");
     const readDone = settled(read);
     const records: Record<string, unknown> = {};
@@ -66,7 +66,7 @@ export function expectedTransaction(mode: typeof transactionCases[number]) {
   };
 }
 
-/** Exercise the production create-only path concurrently. */
+/** 本番の、作成だけを行う経路を、並行して動かす。 */
 export async function browserDocumentCreateScenario() {
   const creates = await Promise.all([
     storage.createBrowserDoc("created-site", "original"),
@@ -79,7 +79,7 @@ export async function browserDocumentCreateScenario() {
 
 export const expectedCreate = { creates: [true, false], created: "original" };
 
-/** Exercise real compare-and-write, idempotent retry, enumeration and deletion. */
+/** 実際の比較してから書く処理、冪等な再試行、列挙、削除を動かす。 */
 export async function browserDocumentScenario() {
   await storage.createBrowserDoc("site", "original");
   const writes = await Promise.all([
@@ -117,11 +117,11 @@ export async function cursorScenario(factory: IDBFactory, abort: boolean) {
     cursor.onsuccess = () => {
       seen.push(cursor.result?.value ?? null);
       if (abort && seen.length === 1) {
-        // Continuing before abort must not deliver another successful cursor event.
+        // 中断の前に続けても、成功したカーソルのイベントがもう一度届いてはならない。
         cursor.result!.continue();
         tx.abort();
       }
-      // Without continue(), the transaction must still complete.
+      // continue() を呼ばなくても、トランザクションは完了しなければならない。
     };
     const outcome = await done;
     return { outcome, seen };

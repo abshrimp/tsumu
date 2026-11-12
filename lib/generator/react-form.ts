@@ -1,4 +1,4 @@
-/** Browser-native GET form for the React/Vite SPA export. */
+/** React / Vite の SPA の書き出しで使う、ブラウザ標準の GET のフォーム。 */
 export const REACT_SEARCH_FORM = String.raw`import { useEffect, useRef, type ComponentPropsWithoutRef } from "react";
 
 function fields(form: HTMLFormElement): string[] {

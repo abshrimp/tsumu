@@ -5,10 +5,10 @@ import { envVar } from "../env";
  *
  * AI_ENABLED=true … 機能を有効にする
  * AI_PROVIDER    … anthropic（既定）/ gemini / openai / openai-compatible
- * AI_API_KEY     … APIキー（プロバイダごとの ANTHROPIC_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY でもよい）
- * AI_MODEL       … モデル（anthropic・gemini は省略可）
- * AI_BASE_URL    … openai-compatible のときのAPIのURL（例: https://openrouter.ai/api/v1）
- * AI_EFFORT      … 考える深さ（low / medium / high / xhigh / max。既定 medium）
+ * AI_API_KEY     … API キー（プロバイダごとの ANTHROPIC_API_KEY / GEMINI_API_KEY / OPENAI_API_KEY でもよい。両方あれば AI_API_KEY を優先）
+ * AI_MODEL       … モデル（anthropic・gemini では省略できる）
+ * AI_BASE_URL    … openai-compatible のときの API の URL（例: https://openrouter.ai/api/v1）
+ * AI_EFFORT      … 推論の量（low / medium / high / xhigh / max。既定は medium）
  */
 
 export type AiProvider = "anthropic" | "gemini" | "openai" | "openai-compatible";
@@ -19,10 +19,10 @@ export interface AiConfig {
   provider: AiProvider;
   apiKey: string | undefined;
   model: string;
-  /** OpenAI 互換APIのURL（末尾の / は無し） */
+  /** OpenAI 互換 API の URL（末尾の / は付けない） */
   baseUrl: string | undefined;
   effort: Effort;
-  /** 有効にならない理由（設定の確認用） */
+  /** 有効にならない理由（設定の確認に使う） */
   reason: string | null;
 }
 
@@ -41,7 +41,7 @@ function isProvider(v: string): v is AiProvider {
   return Object.prototype.hasOwnProperty.call(PROVIDERS, v);
 }
 
-/** AI_ENABLED を付けていないとき（使わない設定で、誤りではない）の reason */
+/** AI_ENABLED を指定していないとき（使わない設定で、誤りではない）の reason */
 export const AI_NOT_ENABLED = "AI_ENABLED is not true";
 
 export function aiConfig(): AiConfig {

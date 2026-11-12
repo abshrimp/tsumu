@@ -4,7 +4,7 @@ import { useState } from "react";
 import { User } from "lucide-react";
 import type { ActivityUser } from "../lib/activity";
 
-/** アカウントの丸いアイコン（Googleのプロフィール画像。無ければ頭文字） */
+/** アカウントの丸いアイコン（Google のプロフィール画像。無ければ頭文字） */
 export default function UserAvatar({ user, size = 24 }: { user: ActivityUser; size?: number }) {
   const [broken, setBroken] = useState(false);
   const label = user.name || user.email;

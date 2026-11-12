@@ -1,6 +1,6 @@
 /**
- * Canonical identifiers for persisted object maps and incremental document
- * patches. All document paths share the same grammar.
+ * 保存するオブジェクトのマップと、差分の保存に使う正規の識別子。
+ * 文書内のすべてのパスが、同じ文法に従う。
  */
 export const DOCUMENT_ID_RE = /^[a-zA-Z0-9_-]{1,200}$/;
 

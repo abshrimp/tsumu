@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 画像・余白・見た目（角丸・不透明度など）・選択時の見た目
+ * 画像・余白・見た目（角丸・不透明度など）・選択したときの見た目
  */
 
 import { useState } from "react";
@@ -65,12 +65,12 @@ const OBJECT_POSITIONS = [
   { value: "right top", label: tr("Top right") },
 ];
 
-/** 画像・動画を枠にどう収めるか。比率の違う写真を同じ形にそろえるときに使う */
+/** 画像や動画を枠にどう収めるか。比率の違う写真を同じ形にそろえるときに使う */
 export function ImageSec() {
   const insp = useInspector();
   const fit = insp.get("objectFit");
   const ratio = insp.get("aspectRatio");
-  // 画像の初期値（CSS の fill）は、枠に合わせてゆがめる
+  // 画像の初期値（CSS の fill）は、枠に合わせて画像をゆがめる
   const fitValue = fit.value ?? "fill";
   const preset = ASPECT_PRESETS.find((p) => ratioKey(p.value) === ratioKey(ratio.value));
 
@@ -93,7 +93,7 @@ export function ImageSec() {
               aspectRatio: v || insp.cleared("aspectRatio"),
             };
             if (v) {
-              // 高さが決まっていると比率が効かないので外し、ゆがまないよう枠を埋める切り抜きにする
+              // 高さが決まっていると比率が効かないため外し、ゆがまないよう枠を埋める切り抜きにする
               if (insp.get("height").value && insp.get("height").value !== "auto") {
                 props.height = insp.cleared("height");
               }
@@ -127,7 +127,7 @@ export function ImageSec() {
   );
 }
 
-/* ---------- 余白（横 / 縦 + 個別展開） ---------- */
+/* ---------- 余白（横 / 縦。辺ごとにも展開できる） ---------- */
 
 function PairSides({
   label,
@@ -135,7 +135,7 @@ function PairSides({
   props,
   min,
 }: {
-  /** ドラッグ・入力の下限（内側余白は 0。外側余白は負の値も使える） */
+  /** ドラッグと入力の下限（内側の余白は 0。外側の余白は負の値も使える） */
   min?: number;
   label: string;
   /** 例: "padding" */
@@ -145,14 +145,14 @@ function PairSides({
 }) {
   const insp = useInspector();
   const sh = insp.get(shorthand);
-  /** 辺ごとの実効値（個別指定とまとめ指定は、カスケードで後から効く方） */
+  /** 辺ごとの実際に効く値（個別の指定とまとめた指定のうち、CSS の優先順位で後から効く方） */
   const side = (i: number) => {
     const long = insp.get(props[i]);
     return long.layer >= sh.layer
       ? (long.value ?? shorthandSide(sh.value, i))
       : (shorthandSide(sh.value, i) ?? long.value);
   };
-  /** 2辺が同じ値か（未設定と 0 は同じとみなす） */
+  /** 2つの辺が同じ値か（未設定と 0 は同じとみなす） */
   const same = (a: string | undefined, b: string | undefined) =>
     a === b || (isInitialValue(shorthand, a) && isInitialValue(shorthand, b));
   const anySet = sh.changed || props.some((p) => insp.get(p).changed);
@@ -181,7 +181,7 @@ function PairSides({
     const vb = side(b);
     return same(va, vb) ? (va ?? vb) : undefined;
   };
-  /** 欄ごとの「変更済み」の色（まとめ欄は、どちらかの辺かまとめ指定が変わっていれば） */
+  /** 欄ごとの「変更済み」の色（まとめた欄では、どちらかの辺か、まとめた指定が変わっていれば付ける） */
   const fieldTint = (...sides: number[]): React.CSSProperties => ({
     ["--field" as string]:
       sh.changed || sides.some((i) => insp.get(props[i]).changed)
@@ -191,7 +191,7 @@ function PairSides({
   const pairPlaceholder = (a: number, b: number) => (same(side(a), side(b)) ? "0" : tr("Mixed"));
 
   const LABELS = [tr("Top"), tr("Right"), tr("Bottom"), tr("Left")];
-  /** まとめ欄では見えない、辺ごとに違う値がある */
+  /** まとめた欄には表れない、辺ごとに異なる値がある */
   const smaller = useEditor((s) => s.breakpoint !== "base");
   const mixed = !same(side(1), side(3)) || !same(side(0), side(2));
   const sidesState = !mixed ? "" : anySet ? " is-set" : smaller ? " has-value" : "";
@@ -319,8 +319,8 @@ export function AppearanceSec() {
             pre={<Blend size={I} />}
             onChange={(v) => {
               const n = v ? (parseNumeric(v)?.num ?? 100) : 100;
-              // Choosing 100% is an explicit value, not a reset: a translucent
-              // default must be overridable in hover/focus as well as smaller screens.
+              // 100% を選ぶのは明示的な値の指定で、リセットではない。半透明の既定値を、
+              // 小さい画面だけでなく、ホバーやフォーカスでも上書きできるようにする。
               const full = isInitialValue("opacity", opacity.baseline) ? null : "1";
               insp.set({ opacity: n >= 100 ? full : String(n / 100) });
             }}
@@ -372,7 +372,7 @@ export function AppearanceSec() {
   );
 }
 
-/* ---------- 選択（カーソル / テキスト選択色） ---------- */
+/* ---------- 選択（カーソル / テキストを選択したときの色） ---------- */
 
 export function SelectionSec() {
   const insp = useInspector();

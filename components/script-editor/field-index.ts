@@ -1,6 +1,6 @@
 /**
- * Field metadata shared by all script inputs. A workspace may contain many
- * condition blocks; indexing once avoids scanning every node per input.
+ * スクリプトのすべての入力欄で共有する、入力欄の情報。ワークスペースには条件のブロックが
+ * たくさんあることがあるため、一度だけ索引を作り、入力欄ごとにすべてのノードを調べないようにする。
  */
 import { fieldVarName, isRadioItem } from "../../lib/fields";
 import type { DocNode, FieldContent, SiteDoc } from "../../lib/types";
@@ -59,7 +59,7 @@ export function indexFieldTargets(
       };
     }
     byNode.set(node.id, info);
-    // The first element with an ID takes precedence, even if it isn't a field.
+    // 入力欄でなくても、その ID を持つ最初の要素を優先する。
     if (node.attrId && !byAttr.has(node.attrId)) byAttr.set(node.attrId, info);
   }
   return { byNode, byAttr };

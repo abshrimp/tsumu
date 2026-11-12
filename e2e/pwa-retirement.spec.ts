@@ -6,9 +6,9 @@ import { addPwaRetirementWorker } from "../lib/publish-pwa";
 import { parseGeneratedManifest, planPublish, serializeGeneratedManifest } from "../lib/publish-files";
 import type { SiteDoc } from "../lib/types";
 
-// Update the actually generated service worker in a disposable CI browser served from loopback only.
-// A small HTTP server is needed because route.fulfill cannot verify service worker requests.
-// Never deploy to a real site or touch an existing browser profile.
+// ループバックだけで配信する使い捨ての CI のブラウザで、実際に生成した Service Worker を更新する。
+// route.fulfill では Service Worker のリクエストを確かめられないため、小さな HTTP サーバーが必要。
+// 実際のサイトへのデプロイや、既存のブラウザのプロファイルへの操作は、決して行わない。
 async function startSite() {
   const doc: SiteDoc = {
     schemaVersion: 1, siteName: "PWA fixture", nodes: {}, assets: {}, pageOrder: ["home"],
@@ -102,7 +102,7 @@ async function cacheProbe(page: Page) {
 }
 
 async function updateAndExpectRetired(page: Page) {
-  // Control only the update time; let the browser handle registration, installation, activation, and retirement.
+  // 制御するのは更新の時刻だけ。登録・インストール・有効化・終了は、ブラウザに任せる。
   await page.evaluate(async () => {
     const registration = await navigator.serviceWorker.getRegistration("/");
     if (!registration) throw new Error("Expected the previously installed worker");
@@ -122,7 +122,7 @@ test("on → off retires the active worker, stops caching, and can be reenabled"
   pwaSite.publish({ enabled: false });
   await updateAndExpectRetired(page);
   expect(pwaSite.workerResponses).toContainEqual({ revision: 2, status: 200 });
-  // Even with an existing tab open, the retirement worker must have no fetch handler.
+  // 既存のタブを開いたままでも、終了用の Worker は fetch のハンドラーを持ってはならない。
   expect(await page.evaluate(async () => (await fetch("/assets/after-off.txt", { cache: "no-store" })).text())).toBe("asset-2");
   expect(await page.evaluate(() => caches.has("site-pwa-v2"))).toBe(false);
   await context.setOffline(true);
@@ -144,7 +144,7 @@ test("repeated off publications keep a retirement endpoint for a delayed visitor
   const repeated = pwaSite.publish(undefined);
   expect(repeated.files["public/sw.js"]).toBe(first.files["public/sw.js"]);
   expect(repeated.generated["public/sw.js"]).toBe(first.generated["public/sw.js"]);
-  // A visitor who cannot update keeps the old worker until a successful retirement update.
+  // 更新できない訪問者には、終了用の更新に成功するまで、古い Worker が残る。
   expect(await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration("/")))).toBe(true);
   expect(await page.evaluate(async () => (await fetch("/assets/probe.txt", { cache: "no-store" })).text())).toBe("asset-1");
   await context.setOffline(false);

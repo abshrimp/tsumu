@@ -3,10 +3,10 @@ import { assetSrc } from "../../lib/assets";
 import { zipAssetClosure } from "../../lib/zip-css";
 import type { SiteDoc } from "../../lib/types";
 
-/** 最適化前の数え方。URLの別名や控えめな未使用判定も含め、差分テストの基準にする。 */
+/** 最適化する前の数え方。URL の別名や、控えめな未使用の判定も含めて、差分のテストの基準にする。 */
 /**
- * アセットごとの使用箇所数。画像・動画要素、背景などのスタイル、サイト・ページ設定に加え、
- * スクリプトや HTML などに URL・ID が書かれているものも「使用中」として数える
+ * アセットごとの使用箇所の数。画像・動画の要素、背景などのスタイル、サイトとページの設定に加え、
+ * スクリプトや HTML などに URL や ID が書かれているものも「使用中」として数える
  * （未使用の一括削除で消してしまわないよう、判定は控えめにする）。
  */
 export function referenceAssetUsage(doc: SiteDoc): Map<string, number> {
@@ -36,7 +36,7 @@ export function referenceAssetUsage(doc: SiteDoc): Map<string, number> {
   add(doc.pwa?.icon?.assetId);
   for (const page of Object.values(doc.pages)) add(page.ogImage?.assetId);
 
-  // それ以外（スクリプト・埋め込みHTMLなど）に URL や ID が書かれていれば使用中とみなす
+  // それ以外（スクリプト・埋め込みの HTML など）に URL や ID が書かれていれば、使用中とみなす
   const { assets: _assets, ...rest } = doc;
   void _assets;
   const text = JSON.stringify(rest);

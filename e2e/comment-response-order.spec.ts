@@ -11,7 +11,7 @@ async function openSite(page: Page) {
 }
 function deferred() { let resolve!: () => void; const promise = new Promise<void>((r) => { resolve = r; }); return { promise, resolve }; }
 
-// Hold the real server response, not a synthetic replacement list. POST still reaches the disposable test database.
+// 作った代わりの一覧ではなく、実際のサーバーの応答を止めておく。POST は、使い捨てのテスト用のデータベースにそのまま届く。
 test("an old initial comment response cannot remove a posted thread or its unfinished reply", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));

@@ -19,21 +19,21 @@ import { missingHtmlZipScriptAssets } from "../html-zip-script-assets";
 export interface CheckResult {
   level: "warn" | "error";
   message: string;
-  /** 理由と直し方を説明するヘルプの記事ID */
+  /** 理由と直し方を説明するヘルプの記事 ID */
   help?: string;
 }
 
 /** 新しいサイトの初期のサイト名（lib/presets.ts の createInitialDoc） */
 const DEFAULT_SITE_NAME = "My Site";
 
-/** ページの追加（page-3）・複製（about-copy、about-copy-2）で自動で付けたURLか */
+/** ページの追加（page-3）や複製（about-copy、about-copy-2）で自動で付けた URL か */
 function autoSlug(slug: string): boolean {
   return slug
     .split("/")
     .some((seg) => /^page-\d+$/.test(seg) || /(^|-)copy(-\d+)?$/.test(seg));
 }
 
-/** エディタで使える通常のURLと [slug]。未知の形式は判定しない。 */
+/** エディタで使える通常の URL と [slug]。知らない形式は判定しない。 */
 function redirectSourceParts(slug: string): string[] | null {
   // generator の configSource と同じく、転送元の外側の / だけを取り除く。
   const source = slug.replace(/^\/+|\/+$/g, "");
@@ -45,29 +45,29 @@ function redirectSourceParts(slug: string): string[] | null {
   return parts;
 }
 
-/** 先行する転送に遮られず、転送先が同じ転送ルールに戻る場合だけ検出する。 */
+/** 先に並ぶ転送に遮られず、転送先が同じ転送のルールに戻ってくる場合だけを検出する。 */
 function hasSelfRedirect(page: Page, earlierRedirects: Page[]): boolean {
   const destination = page.redirectTo?.trim();
   if (!destination || !/^\/(?!\/)/.test(destination)) return false;
   const sourceParts = redirectSourceParts(page.slug);
   if (!sourceParts) return false;
-  // Next の転送判定は pathname のみ。転送先の重複した / は応答時にまとめられる。
-  // /_next で始まるパスは Next がカスタム転送の対象から除外する。
+  // Next.js の転送の判定は pathname だけを見る。転送先の連続した / は、応答のときにまとめられる。
+  // /_next で始まるパスは、Next.js がカスタムの転送の対象から除外する。
   const path = destination.split(/[?#]/, 1)[0].replace(/\/{2,}/g, "/");
   if (/^\/_next/i.test(path)) return false;
   const target = path.slice(1).replace(/\/$/, "");
   const targetParts = target ? target.split("/") : [];
   const matchesSelf = sourceParts.length === targetParts.length && sourceParts.every((part, i) => {
     const to = targetParts[i];
-    // 固定の転送先、または同じ位置の :slug なら何度転送しても一致し続ける。
-    // 変数の移動・複雑な式・外部URLや複数ルールの循環はここでは判定しない。
+    // 固定の転送先か、同じ位置の :slug なら、何度転送しても一致し続ける。
+    // 変数の移動・複雑な式・外部の URL・複数のルールにまたがる循環は、ここでは判定しない。
     return part === "[slug]"
       ? to === ":slug" || /^[a-zA-Z0-9_-]+$/.test(to)
       : /^[a-zA-Z0-9_-]+$/.test(to) && part.toLowerCase() === to.toLowerCase();
   });
   if (!matchesSelf) return false;
-  // Next は先頭の一致を使う。先行ルールが転送先を受け取る可能性があれば、
-  // このルールだけでループすると断定しない（転送先の :slug は保守的に扱う）。
+  // Next.js は最初に一致したルールを使う。先に並ぶルールが転送先を受け取る可能性があれば、
+  // このルールだけでループすると断定しない（転送先の :slug は安全側に倒して扱う）。
   return !earlierRedirects.some((earlier) => {
     const parts = redirectSourceParts(earlier.slug);
     if (!parts) return true;
@@ -82,15 +82,15 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
   const results: CheckResult[] = [];
   const routes = new Map<string, { name: string; conditions: string; shareable: boolean }[]>();
   const published = doc.pageOrder.filter((pid) => !doc.pages[pid].unpublished);
-  /** shareable = 通常のページ（クエリが違えば同じURLを共有できる） */
+  /** shareable = 通常のページ（クエリが違えば、同じ URL を共有できる） */
   const registerRoute = (page: Page, shareable = false) => {
-    // [slug] を含むURLは固有ルートとして扱う（/events と /events/[slug] は共存可）
+    // [slug] を含む URL は固有のルートとして扱う（/events と /events/[slug] は共存できる）
     const route = page.slug.replace(/^\/+|\/+$/g, "");
     const query = normalizeQuery(page.query);
     const conditions = normalizeQuery(new URLSearchParams(pageQueryConditions(page.query)).toString());
-    // The generator collapses empty segments and escapes filesystem-special names.
-    // Compare the actual output route so two editor URLs cannot overwrite one file.
-    // The special normal 404 page is not a /404 route: it writes not-found.tsx.
+    // 生成処理は空の区切りをまとめ、ファイルシステムで特別な意味を持つ名前をエスケープする。
+    // 2つのエディタの URL が同じファイルを上書きしないよう、実際に出力するルートで比べる。
+    // 通常の特別な 404 のページは /404 のルートではなく、not-found.tsx に書き出す。
     const key = shareable && route === "404" ? "\0not-found" : routeDir(route);
     const same = routes.get(key) ?? [];
     const clash = same.find(
@@ -136,7 +136,7 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
     });
   }
 
-  // An empty HTML-mode source would otherwise silently generate a blank Next.js page.
+  // こうしないと、HTML モードの空のソースから、黙って空白の Next.js のページが生成されてしまう。
   for (const pid of published) {
     const page = doc.pages[pid];
     if (page.rawHtml !== undefined && page.rawHtml !== null && !page.rawHtml.trim()) {
@@ -147,7 +147,7 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
     }
   }
 
-  // 自動で付いたままの URL・タイトルは、検索結果やシェアで内容が伝わらない
+  // 自動で付いたままの URL やタイトルでは、検索結果やシェアで内容が伝わらない
   if (!doc.siteName?.trim() || doc.siteName.trim() === DEFAULT_SITE_NAME) {
     results.push({
       help: "pub-site",
@@ -165,7 +165,7 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
         message: tr("The URL \"/{slug}\" of \"{name}\" is still the automatic one (a short word that describes the page reads better in search results and shares)", { name: page.name, slug: page.slug }),
       });
     }
-    // 転送・HTMLページはタイトルを出さない
+    // 転送と HTMLページでは、タイトルを出さない
     if (page.redirectTo !== undefined || page.rewriteTo !== undefined || page.rawHtml?.trim()) continue;
     const title = (page.title || page.name).trim();
     if (autoNamed(title, NEW_PAGE_NAME)) {
@@ -293,7 +293,7 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
     registerRoute(page, true);
 
     let hasH1 = false;
-    // スクリプト「ページを開いたとき」のデータのブロック
+    // スクリプトの「ページを開いたとき」のデータのブロック
     const loadVars = new Set<string>();
     const dataSteps = pageDataSteps(doc, page.id);
     for (const st of dataSteps) {
@@ -332,8 +332,8 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
         if (!sc.trigger) continue;
         walkSteps(sc.steps, (st) => {
           if (st.kind === "if") {
-            // Every predicate has its own target; checking only the first
-            // condition misses broken references in joined AND/OR clauses.
+            // 条件ごとに対象がある。最初の条件だけを確かめると、「かつ」「または」でつないだ
+            // 条件の中の壊れた参照を見落とす。
             for (const condition of [st.cond, ...(st.conditions ?? [])]) {
               if (condition.subject !== "var" && condition.target !== SELF_TARGET)
                 scriptRefs.push({ name: node.name, targetId: condition.target });
@@ -449,17 +449,17 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
 /** スマホの画面幅の目安（はみ出しの判定に使う） */
 const PHONE_WIDTH = 375;
 
-/** リンクの文字として、行き先が伝わらない言葉 */
+/** リンクの文字として使うと、行き先が伝わらない言葉 */
 const VAGUE_LINK_TEXT = /^(こちら|ここ|こちらから|こちらをクリック|ここをクリック|クリック|click here|here|more)$/i;
 
-/** "16px" / "1.5rem" → px（それ以外の単位は判定しない） */
+/** "16px" / "1.5rem" を px に換算する（それ以外の単位は判定しない） */
 function toPx(v: string | undefined): number | null {
   const m = /^(-?\d*\.?\d+)(px|rem)$/.exec(v?.trim() ?? "");
   if (!m) return null;
   return m[2] === "rem" ? Number(m[1]) * 16 : Number(m[1]);
 }
 
-/** 押すとページ・URLを開く要素か */
+/** 押すとページや URL を開く要素か */
 function opensLink(node: DocNode): boolean {
   if (node.link) return true;
   return !!node.scripts?.some(
@@ -469,15 +469,15 @@ function opensLink(node: DocNode): boolean {
   );
 }
 
-/** 「〇〇」ほかN件 */
+/** 「〇〇」ほか N 件 */
 function namesText(names: string[]): string {
   const first = tr("\"{name}\"", { name: names[0] });
   return names.length > 1 ? tr("{first} and {n} more", { first, n: names.length - 1 }) : first;
 }
 
 /**
- * Webデザインの慣例に照らした注意（公開はできる）。
- * スマホで読めない小さな文字・画面からはみ出す固定幅・見出しの段の飛ばし・行き先の分からないリンク
+ * ウェブデザインの慣例に照らした注意（公開はできる）。
+ * スマホで読めない小さな文字・画面からはみ出す固定の幅・見出しの段の飛ばし・行き先の分からないリンク
  */
 function designChecks(doc: SiteDoc, page: Page): CheckResult[] {
   const out: CheckResult[] = [];
@@ -487,7 +487,7 @@ function designChecks(doc: SiteDoc, page: Page): CheckResult[] {
   const wide: { id: string; name: string; width: number }[] = [];
   const vague: { name: string; text: string }[] = [];
 
-  /** inWide = 親がすでにはみ出している（中の要素は親が直れば収まるので、幅では数えない） */
+  /** inWide = 親がすでにはみ出している（中の要素は親を直せば収まるため、幅では数えない） */
   const walk = (id: string, hiddenSmall: boolean, hiddenBase: boolean, inWide: boolean) => {
     const n = doc.nodes[id];
     if (!n) return;
@@ -500,7 +500,7 @@ function designChecks(doc: SiteDoc, page: Page): CheckResult[] {
       const st = resolveStyles(n, small, "default");
       const size = toPx(st.fontSize);
       if (text && size !== null && size < 12) tiny.push(n.name);
-      // 画像は公開サイトでも親の幅を超えないので除く
+      // 画像は公開サイトでも親の幅を超えないため、除く
       if (!inWide && n.type !== "image" && st.position !== "fixed") {
         const max = st.maxWidth?.trim();
         const capped = !!max && (/%$/.test(max) || (toPx(max) ?? Infinity) <= PHONE_WIDTH);
@@ -584,7 +584,7 @@ function componentsUsedUnder(doc: SiteDoc, rootIds: string[]): Set<string> {
 
 /**
  * 自分自身を（入れ子のインスタンスを通じて）含むコンポーネント。
- * 公開サイトでは表示が無限に続いてページが出せないため、使っていれば公開を止める
+ * 公開サイトでは表示が無限に続いてページを表示できないため、使っていれば公開を止める
  */
 function componentCycleChecks(doc: SiteDoc, published: string[]): CheckResult[] {
   const comps = Object.values(doc.components ?? {});

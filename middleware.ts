@@ -5,21 +5,21 @@ import { isCrossSiteWrite } from "./lib/csrf";
 import { anonymousAllowed } from "./lib/anonymous";
 
 export default async function middleware(req: NextRequest) {
-  // 辞書を読み込むと大きくなるため、ここで出す文だけを持つ（日本語以外は英語）
+  // 辞書を読み込むと大きくなるため、ここで表示する文だけを持つ（日本語以外は英語）
   const en = langOfRequest(req) !== "ja";
   const { pathname } = req.nextUrl;
   if (pathname.startsWith("/api/") && isCrossSiteWrite(req)) {
     return NextResponse.json({ error: en ? "Cross-site requests are not allowed" : "ほかのサイトからのリクエストは受け付けません" }, { status: 403 });
   }
-  // Google認証が未設定なら、ALLOW_ANONYMOUS=true（または npm run dev）のときだけログインなしで開ける
-  //（URLを知っている人は誰でも編集・公開できる）
+  // Google 認証が未設定なら、ALLOW_ANONYMOUS=true（または npm run dev）のときだけ、ログインなしで開ける
+  //（URL を知っている人は、誰でも編集・公開できる）
   if (!authConfigured()) {
     if (!anonymousAllowed()) return setupRequired(pathname, en);
     if (pathname === "/login") return NextResponse.redirect(new URL("/", req.nextUrl));
     return NextResponse.next();
   }
 
-  // 期限付きの署名URLのアセット（HTMLページのプレビュー用）は、署名をルートで確かめる
+  // 期限付きの署名 URL のアセット（HTML のページのプレビュー用）は、署名をルートの処理で確かめる
   if (pathname === "/api/assets/file" && req.nextUrl.searchParams.has("sig")) {
     return NextResponse.next();
   }
@@ -31,7 +31,7 @@ export default async function middleware(req: NextRequest) {
   const session = await middlewareAuth();
 
   if (!session) {
-    // APIにはリダイレクトではなくJSONで401を返す
+    // API には、リダイレクトではなく、JSON で 401 を返す
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: en ? "You need to sign in" : "ログインが必要です" }, { status: 401 });
     }
@@ -54,6 +54,6 @@ function setupRequired(pathname: string, en: boolean): NextResponse {
 }
 
 export const config = {
-  // robots.txt は認証なしで配信する（クローラに Disallow を返すため）
+  // robots.txt は認証なしで配信する（クローラーに Disallow を返すため）
   matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|robots.txt).*)"],
 };

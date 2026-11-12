@@ -43,7 +43,7 @@ test("Removing a breakpoint in another editor does not let an in-progress aspect
     await a.keyboard.press("Enter");
     const canvas = a.locator('.cv-root [data-node="a"]');
     await expect(canvas).toHaveCSS("aspect-ratio", "16 / 9");
-    // All node styles stored by the API remain identical to their values before the breakpoint was removed.
+    // API が保存したノードのスタイルは、すべてブレークポイントを削除する前の値と同じまま。
     expect((await (await a.request.get(api)).json()).doc.nodes).toEqual(fixture.nodes);
 
     await ratio.fill("3 / 2");

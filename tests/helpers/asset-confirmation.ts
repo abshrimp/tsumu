@@ -21,7 +21,7 @@ export function assetConfirmationDoc(): SiteDoc {
   };
 }
 
-/** 実際のハンドラーとストアを使い、確認の完了と再描画の順序だけをテストで制御する。 */
+/** 実際のハンドラーとストアを使い、確認の完了と再描画の順序だけを、テストで制御する。 */
 export function assetConfirmationCallbacks() {
   let cursor = 0;
   let effects: (() => void)[] = [];
@@ -66,7 +66,7 @@ export function assetConfirmationCallbacks() {
   };
 }
 
-/** React・DialogHost・AssetsTab・削除APIの呼び出しをそのままブラウザで動かす。 */
+/** React・DialogHost・AssetsTab・削除の API の呼び出しを、そのままブラウザで動かす。 */
 export async function assetConfirmationBundle() {
   return (await build({
     stdin: {

@@ -6,7 +6,7 @@ export const firstSearch = "?tab=products&q=first&note=one&stock=true&size=S&sor
 export const nextSearch = "?tab=products&q=next&note=two&size=M&sort=A";
 export const defaultSearch = "?tab=products&seed=changed";
 
-/** 公開用の実際のファイルを使う。取得先はfixture内の関数で置き換え、外部へ通信しない。 */
+/** 公開用の実際のファイルを使う。取得先は準備の中の関数で置き換え、外部へは通信しない。 */
 export function searchFormFiles() {
   const field = (id: string, content: FieldContent): DocNode => ({
     ...makeBox(), id, attrId: id, type: "field", field: content,

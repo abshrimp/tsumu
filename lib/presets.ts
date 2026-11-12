@@ -15,15 +15,15 @@ import { BP_ORDER } from "./style";
 
 let counter = 0;
 /**
- * 要素・ページなどのID。時刻と通し番号だけだと、共同編集の別の人（や別のサーバー）が
- * 同じミリ秒に同じ番号で作ったときに重なり、マージで別の要素が1つに混ざるため、ランダムな部分も付ける
+ * 要素・ページなどの ID。時刻と通し番号だけだと、共同編集の別の人（や別のサーバー）が
+ * 同じミリ秒に同じ番号で作ったときに重なり、マージで別々の要素が1つに混ざるため、ランダムな部分も付ける
  */
 export function genId(prefix: string): string {
   counter += 1;
   return `${prefix}_${Date.now().toString(36)}${counter.toString(36)}${randomPart()}`;
 }
 
-/** IDに付ける、ランダムな英数字4文字 */
+/** ID に付ける、ランダムな英数字4文字 */
 export function randomPart(): string {
   const bytes = new Uint8Array(4);
   crypto.getRandomValues(bytes);
@@ -66,7 +66,7 @@ export function makeText(content = tr("Text", "text_variant_1"), styles: StyleMa
   };
 }
 
-/** リンク（押すとURL・ページを開く文字。行き先は要素の設定で決める） */
+/** リンク（押すと URL やページを開く文字。行き先は要素の設定で決める） */
 export function makeLink(label = tr("Link")): DocNode {
   return {
     ...makeText(label, { color: "#0b57d0", textDecoration: "underline", textUnderlineOffset: "3px" }),
@@ -75,7 +75,7 @@ export function makeLink(label = tr("Link")): DocNode {
   };
 }
 
-/** スイッチ（非表示のチェックボックスとオン・オフのボックスをスクリプトで切り替える） */
+/** スイッチ（非表示のチェックボックスと、オン・オフのボックスをスクリプトで切り替える） */
 export function makeSwitch(): PresetResult {
   const checkbox = makeField("checkbox");
   checkbox.attrId = "toggle";
@@ -257,7 +257,7 @@ export function makeDivider(): DocNode {
   };
 }
 
-/** 既定アイコン（lucide の star）。差し替えは設定パネルのピッカーで行う */
+/** 既定のアイコン（lucide の star）。差し替えは、設定パネルのピッカーで行う */
 const DEFAULT_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/></svg>`;
 
 export function makeIcon(): DocNode {
@@ -345,7 +345,7 @@ export function makeField(kind: FieldKind): DocNode {
     },
     radio: {
       name: tr("Radio button"),
-      // 同じグループ名のラジオボタンから1つだけ選べる（グループ名が値の変数名になる）
+      // 同じグループ名のラジオボタンからは、1つだけ選べる（グループ名が、値の変数名になる）
       field: { label: tr("Option A"), group: "radio" },
       attrId: "radio-1",
       styles: {
@@ -369,7 +369,7 @@ export function makeField(kind: FieldKind): DocNode {
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        // 幅いっぱいの入力欄と横に並べても押しつぶされず、文字が1字ずつ折り返されないように
+        // 幅いっぱいの入力欄と横に並べても押しつぶされず、文字が1字ずつ折り返されないようにする
         flexShrink: "0",
         whiteSpace: "nowrap",
         padding: "10px 24px",
@@ -439,7 +439,7 @@ export function makeEmbed(kind: EmbedContent["kind"]): DocNode {
   };
 }
 
-/** リスト要素（テンプレートの項目カード付き） */
+/** リストの要素（テンプレートの項目カード付き） */
 export function makeList(from?: string): PresetResult {
   const title = makeHeading(tr("Title"), 3, { fontSize: "18px" });
   const desc = makeText(tr("Description"), { fontSize: "14px", color: "#71717a" });
@@ -484,7 +484,7 @@ export function makeCode(): DocNode {
   };
 }
 
-/* ---------- プリセットレイアウト ---------- */
+/* ---------- プリセットのレイアウト ---------- */
 
 export interface PresetResult {
   root: DocNode;
@@ -501,7 +501,7 @@ function link(node: DocNode, url: string): DocNode {
   return node;
 }
 
-/** ハンバーガーメニュー用アイコン（アイコンピッカーで「menu」を選んだときと同じSVG） */
+/** ハンバーガーメニュー用のアイコン（アイコンのピッカーで「menu」を選んだときと同じ SVG） */
 const MENU_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-menu" aria-hidden="true"><path d="M4 5h16"></path><path d="M4 12h16"></path><path d="M4 19h16"></path></svg>`;
 
 function presetNavbar(): PresetResult {
@@ -518,7 +518,7 @@ function presetNavbar(): PresetResult {
   });
   links.children = [l1.id, l2.id, l3.id];
   links.attrId = "nav-links";
-  // スマホ幅: 非表示のドロップダウンにして、ハンバーガーの表示切替で開閉する
+  // スマホの幅: 非表示のドロップダウンにし、ハンバーガーの表示の切り替えで開閉する
   links.styles.sm = {
     default: {
       display: "none",
@@ -539,7 +539,7 @@ function presetNavbar(): PresetResult {
     l.styles.sm = { default: { padding: "12px 24px" } };
   }
 
-  // スマホ幅で表示するハンバーガー。スクリプトで #nav-links を開閉する
+  // スマホの幅で表示するハンバーガー。スクリプトで #nav-links を開閉する
   const toggle: DocNode = {
     id: genId("node"),
     type: "icon",
@@ -655,9 +655,9 @@ function presetFooter(): PresetResult {
 }
 
 
-/* ---------- 初期ドキュメント ---------- */
+/* ---------- 初期の文書 ---------- */
 
-/** サンプルデータソース（dummyjson.com の商品カタログ） */
+/** サンプルのデータソース（dummyjson.com の商品カタログ） */
 const DEMO_PRODUCTS_SAMPLE: Record<string, unknown>[] = [
   {
     id: 1,
@@ -723,7 +723,7 @@ function loadScript(url: string, sample: unknown, then: ScriptStep[]): Script {
   };
 }
 
-/** dummyjson.com を使った商品一覧・詳細のデモページ一式 */
+/** dummyjson.com を使った、商品の一覧と詳細のデモページ一式 */
 function buildDemoProducts(nodes: Record<string, DocNode>): {
   listPage: Page;
   detailPage: Page;
@@ -809,7 +809,7 @@ function buildDemoProducts(nodes: Record<string, DocNode>): {
   sInput.field = { kind: "input", placeholder: tr("Search products…") };
   sInput.attrId = "q";
   const sBtn = add(makeButton(tr("Search")));
-  // 幅いっぱいの入力欄と横に並べても押しつぶされず、文字が1字ずつ折り返されないように
+  // 幅いっぱいの入力欄と横に並べても押しつぶされず、文字が1字ずつ折り返されないようにする
   Object.assign(sBtn.styles.base.default!, { flexShrink: "0", whiteSpace: "nowrap", padding: "10px 24px", fontSize: "14px" });
   const sForm = add(
     makeBox(tr("Search form"), {
@@ -937,7 +937,7 @@ export function createInitialDoc(): SiteDoc {
     children: [nav, hero, cards, footer],
   };
 
-  /* --- 404ページ（URLを「404」にすると not-found として出力される） --- */
+  /* --- 404 のページ（URL を「404」にすると not-found として出力される） --- */
   const nfH = makeHeading("404", 1, {
     fontSize: "64px",
     letterSpacing: "0.04em",
@@ -974,7 +974,7 @@ export function createInitialDoc(): SiteDoc {
   return {
     schemaVersion: 1,
     siteName: "My Site",
-    // 初期の文言はエディタの表示言語で入るので、サイトの言語もそれに合わせる
+    // 初期の文言はエディタの表示言語で入るため、サイトの言語もそれに合わせる
     lang: getLang(),
     colorPalette: [],
     pages: {

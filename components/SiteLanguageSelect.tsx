@@ -8,7 +8,7 @@ import { isSiteLang, SITE_LANGS } from "../lib/site-lang";
 const CUSTOM = "__custom__";
 const isCustom = (value: string) => !!value && !SITE_LANGS.some((lang) => lang.value === value);
 
-/** サイトとページで共通の言語選択。空文字はページの「サイトと同じ」。 */
+/** サイトとページで共通の言語の選択欄。空文字は、ページでは「サイトと同じ」を表す。 */
 export default function SiteLanguageSelect({ value, onChange, inheritLabel, id }: {
   value: string;
   onChange: (value: string) => void;
@@ -20,7 +20,7 @@ export default function SiteLanguageSelect({ value, onChange, inheritLabel, id }
   const [invalid, setInvalid] = useState(false);
   const hintId = useId();
 
-  // ページの切替・元に戻す・共同編集で値が変わったときも入力欄を揃える。
+  // ページの切り替え・元に戻す操作・共同編集で値が変わったときも、入力欄の表示をそろえる。
   useEffect(() => {
     setCustom(isCustom(value));
     setDraft(value);

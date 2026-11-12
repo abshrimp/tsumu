@@ -1,6 +1,6 @@
 /**
  * ヘルプの記事に入れる図解。並べ方・余白・画像の切り抜きなどは、説明している CSS を
- * そのまま使って描く（図そのものが実際の見え方の見本になる）
+ * そのまま使って描く（図そのものが、実際の見え方の見本になる）
  */
 
 import type { CSSProperties, ReactNode } from "react";
@@ -199,7 +199,7 @@ function AlignCenter() {
   );
 }
 
-/** 子ごとの外側余白より、親の間隔 */
+/** 子ごとの外側の余白より、親の間隔を使う */
 function GapVsMargin() {
   const row = (gaps: number[], sel?: boolean) => (
     <div className={`hf-box${sel ? " is-sel" : ""}`} style={{ display: "flex", alignItems: "center", padding: 6, marginBottom: 14 }}>
@@ -224,7 +224,7 @@ function GapVsMargin() {
   );
 }
 
-/** 内側余白と外側余白 */
+/** 内側の余白と外側の余白 */
 function BoxModel() {
   return (
     <div className="hf-row">
@@ -269,7 +269,7 @@ function WidthPercent() {
   );
 }
 
-/** 背景は画面いっぱい・中身は最大幅で中央 */
+/** 背景は画面いっぱい、中身は最大幅で中央に置く */
 function MaxWidth() {
   return (
     <div className="hf-stack">
@@ -311,7 +311,7 @@ function GridResponsive() {
   );
 }
 
-/** 横並びをスマホでは縦に */
+/** 横並びを、スマホでは縦に並べる */
 function StackOnMobile() {
   return (
     <div className="hf-row" style={{ alignItems: "flex-end" }}>
@@ -347,7 +347,7 @@ function Wrap() {
   return <Compare badLabel={tr("No wrap (overflows)")} goodLabel={tr("Wrap", "wrap_variant_1")} bad={<div className="hf-clipx">{box(false)}</div>} good={box(true)} />;
 }
 
-/** 自由な位置（カスタム）は親が基準 */
+/** 自由な位置（カスタム）は親が基準になる */
 function PositionCustom() {
   return (
     <div className="hf-row">
@@ -468,7 +468,7 @@ function FixedHeight() {
   );
 }
 
-/** 自由配置は狭い画面で重なる */
+/** 自由配置は、狭い画面で重なる */
 function FlowVsAbsolute() {
   return (
     <Compare
@@ -1059,7 +1059,7 @@ function AltText() {
   );
 }
 
-/** クリックするたびに1階層ずつ奥を選ぶ（⌘クリックは一番奥） */
+/** クリックするたびに1階層ずつ内側を選ぶ（⌘クリックは最も内側） */
 function SelectDepth() {
   const step = (sel: 0 | 1 | 2, label: string, sub: string) => (
     <div className="hf-col" style={{ gap: 4 }}>
@@ -1137,7 +1137,7 @@ function BranchPublish() {
   );
 }
 
-/** ロールバックは「前の版と同じ内容」を新しく積む */
+/** ロールバックは「前の版と同じ内容」を新しいコミットとして積む */
 function Rollback() {
   const v = (n: string, opts: { current?: boolean; copy?: boolean; dim?: boolean } = {}) => (
     <div className="hf-col" style={{ gap: 3 }}>
@@ -1179,7 +1179,7 @@ function AiFlow() {
   );
 }
 
-/** ページを複数選んでまとめて操作 */
+/** ページを複数選んで、まとめて操作する */
 function PageMulti() {
   return (
     <div className="hf-col" style={{ alignItems: "stretch", gap: 4, width: 220 }}>

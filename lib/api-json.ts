@@ -1,6 +1,6 @@
 /**
- * JSON API のリクエスト本文をストリームから上限付きで読む。
- * Content-Length だけでなく、長さを申告しない chunked 送信にも適用する。
+ * JSON API のリクエストの本文を、ストリームから上限付きで読む。
+ * Content-Length だけでなく、長さを申告しない chunked の送信にも上限を適用する。
  */
 export class JsonBodyTooLargeError extends RangeError {}
 export class JsonContentTypeError extends TypeError {}
@@ -19,7 +19,7 @@ export async function readJsonLimited(
   if (declared !== null) {
     if (!/^\d+$/.test(declared)) throw new SyntaxError("Invalid Content-Length");
     if (Number(declared) > maxBytes) {
-      // 複製された本文のもう一方の読み手を待たず、上限エラーを返す。
+      // 複製された本文のもう一方の読み手を待たずに、上限のエラーを返す。
       void req.body?.cancel().catch(() => {});
       throw new JsonBodyTooLargeError("JSON request too large");
     }
@@ -41,7 +41,7 @@ export async function readJsonLimited(
     }
     return JSON.parse(raw + decoder.decode());
   } catch (error) {
-    // 上限超過や不正な文字コードで残りの受信を止め、後始末の完了は待たない。
+    // 上限を超えたときや不正な文字コードのときは残りの受信を止め、後始末の完了は待たない。
     void reader.cancel(error).catch(() => {});
     throw error;
   } finally {

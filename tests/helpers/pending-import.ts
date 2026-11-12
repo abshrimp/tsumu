@@ -9,7 +9,7 @@ import * as assets from "../../lib/assets";
 
 const require = createRequire(resolve("package.json"));
 
-/** 実際のコールバックを、完了順と再描画を制御して実行する。DOMでの同じ操作はE2Eでも確認する。 */
+/** 実際のコールバックを、完了の順序と再描画を制御して実行する。DOM での同じ操作は、E2E でも確かめる。 */
 export function importCallbacks(kind: "image" | "font" | "html" | "style" | "backup" | "breakpoints" | "pages" | "add" | "reset", upload = assets.uploadAsset, readZip = readHtmlZip) {
   let cursor = 0;
   let effects: (() => void)[] = [];
@@ -106,7 +106,7 @@ export function elements(tree: any): any[] {
   return [tree, ...elements(tree.props?.children), ...elements(tree.props?.lead)];
 }
 
-/** 実際のパネル・ストア・画像アップロード処理をブラウザで動かす。 */
+/** 実際のパネル・ストア・画像のアップロードの処理を、ブラウザで動かす。 */
 export async function pendingImportBundle() {
   return (await build({
     stdin: {

@@ -6,7 +6,7 @@ import { generateProject } from "../../lib/generator";
 import { makeBox, makeText } from "../../lib/presets";
 import type { DocNode, ScriptStep, SiteDoc } from "../../lib/types";
 
-/** 空のファイル欄への代入、選択済みファイルの解除、通常の入力欄を同じランタイムで確かめる。 */
+/** 空のファイルの欄への代入、選択済みのファイルの解除、通常の入力欄を、同じランタイムで確かめる。 */
 export function scriptFileValueDoc(): SiteDoc {
   let sequence = 0;
   const set = (target: string, value: string): ScriptStep => ({ id: `set-${++sequence}`, kind: "set-value", target, value });
@@ -65,7 +65,7 @@ createRoot(document.getElementById("app")).render(<Canvas />);
   })).outputFiles[0].text;
 }
 
-/** 手書きのHTMLではなく、実際に書き出すReactページを描画する。 */
+/** 手書きの HTML ではなく、実際に書き出す React のページを描画する。 */
 export async function publishedScriptFileValue() {
   const doc = scriptFileValueDoc();
   const { files } = generateProject(doc);

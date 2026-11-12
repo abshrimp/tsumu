@@ -7,8 +7,8 @@ import { loadDicts, translate } from "../lib/i18n";
 import { createInitialDoc } from "../lib/presets";
 
 const require = createRequire(import.meta.url);
-// Next の実際のルーターと同じ条件で、書き出したルールを判定する。
-// エディタ本体からは Next の内部モジュールを読み込まない。
+// Next.js の実際のルーターと同じ条件で、書き出した規則を判定する。
+// エディタの本体からは、Next.js の内部のモジュールを読み込まない。
 const { getPathMatch } = require("next/dist/shared/lib/router/utils/path-match");
 const { modifyRouteRegex } = require("next/dist/lib/redirect-status");
 const { prepareDestination } = require("next/dist/shared/lib/router/utils/prepare-destination");
@@ -42,7 +42,7 @@ async function redirects(doc: ReturnType<typeof fixture>): Promise<Redirect[]> {
   return new Function(config.replace("export default nextConfig;", "return nextConfig;"))().redirects();
 }
 
-// クエリと # は pathname の判定に関係しない。転送を繰り返して実際のループを確認する。
+// クエリと # は、pathname の判定に関係しない。転送をくり返して、実際のループを確かめる。
 function assertLoops(rule: Redirect, initialPath: string) {
   let url = new URL(initialPath, "https://site.example");
   for (let i = 0; i < 3; i++) {
@@ -102,7 +102,7 @@ for (const [slug, destination, request] of [
   ["K", "/K", "/K"],
   ["old/[slug]", "/new/:slug", "/old/article"],
   ["old/[slug]", "/old", "/old/article"],
-  // 1回だけ再び一致しても、その次で別のURLへ移るものは拒否しない。
+  // 1回だけ再び一致しても、その次で別の URL へ移るものは拒否しない。
   ["[slug]/a", "/b/:slug", "/a/a"],
   ["About", "https://other.example/about", "/About"],
 ] as const) {
@@ -151,7 +151,7 @@ test("draft redirects, proxy pages, and distinct case-sensitive normal pages sta
 test("the self-loop error has an English translation with the page and destination", async () => {
   const error = errors(fixture("About", "/about"))[0];
   assert.ok(error);
-  // runChecks の日本語文から辞書のキーに戻し、実際の翻訳経路を通す。
+  // runChecks の日本語の文から辞書のキーに戻し、実際の翻訳の経路を通す。
   const key = error.message.replace("Old URL", "{name}").replace("/about", "{destination}");
   const translated = translate("en", await loadDicts("en"), key, { name: "Old URL", destination: "/about" });
   assert.match(translated, /Old URL/);
@@ -160,7 +160,7 @@ test("the self-loop error has an English translation with the page and destinati
   assert.match(translated, /different path/);
 });
 
-// Next は pageOrder の先頭から転送を探す。候補のルールだけでなく、その順序も実行する。
+// Next.js は、pageOrder の先頭から転送を探す。候補の規則だけでなく、その順序も実行する。
 function traceRedirects(rules: Redirect[], initialPath: string) {
   let url = new URL(initialPath, "https://site.example");
   const seen = new Set<string>();
@@ -227,6 +227,6 @@ test("partially intercepted parameter targets are conservatively left undecided"
   const rules = await redirects(doc);
   assert.equal(traceRedirects(rules, "/Blog/new").loop, false);
   assert.equal(traceRedirects(rules, "/Blog/other").loop, true);
-  // 一部の変数値だけを遮る先行ルールがある場合、すべての値の安全性は判定しない。
+  // 一部の変数の値だけを遮る先の規則がある場合、すべての値について安全かは判定しない。
   assert.deepEqual(errors(doc), []);
 });

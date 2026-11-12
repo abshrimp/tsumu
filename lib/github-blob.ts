@@ -1,10 +1,10 @@
 /**
- * Request body for GitHub's create-blob API (`POST /git/blobs`).
+ * GitHub の blob を作る API（`POST /git/blobs`）のリクエストの本文。
  *
- * The body is built by concatenation, not `JSON.stringify`: escaping a 25 MiB
- * asset's ~34 MiB base64 string costs ~80 ms of CPU, far past the 10 ms limit
- * of Workers Free, while concatenation is effectively free. Base64 produced
- * by `Buffer` contains only `A-Z a-z 0-9 + / =`, none of which JSON escapes.
+ * 本文は `JSON.stringify` ではなく、文字列の連結で組み立てる。25 MiB のアセットの約 34 MiB の
+ * base64 の文字列をエスケープすると CPU を約 80 ms 使い、Workers の無料プランの 10 ms の上限を
+ * 大きく超えるが、連結ならほぼ負担が無い。`Buffer` が作る base64 は `A-Z a-z 0-9 + / =` だけで
+ * 構成され、どれも JSON でエスケープされない。
  */
 export function gitBlobRequestBody(content: Uint8Array): string {
   const base64 = Buffer.from(content.buffer, content.byteOffset, content.byteLength).toString("base64");

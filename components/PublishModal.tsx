@@ -81,7 +81,7 @@ export function CheckList({ checks, onClose }: { checks: CheckResult[]; onClose:
   );
 }
 
-/** UTF-8 テキストを base64 にする（大きな文字列でも引数上限を超えないよう分割） */
+/** UTF-8 のテキストを base64 にする（大きな文字列でも引数の上限を超えないよう、分けて処理する） */
 function textToBase64(text: string): string {
   const bytes = new TextEncoder().encode(text);
   let bin = "";
@@ -99,7 +99,7 @@ function base64ToBytes(base64: string): Uint8Array {
   return bytes;
 }
 
-/** Gitのblob SHA（sha1("blob <長さ>\0" + 内容)）。既存ツリーとの一致判定に使う */
+/** Git の blob の SHA（sha1("blob <長さ>\0" + 内容)）。既存のツリーと一致するかの判定に使う */
 async function gitBlobSha(base64: string): Promise<string> {
   return gitBlobShaOf(base64ToBytes(base64));
 }
@@ -113,17 +113,17 @@ async function gitBlobShaOf(body: Uint8Array): Promise<string> {
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/** これより大きいテキストは事前にblob化し、ツリー作成リクエストを軽くする */
+/** これより大きいテキストは先に blob にして、ツリーを作るリクエストを軽くする */
 const INLINE_TEXT_LIMIT = 32 * 1024;
 
-/** 保存先にアセットが無い（削除済みなど）。公開は警告付きで続行する */
+/** 保存先にアセットが無い（削除済みなど）。公開は警告を出して続ける */
 class MissingAssetError extends Error {}
 class PublishConflictError extends Error {}
 
-/** 確認の一覧に並べるファイルの数（残りは件数だけ出す） */
+/** 確認の一覧に並べるファイルの数（残りは件数だけを表示する） */
 const OVERWRITE_LIST_LIMIT = 8;
 
-/** GitHub上で変更されたファイルを上書きしてよいか確かめる */
+/** GitHub 上で変更されたファイルを上書きしてよいかを確かめる */
 function confirmOverwrite(paths: string[]): Promise<boolean> {
   const listed = paths.slice(0, OVERWRITE_LIST_LIMIT).join("\n");
   const rest = paths.length - OVERWRITE_LIST_LIMIT;
@@ -134,7 +134,7 @@ function confirmOverwrite(paths: string[]): Promise<boolean> {
   );
 }
 
-/** Keep the displayed identity fixed, while exposing current local settings for validation. */
+/** 表示している公開先は固定したまま、検証用に現在の手元の設定も渡す。 */
 function publishFields(conf: PublishConfig, target: PublishTarget) {
   const fields = sitePublishFields();
   if (fields.site !== conf.site) throw new PublishConflictError(tr(publishConflictMessage));
@@ -154,14 +154,14 @@ function historyUrl(conf: PublishConfig, target: PublishTarget, doc?: string): s
 }
 
 /**
- * /api/publish を呼び、エラー時はサーバーのメッセージで例外を投げる。
- * WorkersのCPU超過などではHTMLが返るため、JSONでなくても状態コードで報告する。
+ * /api/publish を呼び、エラーのときはサーバーのメッセージで例外を投げる。
+ * Workers の CPU 時間の超過などでは HTML が返るため、JSON でなくても状態コードで報告する。
  */
 async function postPublish<T>(conf: PublishConfig, target: PublishTarget, body: object, fallback: string, url = "/api/publish"): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    // Current local settings are checked against the immutable displayed identity.
+    // 現在の手元の設定を、変わらない表示中の公開先と照らし合わせる。
     body: JSON.stringify({ ...publishFields(conf, target), ...body }),
   });
   const data = (await res.json().catch(() => null)) as
@@ -186,9 +186,9 @@ interface TargetInfo {
 
 interface PublishConfig {
   site: string;
-  /** GitHubのトークンと公開先リポジトリが設定されているか */
+  /** GitHub のトークンと公開先のリポジトリが設定されているか */
   configured: boolean;
-  /** 足りない設定（token = 環境変数の GITHUB_TOKEN / repo = サイトの公開先） */
+  /** 足りない設定（token = 環境変数の GITHUB_TOKEN、repo = サイトの公開先） */
   unset: "token" | "repo" | null;
   /** テスト公開を使うか（サイトの設定でテスト公開のブランチが空なら使わない） */
   previewEnabled: boolean;
@@ -271,7 +271,7 @@ export default function PublishModal({
   const conf = usePublishConfig();
   const targets = conf && conf !== "error" ? conf : null;
   const configuredTargets = targets?.configured ? targets : null;
-  /** 選んだ公開先（公開開始まで null） */
+  /** 選んだ公開先（公開を始めるまでは null） */
   const [site, setSite] = useState<PublishTarget | null>(null);
   const [phase, setPhase] = useState<"check" | "busy" | "done" | "error">("check");
   const [result, setResult] = useState<{
@@ -305,8 +305,8 @@ export default function PublishModal({
 
   const publish = async (site: PublishTarget) => {
     if (!targets || hasError) return;
-    // A non-Next output changes the entire repository tree, and the current
-    // Hosting build and output settings must match the selected project format.
+    // Next.js 以外の出力ではリポジトリのツリー全体が変わり、ホスティング側のビルドと
+    // 公開ディレクトリの設定も、選んだ形式に合わせる必要がある。
     if (site === "production" && format !== "nextjs") {
       const accepted = await showConfirm(
         tr("Pushing this format to GitHub changes the published file structure. Check that the hosting build and output-directory settings match the selected format. Continue?"),
@@ -332,7 +332,7 @@ export default function PublishModal({
         throw new Error(tr("Cannot push editable data containing credentials to GitHub. Remove API keys or passwords and manage them with server environment variables instead."));
       }
       const { files, binaries, remoteAssets } = await prepareExportProject(target, options, site);
-      // 編集データも同梱（バックアップ兼、履歴から編集内容を戻すときに使う）
+      // 編集データも一緒に含める（バックアップを兼ね、履歴から編集内容を戻すときに使う）
       files[DOC_PATH] = JSON.stringify(target, null, 2) + "\n";
       const outputPaths = [
         ...Object.keys(files),
@@ -341,9 +341,9 @@ export default function PublishModal({
         ASSET_MANIFEST_PATH,
       ];
 
-      // 1アセットずつ別リクエストにして、Cloudflare Workers無料枠の
-      // 「1回あたり50サブリクエスト」を超えないようにする。
-      // 大きなテキストもアセットと同様に先にblob化する（ツリー作成のタイムアウト対策）
+      // アセットを1つずつ別のリクエストで送り、Cloudflare Workers 無料プランの
+      // 「1回の呼び出しあたり50サブリクエスト」の上限を超えないようにする。
+      // 大きなテキストも、アセットと同じく先に blob にする（ツリーを作るときのタイムアウト対策）
       const largeTexts: Record<string, string> = {};
       for (const [path, content] of Object.entries(files)) {
         if (new TextEncoder().encode(content).length > INLINE_TEXT_LIMIT) {
@@ -359,8 +359,8 @@ export default function PublishModal({
       const assetShas: Record<string, string> = {};
       const warnings: string[] = [];
 
-      // 公開済みの内容と同じアセットは送り直さない（blob SHAは内容で決まるため再利用できる）。
-      // 手で追加したファイルを残すためにも使うので、取得できなければ公開しない
+      // 公開済みの内容と同じアセットは送り直さない（blob の SHA は内容で決まるため、再利用できる）。
+      // 手動で追加したファイルを残すためにも使うため、取得できなければ公開しない
       setProgress(tr("Checking what's already published…"));
       const existing = await postPublish<{
         head: string | null;
@@ -406,7 +406,7 @@ export default function PublishModal({
         setProgress(tr("Uploading assets… 0/{length}", { length: pending.length }));
       }
       const uploaders = Array.from({ length: Math.min(4, pending.length) }, async () => {
-        // 1件でも失敗したら残りは送らない
+        // 1件でも失敗したら、残りは送らない
         while (!failed && nextAsset < pending.length) {
           const asset = pending[nextAsset++];
           try {
@@ -417,7 +417,7 @@ export default function PublishModal({
             assetShas[asset.path] = uploaded.sha;
             if (asset.source !== undefined) manifest[asset.source] = uploaded.sha;
           } catch (e) {
-            // 保存先から消えているアセットは含めずに公開を続ける
+            // 保存先から消えているアセットは含めずに、公開を続ける
             if (!(e instanceof MissingAssetError)) {
               failed = true;
               throw e;
@@ -432,7 +432,7 @@ export default function PublishModal({
       });
       await Promise.all(uploaders);
       files[ASSET_MANIFEST_PATH] = JSON.stringify(manifest, null, 2) + "\n";
-      // 書き出したファイルの一覧。次の公開で、これに無いファイルを手で追加したものとして残す
+      // 書き出したファイルの一覧。次の公開では、これに無いファイルを手動で追加したものとして残す
       const generated: Record<string, string> = { ...assetShas };
       for (const [path, content] of Object.entries(files)) {
         generated[path] = await gitBlobShaOf(new TextEncoder().encode(content));
@@ -453,7 +453,7 @@ export default function PublishModal({
         },
         tr("Couldn't publish")
       );
-      // フッターの「公開済み」表示は本番サイトの状態を表す
+      // フッターの「公開済み」の表示は、本番サイトの状態を表す
       if (site === "production") markPublished(docFingerprint(target));
       setResult({ commitUrl: data.commitUrl, warnings, format, optionsSaved: data.optionsSaved });
       setPhase("done");
@@ -736,7 +736,7 @@ function formatSize(bytes: number): string {
   return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
-/** 取得した編集データを確かめて、確認のうえで今の編集内容をそれに置き換える */
+/** 取得した編集データを確かめ、確認を取ったうえで、今の編集内容をそれに置き換える */
 async function restoreFrom(url: string, label: string, current: () => boolean): Promise<boolean> {
   const res = await fetch(url);
   const untrusted = await readRestoreJson(res, IMPORT_LIMITS.docBytes);
@@ -744,9 +744,8 @@ async function restoreFrom(url: string, label: string, current: () => boolean): 
   const error = untrusted && typeof untrusted === "object" && "error" in untrusted
     ? (untrusted as { error?: unknown }).error : undefined;
   if (!res.ok) throw new Error(typeof error === "string" ? error : tr("Couldn't load editor data"));
-  // A GitHub commit can be edited independently of Tsumu. The basic shape
-  // check is insufficient: reject cycles, prototype keys and invalid links
-  // using the same validator as an explicit doc.json import.
+  // GitHub のコミットは Tsumu とは無関係に編集できる。基本的な形の確認だけでは足りないため、
+  // 明示的な doc.json のインポートと同じ検証で、循環・プロトタイプのキー・不正なリンクを拒否する。
   const data = sanitizeImportedInlineIcons(validateImportedDoc(untrusted));
   const ok = await showConfirm(
     tr("Your current edits will be replaced with the content from \"{label}\". It's saved to the server too, but Undo (⌘Z) brings back what you have now.", { label }),
@@ -759,7 +758,7 @@ async function restoreFrom(url: string, label: string, current: () => boolean): 
 
 function PublishHistory({ conf, onDone }: { conf: PublishConfig; onDone: () => void }) {
   const [target, setTarget] = useState<PublishTarget>("production");
-  // 実行中の復元・ロールバックは、公開先を切り替えても重ねて実行させない。
+  // 実行中の復元やロールバックは、公開先を切り替えても重ねて実行させない。
   const [busy, setBusy] = useState<string | null>(null);
   const busyRequest = useRef(0);
   return (

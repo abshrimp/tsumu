@@ -9,7 +9,7 @@ const MAX_TURNS = 8;
 const REQUEST_TIMEOUT = 240_000;
 export const MAX_MODEL_BODY_BYTES = 4 * 1024 * 1024;
 const MAX_MODEL_ERROR_BYTES = 32 * 1024;
-/** 混雑（429・503 など）のときに待ってから再試行する間隔 */
+/** 混雑（429・503 など）のときに、待ってから再試行するまでの間隔 */
 const RETRY_DELAYS = [1_000, 3_000];
 const RETRYABLE = new Set([429, 500, 502, 503, 529]);
 
@@ -43,7 +43,7 @@ interface Step {
   respond: (results: ReturnType<ToolHandler>[]) => void;
 }
 
-/** 時間の上限は、応答の読み込みも含めたツール呼び出しのくり返し全体にかける */
+/** 時間の上限は、応答の読み込みも含めた、ツール呼び出しのくり返し全体にかける */
 export async function runAi(
   conf: AiConfig,
   turns: ChatTurn[],
@@ -83,7 +83,7 @@ export async function runAi(
       if (!step.calls.length) {
         if (needsRepair) throw new AiApiError("incomplete", undefined, "Tool errors were not repaired");
         if (!step.text) throw new AiApiError("other", undefined, "The model returned an empty response");
-        // 返すのは最後の応答の文だけ（ツールを動かす前に出した文は、完了の返答に使わない）
+        // 返すのは最後の応答の文だけ（ツールを動かす前に出した文は、完了の返答には使わない）
         return step.text;
       }
       onProgress?.({ type: "phase", phase: "validating", turn: currentTurn });
@@ -118,7 +118,7 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
 }
 
 function apiError(status: number | undefined, detail: string): AiApiError {
-  // 503・529 はモデルの混雑（Gemini の high demand など）
+  // 503・529 は、モデルの混雑を表す（Gemini の high demand など）
   return new AiApiError(status === 401 || status === 403 ? "auth" : status === 429 || status === 503 || status === 529 ? "rate" : "other", status, detail);
 }
 
@@ -179,7 +179,7 @@ function compatibleSession(conf: AiConfig, turns: ChatTurn[], signal: AbortSigna
     { role: "system", content: SYSTEM + PORTABLE_NOTE },
     ...turns.map((t) => ({ role: t.role, content: t.text })),
   ];
-  // 任意の互換APIは標準のツール呼び出しにだけ対応していればよいので、考える深さ（reasoning_effort）は送らない
+  // 任意の互換 API は標準のツール呼び出しにだけ対応していればよいため、推論の量（reasoning_effort）は送らない
   let sendEffort = conf.provider !== "openai-compatible";
   let sendStream = !!onText;
   return async () => {
@@ -197,7 +197,7 @@ function compatibleSession(conf: AiConfig, turns: ChatTurn[], signal: AbortSigna
           ...(sendEffort ? { reasoning_effort: ["xhigh", "max"].includes(conf.effort) ? "high" : conf.effort } : {}),
         }),
         signal,
-        redirect: "manual", // Workers supports manual mode. Treat 3xx as provider errors.
+        redirect: "manual", // Workers は manual モードに対応している。3xx はプロバイダのエラーとして扱う。
       });
       if (res.ok) break;
       const detail = await readTextLimited(res, MAX_MODEL_ERROR_BYTES).catch((error: unknown) => {
@@ -243,7 +243,7 @@ function compatibleSession(conf: AiConfig, turns: ChatTurn[], signal: AbortSigna
         }
       }),
       respond(results) {
-        // プロバイダの追加情報（Gemini の思考の署名など）もそのまま返す
+        // プロバイダの追加情報（Gemini の思考の署名など）も、そのまま返す
         messages.push({ ...message, role: "assistant" });
         calls.forEach((c, i) => messages.push({ role: "tool", tool_call_id: c.id,
           content: results[i].isError ? `Error: ${results[i].content}` : results[i].content }));

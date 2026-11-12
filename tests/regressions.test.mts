@@ -22,7 +22,7 @@ function fixture(nodes: DocNode[]): SiteDoc {
   };
 }
 
-// 構文エラーがあれば transformSync が例外を投げる。
+// 構文エラーがあれば、transformSync が例外を投げる。
 const transpileTsx = (source: string, sourcefile: string) =>
   transformSync(source, { sourcefile, loader: "tsx", jsx: "automatic", format: "cjs", target: "es2020" }).code;
 
@@ -158,13 +158,13 @@ test("generated components avoid framework names and the exported project typech
       { id: "split", kind: "transform", source: "titles", into: "parts", transform: { kind: "split", separator: "," } },
     ],
   }];
-  // 計測タグなどのスクリプトを含むページ専用コード（ページ遷移で開いたときにも動かす）
+  // 計測のタグなどのスクリプトを含む、ページ専用のコード（ページ遷移で開いたときにも動かす）
   doc.pages.p.customEndHtml = `<script src="/tag.js"></script><script>window.tagged = true;</script>`;
   doc.pages.p.customTopHtml = `<script type="application/ld+json">{"@type":"Thing"}</script>`;
   doc.customHeadHtml = `<script language="javascript" async="" ASYNC="false" defer="defer" nomodule="false" src="/x.js" SRC="/ignored.js" data-label="a > b"></script><meta name="a" NAME="ignored" content="Revenue > cost" scheme="c" style="x"><link disabled="" DISABLED="false" rel="stylesheet" href="/style.css"><meta itemscope="" name content>`;
   const { files } = generateProject(doc);
   assert.match(files["app/page.tsx"], /<PageHtml html=\{"\\u003cscript src=/);
-  // 取得先のホストが {変数} で決まるときも、接続時に宛先を確かめる fetchPublic で取得する
+  // 取得先のホストが {変数} で決まるときも、接続するときに宛先を確かめる fetchPublic で取得する
   assert.match(files["app/page.tsx"], /fetchJson\(interpolateUrl\("\{[^"]*\}\/items", vars\)\)/);
   assert.match(files["app/page.tsx"], /import \{ fetchPublic, readTextLimited \} from "@\/lib\/safe-fetch";/);
   assert.ok(files["lib/safe-fetch.ts"]);
@@ -178,7 +178,7 @@ test("generated components avoid framework names and the exported project typech
       mkdirSync(dirname(join(dir, path)), { recursive: true });
       writeFileSync(join(dir, path), content);
     }
-    // 書き出すサイトも本体と同じ TypeScript 7 で型チェックする。
+    // 書き出すサイトも、本体と同じ TypeScript 7 で型を検査する。
     execFileSync(process.execPath, [
       join(dirname(require.resolve("typescript/package.json")), "bin/tsc"),
       "--project", join(dir, "tsconfig.json"), "--noEmit", "--incremental", "false",
@@ -191,7 +191,7 @@ test("generated components avoid framework names and the exported project typech
   }
 });
 
-/** ページ直下に roots を置き、ほかのノードも doc に入れる */
+/** ページの直下に roots を置き、他のノードも doc に入れる */
 function site(roots: DocNode[], others: DocNode[] = []): SiteDoc {
   const doc = fixture(roots);
   for (const n of others) doc.nodes[n.id] = n;
@@ -251,7 +251,7 @@ test("scripts in a browser-rendered list template keep the item's {names}", () =
   ]) };
   const page = generateProject(site([make, list], [button])).files["app/page.tsx"];
   assert.match(page, /data-client-list/);
-  // 項目がまだない段階では空文字にせず、実行時に読む参照名を残す。
+  // 項目がまだ無い段階では空文字にせず、実行時に読む参照の名前を残す。
   assert.match(page, /"value":\{ scriptParts: \["", \{ name: "値"/);
 });
 
@@ -267,12 +267,12 @@ test("[slug] pages answer 404 when the API has no item, and metadata reads the s
   assert.match(isr, /export const revalidate = 60/);
   assert.match(isr, /if \(res\.status === 404 \|\| res\.status === 410\) return null;/);
 
-  // URLのクエリも使う取得: メタデータもクエリを入れてから同じURLを取得する
+  // URL のクエリも使う取得: メタデータも、クエリを入れてから同じ URL を取得する
   (doc.pages.p.pageScripts[0].steps[0] as { url: string }).url = "https://api.example.com/items/{slug}?lang={lang}";
   const dynamic = generateProject(doc).files["app/items/[slug]/page.tsx"];
   const meta = dynamic.slice(dynamic.indexOf("export async function generateMetadata"), dynamic.indexOf("export default"));
   assert.match(meta, /searchParams/);
-  // URLの [slug] は ?slug= より優先する
+  // URL の [slug] は、?slug= より優先する
   assert.ok(meta.indexOf("vars[k] = v") < meta.indexOf("vars.slug = slug"));
 });
 
@@ -287,7 +287,7 @@ test("a search form inside a component makes the page read the query on every re
   const { files } = generateProject(doc);
   assert.match(files["app/page.tsx"], /export const dynamic = "force-dynamic"/);
   assert.match(files["app/page.tsx"], /await searchParams/);
-  // コンポーネントの中でも、入力欄の値を使う文字は入力に合わせて書き直す
+  // コンポーネントの中でも、入力欄の値を使う文字は、入力に合わせて書き直す
   assert.match(files["components/Search.tsx"], /data-live=\{interpolate\("\{q\}を検索", \{ \.\.\.\{\}, \.\.\.\{"q":"\{q\}"/);
 });
 
@@ -336,7 +336,7 @@ test("a page in another language wraps its content in a lang element", () => {
   assert.equal(wrapper.props.lang, "en");
   assert.deepEqual(wrapper.props.style, { display: "contents" });
   assert.equal(wrapper.props.children[1].props.children, "Hello");
-  // サイトと同じ言語なら包まない
+  // サイトと同じ言語なら、包まない
   doc.lang = "en";
   assert.doesNotMatch(generateProject(doc).files["app/page.tsx"], /lang=/);
 });
@@ -395,7 +395,7 @@ test("duplicated elements keep their own custom keyframes", () => {
 test("device ranges for hiding leave no gap at fractional screen widths", () => {
   const box: DocNode = { ...makeBox(), id: "x", hiddenOn: ["base"] };
   const css = generateProject(site([box])).files["styles/site.css"];
-  // 「パソコンでは非表示」は、すぐ下の画面の max-width をわずかに超えたところから
+  // 「パソコンでは非表示」は、すぐ下の画面の max-width をわずかに超えたところから効く
   const m = /@media \(min-width: ([\d.]+)px\) \{\n  \.[\w-]+ \{\n    display: none;/.exec(css);
   assert.ok(m, css);
   assert.ok(!Number.isInteger(Number(m[1])) && Number(m[1]) % 1 < 0.1, m[1]);
@@ -407,12 +407,12 @@ test("a fetch URL that cannot be parsed does not stop the export and sends no cr
     { id: "fetch", kind: "fetch", url: "https://exa mple.com/items", as: "items", headers: [{ name: "Authorization", value: "Bearer x" }] },
   ]) as never;
   const { files } = generateProject(doc);
-  // 取得元のオリジンが決まらないので、資格情報つきの取得は safeRequestOrigin が止める
+  // 取得元のオリジンが決まらないため、認証情報付きの取得は safeRequestOrigin が止める
   assert.match(files["app/page.tsx"], /fetchJson\(interpolateUrl\("https:\/\/exa mple\.com\/items", vars\), JSON\.stringify\(\{ headers: \{ "Authorization": "Bearer x" \} \}\), undefined\)/);
 });
 
 test("the script runtime parses as JavaScript (preview and export run it with new Function)", async () => {
   const { SCRIPT_RUNTIME } = await import("../lib/script-runtime");
-  // テンプレート文字列の中の正規表現は \\/ と書かないと / で終わり、プレビューのキャンバスごと落ちる
+  // テンプレート文字列の中の正規表現は、\\/ と書かないと / で終わり、プレビューのキャンバスごと落ちる
   assert.doesNotThrow(() => new Function(`return (${SCRIPT_RUNTIME})`));
 });

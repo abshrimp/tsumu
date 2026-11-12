@@ -63,7 +63,7 @@ test(`component nested browser arrays: configure, preview, reload and execute ex
   const html = await publishedClientNested(saved.doc);
   await page.setContent(html); await page.addScriptTag({ content: scriptsFile(saved.doc) });
   await check(page);
-  // Navigate away and back with the production-style persistent runtime to reset temporary values and operations.
+  // 本番と同じ、ページをまたいで残るランタイムで、別のページへ移動して戻り、一時的な値と操作をリセットする。
   await page.evaluate(() => { document.body.innerHTML = '<span data-page-body="other"></span>'; });
   await expect(details(page)).toHaveCount(0);
   await page.evaluate(content => { document.body.innerHTML = content; }, html);
@@ -98,7 +98,7 @@ test('nested static filters shadow server values without reinterpreting literal 
   await page.addScriptTag({ content: scriptsFile(doc) });
   for (let i = 0; i < 2; i++) {
     await page.getByRole('button', { name: 'Load items', exact: true }).click();
-    // A typed null condition must not match an empty-string label.
+    // 型のある null の条件は、空文字のラベルに一致してはならない。
     await expect(details(page)).toHaveText(['Detail First:blue{literal}', 'Detail Second:red{literal}', 'Detail Missing:red{literal}']);
   }
   expect(errors).toEqual([]);
@@ -152,7 +152,7 @@ test(`component generated client links retain row URLs after reload and navigati
   const value = page.locator('.se-ws [data-sel-key="step:reload-step"] input').first();
   await value.fill('{response}'); await value.press('Tab');
   await page.getByRole('button', { name: '閉じる', exact: true }).click();
-  // Only selection is assisted; URL editing, history, and saving go through the actual Settings panel.
+  // 補助するのは選択だけ。URL の編集・履歴・保存は、実際の設定のパネルを通す。
   await page.evaluate(() => (window as any).clientNestedStore.getState().select('detail'));
   const before = await snapshot(page);
   const url = page.getByPlaceholder('https://…・#ID・{変数}', { exact: true });

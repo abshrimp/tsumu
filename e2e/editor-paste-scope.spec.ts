@@ -81,10 +81,10 @@ test.describe("Native paste event scope in the editor", () => {
   });
 });
 
-// Verify persisted data using the real Next.js editor copy operation and a browser-generated paste event.
+// 実際の Next.js のエディタのコピーの操作と、ブラウザが生成した貼り付けのイベントで、保存されたデータを確かめる。
 for (const context of ["preview", "settings"] as const) test(`Ctrl+V in the real editor ${context} does not change the saved document`, async ({ page }) => {
-  // Clipboard API writes are asynchronous. Grant the real Chromium clipboard
-  // permissions and wait for the HTML payload before issuing the native paste.
+  // Clipboard API の書き込みは非同期。実際の Chromium にクリップボードの権限を与え、
+  // HTML のデータが書かれるのを待ってから、ネイティブの貼り付けを行う。
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
   const created = await page.request.post("/api/sites", { data: { name: "Native paste scope" } });
@@ -107,7 +107,7 @@ for (const context of ["preview", "settings"] as const) test(`Ctrl+V in the real
         }
       }
     } catch {
-      // The assertion below reports a rejected or incomplete Clipboard API write.
+      // Clipboard API の書き込みが拒否されたり不完全だったりしたときは、下の検証で報告される。
     }
     return false;
   })).toBe(true);

@@ -1,18 +1,18 @@
 /**
- * ユーザーが指定したURLをサーバーから取得する（SSRF対策）。
- * - http(s) だけ。サーバー自身・社内ネットワーク・クラウドのメタデータなど、公開されていない宛先には送らない
- * - リダイレクトは1回ずつ宛先を確かめて追う（公開URLから内部の宛先へ転送されても届かない）
+ * 利用者が指定した URL を、サーバーから取得する（SSRF 対策）。
+ * - http(s) だけを扱う。サーバー自身・社内ネットワーク・クラウドのメタデータなど、公開されていない宛先には送らない
+ * - リダイレクトは、1回ずつ宛先を確かめてから追う（公開 URL から内部の宛先へ転送されても届かない）
  * - 本文は上限までしか読まない
  */
 
-/** 公開されていない宛先として拒否するホスト名か（IPアドレスの書き方は URL が正規化したもの） */
+/** 公開されていない宛先として拒否するホスト名か（IP アドレスの書き方は、URL が正規化したもの） */
 export function isPrivateHost(hostname: string): boolean {
   const host = hostname.toLowerCase().replace(/\.+$/, "");
   if (!host || host.includes("..")) return true;
   if (host.startsWith("[")) return isPrivateIPv6(host.slice(1, -1));
   const v4 = parseIPv4(host);
   if (v4) return isPrivateIPv4(v4);
-  // 「.」の無い名前（metadata・db など）は社内の名前解決で内部の機械を指す
+  // 「.」の無い名前（metadata・db など）は、社内の名前解決で内部の機械を指す
   if (!host.includes(".")) return true;
   return /(^|\.)(localhost|local|internal|intranet|lan|home\.arpa|localdomain)$/.test(host);
 }
@@ -27,7 +27,7 @@ function parseIPv4(host: string): number[] | null {
 function isPrivateIPv4([a, b, c]: number[]): boolean {
   return (
     a === 0 || a === 10 || a === 127 || a >= 224 ||
-    (a === 100 && b >= 64 && b <= 127) || // キャリアグレードNAT
+    (a === 100 && b >= 64 && b <= 127) || // キャリアグレード NAT
     (a === 169 && b === 254) || // リンクローカル・クラウドのメタデータ
     (a === 172 && b >= 16 && b <= 31) ||
     (a === 192 && (b === 168 || b === 0 || (b === 88 && c === 99))) ||
@@ -37,19 +37,19 @@ function isPrivateIPv4([a, b, c]: number[]): boolean {
 }
 
 function isPrivateIPv6(addr: string): boolean {
-  // DNS の返す省略形・ゼロ埋め表記も URL と同じ形で判定する。
+  // DNS が返す省略形やゼロ埋めの表記も、URL と同じ形にして判定する。
   let a: string;
   try { a = new URL(`http://[${addr}]/`).hostname.slice(1, -1); }
   catch { return true; }
   const [first, second] = a.split(":").map(part => parseInt(part || "0", 16));
-  // Global unicast is 2000::/3. Use hextet values so compressed, low-valued
-  // addresses such as 2::1 cannot match the textual start of a public prefix.
+  // グローバルユニキャストは 2000::/3。2::1 のような省略した小さい値のアドレスが、
+  // 公開のプレフィックスの文字列の先頭に一致しないよう、16ビットごとの値で判定する。
   return first < 0x2000 || first > 0x3fff ||
     (first === 0x2001 && (second < 0x200 || second === 0xdb8)) ||
     first === 0x2002 || first === 0x3ffe || (first === 0x3fff && second < 0x1000);
 }
 
-/** DNS checks must not hang before the request's HTTP timeout starts. */
+/** DNS の確認は、リクエストの HTTP のタイムアウトが始まる前に止まったままになってはいけない。 */
 function dnsWithDeadline<T>(work: () => Promise<T>, signal?: AbortSignal): Promise<T> {
   const deadline = AbortSignal.timeout(5_000);
   const combined = signal ? AbortSignal.any([signal, deadline]) : deadline;
@@ -89,18 +89,18 @@ function isWorker(): boolean {
   return globalThis.navigator?.userAgent === "Cloudflare-Workers";
 }
 
-// 静的 import は Edge/Workers 用のバンドルにも入るため、Node の組み込みだけを実行時に読む。
+// 静的な import は Edge / Workers 用のバンドルにも入るため、Node.js の組み込みモジュールだけを実行時に読む。
 function builtin<T>(name: string): T {
   const load = globalThis.process?.getBuiltinModule;
   if (!load) throw new BlockedUrlError("safe network transport unavailable");
   return load(name) as T;
 }
 
-/** Native fetch also needs a bounded body, including its already-decoded bytes. */
+/** 標準の fetch でも、すでにデコードしたバイト列も含めて、本文の大きさを制限する必要がある。 */
 async function bufferNativeResponse(res: Response, maxBytes: number, signal?: AbortSignal | null): Promise<Response> {
   const reader = res.body?.getReader();
   if (!reader) return res;
-  // Cancelling the reader wakes a pending read even if no more bytes arrive.
+  // 読み手を取り消せば、それ以上バイトが届かなくても、待っている読み取りが終わる。
   const abort = () => { void reader.cancel(signal?.reason).catch(() => {}); };
   signal?.addEventListener("abort", abort, { once: true });
   try {
@@ -116,12 +116,12 @@ async function bufferNativeResponse(res: Response, maxBytes: number, signal?: Ab
       chunks.push(value);
     }
     const headers = new Headers(res.headers);
-    // Native fetch decompresses the body; wire metadata no longer describes it.
+    // 標準の fetch は本文を展開するため、通信上の情報はもう本文と一致しない。
     headers.delete("content-encoding");
     headers.delete("content-length");
     return new Response(new Blob(chunks as BlobPart[]), { status: res.status, statusText: res.statusText, headers });
   } catch (error) {
-    // Do not let upstream cancellation delay a size error or request deadline.
+    // 上流の取り消しのために、大きさのエラーやリクエストの期限が遅れないようにする。
     void reader.cancel(error).catch(() => {});
     throw error;
   } finally {
@@ -131,14 +131,14 @@ async function bufferNativeResponse(res: Response, maxBytes: number, signal?: Ab
 }
 
 /**
- * Node では実際に接続する際の DNS 結果を検査する。
- * 事前の検査だけだと、検査後の再解決で内部IPに切り替える DNS rebinding が通ってしまう。
- * Workers はプラットフォームの公開ネットワーク用 fetch を使う。
+ * Node.js では、実際に接続するときの DNS の結果を検査する。
+ * 事前の検査だけでは、検査の後の再解決で内部の IP に切り替える DNS rebinding が通ってしまう。
+ * Workers では、プラットフォームの公開ネットワーク用の fetch を使う。
  */
 async function fetchOnce(url: URL, init: RequestInit, maxBytes = 5 * 1024 * 1024): Promise<Response> {
   if (isWorker() || url.hostname.startsWith("[") || parseIPv4(url.hostname)) {
     const res = await fetch(url, init);
-    // fetchPublic discards redirect bodies before checking the next destination.
+    // fetchPublic は、次の宛先を確かめる前に、リダイレクトの本文を捨てる。
     if ([301, 302, 303, 307, 308].includes(res.status) && res.headers.get("location")) return res;
     return bufferNativeResponse(res, maxBytes, init.signal);
   }
@@ -160,7 +160,7 @@ async function fetchOnce(url: URL, init: RequestInit, maxBytes = 5 * 1024 * 1024
           }
           const candidates = options.family ? addresses.filter((r) => r.family === options.family) : addresses;
           if (!candidates.length) { callback(new BlockedUrlError("no public address"), "", 4); return; }
-          // この結果をソケットに渡す。別の名前解決や、検査を省略した再試行はしない。
+          // この結果をソケットに渡す。別の名前解決や、検査を省いた再試行はしない。
           if (options.all) callback(null, candidates);
           else callback(null, candidates[0].address, candidates[0].family);
         }).catch((e: Error) => callback(e, "", 4));
@@ -176,7 +176,7 @@ async function fetchOnce(url: URL, init: RequestInit, maxBytes = 5 * 1024 * 1024
         resolve(new Response(null, { status, headers: responseHeaders }));
         return;
       }
-      // 圧縮された応答も展開後の大きさで制限する。
+      // 圧縮された応答も、展開した後の大きさで制限する。
       const encoding = responseHeaders.get("content-encoding")?.toLowerCase();
       const decoder = encoding === "gzip" ? zlib.createGunzip() : encoding === "deflate" ? zlib.createInflate() : encoding === "br" ? zlib.createBrotliDecompress() : null;
       const stream = decoder ? res.pipe(decoder) : res;
@@ -204,7 +204,7 @@ async function fetchOnce(url: URL, init: RequestInit, maxBytes = 5 * 1024 * 1024
 export class BlockedUrlError extends Error {}
 export class TooLargeError extends Error {}
 
-/** 送ってよいURLか確かめる（だめなら BlockedUrlError） */
+/** 送ってよい URL かを確かめる（だめなら BlockedUrlError を投げる） */
 export async function assertPublicUrl(raw: string, signal?: AbortSignal): Promise<URL> {
   let url: URL;
   try {
@@ -233,26 +233,26 @@ export async function fetchPublic(
   let method = (init.method ?? "GET").toUpperCase();
   let body = init.body;
   const headers = new Headers(init.headers);
-  // 接続先やHTTPフレーミングを呼び出し側のヘッダーで上書きさせない。
+  // 接続先や HTTP のフレーミングを、呼び出し側のヘッダーで上書きさせない。
   for (const name of ["host", "connection", "content-length", "transfer-encoding", "upgrade", "proxy-authorization", "proxy-connection"]) headers.delete(name);
   for (let i = 0; ; i++) {
     const res = await fetchOnce(url, { ...init, signal, headers, method, body, redirect: "manual" }, maxResponseBytes);
     const location = res.headers.get("location");
     if (![301, 302, 303, 307, 308].includes(res.status) || !location) return res;
-    // A cloned/teed body's cancellation can wait for another consumer forever.
-    // Initiate cleanup without delaying redirect validation or the request deadline.
+    // 複製・分岐した本文の取り消しは、もう一方の読み手をいつまでも待つことがある。
+    // リダイレクトの検証やリクエストの期限を遅らせずに、後始末を始める。
     void res.body?.cancel().catch(() => {});
     if (i >= maxRedirects) throw new BlockedUrlError("too many redirects");
     const next = await assertPublicUrl(new URL(location, url).toString(), signal);
-    // 任意のヘッダーや本文には API キーなどが入るため、別オリジンへは転送しない。
-    // 認証のない GET/HEAD の転送だけ許す（プロトコル・ポートの変更も別オリジン）。
+    // 任意のヘッダーや本文には API キーなどが入るため、別のオリジンへは転送しない。
+    // 転送を許すのは、認証の無い GET / HEAD だけ（プロトコルやポートの変更も、別のオリジンとみなす）。
     if (next.origin !== url.origin) {
       if (body != null || [...headers.keys()].some((name) => !["accept", "accept-language"].includes(name))) {
         throw new BlockedUrlError("cross-origin redirect with credentials or body");
       }
       if (method !== "GET" && method !== "HEAD") throw new BlockedUrlError("cross-origin write redirect");
     }
-    // 303 と、POST の 301・302 は GET で取り直す（ブラウザと同じ）
+    // 303 と、POST での 301・302 は、GET で取得し直す（ブラウザと同じ）
     if ((res.status === 303 && method !== "HEAD") || ((res.status === 301 || res.status === 302) && method === "POST")) {
       method = "GET";
       body = undefined;
@@ -262,7 +262,7 @@ export async function fetchPublic(
   }
 }
 
-/** 本文を上限まで読む（超えたら TooLargeError。Content-Length が無い・偽っていても上限で止める） */
+/** 本文を上限まで読む（超えたら TooLargeError。Content-Length が無くても、偽っていても、上限で止める） */
 export async function readTextLimited(res: Response, maxBytes: number): Promise<string> {
   if (Number(res.headers.get("content-length")) > maxBytes) {
     void res.body?.cancel().catch(() => {});
@@ -270,7 +270,7 @@ export async function readTextLimited(res: Response, maxBytes: number): Promise<
   }
   const reader = res.body?.getReader();
   if (!reader) return "";
-  // JSON exchanged over HTTP is UTF-8; reject malformed bytes rather than silently replacing them.
+  // HTTP でやりとりする JSON は UTF-8。不正なバイト列は、黙って置き換えずに拒否する。
   const decoder = new TextDecoder("utf-8", { fatal: true });
   let bytes = 0;
   let out = "";
@@ -284,7 +284,7 @@ export async function readTextLimited(res: Response, maxBytes: number): Promise<
     }
     return out + decoder.decode();
   } catch (error) {
-    // Size and decoding failures must stop the upstream without awaiting cleanup.
+    // 大きさやデコードの失敗では、後始末を待たずに上流を止める。
     void reader.cancel(error).catch(() => {});
     throw error;
   } finally {

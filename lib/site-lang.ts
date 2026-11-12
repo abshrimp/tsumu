@@ -1,5 +1,5 @@
 /**
- * 公開サイトの言語（<html lang>・PWAのマニフェスト・既定の404ページの文言に使う）。
+ * 公開するサイトの言語（<html lang>、PWA のマニフェスト、既定の 404 ページの文言に使う）。
  * エディタの表示言語（lib/lang.ts）とは別で、サイトごとに選ぶ
  */
 
@@ -30,19 +30,19 @@ export function isSiteLang(v: unknown): v is string {
   return typeof v === "string" && /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i.test(v);
 }
 
-/** サイトの言語（未設定・不正な値は既定の言語） */
+/** サイトの言語（未設定や不正な値なら、既定の言語） */
 export function siteLangOf(doc: Pick<SiteDoc, "lang">): string {
   const v = doc.lang?.trim();
   return isSiteLang(v) ? v : DEFAULT_SITE_LANG;
 }
 
-/** ページの言語（ページで選んでいなければサイトの言語） */
+/** ページの言語（ページで選んでいなければ、サイトの言語） */
 export function pageLangOf(doc: Pick<SiteDoc, "lang">, page: { lang?: string } | undefined): string {
   const v = page?.lang?.trim();
   return isSiteLang(v) ? v : siteLangOf(doc);
 }
 
-/** 公開サイトに出す、言語ごとの決まり文句（日本語以外は英語） */
+/** 公開するサイトに表示する、言語ごとの決まった文言（日本語以外は英語） */
 export function siteText(lang: string, key: "notFound" | "loading"): string {
   const ja = lang.toLowerCase().split("-")[0] === "ja";
   switch (key) {

@@ -1,11 +1,11 @@
 import { isTranslatedMessage } from "./i18n";
 
-/** 日本語の文字（自分たちで書いた案内文かどうかの目安） */
+/** 日本語の文字（自分たちで書いた案内文かどうかの目安に使う） */
 const JA = /[぀-ヿ㐀-鿿]/;
 
 /**
- * 画面に出してよいエラー文にする。日本語で書いた案内文（とその訳）だけをそのまま使い、
- * 英語の内部エラー（"Failed to fetch" やDBのエラーなど）は fallback に置き換える
+ * 画面に表示してよいエラー文にする。日本語で書いた案内文（とその訳）だけをそのまま使い、
+ * 英語の内部エラー（"Failed to fetch" や DB のエラーなど）は fallback に置き換える
  */
 export function userMessage(e: unknown, fallback: string): string {
   const msg = e instanceof Error ? e.message : typeof e === "string" ? e : "";

@@ -29,9 +29,9 @@ function fixtureDoc(): SiteDoc {
   };
 }
 
-// Execute Canvas's actual render/effects and the actual script runtime. Only
-// React scheduling, data fetching, and the host DOM are controlled here. The
-// browser suite covers React reconciliation and native event delivery.
+// Canvas の実際の描画・effect と、実際のスクリプトのランタイムを実行する。ここで制御するのは、
+// React のスケジュール、データの取得、ホストの DOM だけ。React の差分の反映と
+// ネイティブのイベントの配信は、ブラウザのテストで確かめる。
 function mount(initialPage = "a", doc = fixtureDoc()) {
   useEditor.getState().replaceDoc(doc);
   useEditor.getState().setActivePage(initialPage);

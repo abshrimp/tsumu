@@ -35,8 +35,8 @@ function fixture(mode: "signed-in" | "anonymous" | "denied") {
     anonymousAllowed: () => mode === "anonymous",
     auth: async () => {
       authCalls++;
-      // A second lookup may return a different/expired session. Attribution
-      // must use the identity which authorized this request.
+      // 2回目の参照では、別のセッションや期限切れのセッションが返ることがある。
+      // 投稿者には、このリクエストを認可した利用者を使わなければならない。
       return mode === "signed-in" && authCalls === 1
         ? { user: { email: "Editor@example.test", name: " Editor " } } : null;
     },

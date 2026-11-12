@@ -113,8 +113,8 @@ test("AI clone replay rewrites nested joined targets while retaining external an
   assert.deepEqual(useEditor.getState().doc, original);
 });
 
-// Execute the shared preview runtime and the feature-pruned published runtime.
-// Only DOM lookup/event plumbing is replaced; conditions and actions are real.
+// 共有のプレビューのランタイムと、機能を削った公開用のランタイムを実行する。
+// 置き換えるのは DOM の検索とイベントの配線だけで、条件と動作は実際のものを使う。
 for (const published of [false, true]) {
   test(`${published ? "published" : "preview"} cloned condition reads the cloned checkbox`, () => {
     useEditor.getState().replaceDoc(fixture());

@@ -45,7 +45,7 @@ for (const operation of ["duplicate", "paste"] as const) {
     const page = generateProject(detached).files["app/page.tsx"];
     assert.equal((page.match(/id="first-card"/g) ?? []).length, 1);
     assert.equal((page.match(/id="first-card-2"/g) ?? []).length, 1);
-    // 解除を2回戻してから、複製の履歴の境界を確かめる。
+    // 解除を2回元に戻してから、複製の履歴の境界を確かめる。
     useEditor.getState().undo();
     useEditor.getState().undo();
     const after = structuredClone(useEditor.getState().doc);
@@ -61,7 +61,7 @@ test("ID collection includes instance placements only when explicitly requested"
   const doc = fixture();
   assert.deepEqual(pageNodeIds(doc, "p"), ["root", "innerRoot"]);
   assert.deepEqual(pageNodeIds(doc, "p", [], true), ["first", "root", "nested", "innerRoot", "second", "fallback"]);
-  // 未使用マスターの編集中も、そこにあるインスタンスのIDを予約する。
+  // 使われていないマスターの編集中も、そこにあるインスタンスの ID を予約する。
   doc.pages.p.children = [];
   assert.deepEqual(pageNodeIds(doc, "p", ["root"], true), ["root", "nested", "innerRoot"]);
 });

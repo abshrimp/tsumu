@@ -2,7 +2,7 @@ import { SELF_TARGET, type DocNode, type ScriptStep, type SiteDoc } from "./type
 import { cloneSteps, pageNodeIds, scriptUid } from "./script";
 import { mapNodeTokens } from "./data";
 
-/** 「nav-links」→「nav-links-2」のように、使われていないIDにする */
+/** 「nav-links」→「nav-links-2」のように、使われていない ID にする */
 function uniqueId(base: string, used: Set<string>): string {
   if (!used.has(base)) return base;
   const stem = base.replace(/-\d+$/, "") || base;
@@ -37,10 +37,10 @@ function mapSteps(steps: ScriptStep[], fn: (id: string) => string | null) {
 
 /**
  * 複製・追加する要素（clones）を、置く先のページで使えるようにする。
- * - ID属性が置き先のページの要素やラジオのグループ名と重なるなら、別のIDに付け替える
- * - 複製の中のスクリプト・{ID}・#ID の参照も、付け替えたIDへ合わせる（複製したメニューボタンは複製したメニューを開く）
- * - スクリプトとブロックには新しい内部IDを振る（元と同じだとスクリプト画面で元のブロックまで変わる）
- * makeId を渡す場合は、呼び出し側で衝突を検査したIDを返す（AIの操作を同じIDで再生するため）。
+ * - ID 属性が、置く先のページの要素やラジオのグループ名と重なるなら、別の ID に付け替える
+ * - 複製の中のスクリプト・{ID}・#ID の参照も、付け替えた ID に合わせる（複製したメニューのボタンは、複製したメニューを開く）
+ * - スクリプトとブロックには新しい内部の ID を振る（元と同じだと、スクリプトの画面で元のブロックまで変わる）
+ * makeId を渡す場合は、呼び出し側で衝突を確かめた ID を返す（AI の操作を同じ ID で再生するため）。
  */
 export function refreshClonedIds(
   doc: SiteDoc,
@@ -64,7 +64,7 @@ export function refreshClonedIds(
     }
   }
   const renamed = new Map<string, string>();
-  // 解除するインスタンスのIDは引き継ぎ、マスター内の参照も合わせる。
+  // 解除するインスタンスの ID は引き継ぎ、マスター内の参照もそれに合わせる。
   const replacement = clones.find((c) => c.id === replacing?.rootId);
   const inheritedId = replacing?.attrId;
   if (replacement && inheritedId) used.add(inheritedId);

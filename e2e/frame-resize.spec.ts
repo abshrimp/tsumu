@@ -74,7 +74,7 @@ test("real multitouch preserves the first resize and touch cancellation stops it
   await send("touchStart", [finger(7, right.start)]);
   await send("touchMove", [finger(7, right.x(700))]);
   await expect.poll(async () => (await state(page)).width).toBe(700);
-  // Start the second pointer on the opposite handle; its movement and release must not steal the first pointer.
+  // 2つ目のポインターを反対側のハンドルで始める。その動きや離す操作で、最初のポインターを奪ってはならない。
   const second = (await coordinates(page, "left")).start;
   await send("touchStart", [finger(7, right.x(700)), finger(8, second)]);
   await send("touchMove", [finger(7, right.x(700)), finger(8, left.x(800))]);
@@ -107,7 +107,7 @@ for (const interruption of ["pointercancel", "lostpointercapture", "blur", "rele
     await expect.poll(async () => (await state(page)).width).toBe(700);
     if (interruption === "lostpointercapture") {
       await handle(page).evaluate((element) => element.releasePointerCapture(1));
-      // The browser releases pointer capture before dispatching the next pointer event.
+      // ブラウザは、次のポインターのイベントを送る前に、ポインターのキャプチャを解放する。
       await page.mouse.move(point.x(800), point.y);
     } else if (interruption === "blur") {
       await page.evaluate(() => window.dispatchEvent(new Event("blur")));
@@ -134,7 +134,7 @@ test("unmounting a FrameStage resets Canvas fit scale and global resize styles",
   const point = await begin(page);
   await page.mouse.move(point.x(700), point.y);
   await expect.poll(async () => (await state(page)).width).toBe(700);
-  // Navigating from a normal page to a redirect swaps FrameStage while retaining Canvas.
+  // 通常のページからリダイレクトへ移動すると、Canvas はそのままで、FrameStage が入れ替わる。
   await page.evaluate(() => (window as any).frameResize.page("q"));
   await expect(active(page)).toHaveCount(0);
   await page.evaluate(() => (window as any).frameResize.width(1500));

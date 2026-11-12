@@ -16,7 +16,7 @@ export function fetchRefetchDoc(): SiteDoc {
   };
 }
 
-/** 行・くり返しとページに同じ名前がある、実際の文書形式の見本。 */
+/** 行・くり返し・ページに同じ名前がある、実際の文書の形の見本。 */
 export function fetchScopeDoc(mode: "node" | "loop"): SiteDoc {
   const doc = fetchRefetchDoc();
   const scoped = { id: "scoped", kind: "fetch" as const, as: "result", method: "POST" as const,
@@ -43,7 +43,7 @@ export function fetchScopeDoc(mode: "node" | "loop"): SiteDoc {
   return doc;
 }
 
-/** 実際のスクリプト画面・ストア・変数の見本を使い、API の応答順だけを操作する。 */
+/** 実際のスクリプトの画面・ストア・変数の見本を使い、API の応答の順序だけを操作する。 */
 export async function fetchRefetchBundle() {
   return (await build({
     stdin: {

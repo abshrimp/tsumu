@@ -7,7 +7,7 @@ import { siteIdOf } from "../../../lib/site-server";
 import { readActivity } from "../../../lib/activity";
 import { userMessage } from "../../../lib/errors";
 
-/** サイトの最近の編集・最後の公開（?site=。右下の「保存」「公開」にホバーしたときに出す） */
+/** サイトの最近の編集と最後の公開（?site=）。右下の「保存」「公開」にホバーしたときに表示する */
 export async function GET(req: Request) {
   const tr = await serverTr();
   const denied = await requireAuth();

@@ -6,9 +6,9 @@ import { resolve } from "node:path";
 import { createInitialDoc } from "../lib/presets";
 import { fakeIndexedDB } from "./helpers/fake-indexeddb";
 
-// A fresh bundle isolates the store's hydration and compare-and-write baseline.
-// Keep the real persistence functions and transaction implementation; inject
-// only a failing browser storage boundary.
+// 新しいバンドルで、ストアの読み込みと、比較してから書く処理の基準を切り離す。
+// 実際の保存の関数とトランザクションの実装はそのまま使い、
+// 失敗するブラウザの保存領域の境界だけを差し込む。
 const bundled = await build({
   stdin: { contents: `export { hydrateBrowserDoc, persistDoc } from './lib/store';
     export { createBrowserDoc, readBrowserDoc, writeBrowserDoc } from './lib/browser-doc-storage';`,
@@ -56,7 +56,7 @@ for (const next of ["edit", "undo"] as const) {
     const f = await fixture();
     try {
       const first = { ...f.original, siteName: "First edit" };
-      f.failMarkerRead(2); // The preflight succeeds; IndexedDB commits before this read.
+      f.failMarkerRead(2); // 事前の確認は成功する。IndexedDB は、この読み取りの前に確定する。
       assert.equal(await f.persistDoc(first), "error");
       assert.equal(await f.raw(), JSON.stringify(first), "the write has already committed");
       const latest = next === "undo" ? f.original : { ...first, siteName: "Latest edit" };

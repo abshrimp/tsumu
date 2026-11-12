@@ -47,7 +47,7 @@ export async function POST(req: Request) {
   if ((params.has("before") && !before) || (focus !== null && !/^[a-zA-Z0-9_-]{1,64}$/.test(focus))) {
     return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
   }
-  // 本文は5000文字以内のコメント1件のみ。処理するJSONもストリーム全体で制限する。
+  // 本文は5000文字以内のコメント1件だけ。読み込む JSON の量も、ストリーム全体で制限する。
   let value: unknown;
   try {
     value = await readJsonLimited(req, 64 * 1024);
@@ -76,7 +76,7 @@ export async function POST(req: Request) {
     if (!ok) {
       return NextResponse.json({ error: tr("You can't change other people's comments") }, { status: 403 });
     }
-    // 新規投稿は最新の一覧に戻し、競合する投稿が多くても自身の詳細を返す。
+    // 新しい投稿の後は最新の一覧に戻す。他の人の投稿が多くても、投稿したコメントの詳細は必ず返す。
     return NextResponse.json(await listCommentPage(db, siteId, action.action === "create" ? null : before, action.action === "create" ? action.id : focus));
   } catch (e) {
     return NextResponse.json({ error: tr(userMessage(e, "Couldn't save")) }, { status: 502 });

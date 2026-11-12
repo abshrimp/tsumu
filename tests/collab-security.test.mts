@@ -14,7 +14,7 @@ import { createInitialDoc } from "../lib/presets";
 import { insertSite } from "../lib/sites";
 import { publishDocUpdate } from "../lib/collab-events";
 
-// 実際のハンドラを実行し、Cloudflare のホスト環境・Next のリクエストコンテキストだけを置き換える。
+// 実際のハンドラーを実行し、Cloudflare のホストの環境と Next.js のリクエストの文脈だけを置き換える。
 function loadHandler(path: string, mocks: Record<string, unknown>): any {
   const url = new URL(path, import.meta.url);
   const require = createRequire(url);
@@ -23,7 +23,7 @@ function loadHandler(path: string, mocks: Record<string, unknown>): any {
   const module = { exports: {} };
   new Function("require", "module", "exports", code)(
     (name: string) => name === "./document-room"
-      ? { DocumentRoom: class {} } // The DO class is exercised in dedicated storage tests.
+      ? { DocumentRoom: class {} } // Durable Object のクラスは、専用の保存先のテストで確かめる。
       : Object.hasOwn(mocks, name) ? mocks[name] : require(name), module, module.exports,
   );
   return module.exports;

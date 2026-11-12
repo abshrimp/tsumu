@@ -4,14 +4,14 @@ import { browserDoc } from "./helpers/browser-doc";
 
 const HEADING = "見出しをここに";
 
-/** Collect page exceptions to detect a broken UI. */
+/** 画面の不具合を見つけるため、ページの例外を集める。 */
 function watchErrors(page: Page): string[] {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   return errors;
 }
 
-/** Create a site through the API, suppress the help dialog, and open the editor. */
+/** API でサイトを作り、ヘルプのダイアログを出さないようにして、エディタを開く。 */
 async function openNewSite(page: Page, name = "E2E"): Promise<string> {
   await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
   const res = await page.request.post("/api/sites", { data: { name } });
@@ -70,7 +70,7 @@ test("Deleting a node is undoable, persists, and survives a reload", { tag: "@co
 });
 
 test("Edits from another user arrive immediately without waiting for polling", async ({ browser }) => {
-  // Open two isolated browser contexts and close their SSE connections afterward.
+  // 互いに切り離した2つのブラウザのコンテキストを開き、終わった後で SSE の接続を閉じる。
   const ctxA = await browser.newContext();
   const ctxB = await browser.newContext();
   try {
@@ -78,7 +78,7 @@ test("Edits from another user arrive immediately without waiting for polling", a
     const siteId = await openNewSite(a);
     const b = await ctxB.newPage();
     await b.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
-    // Where WebSocket is unavailable, wait for SSE update notifications to connect.
+    // WebSocket を使えない環境では、SSE の更新の通知が接続するのを待つ。
     const events = b.waitForRequest((r) => r.url().includes("/api/collab/events"));
     await b.goto(`/sites/${siteId}`);
     await expect(canvas(b).getByText(HEADING).first()).toBeVisible();
@@ -86,7 +86,7 @@ test("Edits from another user arrive immediately without waiting for polling", a
     await b.waitForTimeout(500);
     await deleteHero(a);
     await saved(a);
-    // The update should arrive before the 10-second polling interval.
+    // 更新は、10秒ごとのポーリングより前に届くはず。
     await expect(canvas(b).getByText(HEADING)).toHaveCount(0, { timeout: 5_000 });
   } finally {
     await ctxA.close();
@@ -145,7 +145,7 @@ test("Drag a canvas node to reorder it", { tag: "@core-editing" }, async ({ page
   const to = (await heading.boundingBox())!;
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
-  // A drag starts after 6px of movement; drop above the heading.
+  // ドラッグは 6px 動いてから始まる。見出しの上に落とす。
   for (let i = 1; i <= 10; i++) {
     await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2 + ((to.y + 4 - from.y - from.height / 2) * i) / 10);
   }
@@ -180,7 +180,7 @@ test("Custom code and icon scripts stored in documents never execute inside the 
   const errors = watchErrors(page);
   const siteId = await openNewSite(page);
   await saved(page);
-  // Simulate imported or restored documents containing onerror handlers in custom code and icons.
+  // カスタムのコードやアイコンに onerror のハンドラーを含む、取り込んだ文書や復元した文書を再現する。
   const cur = await (await page.request.get(`/api/doc?site=${siteId}`)).json();
   const doc = cur.doc;
   const pageId = doc.pageOrder[0];

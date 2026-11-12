@@ -7,17 +7,17 @@ import type { Asset, SiteDoc } from "../types";
 import { zipCssUrl } from "../zip-css";
 import { importedAssetPath } from "./imported-assets";
 
-// A virtual file root distinguishes archive paths from every HTTP origin.
+// 仮想のファイルのルートを使い、アーカイブのパスをどの HTTP のオリジンとも区別する。
 const root = new URL("file:///");
 const absolute = /^(?:[a-z][a-z0-9+.-]*:|[/\\]{2})/i;
 const urlFields = new Set(["src", "href", "url", "poster", "action", "formaction", "cite", "background"]);
 
-/** Match local asset identities only in fields or markup that can actually reference files. */
+/** ローカルのアセットの ID は、実際にファイルを参照できる項目やマークアップの中だけで照合する。 */
 export function scopedAssetIds(doc: SiteDoc, assets: Record<string, Asset>): Set<string> {
   const ids = new Set<string>();
   if (!Object.keys(assets).length) return ids;
-  // Raw ZIP HTML keeps original relative URLs, so the usual URL scanner
-  // cannot recover its asset IDs without the page's explicit ZIP association.
+  // ZIP の生の HTML は元の相対 URL を保っているため、ページの明示的な ZIP との対応が無いと、
+  // 通常の URL の走査ではアセットの ID を見つけられない。
   for (const page of Object.values(doc.pages)) {
     for (const id of page.htmlZip?.assetIds ?? []) {
       if (Object.hasOwn(assets, id)) ids.add(id);
@@ -117,8 +117,8 @@ export function scopedAssetIds(doc: SiteDoc, assets: Record<string, Asset>): Set
     if (tag.tagName === "style") { css(source, base); continue; }
     if (tag.attrs.some(a => a.name === "src" || (a.name === "type" && a.value.trim() &&
         !/^(?:module|(?:text|application)\/(?:x-)?(?:java|ecma)script)$/i.test(a.value.trim())))) continue;
-    // Only literal JavaScript strings designate a static file. Comments, regular
-    // expressions and the text portions of interpolated templates cannot do so.
+    // 静的なファイルを示せるのは、JavaScript の文字どおりの文字列だけ。コメント、正規表現、
+    // 差し込みのあるテンプレートの文字の部分では示せない。
     const module = tag.attrs.some(a => a.name === "type" && a.value.trim().toLowerCase() === "module");
     try {
       for (const token of tokenizer(source, { ecmaVersion: "latest", sourceType: module ? "module" : "script" })) {

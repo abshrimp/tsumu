@@ -3,12 +3,12 @@ import type { ScriptStep } from "./types";
 import type { RecipeEvaluation } from "./script-model/recipe-runtime";
 
 /**
- * Execute data-only steps before rendering a page. The same function is serialized
- * into generated sites, so the editor's samples and published SSR use identical
- * iteration, local-item scoping and conditional semantics.
+ * ページを描画する前に、データだけを扱う手順を実行する。同じ関数を直列化して
+ * 生成したサイトにも入れるため、エディタの見本と公開した SSR で、くり返し・
+ * 項目ごとの範囲・条件の意味がまったく同じになる。
  *
- * Fetch is intentionally handled outside: this interpreter never performs I/O
- * or browser effects. The page planner only passes fully supported subtrees.
+ * 取得は意図的に外側で扱う。このインタープリターは入出力もブラウザへの作用も行わない。
+ * ページの計画が渡すのは、完全に対応している部分木だけ。
  */
 function createPageStepRunner(
   matchesValueCondition: typeof import("./value-semantics").matchesValueCondition,

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * ページタブ（ページ・フォルダの作成・並べ替え・設定）
+ * ページタブ（ページとフォルダの作成・並べ替え・設定）
  */
 
 import { isEnterKey } from "../../lib/keys";
@@ -53,7 +53,7 @@ type PageDrag =
   | { kind: "page"; id: string }
   | { kind: "folder"; id: string };
 
-/** 落とす位置（ページの前後 / フォルダの中・前後 / フォルダの外の末尾） */
+/** ドロップする位置（ページの前後 / フォルダの中・前後 / フォルダの外の末尾） */
 type PageDrop =
   | { kind: "page"; id: string; after: boolean }
   | { kind: "folder"; id: string; pos: "before" | "inside" | "after" }
@@ -81,9 +81,9 @@ export function PagesTab() {
   const updateDoc = useEditor((s) => s.updateDoc);
   const select = useEditor((s) => s.select);
   const [drag, setDrag] = useState<PageDrag | null>(null);
-  /** 複数選択したページ（フォルダへの整理・一括削除用。開いているページとは別） */
+  /** 複数選択したページ（フォルダへの整理や一括削除に使う。開いているページとは別） */
   const [picked, setPicked] = useState<string[]>([]);
-  /** 選択モード（チェックボックスを出す）。⌘/Shift+クリックでも選べる */
+  /** 選択モード（チェックボックスを表示する）。⌘/Shift+クリックでも選べる */
   const [picking, setPicking] = useState(false);
   /** Shift+クリックで範囲を選ぶときの起点 */
   const pickAnchor = useRef<string | null>(null);
@@ -92,7 +92,7 @@ export function PagesTab() {
   const [renaming, setRenaming] = useState<string | null>(null);
   /** ページの右クリックメニュー */
   const [ctx, setCtx] = useState<{ x: number; y: number; id: string } | null>(null);
-  /** ほかのサイトへコピーするページ（ダイアログを開いている間） */
+  /** 他のサイトへコピーするページ（ダイアログを開いている間） */
   const [copyIds, setCopyIds] = useState<string[] | null>(null);
   const autoScroll = useDragAutoScroll();
 
@@ -122,7 +122,7 @@ export function PagesTab() {
       try {
         window.localStorage.setItem(FOLDERS_CLOSED_KEY, JSON.stringify([...next]));
       } catch {
-        // 保存できなくても開閉はできる
+        // 保存できなくても、開閉はできる
       }
       return next;
     });
@@ -166,7 +166,7 @@ export function PagesTab() {
       }
       return;
     }
-    // フォルダの並べ替え（フォルダの行の前後にだけ落とせる）
+    // フォルダの並べ替え（フォルダの行の前後にだけドロップできる）
     if (drop.kind === "folder" && drop.pos !== "inside" && drop.id !== drag.id) {
       const index = folders.findIndex((f) => f.id === drop.id) + (drop.pos === "after" ? 1 : 0);
       moveFolder(drag.id, index);
@@ -256,7 +256,7 @@ export function PagesTab() {
       }
     });
 
-  /** 右クリックしたページの操作。選んでいるページの上で開いたときは、選んでいるページすべてに効く */
+  /** 右クリックしたページの操作。選んでいるページの上で開いたときは、選んでいるすべてのページに適用する */
   const pageMenuItems = (id: string): CtxMenuItem[] => {
     const ids = livePicked.length > 1 && pickedIds.has(id) ? livePicked : [id];
     const many = ids.length > 1;
@@ -278,7 +278,7 @@ export function PagesTab() {
         label: many ? tr("Duplicate {n} pages", { n: ids.length }) : tr("Duplicate"),
         icon: <CopyPlus size={14} />,
         onClick: run(() => {
-          // 下から複製すると、それぞれの複製が元のすぐ後ろに並ぶ
+          // 下から順に複製すると、それぞれの複製が元のすぐ後ろに並ぶ
           for (const x of [...ids].reverse()) duplicatePage(x);
         }),
       },
@@ -580,7 +580,7 @@ export function PagesTab() {
           if (drag) autoScroll(e);
         }}
         onDragOver={(e) => {
-          // 行の外（一覧の下の空き）= フォルダの外の末尾
+          // 行の外（一覧の下の空いた領域）= フォルダの外の末尾
           if (drag?.kind !== "page") return;
           e.preventDefault();
           if (drop?.kind !== "loose") setDrop({ kind: "loose" });

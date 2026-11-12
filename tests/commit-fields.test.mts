@@ -8,7 +8,7 @@ import * as React from "react";
 import { useEditor } from "../lib/store";
 import { commitFieldsBundle, commitFieldsDoc, commitPageFieldsBundle } from "./helpers/commit-fields";
 
-// 実ソースの入力・確定ハンドラーとフックを動かす。ブラウザのフォーカス・defaultValue は e2e で確認する。
+// 実際のソースの入力・確定のハンドラーとフックを動かす。ブラウザのフォーカスと defaultValue は、e2e で確かめる。
 function mount(kind: "input" | "textarea", extra: Record<string, unknown> = {}) {
   useEditor.getState().replaceDoc(commitFieldsDoc());
   const field = kind === "input" ? "title" : "description";

@@ -43,8 +43,8 @@ async function paste(page: Page, delayed = false, svg = artwork) {
       };
     }
     const data = new DataTransfer(); data.items.add(file);
-    // Firefox creates an empty store for a constructed ClipboardEvent. Supply the
-    // fixture's real File through the property read by the production paste listener.
+    // Firefox は、自分で作った ClipboardEvent には空の保存領域を作る。本番の貼り付けの
+    // リスナーが読むプロパティを通して、準備した実際の File を渡す。
     const event = new ClipboardEvent("paste", { bubbles: true, cancelable: true });
     Object.defineProperty(event, "clipboardData", { value: data });
     document.body.dispatchEvent(event);
@@ -110,8 +110,8 @@ test("empty native clipboard may fall back to the internal node copy", async ({ 
 
 for (const linkAttr of ["href", "xlink:href"] as const) {
   test(`Figma SVG using <use ${linkAttr}> is still visible after sanitization`, async ({ page }) => {
-    // Figma can render paths or image elements from defs using an SVG <use>.
-    // A paste that succeeds but strips <use> produces a blank asset.
+    // Figma は、SVG の <use> で defs の中のパスや画像の要素を描画することがある。
+    // 貼り付けには成功しても <use> が取り除かれると、空のアセットになる。
     const source = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="24" height="12" viewBox="0 0 24 12"><defs><rect id="figma-shape" width="24" height="12" fill="#00cc44"/></defs><use ${linkAttr}="#figma-shape"/></svg>`;
     await paste(page, false, source);
     await uploads(page, 1);

@@ -29,7 +29,7 @@ import { I, Sec } from "./shared";
 const BG_DEFAULT_COLOR = "#f4f4f5";
 const BG_DEFAULT_IMAGE = `url("https://picsum.photos/seed/bg/1200/800")`;
 
-/** 背景の種類。透明（小さい画面で背景を打ち消した値）は「なし」 */
+/** 背景の種類。透明（小さい画面で背景を打ち消した値）は「なし」とする */
 function backgroundMode(image: string | undefined, color: string | undefined) {
   if (/^\s*(?:repeating-)?(?:linear|radial|conic)-gradient\s*\(/i.test(image ?? "")) return "gradient";
   if (image && cssAssetReferences(image).length) return "image";
@@ -46,8 +46,8 @@ export function parseGradient(v: string | undefined) {
 }
 
 /**
- * ここで設定した値が上位と違うか。上位が未設定のときは、ほかの設定と一緒に
- * パネルが入れる値（dflt）と比べる（線の太さと一緒に入る色・画像と一緒に入るサイズなど）
+ * ここで設定した値が、上位と違うか。上位が未設定のときは、他の設定と一緒に
+ * パネルが入れる値（dflt）と比べる（線の太さと一緒に入る色、画像と一緒に入るサイズなど）
  */
 export function differsFrom(info: PropInfo, dflt: string): boolean {
   if (!info.setHere) return false;
@@ -65,14 +65,14 @@ export function BackgroundSec() {
   const bgImage = imageInfo.value;
   const bgColor = colorInfo.value;
   const mode = backgroundMode(bgImage, bgColor);
-  // 種類（なし / 色 / グラデ / 画像）が上位と違うときだけ色を付ける（中身の変更は各欄で色を付ける）
+  // 種類（なし / 色 / グラデーション / 画像）が上位と違うときだけ色を付ける（中身の変更は、各欄で色を付ける）
   const modeChanged =
     (imageInfo.setHere || colorInfo.setHere) &&
     mode !== backgroundMode(imageInfo.reference, colorInfo.reference);
 
   const { angle, c1, c2 } = parseGradient(bgImage);
-  // グラデーションの角度・色は、それぞれ上位のグラデーションの同じ部分と比べる
-  // （上位がグラデーションでなければ、選んだときに入る既定の角度・色と比べる）
+  // グラデーションの角度と色は、それぞれ上位のグラデーションの同じ部分と比べる
+  // （上位がグラデーションでなければ、選んだときに入る既定の角度や色と比べる）
   const gBase = parseGradient(imageInfo.reference);
   const gradChanged = (key: "angle" | "c1" | "c2") =>
     imageInfo.setHere && String(gBase[key]) !== String({ angle, c1, c2 }[key]);
@@ -113,7 +113,7 @@ export function BackgroundSec() {
           { label: tr("Image"), value: "image" },
         ]}
         onChange={(v) => {
-          // 小さい画面では、消すと大きい画面の背景が出てくるため初期値で打ち消す
+          // 小さい画面では、消すと大きい画面の背景が表示されるため、初期値で打ち消す
           if (v === "none")
             insp.set({
               backgroundColor: explicitDefault("backgroundColor"),
@@ -204,7 +204,7 @@ export function BackgroundSec() {
                   insp.set({ backgroundImage: explicitDefault("backgroundImage") });
                   return;
                 }
-                // アップロード直後のアセットは描画時の doc にまだ無いため、最新の状態から引く
+                // アップロードした直後のアセットは、描画した時点の doc にはまだ無いため、最新の状態から探す
                 const asset = v.assetId ? useEditor.getState().doc.assets[v.assetId] : undefined;
                 const src = asset ? assetSrc(asset) : v.url;
                 if (src) insp.set({ backgroundImage: `url("${escapeCssAssetUrl(src, '"')}")` });
@@ -241,7 +241,7 @@ export function BackgroundSec() {
               label={tr("Repeat")}
               on="repeat"
               off="no-repeat"
-              // background-repeat は消すと CSS の初期値の「繰り返す」になる
+              // background-repeat は、消すと CSS の初期値の「繰り返す」になる
               baseOff="no-repeat"
             />
             <StyleCheck prop="backgroundAttachment" label={tr("Fixed")} on="fixed" off="scroll" />
@@ -253,7 +253,7 @@ export function BackgroundSec() {
 }
 
 /**
- * スタイルのオン・オフのチェックボックス。オンのとき、またはほかの画面幅・状態用に
+ * スタイルのオン・オフのチェックボックス。オンのとき、または他の画面幅や状態のために
  * 変えたときは変更の色を付け、右クリックで解除する
  */
 export function StyleCheck({
@@ -266,16 +266,16 @@ export function StyleCheck({
   prop: string;
   label: string;
   on: string;
-  /** オフを明示する値（大きい画面・通常時でオンにした設定を、ここだけ外すときに書き込む） */
+  /** オフを明示する値（大きい画面や通常時にオンにした設定を、ここだけ外すときに書き込む） */
   off: string;
-  /** パソコン幅・通常時でオフにしたときの値（null = 設定を消す） */
+  /** パソコン幅・通常時にオフにしたときの値（null = 設定を消す） */
   baseOff?: string | null;
 }) {
   const insp = useInspector();
   const info = insp.get(prop);
   const inherits = useEditor((s) => s.breakpoint !== "base" || s.styleState !== "default");
   const checked = info.value === on;
-  // 消したときに効く値（baseOff があるプロパティは、未設定だと CSS の初期値でオンになる）
+  // 消したときに効く値（baseOff のあるプロパティは、未設定だと CSS の初期値でオンになる）
   const afterRemove = inherits ? (info.baseline ?? (baseOff !== null ? on : undefined)) : undefined;
   const isSet = info.changed && (checked || inherits);
   return (
@@ -284,7 +284,7 @@ export function StyleCheck({
       style={{ gap: 6, cursor: "pointer" }}
       onContextMenu={(e) => {
         e.preventDefault();
-        // ほかの画面幅・状態では消すと元の設定に戻る。パソコン幅ではオフの値にする
+        // 他の画面幅や状態では、消すと元の設定に戻る。パソコン幅では、オフの値にする
         insp.set({ [prop]: inherits ? null : baseOff });
       }}
     >
@@ -293,7 +293,7 @@ export function StyleCheck({
         checked={checked}
         onChange={(e) =>
           insp.set({
-            // ほかの画面幅・状態で消すと大きい画面・通常時のオンが出てくるときだけ、オフを書き込む
+            // 他の画面幅や状態で消すと、大きい画面や通常時のオンが現れるときだけ、オフを書き込む
             [prop]: e.target.checked ? on : inherits ? (afterRemove === on ? off : null) : baseOff,
           })
         }
@@ -305,7 +305,7 @@ export function StyleCheck({
 
 /* ---------- 線 ---------- */
 
-/** 線種の選択肢（アイコンは実際のborder-styleで描画したプレビュー） */
+/** 線種の選択肢（アイコンは、実際の border-style で描画したプレビュー） */
 const BORDER_STYLE_OPTIONS = [
   { value: "solid", label: tr("Solid") },
   { value: "dashed", label: tr("Dashed") },
@@ -352,7 +352,7 @@ export function BorderSec() {
             min={0}
             placeholder="0"
             onChange={(v) => {
-              // 小さい画面では、消すと大きい画面の線が出てくるため太さ 0 で打ち消す
+              // 小さい画面では、消すと大きい画面の線が表示されるため、太さ 0 で打ち消す
               if (v === null)
                 insp.set({
                   borderWidth: insp.cleared("borderWidth"),

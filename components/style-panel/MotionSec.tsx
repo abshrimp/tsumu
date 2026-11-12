@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * モーション（表示時・スクロール・ホバーなどの動き）
+ * モーション（表示されたとき・スクロール・ホバーなどの動き）
  */
 
 import { useState } from "react";
@@ -30,7 +30,7 @@ import { I, Sec } from "./shared";
 export function MotionSec({ node }: { node: DocNode }) {
   const updateNode = useEditor((s) => s.updateNode);
   const motions = node.motions ?? [];
-  /** 編集画面を開いているモーション（ID） */
+  /** 編集画面を開いているモーション（の ID） */
   const [kfEdit, setKfEdit] = useState<string | null>(null);
   const [easeEdit, setEaseEdit] = useState<string | null>(null);
   const kfMotion = motions.find((m) => m.id === kfEdit);
@@ -147,7 +147,7 @@ export function MotionSec({ node }: { node: DocNode }) {
                       update(i, { keyframes: v });
                       return;
                     }
-                    // まだ確定しない。キャンセル時は元のプリセットと履歴を保つ。
+                    // まだ確定しない。キャンセルしたときは、元のプリセットと履歴を残す。
                     setKfEdit(m.id);
                   }}
                 />

@@ -1,7 +1,7 @@
 /**
- * Text-only extraction for server-rendered HTML test fixtures.
- * This is intentionally a scanner, not an incomplete tag-removal regex:
- * quoted ">" inside attributes must not terminate a tag.
+ * サーバーで描画した HTML のテスト用の準備から、文字だけを取り出す。
+ * 不完全なタグ除去の正規表現ではなく、意図的に走査して読む:
+ * 属性の中で引用符に囲まれた ">" で、タグを終わらせてはならない。
  */
 export function stripMarkup(markup: string): string {
   let text = "";

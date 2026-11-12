@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 
-/** 文言はログイン画面（サーバー側）でリクエストの言語にして渡す */
+/** 文言は、ログイン画面（サーバー側）でリクエストの言語に合わせてから渡す */
 export default function GoogleSignIn({ label, busyLabel }: { label: string; busyLabel: string }) {
-  // 押したあとはGoogleの画面へ移るまで少しかかるので、二重に押されないよう待ち状態にする
+  // 押した後、Google の画面に移るまで少しかかるため、二重に押されないよう待ちの状態にする
   const [busy, setBusy] = useState(false);
   return (
     <button

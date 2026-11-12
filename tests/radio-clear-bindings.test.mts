@@ -5,7 +5,7 @@ import { SCRIPT_RUNTIME, scriptsFile } from "../lib/script-runtime";
 import type { SiteDoc } from "../lib/types";
 import { radioClearDoc } from "./helpers/radio-clear-bindings";
 
-/** DOMの入力状態と通知だけを用意し、書き出した実ランタイムを実行する。 */
+/** DOM の入力の状態と通知だけを用意し、書き出した実際のランタイムを実行する。 */
 function harness(options: { preview?: boolean; clearOnChange?: boolean; live?: boolean; configure?: (doc: SiteDoc) => void } = {}) {
   const doc = radioClearDoc(options.clearOnChange);
   if (options.live === false) {
@@ -32,7 +32,7 @@ function harness(options: { preview?: boolean; clearOnChange?: boolean; live?: b
     get checked() { return this.selected; }
     set checked(on: boolean) {
       this.selected = on;
-      // 同じフォーム・グループのラジオを選ぶと、元の選択はnative DOMが外す。
+      // 同じフォーム・グループのラジオボタンを選ぶと、元の選択はネイティブの DOM が外す。
       if (on && this.type === "radio" && this.name) {
         for (const other of elements) if (other !== this && other.type === "radio" && other.name === this.name && other.form() === this.form()) other.selected = false;
       }

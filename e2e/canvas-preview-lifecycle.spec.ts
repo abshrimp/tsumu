@@ -66,8 +66,8 @@ const signal = (page: Page, id: string) => page.locator(`.cv-root [data-node="${
 for (const locale of ["ja-JP", "en-US"]) test.describe(`preview lifecycle (${locale})`, () => {
   test.use({ locale });
   test.beforeEach(async ({ page }) => {
-    // The fixture loads localized UI and writes a cookie: use an HTTP origin,
-    // not an opaque about:blank page. robots.txt has no app scripts to race.
+    // この準備は、翻訳した UI を読み込み、クッキーを書く。そのため、中身の見えない about:blank の
+    // ページではなく、HTTP のオリジンを使う。robots.txt なら、競合するアプリのスクリプトが無い。
     await page.goto("/robots.txt");
     await page.setContent('<html><body><div id="app"></div></body></html>');
     await page.addScriptTag({ content: bundle });
@@ -86,7 +86,7 @@ for (const locale of ["ja-JP", "en-US"]) test.describe(`preview lifecycle (${loc
   for (const special of ["html", "redirect", "rewrite"]) test(`scripts survive ${special} frame replacement`, async ({ page }) => {
     await openPage(page, special);
     await expect(page.locator(".cv-root")).toHaveCount(0);
-    // Also enter preview while there is no visual frame to attach to.
+    // 取り付ける表示用のフレームが無い間にも、プレビューに入る。
     await page.evaluate(() => (window as any).previewEditor.getState().setMode("design"));
     await page.evaluate(() => (window as any).previewEditor.getState().setMode("preview"));
     await openPage(page, "a");

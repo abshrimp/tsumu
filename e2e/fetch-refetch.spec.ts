@@ -131,7 +131,7 @@ test("Saved samples are limited to 20 and explain how to fetch all results again
   await expect(result(page)).not.toContainText("見本にはリストの先頭20件のみ保存されています");
   await close(page);
 
-  // Restoring the saved document loses the full in-memory response, but not the preview.
+  // 保存した文書に戻すと、メモリの中の応答の全体は失われるが、プレビューは失われない。
   await page.evaluate(() => {
     const store = (window as any).refetchEditor.getState();
     store.replaceDoc(JSON.parse(JSON.stringify(store.doc)));
@@ -169,7 +169,7 @@ test("Pending responses do not undo Undo or deletion", async ({ page }) => {
   expect(await snapshot(page)).toEqual(before);
   await page.getByRole("button", { name: "やり直す", exact: true }).click();
   expect((await currentStep(page)).url).toBe("https://example.test/slow");
-  // Redo preserves the fact that the request was sent; viewing never resends without an explicit refresh.
+  // やり直しても、リクエストを送ったことは保たれる。表示するだけでは、明示的に更新しない限り、決して送り直さない。
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
   await requests(page, 1); await refresh(page).click(); await requests(page, 2); await close(page);
   await block(page).click({ button: "right", position: { x: 8, y: 8 } });
@@ -208,12 +208,12 @@ test("Invalid JSON cannot be sent, explicit empty values work, and uncommitted U
   await finish(page, 0, { ok: true }); await close(page);
   const url = block(page).locator("input").first();
   await url.fill("https://example.test/uncommitted");
-  // A click that blurs the URL must not send the previous request.
+  // URL の欄から blur させるクリックで、前のリクエストを送ってはならない。
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
   await requests(page, 1);
   await expect(result(page)).toBeVisible();
   expect((await currentStep(page)).url).toBe("https://example.test/uncommitted");
-  // After changing the request, never silently reuse the previous test values.
+  // リクエストを変えた後は、前のテストの値を決して黙って使い回さない。
   await expect(refresh(page)).toBeDisabled();
   await result(page).getByRole("button", { name: "空の値を使う", exact: true }).click();
   await requests(page, 1); await refresh(page).click(); await requests(page, 2);
@@ -269,7 +269,7 @@ test("Nested fetches prevent parent loop values and empty objects or arrays from
 for (const gesture of ["step-cancel", "script-drop"]) test(`pending POST survives ${gesture} without turning view into a second send`, async ({ page }) => {
   await options(page, "POST"); await send(page); await requests(page, 1); await close(page);
   const source = gesture === "step-cancel" ? block(page) : page.locator(".se-ws .se-hat").first();
-  // Grab the actual block even if scrolling settings leaves its left edge under the palette.
+  // 設定をスクロールした結果、左端がパレットの下に隠れていても、実際のブロックをつかむ。
   const grip = source.locator(".se-ico").first();
   await grip.scrollIntoViewIfNeeded();
   const rect = await grip.boundingBox(); const workspace = await page.locator(".se-ws").boundingBox();

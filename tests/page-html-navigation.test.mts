@@ -19,8 +19,8 @@ function evaluate(source: string, overrides: Record<string, unknown> = {}) {
 }
 const inline = (name: string) => `<script>${name}</script>`;
 
-/** Read only the script fixtures needed for the fake DOM, without treating a
- * tag-matching regex as an HTML sanitizer. The real browser parses this markup. */
+/** 偽の DOM に必要なスクリプトの準備だけを読む。タグに一致する正規表現を、
+ * HTML の無害化として扱うことはしない。このマークアップは、実際のブラウザが解析する。 */
 function scriptFixtures(html: string): { src: string | null; text: string }[] {
   const lower = html.toLowerCase();
   const result: { src: string | null; text: string }[] = [];
@@ -52,8 +52,8 @@ function scriptFixtures(html: string): { src: string | null; text: string }[] {
 }
 
 
-// ブラウザなしで、生成したコンポーネントのフックと DOM 操作を実行する。
-// React と同じく、型・キー・位置が同じコンポーネントの ref を描画間で保つ。
+// ブラウザ無しで、生成したコンポーネントのフックと DOM の操作を実行する。
+// React と同じく、型・キー・位置が同じコンポーネントの ref を、描画の間で保つ。
 function mount(fromServer: boolean) {
   const refs: { current: unknown }[] = [];
   let cursor = 0;
@@ -83,7 +83,7 @@ function mount(fromServer: boolean) {
       setAttribute(name: string, value: string) { (this as any)[name] = value; },
     }),
   };
-  // このモジュールだけに document を渡し、グローバル DOM やほかのテストに影響させない。
+  // このモジュールにだけ document を渡し、グローバルの DOM や他のテストに影響させない。
   const source = PAGE_HTML_COMPONENT.replace('"use client";', '"use client";\nconst document = require("test-document");');
   const Component = evaluate(source, { react: hooks, "test-document": document }).default;
   function render(html: string, replay = false) {

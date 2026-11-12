@@ -6,7 +6,7 @@ export type AssetDisplayKind =
 
 type DescribedFile = Pick<Asset, "name" | "mimeType">;
 
-/** Classify by MIME first and by extension for existing assets without MIME. */
+/** まず MIME で分類し、MIME の無いアセットは拡張子で分類する。 */
 export function assetDisplayKind(file: DescribedFile): AssetDisplayKind {
   const mime = file.mimeType?.toLowerCase().split(";")[0].trim() ?? "";
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
@@ -27,7 +27,7 @@ export function assetDisplayKind(file: DescribedFile): AssetDisplayKind {
   return "file";
 }
 
-/** Compact label shown on non-image asset thumbnails. */
+/** 画像以外のアセットのサムネイルに表示する、短いラベル。 */
 export function assetExtensionLabel(file: DescribedFile): string {
   const ext = file.name.split(".").pop()?.toUpperCase() ?? "";
   if (ext && /^[A-Z0-9]{1,6}$/.test(ext)) return ext;
