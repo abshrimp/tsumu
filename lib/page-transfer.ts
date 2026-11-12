@@ -91,7 +91,7 @@ function prepareResponsivePayload(d: SiteDoc, payload: PagePayload): PagePayload
     throw new Error("Invalid page copy metadata");
   }
   const fail = (): never => {
-    throw new Error(tr("The source and destination screen-width settings differ or contain unknown references. Nothing was copied, to preserve the appearance. Match the screen-width settings and try again."));
+    throw new Error(tr("The source and destination screen-width settings differ or contain unknown references. Nothing was copied, to keep the appearance intact. Match the screen-width settings and try again."));
   };
   const checked = (input: BreakpointDef[]) => {
     if (!Array.isArray(input) || input.length > MAX_BREAKPOINTS) return fail();
@@ -276,5 +276,5 @@ export async function copyPagesToSite(
     data = await readJson(res);
     if (res.ok) return;
   }
-  throw new Error(tr("Couldn't copy because someone else saved at the same time. Please try again."));
+  throw new Error(tr("Couldn't copy because someone else saved at the same time. Try again."));
 }

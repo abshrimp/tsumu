@@ -57,7 +57,7 @@ test("export options use Tsumu controls and descriptions reflect the framework",
 
   await modal.getByRole("button", { name: "出力範囲" }).click();
   await page.getByRole("button", { name: "選択したコンポーネント" }).click();
-  await expect(modal.locator(".check-list li.is-error")).toContainText(["書き出すコンポーネントを選択してください。"]);
+  await expect(modal.locator(".check-list li.is-error")).toContainText(["書き出す要素かコンポーネントを選択してください。"]);
   await expect(modal.locator(".check-ok")).toHaveCount(0);
   await expect(modal.getByRole("button", { name: "zipをダウンロード" })).toBeDisabled();
 });

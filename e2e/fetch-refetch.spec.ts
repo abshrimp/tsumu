@@ -77,7 +77,7 @@ test("Initial fetch sends once without confirmation; subsequent views are read-o
 
 test("Editing URL, POST body, headers, or DELETE settings does not send requests and preserves the previous sample", async ({ page }) => {
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
-  await expect(result(page)).toContainText("保存された見本"); await close(page);
+  await expect(result(page)).toContainText("保存した見本"); await close(page);
   await setUrl(page, "https://example.test/edited"); await options(page, "POST");
   await block(page).locator("textarea").fill('{"version":2}'); await block(page).locator("textarea").blur();
   await block(page).getByRole("button", { name: "ヘッダーを追加", exact: true }).click();
@@ -94,7 +94,7 @@ test("Editing URL, POST body, headers, or DELETE settings does not send requests
   await page.evaluate(() => { const s = (window as any).refetchEditor.getState(); s.replaceDoc(JSON.parse(JSON.stringify(s.doc))); });
   await expect(block(page).getByRole("button", { name: "データ取得", exact: true })).toBeVisible();
   await send(page); await requests(page, 1);
-  await expect(result(page)).toContainText("現在の設定で未確認の見本");
+  await expect(result(page)).toContainText("まだ確かめていない見本");
   await finish(page, 0, { ok: true });
 });
 
@@ -128,7 +128,7 @@ test("Saved samples are limited to 20 and explain how to fetch all results again
   const all = Array.from({ length: 23 }, (_, i) => ({ name: `Row${i}` }));
   await finish(page, 0, all);
   await expect(result(page).getByText("Row22", { exact: true })).toBeVisible();
-  await expect(result(page)).not.toContainText("見本にはリストの先頭20件のみ保存されています");
+  await expect(result(page)).not.toContainText("見本には、リストの先頭の20件だけを保存しています");
   await close(page);
 
   // 保存した文書に戻すと、メモリの中の応答の全体は失われるが、プレビューは失われない。
@@ -137,8 +137,8 @@ test("Saved samples are limited to 20 and explain how to fetch all results again
     store.replaceDoc(JSON.parse(JSON.stringify(store.doc)));
   });
   await block(page).getByRole("button", { name: "データを見る", exact: true }).click();
-  await expect(result(page)).toContainText("見本にはリストの先頭20件のみ保存されています");
-  await expect(result(page)).toContainText("全件を見るには右上の「取得し直す」");
+  await expect(result(page)).toContainText("見本には、リストの先頭の20件だけを保存しています");
+  await expect(result(page)).toContainText("すべてを見るには、右上の「取得し直す」");
   await requests(page, 1);
   await refresh(page).click(); await requests(page, 2);
   await finish(page, 1, all);

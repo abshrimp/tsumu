@@ -1252,7 +1252,7 @@ export const useEditor = create<EditorStore>((set, get) => {
       if (!payload) return;
       const clip = prepareClipBreakpoints(get().doc, payload);
       if (!clip) {
-        void showAlert(tr("The source and destination screen-width settings differ or contain unknown references. Nothing was copied, to preserve the appearance. Match the screen-width settings and try again."));
+        void showAlert(tr("The source and destination screen-width settings differ or contain unknown references. Nothing was copied, to keep the appearance intact. Match the screen-width settings and try again."));
         return;
       }
       const idMap = new Map(clip.nodes.map((n) => [n.id, genId("node")]));

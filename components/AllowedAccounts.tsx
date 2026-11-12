@@ -187,7 +187,7 @@ export default function AllowedAccounts() {
       </div>
       {error && <p className="acct-add-error">{error}</p>}
       <p className="hint acct-note">
-        {tr("Added accounts can sign in. Removed accounts are restricted from their next access, even if already signed in.")}
+        {tr("Added accounts can sign in. Removed accounts lose access from their next request, even if they are already signed in.")}
       </p>
     </>
   );

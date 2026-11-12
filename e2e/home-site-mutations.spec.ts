@@ -76,7 +76,7 @@ for (const [action, failure] of cases) {
       : page.locator("form.home-dialog button[type=submit]").click();
     await submit();
     const error = page.locator(action === "delete" ? ".dialog-msg" : ".home-dialog-error");
-    await expect(error).toContainText("ブラウザの保存容量や設定を確認して、もう一度");
+    await expect(error).toContainText("ブラウザの空き容量と設定を確認してから、もう一度");
     await expect(page).toHaveURL("http://tsumu-home.test/");
     await expect(page.locator(".home-card-name")).toHaveText("Original");
     expect(await page.evaluate((key) => (window as any).homeRead.call(localStorage, key), listKey))

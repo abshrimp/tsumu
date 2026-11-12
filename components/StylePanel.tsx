@@ -151,7 +151,7 @@ export default function StylePanel({ nodeId }: { nodeId: string }) {
         ) {
           const request = pending.begin();
           void showConfirm(
-            tr("To style only the selected part, it needs to be split into a separate text element. Split it?\n(If not, the style applies to the whole text.)"),
+            tr("To style only the selected part, it must be split into a separate text element. Split it?\n(If you don't, the style applies to the whole text.)"),
             { title: tr("Apply to selection only"), okLabel: tr("Split and apply"), cancelLabel: tr("Apply to all") }
           ).then((ok) => {
             try {
