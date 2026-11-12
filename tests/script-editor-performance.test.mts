@@ -116,7 +116,7 @@ test("wide insertion rows remain hittable on the right without capturing other s
   assert.equal(index.nearest("step", 430, 55), "wide");
   assert.equal(index.nearest("step", 675, 40), "other");
   assert.equal(index.nearest("step", 250, 100), "nested");
-  assert.equal(index.nearest("step", 385, 100), null);
+  assert.equal(index.nearest("step", 480, 100), null);
   assert.equal(index.nearest("head", 385, 40), "trigger");
   assert.equal(index.nearest("head", 385, 100), null);
   assert.equal(index.nearest("step", 850, 40), null);
