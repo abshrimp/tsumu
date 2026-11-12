@@ -16,7 +16,7 @@ import {
   TextCursor,
   Wand2,
 } from "lucide-react";
-import { useEffect, useId, useState } from "react";
+import { useId, useState } from "react";
 import dynamic from "next/dynamic";
 import { componentOf, useEditor } from "../lib/store";
 import {
@@ -84,7 +84,6 @@ const INPUT_TYPE_OPTIONS: { value: InputType; label: string }[] = [
 export default function SettingsPanel({ nodeId }: { nodeId: string }) {
   const [assetPickerOpen, setAssetPickerOpen] = useState(false);
   const [codeEditorOpen, setCodeEditorOpen] = useState<string | null>(null);
-  useEffect(() => setCodeEditorOpen(null), [nodeId]);
   const scriptEditorOpen = useEditor((s) => !!s.scriptEditor);
   const openScriptEditor = useEditor((s) => s.openScriptEditor);
   const doc = useEditor((s) => s.doc);
