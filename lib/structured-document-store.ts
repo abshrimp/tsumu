@@ -33,8 +33,7 @@ const object = (value: unknown): value is Record<string, unknown> =>
 function checkedJson(value: unknown): string {
   const text = JSON.stringify(value);
   if (typeof text !== "string") throw new Error("不正なリクエスト");
-  // Each UTF-16 code unit needs at most three UTF-8 bytes. Ordinary rows
-  // therefore fit without allocating a second, encoded copy of their JSON.
+  // UTF-16の1コード単位はUTF-8で最大3バイト。確実に収まる行はエンコードを省く。
   if (text.length * 3 > MAX_ROW_BYTES &&
       (text.length > MAX_ROW_BYTES || new TextEncoder().encode(text).length > MAX_ROW_BYTES)) {
     throw new Error("編集データの1項目が大きすぎます");
@@ -341,8 +340,7 @@ export class StructuredDocumentStore {
             bucket, id, checkedJson(op.value));
         }
       }
-      // Entries live in their own table. Only root properties and the optional
-      // components bucket's presence marker are represented in the metadata.
+      // 要素・ページなどの行は別テーブルに保存する。文書設定とcomponentsの有無だけがメタデータに影響する。
       const changesProps = patch.some(({ path }) => path.length === 1 &&
         (!bucketsSet.has(path[0]) || path[0] === "components"));
       this.advanceRevision(now, changesProps ? documentProps(updated) : undefined);

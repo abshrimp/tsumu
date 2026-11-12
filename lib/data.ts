@@ -1068,7 +1068,7 @@ interface PreviewDataPlan {
   copies: { into: string; src: string }[];
 }
 
-/** Collect script dependencies once per document, separately from changing form and preview values. */
+/** フォーム入力やプレビュー値に依存しない手順と変数のコピー元をまとめる。 */
 export function preparePreviewData(
   doc: SiteDoc, pageId: string, steps: readonly ServerStep[] = pageDataSteps(doc, pageId),
 ): PreviewDataPlan {
@@ -1175,15 +1175,17 @@ export function previewDataVars(
   }
   // 「［{名前}］を変数［］とする」は画面上で動くが、見本ではそのまま入れておく
   //（リストの項目・変数の候補に中身を出すため。変数から変数へ入れ直した場合もたどる）
-  for (let added = true; added; ) {
-    added = false;
-    for (const copy of plan.copies) {
-      if (copy.into in out) continue;
+  let pending = plan.copies;
+  while (pending.length) {
+    const waiting: typeof pending = [];
+    for (const copy of pending) {
+      if (own(out, copy.into) || lookupVar(out, copy.into) !== undefined) continue;
       const value = lookupVar(scope(), copy.src);
-      if (value === undefined) continue;
-      save(copy.into, value);
-      added = true;
+      if (value === undefined || save(copy.into, value) === undefined) waiting.push(copy);
     }
+    // 後続のコピーで参照元や配列の位置が揃う場合がある。処理が進んだときだけ再試行する。
+    if (waiting.length === pending.length) break;
+    pending = waiting;
   }
   return out;
 }

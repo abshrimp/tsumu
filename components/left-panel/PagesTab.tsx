@@ -196,7 +196,7 @@ export function PagesTab() {
   const clickPage = (e: React.MouseEvent, id: string) => {
     const toggle = e.metaKey || e.ctrlKey || (selecting && !e.shiftKey);
     if (e.shiftKey) {
-      // The selection follows display order, including pages in closed folders.
+      // 閉じたフォルダの中も含め、一覧の表示順に範囲選択する。
       const visibleOrder = loose.concat(Array.from(byFolder.values()).flat());
       const from = pickAnchor.current ?? activePageId;
       const a = visibleOrder.indexOf(from);

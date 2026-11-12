@@ -48,7 +48,7 @@ export function needsPageStepRunner(step: ScriptStep): boolean {
     step.kind === "set-list-item" || step.kind === "remove-list-item";
 }
 
-/** Index query variants by page ID in the same order as the emitted dispatcher. */
+/** 同じパスのページを配信時の判定順にまとめ、各ページの位置をIDで引けるようにする。 */
 export function indexQueryVariants(pages: readonly Page[]) {
   const groups = new Map<string, Page[]>();
   for (const page of pages) {
