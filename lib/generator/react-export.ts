@@ -9,8 +9,8 @@ import { buildAssetNames } from "./names";
 import { imageRefSrc } from "./render-helpers";
 import { pwaIconType } from "./templates";
 import { REACT_SEARCH_FORM } from "./react-form";
-import { indexQueryVariants, routeDir } from "./page";
-import { pageQueryConditions } from "../page-query";
+import { indexQueryVariants } from "./page";
+import { pageQueryConditions, routeDir } from "../page-query";
 
 const esc = (value: string) =>
   value.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]!);

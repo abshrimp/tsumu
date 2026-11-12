@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, mock, test } from "node:test";
-import { CLOUD_SAVE_DEBOUNCE_MS, scheduleCloudSave, sendCloudDoc } from "../lib/cloud-save";
+import { canReceiveCloudDoc, CLOUD_SAVE_DEBOUNCE_MS, scheduleCloudSave, sendCloudDoc } from "../lib/cloud-save";
 import { createDocPatch } from "../lib/doc-patch";
 import { createInitialDoc } from "../lib/presets";
 
@@ -19,7 +19,7 @@ function harness() {
   let unsynced = false;
   const scope = {
     observedDoc: ref(original), cloudReady: ref(true), cloudDirty: ref(false),
-    skipNextCloudSave: ref(false), cloudTimer: ref<any>(null),
+    cloudTimer: ref<any>(null),
     activeCloudSave: ref<Promise<void> | null>(null), cloudSaveQueued: ref(false),
     lastSyncedRev: ref("1"), lastSyncedDoc: ref<object>(original), retrySaveAfterEdit: ref(false),
     deferredCloudConflict: ref(null),
@@ -74,7 +74,7 @@ test("undo to the acknowledged snapshot during debounce clears pending status wi
 
 test("remote echoes and local-only documents do not enter pending cloud save", () => {
   const h = harness();
-  h.scope.skipNextCloudSave.current = true;
+  h.scope.lastSyncedDoc.current = h.state.doc;
   h.effect(); h.tick();
   assert.equal(h.state.cloudState, "synced");
   assert.equal(h.unsynced(), false);
@@ -83,6 +83,27 @@ test("remote echoes and local-only documents do not enter pending cloud save", (
   h.effect(); h.tick();
   assert.equal(h.state.cloudState, "local");
   assert.equal(h.requests.length, 0);
+  assert.equal(h.unsynced(), false);
+});
+
+test("an edit batched with a received document saves against that document's revision", async () => {
+  const h = harness();
+  const remote = { title: "peer edit" };
+  h.scope.lastSyncedRev.current = "2";
+  h.scope.lastSyncedDoc.current = remote;
+  h.state.doc = remote;
+  assert.equal(canReceiveCloudDoc(h.state as any, remote as any, false), true);
+  h.state.doc = { ...remote, title: "new edit" };
+  assert.equal(canReceiveCloudDoc(h.state as any, remote as any, false), false,
+    "another incoming update must wait even before the autosave effect marks the edit dirty");
+  h.effect();
+  assert.equal(h.unsynced(), true);
+  h.tick();
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].base, "2");
+  assert.equal(h.requests[0].doc, h.state.doc);
+  h.requests[0].resolve({ ok: true, data: { rev: "3", savedAt: 3 } });
+  await h.scope.activeCloudSave.current;
   assert.equal(h.unsynced(), false);
 });
 

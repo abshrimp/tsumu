@@ -23,7 +23,7 @@ for (const editTiming of ["before", "after"] as const) for (const laterEdit of [
     const socket = ref<{ readyState: number } | null>({ readyState: WebSocket.OPEN });
     const scope: CloudAutosave = {
       observedDoc: ref(original), cloudReady: ref(true), cloudDirty: ref(false),
-      skipNextCloudSave: ref(false), cloudTimer: ref(null),
+      cloudTimer: ref(null),
       activeCloudSave: ref(null), cloudSaveQueued: ref(false),
       lastSyncedRev: ref("1"), lastSyncedDoc: ref(original), retrySaveAfterEdit: ref(false),
       deferredCloudConflict: ref(null),
@@ -122,7 +122,7 @@ test("a deferred conflict cannot overwrite a newer synchronized baseline", async
   useEditor.getState().setCloud("saving");
   const scope: CloudAutosave = {
     observedDoc: ref(original), cloudReady: ref(true), cloudDirty: ref(true),
-    skipNextCloudSave: ref(false), cloudTimer: ref(null), activeCloudSave: ref(null),
+    cloudTimer: ref(null), activeCloudSave: ref(null),
     cloudSaveQueued: ref(false), lastSyncedRev: ref("5"), lastSyncedDoc: ref(fresh),
     retrySaveAfterEdit: ref(false),
     deferredCloudConflict: ref({ base: "1", baseDoc: original, snapshot, remoteDoc: snapshot, remoteRev: "2" }),
@@ -153,7 +153,7 @@ for (const failure of ["malformed", "apply"] as const) {
     let failApply = failure === "apply";
     const scope: CloudAutosave = {
       observedDoc: ref(original), cloudReady: ref(true), cloudDirty: ref(false),
-      skipNextCloudSave: ref(false), cloudTimer: ref(null), activeCloudSave: ref(null),
+      cloudTimer: ref(null), activeCloudSave: ref(null),
       cloudSaveQueued: ref(false), lastSyncedRev: ref("1"), lastSyncedDoc: ref(original),
       retrySaveAfterEdit: ref(false), deferredCloudConflict: ref(null),
       getState: () => {

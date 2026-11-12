@@ -293,6 +293,8 @@ Limits: a zip can be up to 100 MB and a `doc.json` or HTML file up to 12 MB. A z
 > [!TIP]
 > `skills/tsumu-site/` is an agent skill that describes the `doc.json` format, so an AI agent can generate a site you then import and keep editing.
 
+To copy pages between sites, select them in the **Pages** panel, right-click and choose **Copy to another site…**. Regular pages such as `/blog?tab=news` and `/blog?tab=archive` keep their shared path when the destination can serve both. If the destination already uses the same URL and query conditions, Tsumu adds a suffix such as `-copy` to the copied path.
+
 ## Hosting the published site
 
 After the first publish, connect the site's repository to a hosting service. The table below is for the Next.js format; for the other formats, set the host's build and output settings as shown in [Output formats](#output-formats).
@@ -440,6 +442,7 @@ Where to put them:
 - Edits merge property by property. If two people edit different elements, or different properties of the same element (say, its text and its color), both changes are kept. If they edit the same property, the later save wins.
 - A list, such as a script's steps, counts as a single property.
 - While you have unsaved changes or are typing, other people's changes wait until you're done.
+- If the connection drops while the tab is in the background, return to the tab to pick up edits saved during the interruption. You can keep editing without reloading the page.
 - When other people's changes are applied, your undo history is rebuilt to match.
 
 **Activity and access**

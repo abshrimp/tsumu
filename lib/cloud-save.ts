@@ -93,7 +93,6 @@ export interface CloudAutosave {
   observedDoc: Ref<SiteDoc>;
   cloudReady: Ref<boolean>;
   cloudDirty: Ref<boolean>;
-  skipNextCloudSave: Ref<boolean>;
   cloudTimer: Ref<ReturnType<typeof setTimeout> | null>;
   activeCloudSave: Ref<Promise<void> | null>;
   cloudSaveQueued: Ref<boolean>;
@@ -118,15 +117,21 @@ export function errorOf(res: CloudRequestResult): string | undefined {
 /** 時間をおけば成功する見込みのある失敗か（大きすぎる・サイトが無いなどは、やり直しても同じ） */
 const isTransient = (status: number) => status >= 500 || status === 408 || status === 429;
 
+/** 自動保存の effect が未実行でも、受信した版で手元の編集を上書きしない。 */
+export function canReceiveCloudDoc(
+  state: Pick<EditorStore, "doc" | "cloudState" | "editingText">,
+  syncedDoc: SiteDoc | null, dirty: boolean,
+): boolean {
+  return !dirty && state.doc === syncedDoc && !state.editingText &&
+    state.cloudState !== "saving" && state.cloudState !== "checking" && state.cloudState !== "local";
+}
+
 /** doc の変更を受けて、自動保存を予約する（デバウンス付き）。戻り値は予約の取り消し。 */
 export function scheduleCloudSave(a: CloudAutosave, doc: SiteDoc): (() => void) | undefined {
   const changed = a.observedDoc.current !== doc;
   a.observedDoc.current = doc;
-  // サーバーから取り込んだ変更は保存し直さない（編集者の間で同じ変更を送り返し合わないため）
-  if (a.skipNextCloudSave.current) {
-    a.skipNextCloudSave.current = false;
-    return;
-  }
+  // 保存済みの文書そのものだけを除く。受信直後の編集が同じ描画にまとまっても保存する。
+  if (!a.cloudDirty.current && doc === a.lastSyncedDoc.current) return;
   if (!a.cloudReady.current) {
     if (changed) {
       a.cloudDirty.current = true;

@@ -69,7 +69,7 @@ test("Deleting a node is undoable, persists, and survives a reload", { tag: "@co
   expect(errors).toEqual([]);
 });
 
-test("Edits from another user arrive immediately without waiting for polling", async ({ browser }) => {
+test("Live edits arrive immediately and a background SSE reconnect catches missed edits", async ({ browser }) => {
   // 互いに切り離した2つのブラウザのコンテキストを開き、終わった後で SSE の接続を閉じる。
   const ctxA = await browser.newContext();
   const ctxB = await browser.newContext();
@@ -77,17 +77,40 @@ test("Edits from another user arrive immediately without waiting for polling", a
     const a = await ctxA.newPage();
     const siteId = await openNewSite(a);
     const b = await ctxB.newPage();
-    await b.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
+    await b.addInitScript(() => {
+      localStorage.setItem("tsumu-help-seen-v1", "1");
+      window.EventSource = class extends EventSource {
+        constructor(url: string | URL, init?: EventSourceInit) {
+          super(url, init);
+          (window as any).collaborationEvents = this;
+        }
+      };
+    });
     // WebSocket を使えない環境では、SSE の更新の通知が接続するのを待つ。
     const events = b.waitForRequest((r) => r.url().includes("/api/collab/events"));
     await b.goto(`/sites/${siteId}`);
     await expect(canvas(b).getByText(HEADING).first()).toBeVisible();
     await events;
-    await b.waitForTimeout(500);
+    await expect.poll(() => b.evaluate(() => (window as any).collaborationEvents?.readyState)).toBe(1);
     await deleteHero(a);
     await saved(a);
     // 更新は、10秒ごとのポーリングより前に届くはず。
     await expect(canvas(b).getByText(HEADING)).toHaveCount(0, { timeout: 5_000 });
+    // 切断中の1通知を取りこぼし、非表示中に再接続したときのブラウザイベントを再現する。
+    await b.evaluate(() => {
+      const events: EventSource = (window as any).collaborationEvents;
+      events.addEventListener("message", event => {
+        event.stopImmediatePropagation();
+        Object.defineProperty(document, "hidden", { configurable: true, value: true });
+        events.dispatchEvent(new Event("open"));
+        Reflect.deleteProperty(document, "hidden");
+        document.dispatchEvent(new Event("visibilitychange"));
+      }, { capture: true, once: true });
+    });
+    await a.keyboard.press("ControlOrMeta+z");
+    await expect(canvas(a).getByText(HEADING).first()).toBeVisible();
+    await saved(a);
+    await expect(canvas(b).getByText(HEADING).first()).toBeVisible({ timeout: 5_000 });
   } finally {
     await ctxA.close();
     await ctxB.close();

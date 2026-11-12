@@ -8,16 +8,16 @@ function fixture() {
   const doc: SiteDoc = {
     schemaVersion: 1, siteName: "コピー", pageOrder: ["p"], assets: {},
     pages: { p: { id: "p", name: "Home", title: "", slug: "", description: "", children: ["n"] } },
-    nodes: { n: { ...makeBox(), id: "n", text: { content: "利用者 & 確認", heading: 0 } } },
+    nodes: { n: { ...makeBox(), id: "n", text: { content: "  2 < 3 && 5 > 4\n<br> は文字です  ", heading: 0 } } },
   };
   return buildClipPayload(doc, { nodes: [doc.nodes.n], rootIds: ["n"] });
 }
 
 test("clipboard HTML round-trips structured content through a standard MIME type", () => {
   const payload = fixture();
-  const html = clipHtml(payload);
+  const html = clipHtml(JSON.stringify(payload), payload.nodes[0].text!.content);
   assert.match(html, /data-tsumu-clipboard=/);
-  assert.match(html, /利用者 &amp; 確認/);
+  assert.match(html, /  2 &lt; 3 &amp;&amp; 5 &gt; 4\n&lt;br&gt; は文字です  <\/span>/);
   const data = { getData: (type: string) => type === "text/html" ? "<html><body>" + html + "</body></html>" : "" };
   assert.deepEqual(clipboardPayload(data)?.payload, payload);
   assert.equal(clipboardPayload(data)?.raw, JSON.stringify(payload));
@@ -63,12 +63,11 @@ test("copy uses ClipboardItem without the deprecated DOM copy command", async ()
     assert.equal(legacyCalled, false);
     assert.deepEqual(JSON.parse(storage.get("tsumu-clipboard-v1")!), payload);
     assert.ok(formats);
-    assert.equal(await formats!["text/plain"].text(), "利用者 & 確認");
+    assert.equal(await formats!["text/plain"].text(), payload.nodes[0].text!.content);
+    const html = await formats!["text/html"].text();
     assert.deepEqual(clipboardPayload({ getData: (type: string) =>
-      type === "text/html" ? "" : "" }), null);
-    assert.deepEqual(clipboardPayload({ getData: (type: string) =>
-      type === "text/html" ? "<body>" + clipHtml(payload) + "</body>" : "" })?.payload, payload);
-    assert.equal(await formats!["text/html"].text(), clipHtml(payload));
+      type === "text/html" ? "<body>" + html + "</body>" : "" })?.payload, payload);
+    assert.equal(html, clipHtml(JSON.stringify(payload), payload.nodes[0].text!.content));
   } finally {
     for (const [name, descriptor] of descriptors) {
       if (descriptor) Object.defineProperty(globalThis, name, descriptor);
