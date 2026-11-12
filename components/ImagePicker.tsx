@@ -12,8 +12,8 @@ import { showAlert } from "../lib/dialog";
 import { tr } from "../lib/i18n";
 
 /**
- * URL直接入力 or アセットから選択できる画像入力。
- * OGP画像・favicon・背景画像などで使う。
+ * URL を直接入力するか、アセットから選ぶ画像の入力欄。
+ * OGP 画像・favicon・背景画像などで使う。
  */
 export default function ImagePicker({
   value,
@@ -24,7 +24,7 @@ export default function ImagePicker({
   value: ImageRef | null | undefined;
   onChange: (v: ImageRef | null) => void;
   placeholder?: string;
-  /** ページ・要素・画面幅など、同じ入力欄の書き込み先を識別する。 */
+  /** 同じ入力欄の書き込み先（ページ・要素・画面幅など）を見分けるためのキー。 */
   editTarget?: string;
 }) {
   const inputId = useId();
@@ -42,12 +42,12 @@ export default function ImagePicker({
     const request = pending.begin();
     try {
       const a = await uploadAsset(file);
-      // Undo/Redoや文書置換後は、やり直す編集を消さずファイルだけを残す。
+      // 元に戻す・やり直す操作や文書の置き換えの後は、やり直せる編集を消さずに、ファイルだけを残す。
       if (request.historyChanged()) {
         useEditor.getState().retainUploadedAssets([a]);
         return;
       }
-      // 読み込み済みのファイルはアセット一覧に残し、古い選択先への割り当てだけを取り消す。
+      // 読み込んだファイルはアセットの一覧に残し、古い選択先への割り当てだけを取り消す。
       updateDoc((d) => void (d.assets[a.id] = a));
       if (!request.current()) return;
       onChange({ assetId: a.id });
@@ -201,8 +201,8 @@ export function AssetGrid({
   const searchId = useId();
   const doc = useEditor((s) => s.doc);
   const [query, setQuery] = useState("");
-  // 静的ファイルはライブラリ上では画像と同じ分類だが、画像の選択先には渡さない。
-  // MIME情報の無い既存アセットは、従来のファイル名による判定を維持する。
+  // 静的ファイルは、ライブラリ上では画像と同じ分類だが、画像の選択先には渡さない。
+  // MIME の情報が無いアセットは、ファイル名で判定する。
   const all = Object.values(doc.assets).filter((a) =>
     assetKind(a) === kind && (kind !== "image" || !a.mimeType || a.mimeType.startsWith("image/"))
   );

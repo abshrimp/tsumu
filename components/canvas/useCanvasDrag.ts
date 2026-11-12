@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * キャンバス上のドラッグ操作（要素の移動・大きさの変更）と、ファイル・追加パネルからのドロップ
+ * キャンバス上のドラッグ操作（要素の移動・大きさの変更）と、ファイルや追加パネルからのドロップ
  */
 import { useLayoutEffect, useRef, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { findParentOf, useEditor, type EditorMode, type ParentRef } from "../../lib/store";
@@ -60,7 +60,7 @@ export function useCanvasDrag({
   setElemDropTarget,
   dropState,
 }: UseCanvasDragDeps) {
-  // リサイズハンドル
+  // リサイズのハンドル
   const resizing = useRef(false);
   const resizeCleanup = useRef<(() => void) | null>(null);
   const moveCleanup = useRef<(() => void) | null>(null);
@@ -69,7 +69,7 @@ export function useCanvasDrag({
     moveCleanup.current?.();
   }, []);
 
-  /** キャンバス内ドラッグ移動: ドロップ先（前/後/中）を解決 */
+  /** キャンバス内でのドラッグ移動: ドロップ先（前・後・中）を決める */
   const resolveMoveDrop = (x: number, y: number, targets: ReturnType<typeof canvasMoveTargets>) => {
     const inner = innerRef.current;
     if (!inner) return null;
@@ -101,7 +101,7 @@ export function useCanvasDrag({
     }
     const sibling = targets.position(targetId);
     if (!sibling) return null;
-    // 親が横並び（flex-row）なら左右、それ以外は上下で挿入位置を決める
+    // 親が横並び（flex-row）なら左右で、それ以外なら上下で挿入位置を決める
     const parentEl = el.parentElement;
     const pcs = parentEl ? getComputedStyle(parentEl) : null;
     const isRow =
@@ -126,10 +126,10 @@ export function useCanvasDrag({
     return { parent: sibling.ref, index, line, insideId: null };
   };
 
-  /** キャンバス内の要素をドラッグで移動（6px動いたらドラッグ開始） */
+  /** キャンバス内の要素をドラッグで移動する（6px 動いたらドラッグを開始する） */
   const onCvPointerDown = (e: React.PointerEvent) => {
     if (mode !== "design" || editingText || e.button !== 0) return;
-    // 別の指では進行中の移動を奪わない。同じポインターの新しい操作なら前の操作を片付ける。
+    // 別の指では、進行中の移動を奪わない。同じポインターの新しい操作なら、前の操作を片付ける。
     if (moveState.current && moveState.current.pointerId !== e.pointerId) return;
     moveCleanup.current?.();
     const el = (e.target as Element).closest("[data-node]");
@@ -215,12 +215,12 @@ export function useCanvasDrag({
     const onVisibility = () => { if (document.visibilityState === "hidden") finish(); };
     const unsubscribe = useEditor.subscribe((next) => {
       if (selecting) {
-        // ドラッグ開始時の select は選択と表示状態を初期化するため、自分の変更だけ受け入れる。
+        // ドラッグ開始時の select は選択と表示の状態を初期化するため、自分による変更だけを受け入れる。
         expectedSelection = next.selectedIds;
         expectedPrimary = next.selection;
         expectedStyleState = next.styleState;
       }
-      // 確定前の移動は文書を書き換えない。Undo・共同編集・画面変更後の古いdropは捨てる。
+      // 確定する前の移動では文書を書き換えない。元に戻す操作・共同編集・画面の変更の後に届いた古いドロップは捨てる。
       if (next.doc !== initial.doc || next.historyRevision !== initial.historyRevision ||
           next.activePageId !== initial.activePageId || next.editingComponentId !== initial.editingComponentId ||
           next.mode !== initial.mode || next.breakpoint !== initial.breakpoint || next.styleState !== expectedStyleState ||
@@ -237,7 +237,7 @@ export function useCanvasDrag({
   };
 
   const startResize = (e: React.PointerEvent, dir: string) => {
-    // A second finger must not steal the first handle's drag.
+    // 2本目の指で、1本目がつかんでいるハンドルのドラッグを奪わない。
     if (resizeCleanup.current || e.button !== 0 || !selection) return;
     e.preventDefault();
     e.stopPropagation();
@@ -255,14 +255,14 @@ export function useCanvasDrag({
     const startY = e.clientY;
     const startW = el.offsetWidth;
     const startH = el.offsetHeight;
-    // 左・上のハンドルはドラッグ方向を反転（外側へ引くと拡大）
+    // 左と上のハンドルは、ドラッグの向きを反転する（外側へ引くと大きくなる）
     const xSign = dir.includes("w") ? -1 : dir.includes("e") ? 1 : 0;
     const ySign = dir.includes("n") ? -1 : dir.includes("s") ? 1 : 0;
     let started = false;
     let finishGesture: (() => void) | undefined;
     const onMove = (ev: PointerEvent) => {
       if (ev.pointerId !== e.pointerId) return;
-      // ウィンドウの外でボタンを離すと pointerup が届かないので、押していなければ終える
+      // ウィンドウの外でボタンを離すと pointerup が届かないため、押していなければ終える
       if (!(ev.buttons & 1)) {
         onUp();
         return;
@@ -273,7 +273,7 @@ export function useCanvasDrag({
       if (xSign !== 0) props.width = `${Math.max(4, Math.round(startW + dx))}px`;
       if (ySign !== 0) props.height = `${Math.max(4, Math.round(startH + dy))}px`;
       if (ev.shiftKey && xSign !== 0 && ySign !== 0 && startW > 0) {
-        // Shift: 比率固定（幅基準）。幅が0なら無限大のCSS値を書き込まない。
+        // Shift: 縦横比を固定する（幅を基準にする）。幅が 0 なら、無限大の CSS の値を書き込まない。
         const w = Math.max(4, Math.round(startW + dx));
         props.width = `${w}px`;
         props.height = `${Math.max(4, Math.round((w / startW) * startH))}px`;
@@ -303,7 +303,7 @@ export function useCanvasDrag({
       unsubscribe();
       if (target.hasPointerCapture?.(e.pointerId)) target.releasePointerCapture(e.pointerId);
       finishGesture?.();
-      // ドラッグ終端の合成クリック（選択解除判定）が済んでから解除
+      // ドラッグの終わりに発生する合成クリック（選択を解除するかの判定）が済んでから解除する
       setTimeout(() => {
         if (!resizeCleanup.current) resizing.current = false;
       }, 0);
@@ -319,8 +319,8 @@ export function useCanvasDrag({
       if (document.visibilityState === "hidden") onUp();
     };
     const unsubscribe = useEditor.subscribe((next) => {
-      // Resize writes are synchronous. An unrelated document replacement (including
-      // remote updates) must invalidate the old gesture instead of being overwritten.
+      // リサイズの書き込みは同期的に行う。無関係な文書の置き換え（他の人の変更を含む）があれば、
+      // それを上書きせずに、古い操作のほうを無効にする。
       if (applying) expectedDoc = next.doc;
       if (next.doc !== expectedDoc ||
           next.selection !== initial.selection || next.selectedIds !== initial.selectedIds ||
@@ -340,7 +340,7 @@ export function useCanvasDrag({
 
   const { uploading, dropFiles } = useImageDrop();
 
-  /** 要素D&D: ドロップ先（中に入れられるbox / 兄弟挿入の基準）を解決 */
+  /** 要素のドラッグ＆ドロップ: ドロップ先（中に入れられるボックス、または兄弟として挿入する基準）を決める */
   const resolveElementDrop = (
     target: Element
   ): { parent: ParentRef; index?: number; highlight: string | null } => {
@@ -429,7 +429,7 @@ export function useCanvasDrag({
             if (e.dataTransfer.files.length) {
               e.preventDefault();
               setElemDropTarget(null);
-              // 落とした要素の中（入れられないなら後ろ）。何もない所ならページ・編集中のコンポーネントの末尾
+              // ドロップした要素の中に入れる（入れられないなら後ろ）。何もない所なら、ページか編集中のコンポーネントの末尾
               const { parent, index } = resolveElementDrop(e.target as Element);
               setDropState("none");
               void dropFiles(e.dataTransfer.files, { parent, index });

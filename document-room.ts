@@ -7,9 +7,9 @@ import type { DocPatch } from "./lib/doc-patch";
 import { extractAssetReferences } from "./lib/asset-gc-plan";
 
 /**
- * A single site is always mapped to a single SQLite-backed Durable Object ID.
- * RPC methods are only reachable through the Worker binding, never from the
- * public HTTP routing table. Authentication is enforced by the caller.
+ * 1つのサイトは、常に1つの SQLite 版 Durable Object の ID に対応する。
+ * RPC のメソッドに届くのは Worker のバインディング経由だけで、公開された HTTP の
+ * ルーティングからは呼べない。認証は呼び出し側で行う。
  */
 export class DocumentRoom extends DurableObject {
   private readonly documents = new StructuredDocumentStore(
@@ -36,9 +36,9 @@ export class DocumentRoom extends DurableObject {
   }
 
   /**
-   * Return asset references from the current persisted editor document only.
-   * Old backup and GitHub publication revisions are intentionally excluded
-   * from the seven-day unused-asset retention policy.
+   * 現在保存されているエディタの文書のアセット参照だけを返す。
+   * 古いバックアップや GitHub に公開した版は、7日間の未使用アセットの保持期間の
+   * 判定から意図的に除いている。
    */
   gcAssetReferences(): string[] {
     const current = this.documents.snapshot();

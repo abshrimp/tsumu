@@ -1,9 +1,9 @@
 /**
- * Spatial lookup for script drop targets.
+ * スクリプトのドロップ先を、位置から探すための索引。
  *
- * The browser measures slots once per gesture. Pointer moves only inspect a
- * handful of nearby buckets, instead of querying and laying out every block.
- * Coordinates are workspace-content pixels (after applying zoom).
+ * ブラウザで差し込み位置を測るのは、1回の操作につき1度だけ。ポインターが動くたびに
+ * すべてのブロックを検索してレイアウトを読む代わりに、近くのいくつかの区画だけを調べる。
+ * 座標はワークスペースの内容上のピクセル（倍率を適用した後）。
  */
 export interface SlotPoint {
   key: string;
@@ -36,8 +36,7 @@ export class SlotIndex {
     const cy = Math.floor(y / CELL_Y);
     let best: { key: string; dist: number; order: number } | null = null;
 
-    // The 80 x 28 pixel acceptance window cannot reach more than one
-    // neighboring cell in either direction.
+    // 80 x 28 ピクセルの受け入れ範囲は、どの方向にも隣の区画1つまでしか届かない。
     for (let ix = cx - 1; ix <= cx + 1; ix++) {
       for (let iy = cy - 1; iy <= cy + 1; iy++) {
         for (const slot of this.cells.get(`${ix},${iy}`) ?? []) {

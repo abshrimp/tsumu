@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * 動作の対象にする要素の選び方（一覧・キャンバスから選ぶ・ID属性の付与）
+ * 動作の対象にする要素の選び方（一覧から選ぶ・キャンバスから選ぶ・ID 属性を付ける）
  */
 
 import { visitPageNodes } from "../../lib/script";
@@ -30,7 +30,7 @@ export interface Target {
   field: boolean;
 }
 
-/** 動作の対象にできるID属性（ページ内の要素） */
+/** 動作の対象にできる ID 属性（ページ内の要素） */
 export function collectTargets(doc: SiteDoc, nodeIds: string[]): Target[] {
   const out: Target[] = [];
   const seen = new Set<string>();
@@ -47,7 +47,7 @@ export function collectTargets(doc: SiteDoc, nodeIds: string[]): Target[] {
   return out;
 }
 
-/** 要素選択の階層表示の1行 */
+/** 要素を選ぶ階層表示の1行 */
 export interface TreeRow {
   id: string;
   depth: number;
@@ -88,10 +88,9 @@ function matchingBranches(rows: readonly TreeRow[], matches: (row: TreeRow) => b
   return keep;
 }
 
-/** A search retains the ancestor path to each match without automatically
- * opening a parent whose own name or ID matched the query.
- * Expanding that parent reveals all of its immediate children, including
- * children which do not contain the search term. */
+/** 検索では、一致した行までの祖先をたどれるように残すが、名前や ID が検索語に
+ * 一致した親を自動では開かない。
+ * その親を開くと、検索語を含まない子も含め、すべての直下の子が表示される。 */
 export function searchNodePickerRows(
   rows: readonly TreeRow[],
   query: string,
@@ -143,8 +142,8 @@ export function TargetSelect({
   only?: "field" | "control";
 }) {
   const { tree, targets, targetLookup } = useContext(Ctx);
-  // Reuse the shared index: thousands of closed target inputs must not each
-  // rescan the entire node tree merely to display their current label.
+  // 共有の索引を使い回す。閉じている数千の対象の入力欄が、今のラベルを表示するためだけに
+  // それぞれノードのツリー全体を調べ直してはいけない。
   const firstOfId = targetLookup?.firstNodeIds ?? new Set(
     targets.map((target) => tree.find((row) => row.attrId === target.id)?.id).filter((id): id is string => !!id)
   );
@@ -186,7 +185,7 @@ export function TargetSelect({
   );
 }
 
-/** 要素にID属性を付けて返す（名前から作り、サイト内の他のIDと重ならないようにする） */
+/** 要素に ID 属性を付けて返す（名前から作り、サイト内の他の ID と重ならないようにする） */
 function assignAttrId(nodeId: string): string {
   const { doc, updateDoc } = useEditor.getState();
   const node = doc.nodes[nodeId];
@@ -208,7 +207,7 @@ function assignAttrId(nodeId: string): string {
 }
 
 /**
- * ページの要素を階層で見せて選ぶポップオーバー（検索・キーボード操作つき）。
+ * ページの要素を階層で表示して選ぶポップオーバー（検索とキーボード操作付き）。
  * 選べない要素も、構造が分かるよう薄く表示する
  */
 export function NodePicker({
@@ -227,11 +226,11 @@ export function NodePicker({
   rows: TreeRow[];
   pickable: (r: TreeRow) => boolean;
   selectedId: string | null;
-  /** 先頭に出す特別な選択肢（「きっかけの要素」「このページ」など） */
+  /** 先頭に表示する特別な選択肢（「きっかけの要素」「このページ」など） */
   special: { value: string; label: string; on: boolean }[];
   onSpecial: (v: string) => void;
   onPick: (r: TreeRow) => void;
-  /** ボタンに出す名前（null = 未選択） */
+  /** ボタンに表示する名前（null = 未選択） */
   label: string | null;
   sub?: string;
   placeholder: string;
@@ -241,8 +240,8 @@ export function NodePicker({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [closed, setClosed] = useState<Set<string>>(new Set());
-  // Search has its own expansion state. A fresh query always starts with
-  // directly matching parents collapsed, unlike a previously browsed tree.
+  // 検索には専用の開閉の状態を持たせる。以前に見ていたツリーとは違い、新しい検索語では
+  // 直接一致した親は、常に閉じた状態から始める。
   const [searchOpen, setSearchOpen] = useState<Set<string>>(new Set());
   const [searchClosed, setSearchClosed] = useState<Set<string>>(new Set());
   const [key, setKey] = useState(0);
@@ -257,17 +256,17 @@ export function NodePicker({
       target instanceof Node &&
       !menuRef.current?.contains(target) && !btnRef.current?.contains(target);
     const onDown = (e: PointerEvent) => {
-      // Capture before script rows (or other React portals) stop propagation.
-      // Unlike mousedown, this also covers pen and touch interactions.
+      // スクリプトの行（や他の React のポータル）がイベントの伝搬を止める前に受け取る。
+      // mousedown と違い、ペンやタッチの操作にも対応できる。
       if (outside(e.target)) setOpen(false);
     };
     const onFocus = (e: FocusEvent) => {
-      // Tab to another control should dismiss the popup as well.
+      // Tab で別の部品に移ったときも、ポップアップを閉じる。
       if (outside(e.target)) setOpen(false);
     };
-    // A click can trigger programmatic scrolling of the canvas or focused
-    // block. Only close for user scrolling outside the menu, not scroll
-    // events emitted while a picker is opening.
+    // クリックによって、キャンバスやフォーカスしたブロックがプログラムでスクロールされることがある。
+    // 閉じるのは、メニューの外で利用者がスクロールしたときだけで、
+    // 選択欄を開く途中で発生したスクロールのイベントでは閉じない。
     const onUserScroll = (e: Event) => {
       if (!menuRef.current?.contains(e.target as Node)) setOpen(false);
     };
@@ -297,7 +296,7 @@ export function NodePicker({
   const shown = useMemo(() => {
     if (!open) return [];
     if (q) return searchView?.rows ?? [];
-    // 閉じた枝の中は出さない
+    // 閉じた枝の中は表示しない
     const out: TreeRow[] = [];
     let hideBelow = Infinity;
     for (const r of visible) {
@@ -309,8 +308,8 @@ export function NodePicker({
     return out;
   }, [open, visible, q, closed, searchView]);
 
-  // Search includes structural ancestors in keyboard navigation so the
-  // user can expand an otherwise non-pickable branch.
+  // 検索中は、構造上の祖先もキーボードの移動先に含め、選べない枝も
+  // 利用者が開けるようにする。
   const choices = useMemo(() => open ? [
     ...(q ? [] : special.map((sp) => ({ kind: "special" as const, sp }))),
     ...(q ? shown : shown.filter(pickable)).map((r) => ({ kind: "row" as const, r })),
@@ -334,9 +333,8 @@ export function NodePicker({
   }, [open]);
 
   useEffect(() => {
-    // Scroll only the menu's own list. scrollIntoView() can also scroll the
-    // editor page, which the outside-scroll dismissal handler interprets as
-    // a reason to close the picker immediately after opening it.
+    // メニュー自身の一覧だけをスクロールする。scrollIntoView() はエディタのページまでスクロール
+    // することがあり、外側のスクロールで閉じる処理がそれを受けて、開いた直後に選択欄を閉じてしまう。
     if (!open) return;
     const list = listRef.current;
     const current = list?.querySelector<HTMLElement>(".np-row.is-key");

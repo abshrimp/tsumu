@@ -4,17 +4,17 @@ import { Component, type ReactNode } from "react";
 import { tr } from "../lib/i18n";
 
 /**
- * 中で表示エラーが起きても、エディタ全体を落とさずにこの部分だけ案内に差し替える。
- * エラーの中身は画面に出さず、コンソールにだけ残す
+ * 中で表示エラーが起きても、エディタ全体を落とさずに、この部分だけを案内に差し替える。
+ * エラーの内容は画面に出さず、コンソールにだけ残す
  */
 export default class SafeBoundary extends Component<
   {
     children: ReactNode;
     /** 案内の見出し（例: 「スクリプト画面」） */
     label?: string;
-    /** 閉じられる画面なら閉じるボタンを出す */
+    /** 閉じられる画面なら、閉じるボタンを表示する */
     onClose?: () => void;
-    /** 中身が変わったら表示し直す（ページ切替など） */
+    /** 中身が変わったら表示し直す（ページの切り替えなど） */
     resetKey?: unknown;
   },
   { failed: boolean }

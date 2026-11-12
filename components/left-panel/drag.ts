@@ -1,5 +1,5 @@
 /**
- * レイヤー・ページの並べ替えのドラッグ（差し込み位置の計算と自動スクロール）
+ * レイヤーとページの並べ替えのドラッグ（差し込み位置の計算と自動スクロール）
  */
 
 import { useEffect, useRef } from "react";
@@ -12,13 +12,13 @@ import { type SiteDoc } from "../../lib/types";
 export type DropPos = "before" | "after" | "start" | "inside";
 
 export interface DragState {
-  /** ドラッグ中の要素（複数選択ごと動かすときは全部） */
+  /** ドラッグ中の要素（複数選択をまとめて動かすときは、そのすべて） */
   dragIds: string[];
-  /** ドラッグ中の要素とその子孫（そこへは落とせない） */
+  /** ドラッグ中の要素とその子孫（そこにはドロップできない） */
   blockedIds: ReadonlySet<string>;
   overId: string | null;
   pos: DropPos | null;
-  /** OSからファイル（画像）をドラッグ中 */
+  /** OS からファイル（画像）をドラッグしている */
   files?: boolean;
 }
 
@@ -27,8 +27,8 @@ export const NO_DRAG: DragState = { dragIds: [], blockedIds: new Set(), overId: 
 export const isFileDrag = (e: React.DragEvent) => e.dataTransfer.types.includes("Files");
 
 /**
- * ドラッグ中に上下の端へ近づくと、スクロールする。
- * dragover は止まっていても一定間隔で届くので、届かなくなったら（外へ出た・落とした）止める
+ * ドラッグ中に上下の端に近づくと、スクロールする。
+ * dragover は止まっていても一定の間隔で届くため、届かなくなったら（外へ出た・ドロップした）止める
  */
 export function useDragAutoScroll() {
   const state = useRef({ y: 0, last: 0, raf: 0, el: null as HTMLElement | null });
@@ -38,7 +38,7 @@ export function useDragAutoScroll() {
     s.raf = 0;
     if (!s.el || performance.now() - s.last > 150) return;
     const r = s.el.getBoundingClientRect();
-    // 端からの距離が近いほど速く（最大 14px / フレーム）
+    // 端に近いほど速くする（最大で 14px / フレーム）
     const EDGE = 48;
     const MAX = 14;
     const top = s.y - r.top;
@@ -57,7 +57,7 @@ export function useDragAutoScroll() {
   };
 }
 
-/** 行に対するドロップ位置 → 挿入先 */
+/** 行に対するドロップの位置 → 挿入先 */
 export function layerDropPoint(
   doc: SiteDoc,
   id: string,

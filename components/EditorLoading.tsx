@@ -6,8 +6,8 @@ import { glyphs } from "./Glyph";
 import { loadLocale, tr } from "../lib/i18n";
 
 /**
- * 読み込み中に出すヒント。知っていると手早くなる操作を中心に、エディタの考え方を少し混ぜる。
- * 一目で読めるよう1文に収め、キーは Mac の記号で書く（Mac 以外では glyphs が Ctrl などに直す）
+ * 読み込み中に表示するヒント。知っていると作業が速くなる操作を中心に、エディタの考え方も少し混ぜる。
+ * 一目で読めるよう1文に収め、キーは Mac の記号で書く（Mac 以外では glyphs が Ctrl などに書き換える）
  */
 const tips = () => [
   tr("⌘-click to select the innermost element directly."),
@@ -23,10 +23,10 @@ const tips = () => [
   tr("Press ? to open Help and search by what you want to do."),
 ];
 
-/** エディタ本体を読み込んでいる間の画面（エディタと同じ配置の骨組みを出す） */
+/** エディタの本体を読み込んでいる間の画面（エディタと同じ配置の骨組みを表示する） */
 export default function EditorLoading() {
-  // 文言は言語の辞書を読み込んでから出す（サーバーとブラウザで食い違わないよう、表示後に選ぶ）。
-  // コツは表示のたびに違うものを出す
+  // 文言は、言語の辞書を読み込んでから表示する（サーバーとブラウザで食い違わないよう、表示した後に選ぶ）。
+  // ヒントは表示するたびに違うものを選ぶ
   const [tip, setTip] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;

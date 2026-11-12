@@ -42,7 +42,7 @@ function resolveTarget(target: string | undefined): string | undefined {
 
 function findTarget(target: string | undefined): HTMLElement | null {
   if (!target) return null;
-  // 同じ名前が複数あるとき（選んでいる要素が複数など）は、画面に見えている最初のもの
+  // 同じ名前の場所が複数あるとき（複数の要素を選んでいる場合など）は、画面に見えている最初のものを使う
   const all = Array.from(document.querySelectorAll<HTMLElement>(`[data-tutorial="${CSS.escape(target)}"]`));
   return all.find((el) => el.getClientRects().length > 0) ?? null;
 }
@@ -67,7 +67,7 @@ function openSection(name: string): boolean {
   return true;
 }
 
-/** 手順を始めるときの画面の準備 */
+/** 手順を始めるときに画面を準備する */
 function prepareStep(step: GuideStep, target: string | undefined) {
   const s = useEditor.getState();
   const p = step.prepare ?? {};
@@ -90,7 +90,7 @@ interface Rect {
 const GAP = 14;
 const EDGE = 12;
 
-/** カードの置き場所（場所の横・下・上のうち、はみ出さずに入るところ） */
+/** カードの置き場所（案内する場所の横・下・上のうち、はみ出さずに収まるところ） */
 function placeCard(rect: Rect | null, w: number, h: number): { top: number; left: number } {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
@@ -108,14 +108,14 @@ function placeCard(rect: Rect | null, w: number, h: number): { top: number; left
   const fitsBelow = below + h <= vh - EDGE;
   const fitsAbove = above >= EDGE;
   const center = rect.left + rect.width / 2;
-  // 画面の左寄りの場所はその右に、右寄りの場所はその左に（パネルの中を隠さないように）
+  // 画面の左寄りの場所はその右に、右寄りの場所はその左に置く（パネルの中を隠さないため）
   if (center < vw * 0.4 && fitsRight) return { top: clampTop(cy), left: right };
   if (center > vw * 0.6 && fitsLeft) return { top: clampTop(cy), left };
   if (fitsBelow) return { top: below, left: clampLeft(cx) };
   if (fitsAbove) return { top: above, left: clampLeft(cx) };
   if (fitsRight) return { top: clampTop(cy), left: right };
   if (fitsLeft) return { top: clampTop(cy), left };
-  // どこにも入らない大きな場所（キャンバスなど）は、その中の下の方に重ねる
+  // どこにも収まらない大きな場所（キャンバスなど）では、その中の下の方に重ねる
   return { top: clampTop(rect.top + rect.height - h - 24), left: clampLeft(cx) };
 }
 
@@ -131,7 +131,7 @@ function GuideRun({ topic, index }: { topic: Topic; index: number }) {
   const step = steps[index];
   const last = index === steps.length - 1;
   const ready = useEditor((s) => needMet(s, step.needs));
-  // 「キャンバスで〇〇を選ぶ」だけの手順は、選べたら済んだことにする
+  // 「キャンバスで〇〇を選ぶ」だけの手順は、選べたら完了とする
   const selectStep = !!step.needs && step.target === "canvas" && !step.done;
   const checks = !!step.done || selectStep;
   const done = useEditor((s) => ready && (step.done ? step.done(s) : selectStep));
@@ -145,13 +145,13 @@ function GuideRun({ topic, index }: { topic: Topic; index: number }) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 360, h: 200 });
 
-  // 手順に合わせて画面を整える（必要な選択がそろってから）
+  // 手順に合わせて画面を整える（必要な選択が揃ってから）
   useEffect(() => {
     if (!ready) return;
     prepareStep(step, stepTarget);
     const section = step.prepare?.section;
     if (!section) return;
-    // パネルやタブの切り替え後に描画されるので、出てくるまで少し待って開く
+    // パネルやタブを切り替えた後に描画されるため、表示されるまで少し待ってから開く
     let tries = 0;
     const timer = window.setInterval(() => {
       if (openSection(section) || ++tries > 20) window.clearInterval(timer);
@@ -160,7 +160,7 @@ function GuideRun({ topic, index }: { topic: Topic; index: number }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, ready]);
 
-  // 示す場所を見える位置までスクロールし、動きに合わせて枠を追いかける
+  // 示す場所が見える位置までスクロールし、動きに合わせて枠を追いかける
   useEffect(() => {
     let raf = 0;
     let scrolled = false;
@@ -186,7 +186,7 @@ function GuideRun({ topic, index }: { topic: Topic; index: number }) {
         missing = 0;
         setFound(true);
       } else {
-        // パネルの開閉の途中などで一瞬見えないだけのことがあるので、しばらく待ってから知らせる
+        // パネルの開閉の途中などで一瞬だけ見えないこともあるため、しばらく待ってから知らせる
         if (++missing > 30) setFound(false);
         setRect(null);
       }
@@ -206,7 +206,7 @@ function GuideRun({ topic, index }: { topic: Topic; index: number }) {
     return () => ro.disconnect();
   }, []);
 
-  // 操作が済んだら、少し見せてから次の手順へ
+  // 操作が済んだら、少し表示してから次の手順に進む
   useEffect(() => {
     if (!done || last) return;
     const t = window.setTimeout(() => setGuideStep(index + 1), 700);

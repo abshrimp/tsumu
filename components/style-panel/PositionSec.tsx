@@ -18,8 +18,8 @@ import { Grp, NumField, PropNum, Seg, unitConverter, useInspector } from "../con
 import { tr } from "../../lib/i18n";
 import { I, Sec } from "./shared";
 
-// Explicit mode choices must override normal-state/wider-screen values.
-// Context-menu resets and clearing an input retain their separate semantics.
+// 明示的に選んだ方式は、通常時や大きい画面の値を上書きしなければならない。
+// 右クリックメニューでのリセットと入力欄を空にする操作は、それぞれ別の意味のまま残す。
 function explicitDefault(insp: ReturnType<typeof useInspector>, prop: string): string | null {
   return isInitialValue(prop, insp.get(prop).baseline) ? null : initialValueOf(prop) ?? null;
 }
@@ -34,8 +34,8 @@ function ZIndexControl() {
   const bump = (d: number) => {
     const next = (z ?? 0) + d;
     const props: Record<string, string | null> = { zIndex: String(next) };
-    // z-index を効かせるため、未配置の要素には relative を付ける。
-    // 小さい画面で「自動」に戻した場合は明示的な static が入る。
+    // z-index を効かせるため、配置を指定していない要素には relative を付ける。
+    // 小さい画面で「自動」に戻した場合は、明示的に static が入る。
     if (isInitialValue("position", insp.get("position").value)) props.position = "relative";
     insp.set(props);
   };
@@ -72,7 +72,7 @@ function ZIndexControl() {
 
 /* ---------- 位置 ---------- */
 
-/** 位置の欄の表示（自動 / カスタム / 追従）。relative・static は「自動」 */
+/** 位置の欄の表示（自動 / カスタム / 追従）。relative と static は「自動」とする */
 function positionMode(pos: string | undefined): "auto" | "custom" | "sticky" {
   return pos === "absolute" || pos === "fixed" ? "custom" : pos === "sticky" ? "sticky" : "auto";
 }
@@ -84,12 +84,12 @@ export function PositionSec() {
   const hidden = insp.get("display").value === "none";
   const mode = positionMode(pos);
   // 表示している状態（自動 / カスタム / 追従）が上位と違うときだけ色を付ける
-  // （重なり順を変えたときに付く relative は「自動」のまま）
+  // （重なり順を変えたときに付く relative は「自動」のままとする）
   const modeChanged = posInfo.setHere && mode !== positionMode(posInfo.reference);
 
   const tfInfo = insp.get("transform");
   const tf = parseTransform(tfInfo.value);
-  // 回転の欄は回転だけを比べる（transform の移動・拡大が違っても色を付けない）
+  // 回転の欄は回転だけを比べる（transform の移動や拡大が違っても、色を付けない）
   const rotateChanged = tfInfo.setHere && tf.rotate !== parseTransform(tfInfo.reference).rotate;
 
   return (
@@ -108,11 +108,11 @@ export function PositionSec() {
             { label: tr("Sticky"), value: "sticky" },
           ]}
           onChange={(v) => {
-            // display: none が付いていれば（AIの編集などで付くことがある）、位置を選び直したときに外す
+            // display: none が付いていれば（AI の編集などで付くことがある）、位置を選び直したときに外す
             const unhide: Record<string, string | null> = hidden
               ? { display: insp.get("display").baseline?.trim().toLowerCase() === "none" ? "revert" : null }
               : {};
-            // 小さい画面では、消すと大きい画面の配置が出てくるため初期値で打ち消す
+            // 小さい画面では、消すと大きい画面の配置が表示されるため、初期値で打ち消す
             if (v === "auto")
               insp.set({
                 ...unhide,
@@ -144,7 +144,7 @@ export function PositionSec() {
 
       {mode === "custom" &&
         (() => {
-          // 基準点: 反対側の辺だけが設定されていればそちらを基準とみなす（auto は未設定扱い）
+          // 基準点: 反対側の辺だけが設定されていれば、そちらを基準とみなす（auto は未設定として扱う）
           const isSet = (v: string | undefined) => v !== undefined && v !== "auto";
           const anchorOf = (start: string | undefined, end: string | undefined) =>
             isSet(end) && !isSet(start) ? "end" : "start";
@@ -152,7 +152,7 @@ export function PositionSec() {
             const s = insp.get(start);
             const e = insp.get(end);
             const now = anchorOf(s.value, e.value) === "end" ? end : start;
-            // パソコンの既定は「左 / 上から」。他の画面幅・ホバー等は比べる相手の基準点
+            // パソコン幅の既定は「左 / 上から」。他の画面幅やホバーなどでは、比べる相手の基準点を使う
             const base =
               anchorOf(s.baseline, e.baseline) === "end" ? end : start;
             return { now, base, changed: (s.setHere || e.setHere) && now !== base };
@@ -162,8 +162,8 @@ export function PositionSec() {
           const xAnchor = x.now;
           const yAnchor = y.now;
           /**
-           * 基準点の切替: 現在の値を新しい辺へ引き継ぐ。元の辺が大きい画面幅から
-           * 引き継がれているときは、消すだけでは残るため auto で打ち消す
+           * 基準点の切り替え: 現在の値を新しい辺へ引き継ぐ。元の辺の値が大きい画面幅から
+           * 受け継がれているときは、消すだけでは残るため、auto で打ち消す
            */
           const swapAnchor = (from: string, to: string) =>
             insp.set({
@@ -252,7 +252,7 @@ export function PositionSec() {
         <Grp
           label={tr("Rotation")}
           setHere={rotateChanged}
-          // 回転だけを元に戻す（移動・拡大などはそのまま）
+          // 回転だけを元に戻す（移動や拡大などはそのまま）
           onReset={() =>
             insp.set({
               transform:
@@ -317,7 +317,7 @@ export function useParentFlexDir(): "row" | "column" | null {
 }
 
 /**
- * 幅・高さの欄。親のフローの向き（axis = main）では「残りを埋める」を選べ、
+ * 幅と高さの欄。親のフローの向き（axis = main）では「残りを埋める」を選べる。
  * px で固定したときは、隣の要素に押されて縮まないようにする（flex-shrink: 0）
  */
 export function MainSizeField({
@@ -338,8 +338,8 @@ export function MainSizeField({
   const changed = info.changed || (axis === "main" && (grow.changed || insp.get("flexShrink").changed));
 
   /**
-   * 設定を外す。パソコン幅以外では、消すとほかの画面幅の値が出てくるため初期値で上書きする
-   * （パソコン幅で「残りを埋める」にした要素を、スマホ幅だけ解除できるように）
+   * 設定を外す。パソコン幅以外では、消すと他の画面幅の値が表示されるため、初期値で上書きする
+   * （パソコン幅で「残りを埋める」にした要素を、スマホ幅だけで解除できるように）
    */
   const clear = (p: string): string | null => explicitDefault(insp, p);
   /** 値を入れたときの、伸び縮みの設定 */
@@ -350,7 +350,7 @@ export function MainSizeField({
     return {
       flexGrow: reset("flexGrow"),
       flexBasis: reset("flexBasis"),
-      // px で決めた大きさは保つ（アイコンなどが隣の文字に押しつぶされないように）
+      // px で決めた大きさは保つ（アイコンなどが、隣の文字に押しつぶされないように）
       flexShrink: px ? "0" : reset("flexShrink"),
       ...(insp.get(minProp).value === "0" ? { [minProp]: reset(minProp) } : {}),
     };
@@ -420,9 +420,9 @@ export function MainSizeField({
 }
 
 /**
- * 閉じた中の設定の状態（開くボタンの色に使う）。
+ * 閉じた中にある設定の状態（開くボタンの色に使う）。
  * " is-set" = この画面幅・状態で変えた（変更の色）、
- * " has-value" = タブレット以下で、大きい画面から受け継いだ値が既定値と違う（灰色。隠れていると分かりにくいため）
+ * " has-value" = タブレット以下で、大きい画面から受け継いだ値が既定値と違う（灰色。隠れていると気づきにくいため）
  */
 export function useHiddenState(props: string[]): string {
   const insp = useInspector();
@@ -435,13 +435,13 @@ export function useHiddenState(props: string[]): string {
 
 export const SIZE_LIMIT_PROPS = ["minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio"];
 
-/** 選択中の要素のキャンバス上の実際の幅・高さ（px） */
+/** 選択中の要素の、キャンバス上での実際の幅・高さ（px） */
 export function selectedSize(axis: "w" | "h"): number | undefined {
   const id = useEditor.getState().selection;
   if (!id) return undefined;
   const el = document.querySelector<HTMLElement>(`.cv-root [data-node="${CSS.escape(id)}"]`);
   if (!el) return undefined;
-  // キャンバスは CSS の zoom で拡大縮小しているので、その分を戻す
+  // キャンバスは CSS の zoom で拡大・縮小しているため、その分を戻す
   const zoom = parseFloat(el.closest<HTMLElement>('[style*="zoom"]')?.style.zoom ?? "") || 1;
   const r = el.getBoundingClientRect();
   return Math.round((axis === "w" ? r.width : r.height) / zoom);

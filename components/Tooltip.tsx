@@ -8,16 +8,16 @@ interface TipState {
   kbd: string | null;
   x: number;
   y: number;
-  /** 要素の上端（下に収まらないとき上へ出す位置） */
+  /** 要素の上端（下に収まらないときに、上へ表示する位置） */
   top: number;
   below: boolean;
-  /** ウォーム表示（連続ホバー）ではフェードを省略 */
+  /** 続けてホバーしたとき（直前にも表示していたとき）は、フェードを省く */
   anim: boolean;
 }
 
 /**
- * `data-tip` 属性を持つ要素にホバーしたとき表示する独自ツールチップ。
- * `data-tip-kbd` があればショートカット表記を添える。
+ * `data-tip` 属性を持つ要素にホバーしたときに表示する、独自のツールチップ。
+ * `data-tip-kbd` があれば、ショートカットの表記を添える。
  */
 export default function TooltipLayer() {
   const [tip, setTip] = useState<TipState | null>(null);
@@ -38,7 +38,7 @@ export default function TooltipLayer() {
     };
 
     const onOver = (e: MouseEvent | FocusEvent) => {
-      // キーボードでのフォーカスは説明アイコンだけに反応させる（クリックでのフォーカスで出さない）
+      // キーボードでのフォーカスは、説明アイコンにだけ反応させる（クリックでフォーカスしたときは表示しない）
       if (e.type === "focusin" && !(e.target as Element).matches?.(".info-tip:focus-visible")) return;
       const el = (e.target as Element).closest?.("[data-tip]") ?? null;
       if (el === currentEl) return;
@@ -67,7 +67,7 @@ export default function TooltipLayer() {
           anim,
         });
       };
-      // 直前までツールチップを見ていた場合は待たずに・フェードなしで表示
+      // 直前までツールチップを見ていた場合は、待たずにフェードなしで表示する
       if (visible || Date.now() < warmUntil) show(false);
       else timer = setTimeout(() => show(true), 150);
     };
@@ -87,7 +87,7 @@ export default function TooltipLayer() {
     };
   }, []);
 
-  // 画面端からはみ出さないよう、実寸を測って横位置をずらし、下に収まらなければ上へ出す
+  // 画面の端からはみ出さないよう、実際の大きさを測って横の位置をずらし、下に収まらなければ上に表示する
   const ref = useRef<HTMLDivElement>(null);
   const [shift, setShift] = useState(0);
   const [flip, setFlip] = useState(false);

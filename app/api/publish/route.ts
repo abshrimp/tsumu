@@ -36,11 +36,11 @@ import { JsonBodyTooLargeError, JsonContentTypeError, readJsonLimited } from "..
 
 export const maxDuration = 60;
 
-/** ツリー作成1リクエストあたりの上限（項目数・インライン本文の文字数） */
+/** ツリーを作るリクエスト1回あたりの上限（項目数と、インラインで送る本文の文字数） */
 const TREE_CHUNK_ITEMS = 200;
 const TREE_CHUNK_BYTES = 512 * 1024;
 const MAX_DOC_BYTES = 12 * 1024 * 1024;
-// 25 MiB asset uploads expand to ~34 MiB in base64; cap the entire JSON stream.
+// 25 MiB のアセットは base64 で約 34 MiB になる。JSON のストリーム全体の大きさを制限する。
 const MAX_PUBLISH_REQUEST_BYTES = 48 * 1024 * 1024;
 
 interface TargetField {
@@ -52,19 +52,19 @@ interface TargetField {
   dest?: unknown;
 }
 
-/** 公開する内容をコミットする（アセットは先に upload で送った blob を sha で指す） */
+/** 公開する内容をコミットする（アセットは、先に upload で送った blob を sha で指す） */
 interface CommitBody extends TargetField {
   action: "commit";
   expectedHead: string | null;
   files: Record<string, string>;
   exportOptions: PublishedExportOptions;
   assetShas?: Record<string, string>;
-  /** 手で追加した項目は、先端のモード・種類・内容をそのまま保持する */
+  /** 手動で追加した項目は、先端のモード・種類・内容をそのまま残す */
   keptPaths?: string[];
   message?: string;
 }
 
-/** アセットを1つ送る（base64 そのまま、または KV のキー source から読み込む） */
+/** アセットを1つ送る（base64 をそのまま送るか、KV のキー source から読み込む） */
 interface UploadBody extends TargetField {
   action: "upload";
   path: string;
@@ -72,14 +72,14 @@ interface UploadBody extends TargetField {
   source?: string;
 }
 
-/** 現在の公開内容（差分公開用）を取得する */
+/** 現在の公開内容を取得する（差分だけを公開するため） */
 interface TreeBody extends TargetField {
   action: "tree";
 }
 
 type PublishBody = CommitBody | UploadBody | TreeBody;
 
-/** 保存先にアセットが存在しない（削除済みなど）。公開は続行できるので区別する */
+/** 保存先にアセットが無い（削除済みなど）。公開は続けられるため、他のエラーと区別する */
 class MissingAssetError extends Error {}
 
 interface TreeItem {
@@ -90,7 +90,7 @@ interface TreeItem {
   sha?: string;
 }
 
-/** 公開先の設定状況（公開ダイアログの表示用。?site= のサイト） */
+/** 公開先の設定状況（?site= のサイト。公開ダイアログの表示に使う） */
 export async function GET(req: Request) {
   const tr = await serverTr();
   const denied = await requireAuth();
@@ -111,9 +111,9 @@ export async function GET(req: Request) {
   };
   const prod = targetConfig(dest, "production");
   return NextResponse.json({
-    // GitHubのトークンと公開先リポジトリが設定されているか（無ければ公開できない旨だけを出す）
+    // GitHub のトークンと公開先のリポジトリが設定されているか（無ければ、公開できないことだけを表示する）
     configured: !!(prod.token && prod.repo),
-    /** 足りない設定（token = 環境変数の GITHUB_TOKEN / repo = サイトの公開先） */
+    /** 足りない設定（token = 環境変数の GITHUB_TOKEN、repo = サイトの公開先） */
     unset: !prod.token ? "token" : !prod.repo ? "repo" : null,
     previewEnabled: previewEnabled(dest),
     lastExportOptions: dbConfigured()
@@ -157,9 +157,9 @@ export async function POST(req: Request) {
   const { repo, branch } = conf;
   const { gh, fail } = githubClient(conf, tr);
 
-  // Creating even an unattached GitHub blob sends its contents to the
-  // destination repository. Validate editable data before that first write,
-  // and use the same check for inline and SHA-based commits.
+  // 未接続の GitHub blob を作るだけでも、内容は公開先のリポジトリに送られる。
+  // 最初の書き込みの前に編集データを検証し、インラインのコミットにも SHA で指すコミットにも
+  // 同じ検査を使う。
   const validateDocument = (content: string | Uint8Array) => {
     const size = typeof content === "string" ? Buffer.byteLength(content, "utf8") : content.byteLength;
     if (size > MAX_DOC_BYTES) {
@@ -171,7 +171,7 @@ export async function POST(req: Request) {
         new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(content);
       document = JSON.parse(text);
     } catch {
-      // Parser errors may contain document excerpts. Do not log or return them.
+      // パーサーのエラーには文書の一部が含まれることがあるため、ログにも応答にも出さない。
       return NextResponse.json({ error: tr("Not an editor data file") }, { status: 400 });
     }
     if (hasPublishCredentials(document as Parameters<typeof hasPublishCredentials>[0])) {
@@ -182,9 +182,9 @@ export async function POST(req: Request) {
     return null;
   };
 
-  // 空リポジトリでは Git Data API が使えないため、Contents API で初期コミットを作る
-  //（.gitkeep もスナップショットに含め、ほかの手動ファイルと同様に保持する）。
-  // 最初のコミットのブランチがリポジトリの既定ブランチになるため、テスト公開が最初でも
+  // 空のリポジトリでは Git Data API が使えないため、Contents API で最初のコミットを作る
+  //（.gitkeep もスナップショットに含め、他の手動ファイルと同じように残す）。
+  // 最初のコミットのブランチがリポジトリの既定ブランチになるため、テスト公開が先でも
   // 本番のブランチで初期化する（preview が既定になると、ホスティング側で本番として扱われる）
   const initBranch =
     target === "test" ? targetConfig(dest, "production").branch : branch;
@@ -224,15 +224,15 @@ export async function POST(req: Request) {
   const branchPath = toBranchPath(branch);
 
   try {
-    // 既存ツリーの path → sha と、アセット対応表・書き出したファイルの一覧を返す
+    // 既存のツリーの path → sha と、アセットの対応表、書き出したファイルの一覧を返す
     //（ブランチが無ければ空。一覧が無ければ generated: null）
     if (body.action === "tree") {
       let refRes = await gh(`/git/ref/heads/${branchPath}`);
       if (refRes.status === 409) {
-        // Initialize once, before taking the snapshot. Uploads must never move its head.
+        // スナップショットを取る前に、一度だけ初期化する。アップロードで先端を動かしてはいけない。
         const bootRes = await initRepository();
-        // A concurrent preflight may have initialized first. Re-read, but do not
-        // treat an unsuccessful initialization as an empty snapshot.
+        // 同時に走った事前確認が先に初期化した可能性があるため読み直す。ただし、
+        // 初期化に失敗した状態を空のスナップショットとして扱ってはいけない。
         refRes = await gh(`/git/ref/heads/${branchPath}`);
         if (!bootRes.ok && !refRes.ok && refRes.status !== 404) await fail(tr("Initializing the repository"), bootRes);
         if (!bootRes.ok && refRes.status === 404) {
@@ -251,7 +251,7 @@ export async function POST(req: Request) {
         tree: { path: string; type: string; sha: string }[];
         truncated?: boolean;
       };
-      // A partial snapshot would silently delete files omitted by GitHub.
+      // 一部しか読めないスナップショットを使うと、GitHub が省いたファイルを気づかないうちに削除してしまう。
       if (treeData.truncated) {
         throw new Error(tr("Publishing stopped because the complete file list could not be retrieved from the destination"));
       }
@@ -262,7 +262,7 @@ export async function POST(req: Request) {
       for (const item of treeData.tree) {
         if (item.type === "blob" || item.type === "commit") blobs[item.path] = item.sha;
       }
-      /** required: 読めなければ失敗にする（false なら読めないときも null） */
+      /** required が true なら、読めないときは失敗にする（false なら null を返す） */
       const readText = async (path: string, required: boolean): Promise<string | null> => {
         const sha = blobs[path];
         if (!sha) return null;
@@ -280,10 +280,10 @@ export async function POST(req: Request) {
         try {
           manifest = JSON.parse(manifestText);
         } catch {
-          // 壊れた対応表は無視して全件送信に戻す
+          // 壊れた対応表は無視し、全件を送る方式に戻す
         }
       }
-      // 読めないと手で追加したファイルを消してしまうため、取得の失敗は公開の失敗にする
+      // 一覧を読めないと手動で追加したファイルを消してしまうため、取得に失敗したら公開も失敗にする
       const generatedText = await readText(GENERATED_MANIFEST_PATH, true);
       const generated = generatedText === null ? null : parseGeneratedManifest(generatedText);
       if (generatedText !== null && generated === null) {
@@ -292,7 +292,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, head: commitSha, blobs, manifest, generated });
     }
 
-    // アセットごとに別のWorker呼び出しへ分け、無料枠のサブリクエスト上限を回避する。
+    // アセットごとに Worker の呼び出しを分け、無料プランのサブリクエスト数の上限に収める。
     if (body.action === "upload") {
       if (
         typeof body.path !== "string" || !body.path ||
@@ -329,7 +329,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Never advance the GitHub branch if the format to persist is invalid.
+    // 保存する形式が不正なら、GitHub のブランチを進めない。
     const exportOptions = parsePublishedExportOptions(body.exportOptions);
     if (!exportOptions) {
       return NextResponse.json({ error: tr("Invalid request", "invalid_request_variant_1") }, { status: 400 });
@@ -351,9 +351,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 400 });
     }
 
-    // Ownership metadata controls deletion on the next publish and rollback.
-    // It may only claim files supplied by this publication, never retained
-    // manual entries. Validate SHA-based manifests as well as inline text.
+    // 所有の情報は、次の公開とロールバックで何を削除するかを決める。
+    // 主張できるのはこの公開で送ったファイルだけで、残す手動のファイルは含められない。
+    // インラインの本文だけでなく、SHA で指す一覧も検証する。
     if (Object.hasOwn(body.files, GENERATED_MANIFEST_PATH) || Object.hasOwn(assetShas, GENERATED_MANIFEST_PATH)) {
       let manifestText: string;
       if (Object.hasOwn(body.files, GENERATED_MANIFEST_PATH)) {
@@ -374,9 +374,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // The browser's credential check is not a security boundary. Inspect
-    // doc.json again in the committing request, including when the document
-    // was uploaded as a detached blob because it exceeded the inline limit.
+    // ブラウザでの認証情報の検査は、安全のための境界にはならない。コミットするリクエストでも
+    // doc.json を検査し直す。インラインの上限を超えて別の blob として送った場合も同様。
     if (Object.hasOwn(body.files, DOC_PATH) || Object.hasOwn(assetShas, DOC_PATH)) {
       let content: string | Uint8Array;
       if (Object.hasOwn(body.files, DOC_PATH)) {
@@ -394,7 +393,7 @@ export async function POST(req: Request) {
       if (invalid) return invalid;
     }
 
-    // 1. ブランチ先端を取得
+    // 1. ブランチの先端を取得する
     let parentSha: string | null = null;
     /** 公開先のブランチがすでにあるか（無ければ最後に作る） */
     let branchExists = false;
@@ -406,8 +405,8 @@ export async function POST(req: Request) {
       await fail(tr("Fetching the branch"), refRes);
     }
 
-    // A mandatory snapshot prevents an old keep/delete plan being rebased onto
-    // a newer head. null means the branch was absent, not "skip the check".
+    // 古い「残す・削除する」の計画が新しい先端に適用されないよう、スナップショットを必須にする。
+    // null は「ブランチが無かった」ことを表し、「確認を省く」という意味ではない。
     if (!(body.expectedHead === null || (typeof body.expectedHead === "string" && body.expectedHead.length > 0))) {
       return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 400 });
     }
@@ -415,7 +414,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
     }
 
-    // 2. ツリーを構築（テキストはそのまま、バイナリはblobを作成してsha参照）
+    // 2. ツリーを組み立てる（テキストはそのまま、バイナリは blob を作って sha で参照する）
     const tree: TreeItem[] = Object.entries(body.files).map(
       ([path, content]) => ({ path, mode: "100644", type: "blob", content })
     );
@@ -428,8 +427,8 @@ export async function POST(req: Request) {
       });
     };
 
-    // This API replaces the entire tree. Protected entries come from the
-    // pinned parent even when an incomplete client request omits them.
+    // この API はツリー全体を置き換える。クライアントの不完全なリクエストが保護対象の項目を
+    // 省いても、固定した親コミットから補う。
     let entries: TreeEntry[] = [];
     if (branchExists && parentSha) {
       const treeRes = await gh(`/git/trees/${parentSha}?recursive=1`);
@@ -446,9 +445,9 @@ export async function POST(req: Request) {
     const protectedEntries = new Map(entries.filter(e =>
       isProtectedPath(e.path) && (e.type === "blob" || e.type === "commit")).map(e => [e.path, e]));
 
-    // Do not trust the caller's keptPaths to enumerate every manual file. A
-    // malformed or partial client request must not turn tree replacement into
-    // deletion of unrelated files. Determine ownership from the pinned head.
+    // 手動ファイルの一覧を、呼び出し側の keptPaths に任せてはいけない。不正なリクエストや
+    // 一部だけのリクエストで、ツリーの置き換えが無関係なファイルの削除にならないよう、
+    // 所有の判定は固定した先端から行う。
     const existingBlobs: Record<string, string> = Object.create(null);
     for (const entry of entries) {
       if ((entry.type === "blob" || entry.type === "commit") && entry.sha) {
@@ -483,15 +482,13 @@ export async function POST(req: Request) {
         pushSha(path, sha);
       }
     }
-    // Invalid keep paths and overlapping outputs are malformed requests,
-    // rather than normal head conflicts.
+    // 不正な保持パスや、出力どうしの重なりは、通常の先端の競合ではなく不正なリクエストとして扱う。
     if (keptPaths.some(path => !Object.hasOwn(existingBlobs, path) ||
         Object.hasOwn(body.files, path) || Object.hasOwn(assetShas, path))) {
       return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 400 });
     }
-    // Client-supplied keep hints are never allowed to resurrect obsolete
-    // generated files. Only entries independently classified as manual (or
-    // the current protected GitHub configuration) can be retained.
+    // クライアントが送る保持の指定で、不要になった生成ファイルを復活させてはいけない。
+    // 残せるのは、サーバーが独自に手動と判定した項目（と、現在の保護対象の GitHub の設定）だけ。
     if (keptPaths.some(path => !Object.hasOwn(serverPlan.kept, path) && !protectedEntries.has(path))) {
       return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
     }
@@ -501,15 +498,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 400 });
     }
     for (const entry of kept) tree.push({ ...entry, sha: entry.sha! });
-    // A file at a parent path and a generated descendant cannot coexist in
-    // a Git tree. GitHub may silently replace one when building nested paths.
-    // Fail closed rather than losing an existing symlink, submodule or file.
+    // 親のパスにあるファイルと、その下の生成ファイルは、Git のツリーに同時には置けない。
+    // 入れ子のパスを組み立てるときに GitHub が黙って一方を置き換えることがあるため、
+    // 既存のシンボリックリンク・サブモジュール・ファイルを失わないよう、ここで中止する。
     if (conflictingCommitPaths(tree.map(entry => entry.path))) {
       return NextResponse.json({ error: tr("The publish includes a file path that isn't allowed") }, { status: 400 });
     }
 
-    // 一度に大きなツリーを送るとGitHub側でタイムアウトするため、分割して積み上げる。
-    // 最初のチャンクは base_tree なし = リポジトリ内容を完全置換（削除も反映される）。
+    // 大きなツリーを一度に送ると GitHub 側でタイムアウトするため、分割して積み上げる。
+    // 最初のチャンクは base_tree なしで送り、リポジトリの内容を完全に置き換える（削除も反映される）。
     // 以降は直前のツリーを base_tree にして追加していく。
     const chunks: TreeItem[][] = [];
     let current: TreeItem[] = [];
@@ -542,7 +539,7 @@ export async function POST(req: Request) {
       treeSha = (await treeRes.json()).sha as string;
     }
 
-    // 3. コミット
+    // 3. コミットを作る
     const commitRes = await gh(`/git/commits`, {
       method: "POST",
       body: JSON.stringify({
@@ -554,14 +551,14 @@ export async function POST(req: Request) {
     if (!commitRes.ok) await fail(tr("Creating the commit"), commitRes);
     const commitSha = (await commitRes.json()).sha;
 
-    // 4. Never force an update. Resolve ambiguous transport errors by reading
-    // back GitHub's ref before asking the user to publish again.
+    // 4. 強制的な更新はしない。通信エラーで結果が分からない場合は、利用者にもう一度公開を
+    // 求める前に、GitHub のブランチを読み直して確かめる。
     if (!(await advanceBranchRef(gh, fail, branch, commitSha, branchExists, tr))) {
       return NextResponse.json({ error: tr(publishConflictMessage) }, { status: 409 });
     }
 
-    // The GitHub commit already exists: a local history bookkeeping failure
-    // must not turn successful publication into a misleading 502/retry.
+    // GitHub のコミットはすでにできている。手元の履歴の記録に失敗しても、
+    // 成功した公開を 502 や再試行の案内にすり替えない。
     let optionsSaved = false;
     if (dbConfigured()) {
       try {

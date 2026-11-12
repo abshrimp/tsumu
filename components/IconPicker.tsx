@@ -8,7 +8,7 @@ import { tr } from "../lib/i18n";
 
 const ICON_NAMES = Object.keys(icons);
 
-/** PascalCase → kebab-case（lucide の慣用名） */
+/** PascalCase を kebab-case に変換する（lucide での名前の書き方） */
 function toKebab(name: string): string {
   return name
     .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
@@ -16,7 +16,7 @@ function toKebab(name: string): string {
     .toLowerCase();
 }
 
-/** アイコンコンポーネントをSVG文字列に変換（サイズはCSS任せにする） */
+/** アイコンのコンポーネントを SVG の文字列に変換する（大きさは CSS で決める） */
 export function iconToSvg(pascalName: string): string {
   const C = icons[pascalName as keyof typeof icons];
   if (!C) return "";

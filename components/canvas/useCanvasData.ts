@@ -23,7 +23,7 @@ import { fieldDefaults, fieldStateValues, type FieldValues } from "../../lib/fie
 import { fetchRequestOf } from "../../lib/fetch-request";
 import type { Page, SiteDoc } from "../../lib/types";
 
-/** 公開サイトと同じく、クエリ条件が最も多く一致するページを選ぶ。 */
+/** 公開サイトと同じく、クエリの条件が最も多く一致するページを選ぶ。 */
 function queryPage(pages: Page[], query: URLSearchParams): Page | undefined {
   let best = pages[0];
   let score = -1;
@@ -37,7 +37,7 @@ function queryPage(pages: Page[], query: URLSearchParams): Page | undefined {
   return best;
 }
 
-/** ページ切替の最初の描画から、前のページのフォーム値・取得結果を使わない。 */
+/** ページを切り替えた最初の描画から、前のページのフォームの値や取得結果を使わない。 */
 function usePageValues<T extends object>(pageId: string): [T, Dispatch<SetStateAction<T>>] {
   const empty = useMemo(() => ({} as T), [pageId]);
   const [state, setState] = useState(() => ({ pageId, value: empty }));
@@ -76,22 +76,22 @@ export function useCanvasData({
   mode,
   setPreviewIndex,
 }: UseCanvasDataDeps) {
-  /* ---- 変数（要素のデータ / フォーム値 / slug） ---- */
+  /* ---- 変数（要素のデータ・フォームの値・slug） ---- */
   const [fieldValues, setFieldValues] = usePageValues<FieldValues>(activePageId);
   /** プレビューで、スクリプトが画面上で値を入れた変数（ストレージ・分解した配列など） */
   const [clientValues, setClientValues] = usePageValues<Record<string, unknown>>(activePageId);
-  /** 再取得したデータ（取得ブロックのID → JSON） */
+  /** 取得し直したデータ（取得ブロックの ID → JSON） */
   const [liveSamples, setLiveSamples] = usePageValues<Record<string, unknown>>(activePageId);
-  /** 再取得したデータで切り詰めた配列の元の件数（件数のブロックで使う） */
+  /** 取得し直したデータで、切り詰めた配列の元の件数（件数のブロックで使う） */
   const [liveTotals, setLiveTotals] = usePageValues<Record<string, Record<string, number>>>(activePageId);
   /**
-   * 取り直したデータの全件（切り詰めない）。プレビューのときだけ使い、
-   * 表示件数「全て」のリストに全件を並べる（デザイン画面は重くならないよう見本を使う）
+   * 取得し直したデータの全件（切り詰めない）。プレビューのときだけ使い、
+   * 表示件数が「すべて」のリストに全件を並べる（デザイン画面では、重くならないよう見本を使う）
    */
   const [fullData, setFullData] = usePageValues<Record<string, unknown>>(activePageId);
   const [previewSlug, setPreviewSlug] = useState("1");
   const [refreshing, setRefreshing] = useState(false);
-  /** 再取得・ページ切替・プレビューの開始/終了で、以前の応答を無効にする。 */
+  /** 取得し直し・ページの切り替え・プレビューの開始と終了で、以前の応答を無効にする。 */
   const refreshRequest = useRef(0);
   const refreshController = useRef<AbortController | null>(null);
 
@@ -117,7 +117,7 @@ export function useCanvasData({
   const primaryFindBy = candidates?.field || undefined;
   const primaryItems = candidates?.items ?? [];
 
-  /** 「表示中のデータ」でslugを直接入力したときの値（null = 一覧から選んだ項目） */
+  /** 「表示中のデータ」で slug を直接入力したときの値（null = 一覧から選んだ項目） */
   const [typedSlugOf, setTypedSlugOf] = useState<{ pageId: string; value: string } | null>(
     null
   );
@@ -126,14 +126,14 @@ export function useCanvasData({
     primaryFindBy && typedSlug !== null
       ? primaryItems.findIndex((it) => sameKey(keyOfItem(it, primaryFindBy), typedSlug))
       : previewIndex;
-  /** 入力したslugに一致するデータがない（公開サイトでは404） */
+  /** 入力した slug に一致するデータが無い（公開サイトでは 404 になる） */
   const slugNotFound = typedIndex < 0;
 
   const slugVal = primaryFindBy
     ? (typedSlug ?? String((primaryItems[previewIndex] && keyOfItem(primaryItems[previewIndex], primaryFindBy)) ?? previewSlug))
     : previewSlug;
 
-  /* スクリプト「ページを開いたとき」で取得するデータ → {変数} */
+  /* スクリプトの「ページを開いたとき」で取得するデータ → {変数} */
   const dataVars = useMemo(
     () =>
       page
@@ -141,7 +141,7 @@ export function useCanvasData({
             index: slugNotFound ? -1 : previewIndex,
             slug: slugVal,
             live: mode === "preview" ? { ...liveSamples, ...fullData } : liveSamples,
-            // 全件のデータには件数の補正が要らない
+            // 全件のデータでは、件数を補正する必要がない
             liveTotals:
               mode === "preview"
                 ? Object.fromEntries(
@@ -171,7 +171,7 @@ export function useCanvasData({
       ...fieldValues,
       ...(mode === "preview" ? clientValues : {}),
     } as Record<string, unknown>;
-    // 入力欄の状態（{ID.checked} など。「.」を含む名前のまま入れると lookupVar がそのまま読む）
+    // 入力欄の状態（{ID.checked} など）。「.」を含む名前のまま入れれば、lookupVar がそのまま読む
     Object.assign(base, fieldStateValues(fieldVarNodes, base, known));
     for (const n of textVarNodes) {
       const tpl = nodeTextTemplate(doc, n);
@@ -180,7 +180,7 @@ export function useCanvasData({
     return base;
   }, [fieldValues, clientValues, mode, slugVal, dataVars, page?.slug, page?.query, textVarNodes, fieldVarNodes, doc]);
 
-  /** 送信ボタン / 再取得: ページのJSONを取り直す */
+  /** 送信ボタン / 取得し直し: ページの JSON を取得し直す */
   const refreshData = useCallback(async () => {
     if (!page) return;
     const request = ++refreshRequest.current;
@@ -209,10 +209,10 @@ export function useCanvasData({
             full[st.id] = data.json;
             const made = makeSample(data.json);
             results[st.id] = made.sample;
-            // 切り詰め不要になった応答でも、以前の件数を残さない。
+            // 切り詰める必要がなくなった応答でも、以前の件数を残さない。
             totals[st.id] = made.totals ?? {};
           } catch {
-            // 失敗したデータは保存済みの見本を使い続ける
+            // 取得に失敗したデータは、保存済みの見本を使い続ける
           }
         })
       );
@@ -228,7 +228,7 @@ export function useCanvasData({
     }
   }, [page, plan, slugVal, pageVars]);
 
-  // プレビューを始めたら、ページのデータを全件で取り直す（見本は先頭だけのため）
+  // プレビューを始めたら、ページのデータを全件で取得し直す（見本は先頭の数件だけのため）
   const refreshRef = useRef(refreshData);
   refreshRef.current = refreshData;
   useEffect(() => {
@@ -243,7 +243,7 @@ export function useCanvasData({
 
   const setActivePage = useEditor((s) => s.setActivePage);
 
-  /** プレビューのリンク移動: サイト内パスならページ切替へ解決する */
+  /** プレビューでのリンクの移動: サイト内のパスなら、ページの切り替えとして扱う */
   const navigateTo = useCallback(
     (url: string) => {
       const raw = url.trim();
@@ -256,13 +256,13 @@ export function useCanvasData({
       const path = clean(raw.split(/[?#]/)[0]);
       const query = new URLSearchParams(raw.split("#")[0].split("?").slice(1).join("?"));
       const pages = doc.pageOrder.map((pid) => doc.pages[pid]);
-      // 通常ページ（URL完全一致）。同じパスのページはクエリで振り分ける。
+      // 通常のページ（URL が完全に一致するもの）。同じパスのページは、クエリで振り分ける。
       const normal = queryPage(pages.filter((p) => !p.slug.includes("[slug]") && clean(p.slug) === path), query);
       if (normal) {
         setActivePage(normal.id);
         return;
       }
-      // [slug]ページ: 値を取り出してプレビュー対象に反映する
+      // [slug] のページ: 値を取り出して、プレビューの対象に反映する
       for (const pid of doc.pageOrder) {
         const slug = clean(doc.pages[pid].slug);
         const at = slug.indexOf("[slug]");
@@ -280,25 +280,25 @@ export function useCanvasData({
         try {
           val = decodeURIComponent(path.slice(pre.length, path.length - post.length));
         } catch {
-          // 壊れたエスケープを含むリンクも、他の不一致URLと同じく404へ進める。
+          // 壊れたエスケープを含むリンクも、他の一致しない URL と同じく 404 へ進める。
           continue;
         }
         if (!val || val.includes("/")) continue;
         const target = queryPage(pages.filter((p) => clean(p.slug) === slug), query)!;
         setPreviewSlug(val);
-        // setActivePage は previewIndex を0に戻すので、先にページを切り替える
+        // setActivePage は previewIndex を 0 に戻すため、先にページを切り替える
         setActivePage(target.id);
-        // 移動先の中心のデータが「{slug} のものを探す」なら、一致する項目を選ぶ
+        // 移動先の中心となるデータが「{slug} のものを探す」なら、一致する項目を選ぶ
         const main = primaryCandidates(doc, target.id);
         if (main?.field) {
           const idx = main.items.findIndex((it) => sameKey(keyOfItem(it, main.field), val));
           if (idx >= 0) setPreviewIndex(idx);
-          // 一致しない値は入力したslugとして残し、404の状態を確認できるようにする
+          // 一致しない値は入力した slug として残し、404 の状態を確認できるようにする
           setTypedSlugOf(idx >= 0 ? null : { pageId: target.id, value: val });
         }
         return;
       }
-      // どのページにも一致しない: 404ページ（URLが「404」）があれば表示する
+      // どのページにも一致しない: 404 のページ（URL が「404」）があれば表示する
       const nf = doc.pageOrder.find((pid) => clean(doc.pages[pid].slug) === "404");
       if (nf) setActivePage(nf);
     },

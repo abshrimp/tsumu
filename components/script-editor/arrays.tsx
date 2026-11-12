@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * リスト表示の操作と変数にあるリストの選択
+ * リスト表示の操作と、変数にあるリストの選択
  */
 
 import { useContext } from "react";
@@ -29,10 +29,10 @@ export function ArraySelect({ value, onChange }: { value: string; onChange: (v: 
   return <ListChoicePicker value={value} options={options} onChange={onChange} readOnly={readOnly} />;
 }
 
-/** Reuse paths across all selectors in the same document preview. */
+/** 同じ文書のプレビューでは、すべての選択欄で位置の一覧を使い回す。 */
 const arrayPathCache = new WeakMap<Record<string, unknown>, string[]>();
 
-/** 変数の見本から、リストの入った位置を探す（「記事.tags」のような入れ子も） */
+/** 変数の見本から、リストが入っている位置を探す（「記事.tags」のような入れ子も含む） */
 function arrayPathsIn(samples: Record<string, unknown>): string[] {
   const cached = arrayPathCache.get(samples);
   if (cached) return cached;
@@ -83,7 +83,7 @@ export function itemFieldsOf(sample: unknown): string[] {
 
 /**
  * リストの項目を選ぶ（見本の1件目から。「›」で入れ子の中の項目も選べる）。
- * 文字や数値のリストは、各要素の値が {値} の項目になる
+ * 文字や数値のリストでは、各要素の値が {値} の項目になる
  */
 function ArrayFieldSelect({
   array,
@@ -135,7 +135,7 @@ export function FilterArrayBody({ step }: { step: Extract<ScriptStep, { kind: "l
   const or = step.or ?? [];
   const setOr = (i: number, patch: Partial<FilterCond>) =>
     set({ or: or.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
-  // 条件ごとに1行にする（折り返しに任せると、ブロックの幅が全条件を横に並べた長さになる）
+  // 条件ごとに1行にする（折り返しに任せると、ブロックの幅がすべての条件を横に並べた長さになる）
   const tail = <Phrase text=" " parts={{}} />;
   return (
     <>

@@ -53,7 +53,7 @@ interface SelRect {
   realH: number;
 }
 
-/** クリックした場所から外側へ、要素（data-node）を外側→内側の順に並べる */
+/** クリックした場所を含む要素（data-node）を、外側から内側の順に並べる */
 function nodeElementsOf(target: Element): Element[] {
   const out: Element[] = [];
   let el: Element | null = target.closest("[data-node]");
@@ -96,9 +96,9 @@ export default function Canvas() {
   );
   const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
   const [elemDropTarget, setElemDropTarget] = useState<string | null>(null);
-  /** キャンバス内ドラッグ移動の表示状態 */
+  /** キャンバス内でドラッグして移動するときの表示状態 */
   const [moveDrag, setMoveDrag] = useState<{
-    /** 動かしている要素（複数選択の中をつかんだら選択中の全要素） */
+    /** 動かしている要素（複数選択のうちの1つをつかんだ場合は、選択中のすべての要素） */
     dragIds: string[];
     line: { left: number; top: number; width: number; height: number } | null;
     insideId: string | null;
@@ -131,15 +131,15 @@ export default function Canvas() {
   const hasVisualFrame = !!page && (!!editingComp || (
     page.rawHtml == null && page.redirectTo === undefined && page.rewriteTo === undefined
   ));
-  /** キャンバスに描画するルート群（ページ or コンポーネントのマスター） */
+  /** キャンバスに描画するルートの一覧（ページ、またはコンポーネントのマスター） */
   const rootIds = editingComp ? [editingComp.rootId] : (page?.children ?? []);
-  /** 編集中のコンポーネントの中に、そのコンポーネント自身のインスタンスがあっても描き続けない */
+  /** 編集中のコンポーネントの中に、そのコンポーネント自身のインスタンスがあっても、際限なく描画しない */
   const editingCompKey = editingComp?.id ?? null;
   const instanceChain = useMemo(() => (editingCompKey ? [editingCompKey] : []), [editingCompKey]);
 
   /**
-   * HTMLページのプレビュー。中のスクリプトがエディタの権限を使えないよう別オリジンの iframe で表示するため、
-   * アセットは期限付きの署名URLに置き換えて読ませる（Cookie が送られないので）
+   * HTMLページのプレビュー。中のスクリプトがエディタの権限を使えないよう、別オリジンの iframe で表示する。
+   * その iframe には Cookie が送られないため、アセットは期限付きの署名URLに置き換えて読ませる
    */
   const rawHtmlSrc = !editingComp && mode === "preview" ? (page?.rawHtml ?? "") : "";
   const { html: rawHtmlForPreview, error: rawHtmlError, needsRefresh, refreshing: refreshingHtml, refresh } = useHtmlPreview(rawHtmlSrc, doc.assets, page?.htmlZip);
@@ -188,12 +188,12 @@ export default function Canvas() {
     [pageVars, fieldValues, refreshData, mode, navigateTo, plan]
   );
 
-  // 画面上の変数はプレビューを始めるたびに空から
+  // 画面上の変数は、プレビューを始めるたびに空に戻す
   useEffect(() => {
     setClientValues({});
   }, [mode]);
 
-  /* ---- テキスト編集の変数予測変換 ---- */
+  /* ---- テキスト編集中の変数の予測変換 ---- */
   const [autoComp, setAutoComp] = useState<VarSuggest | null>(null);
   const autoCompMenuRef = useRef<HTMLDivElement>(null);
   const autoCompRef = useRef(autoComp);
@@ -203,7 +203,7 @@ export default function Canvas() {
     () => editingText ? varNamesAt(doc, activePageId, editingText) : [],
     [doc, activePageId, editingText]
   );
-  // 値の見本は候補を出している間だけ計算する
+  // 値の見本は、候補を表示している間だけ計算する
   const autoCompOpen = !!autoComp;
   const varSamples = useMemo(
     () =>
@@ -214,7 +214,7 @@ export default function Canvas() {
   const editingEl = () =>
     document.querySelector<HTMLElement>('.cv-root [data-rich-edit="true"]');
 
-  /** manual = ショートカットで開いた（開いている間は入力に合わせて絞り込む） */
+  /** manual = ショートカットで開いた候補（開いている間は、入力に合わせて絞り込む） */
   const updateAutoComp = useCallback(
     (manual = autoCompRef.current?.query.mode === "manual") => {
       const el = editingEl();
@@ -232,7 +232,7 @@ export default function Canvas() {
       }
       const range = window.getSelection()!.getRangeAt(0);
       let rect = range.getBoundingClientRect();
-      // 空の行などで矩形が取れなければ要素の位置にする
+      // 空の行などで範囲の矩形を取れなければ、要素の位置を使う
       if (!rect.height) rect = el.getBoundingClientRect();
       setAutoComp({
         pos: varSuggestPos(rect, matches.length + 1),
@@ -307,7 +307,7 @@ export default function Canvas() {
     };
   }, [autoCompOpen]);
 
-  /** 「変数を探す」: 置き換える範囲（開いている間もテキスト編集は続ける） */
+  /** 「変数を探す」で置き換える範囲（開いている間もテキストの編集は続ける） */
   const [explore, setExplore] = useState<{ nodeId: string; start: number; end: number } | null>(
     null
   );
@@ -342,11 +342,11 @@ export default function Canvas() {
 
   const customWidth = useEditor((s) => s.customWidth);
   const frameWidth = customWidth ?? BP_INFO[breakpoint].width;
-  // 幅ハンドルのドラッグ中は倍率を固定する（フィット倍率が追従すると幅が変わって見えない）
+  // 幅のハンドルをドラッグしている間は倍率を固定する（画面に収める倍率が追従すると、幅の変化が見えなくなる）
   const [dragScale, setDragScale] = useState<number | null>(null);
   const scale = dragScale ?? (zoom > 0 ? zoom : fitScale);
 
-  // ページごとのスクロール位置を記憶し、ページを開き直したとき・次にエディタを開いたときに戻す
+  // ページごとのスクロール位置を記憶し、ページを開き直したときや、次にエディタを開いたときに戻す
   const editingCompId = useEditor((s) => s.editingComponentId);
   useEffect(() => {
     const area = areaRef.current;
@@ -378,7 +378,7 @@ export default function Canvas() {
           all[key] = [Math.round(area.scrollTop), Math.round(area.scrollLeft)];
           window.localStorage.setItem(SCROLL_KEY, JSON.stringify(all));
         } catch {
-          // 保存できなくても編集は続けられる
+          // 保存できなくても、編集は続けられる
         }
       }, 250);
     };
@@ -390,7 +390,7 @@ export default function Canvas() {
     };
   }, [activePageId, editingCompId]);
 
-  // Cmd/Ctrl + スクロールでズーム（ピンチ操作も ctrlKey として届く）
+  // Cmd/Ctrl + スクロールで拡大・縮小する（ピンチ操作も ctrlKey 付きのイベントとして届く）
   useEffect(() => {
     const area = areaRef.current;
     if (!area) return;
@@ -406,12 +406,12 @@ export default function Canvas() {
     return () => area.removeEventListener("wheel", onWheel);
   }, [fitScale]);
 
-  // フィットスケール計算
+  // 画面に収まる倍率を計算する
   useEffect(() => {
     const area = areaRef.current;
     if (!area) return;
-    // clientWidth はスクロールバーの出没で変わり、スケール変更→
-    // 内容の高さ変化→スクロールバー出没…の振動ループになるため、
+    // clientWidth はスクロールバーの表示の有無で変わる。それを基準にすると、倍率の変更 →
+    // 内容の高さの変化 → スクロールバーの表示の切り替え…が繰り返し起きるため、
     // スクロールバーを含む offsetWidth を基準にする
     const update = () =>
       setFitScale(Math.min(1, (area.offsetWidth - 56) / frameWidth));
@@ -421,7 +421,7 @@ export default function Canvas() {
     return () => ro.disconnect();
   }, [frameWidth]);
 
-  // プレビューの「表示切替」で付いた inline display をデザインへ戻るとき掃除
+  // プレビューの「表示の切り替え」で付いたインラインの display を、デザインに戻るときに取り除く
   useEffect(() => {
     if (mode === "preview") return;
     frameRef.current
@@ -432,7 +432,7 @@ export default function Canvas() {
       });
   }, [mode]);
 
-  // プレビュー: スクリプトを書き出しサイトと同じランタイムで動かす
+  // プレビュー: スクリプトを、書き出したサイトと同じランタイムで動かす
   const scriptEnvRef = useRef<ScriptEnv>({});
   scriptEnvRef.current = {
     getPageData: () => fetchedVars,
@@ -450,12 +450,12 @@ export default function Canvas() {
       if (newTab) window.open(url, "_blank", "noopener");
       else navigateTo(url);
     },
-    // フォーム部品の値はReactの状態で持つ
+    // フォーム部品の値は React の状態で持つ
     setValue: (id, v) => {
-      // ID属性・ラジオのグループ名で入力欄を探す（グループのボタン1つには true / false）
+      // ID 属性やラジオのグループ名で入力欄を探す（グループのボタン1つには true / false を渡す）
       const defaults = fieldDefaults(fieldVarNodes, pageVars);
       if (!fieldValuePatch(fieldVarNodes, id, v, defaults, pageVars)) return false;
-      // 同じスクリプトの連続設定も、直前の更新を含む値から選ぶ・外す。
+      // 同じスクリプトで続けて設定した場合も、直前の更新を含む値をもとに選択・解除する。
       setFieldValues((prev) => ({
         ...prev,
         ...fieldValuePatch(fieldVarNodes, id, v, { ...defaults, ...prev }, pageVars),
@@ -463,14 +463,14 @@ export default function Canvas() {
       return true;
     },
   };
-  // Each page/master visit owns its listeners and pending scripts. HTML and
-  // redirect/rewrite views remove frameRef; returning needs a fresh install.
-  // Do not depend on doc: ordinary data/style updates must not replay load.
+  // リスナーと保留中のスクリプトは、ページやマスターを開くたびに用意し直す。HTMLページや
+  // リダイレクト・リバースプロキシの表示では frameRef が外れるため、戻ったときに入れ直す必要がある。
+  // doc には依存させない（通常のデータやスタイルの更新で「開いたとき」を再実行しないため）。
   useEffect(() => {
     if (mode !== "preview" || !hasVisualFrame) return;
     const root = frameRef.current;
     if (!root) return;
-    // 最新の state を参照するため ref 経由で呼ぶ（入れ直すと「開いたとき」が再実行される）
+    // 最新の state を参照するため、ref を介して呼ぶ（入れ直すと「開いたとき」が再実行される）
     const env: ScriptEnv = {
       touch: (el) => scriptEnvRef.current.touch?.(el),
       showDisplay: (el) => scriptEnvRef.current.showDisplay?.(el) ?? "block",
@@ -479,13 +479,13 @@ export default function Canvas() {
       setValue: (id, v) => scriptEnvRef.current.setValue?.(id, v) ?? false,
       getPageData: () => scriptEnvRef.current.getPageData?.() ?? {},
       setVar: (root, value) => setClientValues((prev) => ({ ...prev, [root]: value })),
-      // エディタ自身の保存と混ざらないよう、プレビューのストレージは別のキーにする
+      // エディタ自身の保存と混ざらないよう、プレビューのストレージには別のキーを使う
       storePrefix: "site-preview:",
     };
     return createScriptRuntime(env).install(root);
   }, [mode, activePageId, editingComponentId, hasVisualFrame]);
 
-  // テキスト編集中の部分選択を追跡（スタイルパネルでのspan分割に使う）
+  // テキストの編集中に一部を選択した範囲を追跡する（スタイルパネルで span に分けるときに使う）
   const setTextSel = useEditor((s) => s.setTextSel);
   useEffect(() => {
     if (!editingText) return;
@@ -497,7 +497,7 @@ export default function Canvas() {
       const sel = window.getSelection();
       if (!sel?.rangeCount) return;
       const range = sel.getRangeAt(0);
-      // 編集要素の外の選択は無視（パネル操作で選択が移っても直前の範囲を保持）
+      // 編集中の要素の外の選択は無視する（パネルの操作で選択が移っても、直前の範囲を残す）
       if (
         !el.contains(range.startContainer) ||
         !el.contains(range.endContainer)
@@ -515,7 +515,7 @@ export default function Canvas() {
       const text = range.toString();
       const total = (el.textContent ?? "").length;
       if (start <= 0 && start + text.length >= total) {
-        // 全選択は要素全体へのスタイル変更として扱う
+        // 全体を選択した場合は、要素全体へのスタイルの変更として扱う
         setTextSel(null);
         return;
       }
@@ -525,8 +525,8 @@ export default function Canvas() {
     return () => document.removeEventListener("selectionchange", onSel);
   }, [editingText, setTextSel]);
 
-  // 選択枠の測定は変更時だけ行う。大量の要素があっても、何もしていない
-  // 間に毎フレーム getBoundingClientRect / offsetWidth でレイアウトを読まない。
+  // 選択枠の測定は、変更があったときだけ行う。要素が多くても、何もしていない間に
+  // 毎フレーム getBoundingClientRect や offsetWidth でレイアウトを読まないようにする。
   useEffect(() => {
     if (!selection || mode !== "design") {
       setRect(null);
@@ -549,8 +549,8 @@ export default function Canvas() {
 
     const measure = () => {
       const el = frame.querySelector<HTMLElement>(selector);
-      // A selected element can be replaced by an edit or undo without the
-      // selected ID changing. Observe the new element instead of a stale one.
+      // 選択した要素は、選択中の ID が変わらないまま、編集や元に戻す操作で別の要素に置き換わることがある。
+      // 古い要素ではなく、新しい要素を監視する。
       if (observedNode !== el) {
         if (observedNode) resizeObserver.unobserve(observedNode);
         if (el) resizeObserver.observe(el);
@@ -593,8 +593,8 @@ export default function Canvas() {
     resizeObserver.observe(inner);
     resizeObserver.observe(frame);
 
-    // Changes in siblings can shift a selection without resizing the selected
-    // element. Coalesce DOM and store updates into one frame.
+    // 兄弟の要素が変わると、選択した要素の大きさが変わらなくても選択枠の位置がずれることがある。
+    // DOM とストアの更新を1フレームにまとめて処理する。
     const mutationObserver = new MutationObserver(schedule);
     mutationObserver.observe(frame, {
       subtree: true,
@@ -610,8 +610,8 @@ export default function Canvas() {
           state.styleState !== previous.styleState) schedule();
     });
 
-    // Track actual transitions/animations frame-by-frame, then return to the
-    // event-driven idle mode as soon as they finish.
+    // トランジションやアニメーションが実際に動いている間は毎フレーム追跡し、
+    // 終わったらすぐにイベントで更新する待機の状態へ戻る。
     const trackMotion = () => {
       if (!activeMotions) return;
       measure();
@@ -656,18 +656,18 @@ export default function Canvas() {
     };
   }, [selection, mode, activePageId, editingComponentId, page?.rawHtml, page?.redirectTo, page?.rewriteTo]);
 
-  // クリック経路（トップレベル→最深）を求める
+  // クリックした位置までの経路（最上位から最も内側まで）を求める
   const pathTo = useCallback((target: Element): string[] => {
     return nodeElementsOf(target).map((el) => el.getAttribute("data-node")!);
   }, []);
 
   /**
-   * クリックで選ぶ要素（Figma に近い選び方）。
-   * - ⌘/Ctrl+クリック: いちばん奥の要素を直接選ぶ
-   * - 選んでいる要素の中: 1階層ずつ掘り下げる
+   * クリックで選ぶ要素を決める（Figma に近い選び方）。
+   * - ⌘/Ctrl+クリック: 最も内側の要素を直接選ぶ
+   * - 選んでいる要素の中: 1階層ずつ内側へ進む
    * - 兄弟・いとこ: 選んでいる要素と同じ階層
-   * - 無関係・未選択: トップレベル
-   * どの場合も、親と同じ大きさで見分けのつかない階層（1つだけ入れたラッパーなど）は飛ばし、
+   * - 無関係な要素・未選択: 最上位の要素
+   * いずれの場合も、親と同じ大きさで見分けがつかない階層（1つだけ入れたラッパーなど）は飛ばし、
    * クリックしても選択枠が変わらない、ということが起きないようにする
    */
   const onCanvasClick = (e: React.MouseEvent) => {
@@ -693,18 +693,18 @@ export default function Canvas() {
     const rects = els.map((el) => el.getBoundingClientRect());
     /** i 番目の階層が、すぐ外側の階層と見た目で区別できないか */
     const sameAsParent = (i: number) => i > 0 && sameRect(rects[i], rects[i - 1]);
-    /** i から奥へ、見た目で区別できる最初の階層まで進む */
+    /** i から内側へ進み、見た目で区別できる最初の階層を返す */
     const visible = (i: number) => {
       while (i < ids.length - 1 && sameAsParent(i)) i++;
       return i;
     };
     const selIndex = selection ? ids.indexOf(selection) : -1;
     if (selIndex >= 0) {
-      // 選んでいる要素の中をクリック → 1階層（見た目で違う階層まで）掘り下げる
+      // 選んでいる要素の中をクリックした → 1階層（見た目が異なる階層まで）内側へ進む
       select(ids[selIndex === ids.length - 1 ? selIndex : visible(selIndex + 1)]);
       return;
     }
-    // 兄弟・いとこ（共通の祖先がある）→ 選んでいる要素と同じ階層 / 無関係 → トップレベル
+    // 兄弟・いとこ（共通の祖先がある）→ 選んでいる要素と同じ階層 / 無関係 → 最上位
     const selEl = selection
       ? frameRef.current?.querySelector(`[data-node=${cssQuotedAttributeValue(selection)}]`)
       : null;
@@ -723,7 +723,7 @@ export default function Canvas() {
     const node = doc.nodes[deepest];
     select(deepest);
     if (node?.type === "instance" && node.componentId) {
-      // インスタンスをダブルクリック → マスターの編集へ
+      // インスタンスをダブルクリックした → マスターの編集に移る
       setEditingComponent(node.componentId);
       return;
     }
@@ -755,8 +755,8 @@ export default function Canvas() {
     dropState,
   });
 
-  // Rebuild the potentially large stylesheet only when document styles change.
-  // Selection changes need a new stylesheet only when inspecting a non-default state.
+  // 大きくなり得るスタイルシートは、文書のスタイルが変わったときだけ作り直す。
+  // 選択の変更でスタイルシートを作り直すのは、既定以外の状態を確認しているときだけ。
   const cssSelection = mode === "design" && styleState !== "default" ? selection : null;
   const cssCache = useMemo<CanvasCssCache>(() => new Map(), []);
   const css = useMemo(
@@ -796,7 +796,7 @@ export default function Canvas() {
     );
   }
 
-  // HTMLページはデザイン中にコードを実行せず、プレビュー時だけ iframe で表示する。
+  // HTMLページは、デザインの編集中はコードを実行せず、プレビューのときだけ iframe で表示する。
   if (!editingComp && page.rawHtml != null) {
     return (
       <div className="canvas-area" ref={areaRef}>
@@ -829,8 +829,8 @@ export default function Canvas() {
                       page.bodyStyles,
                       breakpoint
                     )}
-                    // allow-same-origin は付けない（付けると中のスクリプトがエディタと同じオリジンで動き、
-                    // ログイン中の権限で公開・アカウントの追加などができてしまう）
+                    // allow-same-origin は付けない（付けると、中のスクリプトがエディタと同じオリジンで動き、
+                    // ログイン中の権限で公開やアカウントの追加などができてしまう）
                     sandbox="allow-scripts allow-forms allow-popups"
                     title={page.name}
                   />
@@ -978,8 +978,8 @@ export default function Canvas() {
         className="canvas-inner"
         ref={innerRef}
         onClick={(e) => {
-          // フレームの外側（余白）をクリックしたら選択解除。
-          // リサイズドラッグ直後の合成クリックでは解除しない
+          // フレームの外側（余白）をクリックしたら、選択を解除する。
+          // ただし、リサイズのドラッグ直後に発生する合成クリックでは解除しない
           if (
             mode === "design" &&
             !editingText &&
@@ -1022,7 +1022,7 @@ export default function Canvas() {
         >
           <div
             className={`cv-root${mode === "design" ? " cv-design" : ""}`}
-            // 公開サイトと同じ言語の字形（日本語・中国語の漢字など）で表示する
+            // 公開サイトと同じ言語の字形（日本語と中国語で異なる漢字など）で表示する
             lang={editingComp ? siteLangOf(doc) : pageLangOf(doc, page)}
             data-body="true"
             data-elem-drop={elemDropTarget ?? undefined}
@@ -1061,10 +1061,10 @@ export default function Canvas() {
             }}
             onSubmitCapture={(e) => e.preventDefault()}
             onMouseDownCapture={(e) => {
-              // デザイン中はフォーム部品へのフォーカス等を抑止（テキスト編集中は除く）
+              // デザインの編集中は、フォーム部品へのフォーカスなどを止める（テキストの編集中は除く）
               if (mode === "design" && !editingText) {
                 e.preventDefault();
-                // 既定動作を止めると選択が残るので、要素のコピーより優先されないよう外す
+                // 既定の動作を止めると選択範囲が残り、要素のコピーより優先されてしまうため、選択範囲を外す
                 window.getSelection()?.removeAllRanges();
               }
             }}
@@ -1079,7 +1079,7 @@ export default function Canvas() {
             }}
           >
             {mode === "preview" && !editingComp && page && (
-              // 「このページ」のスクリプト（データの読み込み以外）を動かす目印
+              // 「このページ」のスクリプト（データの読み込み以外）を動かすための目印
               <span
                 key={page.id}
                 data-page-body={page.id}

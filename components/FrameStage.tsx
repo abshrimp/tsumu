@@ -6,12 +6,12 @@ import { BP_INFO, BP_ORDER } from "../lib/style";
 import type { Breakpoint } from "../lib/types";
 import { tr } from "../lib/i18n";
 
-/** ブレークポイントの幅へ吸着する距離（画面上のpx） */
+/** ブレークポイントの幅に吸着させる距離（画面上の px） */
 const SNAP_PX = 10;
 
 /**
- * ページフレームを包み、左右の端に画面幅を変えるドラッグハンドルを付ける。
- * フレームは中央寄せなので、片側を動かすと両側が同じだけ広がる。
+ * ページのフレームを包み、左右の端に画面幅を変えるドラッグ用のハンドルを付ける。
+ * フレームは中央寄せのため、片側を動かすと両側が同じだけ広がる。
  */
 export default function FrameStage({
   frameWidth,
@@ -23,7 +23,7 @@ export default function FrameStage({
   frameWidth: number;
   scale: number;
   areaRef: RefObject<HTMLDivElement | null>;
-  /** ドラッグ中はフィット倍率を固定する（null で解除） */
+  /** ドラッグ中は、画面に収める倍率を固定する（null で解除） */
   onDragScale: (s: number | null) => void;
   children: ReactNode;
 }) {
@@ -39,13 +39,13 @@ export default function FrameStage({
   const finish = useCallback(() => {
     const d = dragRef.current;
     if (!d) return;
-    // キャプチャ解除で再び終了通知が来ても、同じドラッグは一度だけ終える。
+    // ポインターのキャプチャを解除したときに再び終了の通知が来ても、同じドラッグは一度だけ終える。
     dragRef.current = null;
     setDrag(null);
     onDragScale(null);
     document.body.classList.remove("is-resizing-frame");
     if (d.target.hasPointerCapture(d.pointerId)) d.target.releasePointerCapture(d.pointerId);
-    // ブレークポイントの幅ちょうどなら、そのデバイス表示として扱う
+    // ブレークポイントの幅ちょうどなら、そのデバイスの表示として扱う
     const s = useEditor.getState();
     const bp = BP_ORDER.find(
       (b) => s.customWidth !== null && BP_INFO[b].width === s.customWidth
@@ -57,7 +57,7 @@ export default function FrameStage({
     window.addEventListener("blur", finish);
     return () => {
       window.removeEventListener("blur", finish);
-      // ページの切替などでハンドルが消えても、カーソルと固定倍率を残さない。
+      // ページの切り替えなどでハンドルが消えても、カーソルと固定した倍率を残さない。
       finish();
     };
   }, [finish]);
@@ -68,7 +68,7 @@ export default function FrameStage({
     const r = area.getBoundingClientRect();
     const center = r.left + area.clientWidth / 2;
     let w = (2 * side * (clientX - center)) / s;
-    // 画面からはみ出す幅では左端が固定されるので、右端の位置から求める
+    // 画面からはみ出す幅では左端が固定されるため、右端の位置から幅を求める
     if (side === 1 && w * s > area.clientWidth - 56) {
       w = (clientX - (r.left - area.scrollLeft) - 28) / s;
     }
@@ -94,7 +94,7 @@ export default function FrameStage({
   const onPointerMove = (e: React.PointerEvent) => {
     const d = dragRef.current;
     if (!d || e.pointerId !== d.pointerId) return;
-    // ウィンドウ外で離して戻った場合も、ホバーだけで幅を変え続けない。
+    // ウィンドウの外でボタンを離して戻った場合に、ホバーしただけで幅を変え続けないようにする。
     if (!(e.buttons & 1)) {
       finish();
       return;

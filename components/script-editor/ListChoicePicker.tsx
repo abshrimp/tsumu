@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * Searchable list chooser used by script blocks. Its portal is not clipped by
- * the zoomed, draggable script workspace.
+ * スクリプトのブロックで使う、検索できるリストの選択欄。ポータルで描画するため、
+ * 拡大・縮小やドラッグのできるスクリプトのワークスペースで切り取られない。
  */
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
@@ -38,7 +38,7 @@ export function ListChoicePicker({
   const listRef = useRef<HTMLDivElement>(null);
 
   const selected = options.find((option) => option.value === value);
-  // A manually entered reference can be valid at runtime even without a sample.
+  // 手で入力した参照は、見本が無くても実行時には有効なことがある。
   const selectedLabel = selected?.label ?? value;
   const placeholder = options.length ? tr("Select a list", "select_a_list_variant_1") : tr("No lists");
   const entered = query.trim();
@@ -46,8 +46,8 @@ export function ListChoicePicker({
   const visible = open
     ? options.filter((option) => (option.value + " " + option.label).toLocaleLowerCase().includes(filter))
     : [];
-  // Reserve the widest option's space so changing the selection never resizes
-  // a script block. CJK characters take roughly twice an ASCII character width.
+  // 最も長い選択肢の分の幅を確保し、選択を変えてもスクリプトのブロックの大きさが変わらないようにする。
+  // 日本語・中国語・韓国語の文字は、英数字のおよそ2倍の幅になる。
   const widest = options.reduce((max, option) => Math.max(max,
     Array.from(option.label).reduce((length, char) => length + (char.codePointAt(0)! > 255 ? 2 : 1), 0)), 0);
   const triggerWidth = Math.min(220, Math.max(105, widest * 7 + 38));

@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * カスタムCSSと、画面幅ごとの表示・非表示
+ * カスタム CSS と、画面幅ごとの表示・非表示
  */
 
 import { useEditor } from "../../lib/store";
@@ -33,7 +33,7 @@ export function CustomCssSec({ node }: { node: DocNode }) {
         spellCheck={false}
         onCommit={(v) => {
           const css = v.trim() || undefined;
-          // 値を変えていなければ、複数選択中の他の要素のCSSを上書きしない
+          // 値を変えていなければ、複数選択中の他の要素の CSS を上書きしない
           if (css === (node.customCss || undefined)) return;
           updateTargets(node.id, (n) => {
             n.customCss = css;
@@ -46,7 +46,7 @@ export function CustomCssSec({ node }: { node: DocNode }) {
 
 /* ---------- パネル本体 ---------- */
 
-/** テキストの一部選択時に span 分割の対象となるプロパティ */
+/** テキストの一部を選択したときに、span に分ける対象になるプロパティ */
 export const TEXT_SPLIT_PROPS = new Set([
   "fontFamily",
   "fontSize",
@@ -64,7 +64,7 @@ export const TEXT_SPLIT_PROPS = new Set([
 const BP_ICON_NAME = { monitor: "desktop", tablet: "tablet", mobileL: "mobileL", mobile: "mobile" } as const;
 
 /**
- * デバイスごとの表示・非表示。スタイルと違って上下のデバイスに波及せず、
+ * デバイスごとの表示・非表示。スタイルと違って上下のデバイスには影響せず、
  * 押したデバイスだけが切り替わる
  */
 export function VisibilitySec({ node }: { node: DocNode }) {

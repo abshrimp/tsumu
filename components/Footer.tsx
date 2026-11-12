@@ -25,7 +25,7 @@ function useSiteActivity(): { activity: SiteActivity | null | undefined; load: (
   const [activity, setActivity] = useState<SiteActivity | null | undefined>(undefined);
   const loadedAt = useRef(0);
   const load = useCallback(() => {
-    // 開くたびに取りに行かず、少しの間は前の結果を使う
+    // 開くたびに取得せず、少しの間は前回の結果を使う
     if (Date.now() - loadedAt.current < 10_000) return;
     loadedAt.current = Date.now();
     void fetch(siteApi("/api/activity"))
@@ -33,7 +33,7 @@ function useSiteActivity(): { activity: SiteActivity | null | undefined; load: (
       .catch(() => null)
       .then(setActivity);
   }, []);
-  // 保存・公開したら、次に開いたときに取り直す
+  // 保存や公開をしたら、次に開いたときに取得し直す
   const cloudSavedAt = useEditor((s) => s.cloudSavedAt);
   const publishedAt = useEditor((s) => s.publishedAt);
   useEffect(() => {
@@ -59,7 +59,7 @@ function Person({ entry, time }: { entry: ActivityEntry; time?: boolean }) {
   );
 }
 
-/** 公開した時刻と、公開した人（サーバーの記録が無ければ、このブラウザで公開した時刻だけ） */
+/** 公開した時刻と、公開した人（サーバーの記録が無ければ、このブラウザで公開した時刻だけを表示する） */
 function PublishInfo({ entry, localAt, loading }: { entry: ActivityEntry | null; localAt: number | null; loading: boolean }) {
   const at = Math.max(entry?.at ?? 0, localAt ?? 0);
   if (!at) {
@@ -85,7 +85,7 @@ function PublishInfo({ entry, localAt, loading }: { entry: ActivityEntry | null;
   );
 }
 
-/** ホバー・フォーカスで上に出るカード */
+/** ホバーやフォーカスで上に表示するカード */
 function HoverCard({ children, card, onOpen }: { children: ReactNode; card: ReactNode; onOpen: () => void }) {
   const [open, setOpen] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -140,7 +140,7 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
   const { activity, load } = useSiteActivity();
   // 公開済みかどうかの表示にも使うため、開いたときに一度読み込む
   useEffect(() => load(), [load]);
-  // ほかの人の公開も含めた最後の公開（サーバーの記録が無ければこのブラウザの記録）
+  // 他の人の公開も含めた、最後の公開（サーバーの記録が無ければ、このブラウザの記録）
   const lastPublishAt = Math.max(activity?.lastPublish?.at ?? 0, publishedAt ?? 0) || null;
 
   const page = doc.pages[activePageId];
@@ -148,7 +148,7 @@ export default function Footer({ localSaveState, onRetryLocalSave }: {
   const pageCount = doc.pageOrder.length;
   const nodeCount = Object.keys(doc.nodes).length;
 
-  // 公開時の内容と比較して未公開の変更を判定する（編集中は重いのでデバウンス）
+  // 公開したときの内容と比べて、未公開の変更があるかを判定する（編集中は処理が重いため、デバウンスする）
   const [changedSincePublish, setChangedSincePublish] = useState(false);
   useEffect(() => {
     if (!publishedFingerprint) return;

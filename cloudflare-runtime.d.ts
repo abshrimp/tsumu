@@ -1,4 +1,4 @@
-/** このWorkerで使用するCloudflare固有APIの最小型定義。 */
+/** この Worker で使う Cloudflare 固有の API の最小限の型定義。 */
 interface DurableObjectState {
   acceptWebSocket(socket: WebSocket): void;
   getWebSockets(): WebSocket[];

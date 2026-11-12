@@ -11,7 +11,7 @@ import { tr } from "../lib/i18n";
 
 const isPrimitive = (v: unknown) => v == null || typeof v !== "object";
 
-/** 値を一覧表示用の短い文字にする */
+/** 値を、一覧に表示するための短い文字列にする */
 export function readableValue(value: unknown): string {
   if (value == null || value === "") return tr("(empty)");
   if (Array.isArray(value)) {
@@ -52,7 +52,7 @@ function Cell({ value }: { value: unknown }) {
   return <span>{readableValue(value)}</span>;
 }
 
-/** 取得したデータを表として見せる。行をクリックするとその1件の中身を全部見られる */
+/** 取得したデータを表で表示する。行をクリックすると、その1件の中身をすべて見られる */
 export function DataTable({
   items,
   fields,
@@ -62,11 +62,11 @@ export function DataTable({
   items: Record<string, unknown>[];
   fields: string[];
   rows?: number;
-  /** 取得したデータの中での位置（行の中身に位置を出すため） */
+  /** 取得したデータの中での位置（行の中身に位置を表示するため） */
   basePath?: string;
 }) {
   const [open, setOpen] = useState<number | null>(null);
-  // 多い一覧は少しずつ出す（「すべて表示」で全件）
+  // 件数の多い一覧は少しずつ表示する（「すべて表示」で全件）
   const [limit, setLimit] = useState(rows);
   const shown = items.slice(0, limit);
   return (
@@ -132,7 +132,7 @@ const isRecordList = (v: unknown): v is Record<string, unknown>[] =>
   v.length > 0 &&
   v.every((x) => x != null && typeof x === "object" && !Array.isArray(x));
 
-/** 中身の種類と数（「一覧 20件」「6項目」） */
+/** 中身の種類と数（「一覧 20件」「6項目」など） */
 function containerMeta(value: unknown): string {
   return Array.isArray(value)
     ? tr("List · {length} elements", { length: value.length })
@@ -285,7 +285,7 @@ function JsonEntries({ value, path, depth }: { value: unknown; path: string; dep
   );
 }
 
-/** 入れ子のデータを、開閉できるツリーで見せる（項目名にカーソルを置くと位置が出る） */
+/** 入れ子のデータを、開閉できるツリーで表示する（項目名にカーソルを置くと位置を表示する） */
 export function JsonTree({ value, path = "" }: { value: unknown; path?: string }) {
   if (isPrimitive(value)) return <LeafValue value={value} />;
   return (
@@ -296,8 +296,8 @@ export function JsonTree({ value, path = "" }: { value: unknown; path?: string }
 }
 
 /**
- * 取得したデータ全体を見せる。一覧は表（ツリーにも切り替えられる）、
- * それ以外は開閉できるツリー。項目名はスクリプトで選ぶときと同じ
+ * 取得したデータ全体を表示する。一覧は表で（ツリーにも切り替えられる）、
+ * それ以外は開閉できるツリーで表示する。項目名は、スクリプトで選ぶときと同じ
  */
 export function JsonPeek({ value }: { value: unknown }) {
   if (isRecordList(value)) {

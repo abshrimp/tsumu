@@ -58,7 +58,7 @@ export function BpIcon({ bp, size = 13 }: { bp: string; size?: number }) {
 
 /* ---------- 説明アイコン（ホバーで説明を表示） ---------- */
 
-/** 長い説明文の代わりに置く小さな「i」アイコン。ホバー・フォーカスで説明を出す */
+/** 長い説明文の代わりに置く小さな「i」アイコン。ホバーやフォーカスで説明を表示する */
 export function InfoTip({ text, style }: { text: string; style?: CSSProperties }) {
   return (
     <span
@@ -75,8 +75,8 @@ export function InfoTip({ text, style }: { text: string; style?: CSSProperties }
 }
 
 /**
- * 折りたためるセクションの見出し。行全体がクリック判定になる
- * （説明アイコンと右端のツールはクリックしても開閉しない）。
+ * 折りたためるセクションの見出し。行全体がクリックの対象になる
+ * （説明アイコンと右端のツールは、クリックしても開閉しない）。
  */
 export function SecHead({
   title,
@@ -94,7 +94,7 @@ export function SecHead({
   tools?: ReactNode;
   /** 閉じた中に変更済みの設定がある（見出しに変更の色を付ける） */
   isSet?: boolean;
-  /** 使い方を説明するヘルプの記事ID（見出しに「?」を出す） */
+  /** 使い方を説明するヘルプの記事 ID（見出しに「?」を表示する） */
   help?: string;
 }) {
   return (
@@ -137,8 +137,8 @@ export function SecHead({
 }
 
 /**
- * 折りたためるセクション。閉じても中身は隠して描画したままにし、
- * 中に変更済みの設定（.is-set）があれば見出しに色を付ける
+ * 折りたためるセクション。閉じても中身は隠したまま描画しておき、
+ * 中に変更済みの設定（.is-set）があれば、見出しに色を付ける
  */
 export function Section({
   title,
@@ -150,13 +150,13 @@ export function Section({
   help,
 }: {
   title: string;
-  /** 見出し横の「i」にホバーで出す説明 */
+  /** 見出しの横の「i」にホバーしたときに表示する説明 */
   info?: string;
   children: ReactNode;
   tools?: ReactNode;
   defaultOpen?: boolean;
   tutorialTarget?: string;
-  /** 使い方を説明するヘルプの記事ID */
+  /** 使い方を説明するヘルプの記事 ID */
   help?: string;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -200,10 +200,10 @@ export function Section({
 /* ---------- インスペクタコンテキスト ---------- */
 
 export interface Inspector {
-  /** 要素・画面幅・状態など、書き込み先が変わったら未確定の入力を持ち越さない。 */
+  /** 要素・画面幅・状態など、書き込み先が変わったら、確定していない入力を持ち越さない。 */
   editTarget: string;
   get: (prop: string) => PropInfo;
-  /** null で現在の (bp, state) から削除 */
+  /** null を渡すと、現在の (bp, state) から削除する */
   set: (props: Record<string, string | null>) => void;
   /** 欄を空にしたときに書き込む値（大きい画面の値を打ち消す初期値、または null） */
   cleared: (prop: string) => string | null;
@@ -219,7 +219,7 @@ export function useInspector(): Inspector {
   return ctx;
 }
 
-/* ---------- ラベル付きグループ（ラベルは上） ---------- */
+/* ---------- ラベル付きのグループ（ラベルは上） ---------- */
 
 export function Grp({
   label,
@@ -230,7 +230,7 @@ export function Grp({
   children,
 }: {
   label?: string;
-  /** ラベル横の「i」にホバーで出す説明 */
+  /** ラベルの横の「i」にホバーしたときに表示する説明 */
   info?: string;
   setHere?: boolean;
   onReset?: () => void;
@@ -286,7 +286,7 @@ export function Grp({
 
 /* ---------- 単位の換算 ---------- */
 
-/** % のときに親の幅を基準にするプロパティ（余白は上下も幅が基準） */
+/** % のときに親の幅を基準にするプロパティ（余白は上下も幅が基準になる） */
 const PCT_OF_WIDTH = new Set([
   "width",
   "minWidth",
@@ -313,7 +313,7 @@ function selectedCanvasEl(): HTMLElement | null {
   return document.querySelector<HTMLElement>(`.cv-root [data-node="${CSS.escape(id)}"]`);
 }
 
-/** % の基準になる大きさ（親の中身の幅・高さ。自由配置なら基準の要素の大きさ） */
+/** % の基準になる大きさ（親の中身の幅・高さ。自由配置なら基準になる要素の大きさ） */
 function percentBase(el: HTMLElement, axis: "w" | "h"): number | null {
   const pos = getComputedStyle(el).position;
   if (pos === "absolute") {
@@ -335,8 +335,8 @@ function percentBase(el: HTMLElement, axis: "w" | "h"): number | null {
 }
 
 /**
- * 単位を切り替えたとき、見た目の大きさが変わらないよう数値を換算する関数。
- * 選んでいる要素の実際の大きさ（親の幅・文字の大きさ）を使う。換算できなければ null
+ * 単位を切り替えたときに、見た目の大きさが変わらないよう数値を換算する関数。
+ * 選んでいる要素の実際の大きさ（親の幅・文字の大きさ）を使う。換算できなければ null を返す
  */
 export function unitConverter(prop: string) {
   return (num: number, from: string, to: string): number | null => {
@@ -355,7 +355,7 @@ export function unitConverter(prop: string) {
       }
       if (unit === "em" || unit === "") {
         if (!el) return null;
-        // 文字の大きさの em は親の文字、それ以外（字間・行間）は自分の文字の大きさが基準
+        // 文字の大きさの em は親の文字の大きさ、それ以外（字間・行間）は自分の文字の大きさが基準になる
         const ref = prop === "fontSize" ? el.parentElement : el;
         const size = ref ? parseFloat(getComputedStyle(ref).fontSize) : NaN;
         return size > 0 ? size : null;
@@ -369,14 +369,14 @@ export function unitConverter(prop: string) {
   };
 }
 
-/** 単位に合わせた桁で丸める（px は整数、% は小数1桁、rem / em / 単位なしは2桁） */
+/** 単位に合わせた桁数で丸める（px は整数、% は小数1桁、rem / em / 単位なしは小数2桁） */
 function roundForUnit(n: number, unit: string): number {
   const digits = unit === "px" ? 0 : unit === "%" ? 1 : 2;
   const f = 10 ** digits;
   return Math.round(n * f) / f;
 }
 
-/* ---------- 数値フィールド（プレフィックス付き / Figma風） ---------- */
+/* ---------- 数値の入力欄（先頭に文字やアイコンを置く、Figma 風のもの） ---------- */
 
 export function NumField({
   value,
@@ -396,7 +396,7 @@ export function NumField({
   onChange: (v: string | null) => void;
   /** 単位を切り替えたときの換算（見た目の大きさを保つ）。無ければ数値はそのまま */
   convert?: (num: number, from: string, to: string) => number | null;
-  /** 左端の文字 or アイコン */
+  /** 左端の文字またはアイコン */
   pre?: ReactNode;
   units?: string[];
   min?: number;
@@ -404,12 +404,12 @@ export function NumField({
   placeholder?: string;
   title?: string;
   /**
-   * ドラッグ増減（左端の文字・アイコンを左右にドラッグ）。
-   * 省略時は onChange で反映し、1回のドラッグを1つの「元に戻す」にまとめる
+   * ドラッグでの増減（左端の文字やアイコンを左右にドラッグする）。
+   * 省略したときは onChange で反映し、1回のドラッグを1つの「元に戻す」にまとめる
    */
   onScrubStart?: () => void | (() => void);
   onScrub?: (v: string) => void;
-  /** 値が数値でない（空・auto・none）ときにドラッグを始める値（px） */
+  /** 値が数値でない（空・auto・none）ときに、ドラッグを始める値（px） */
   scrubFrom?: () => number | undefined;
 }) {
   const fieldId = useId();
@@ -417,7 +417,7 @@ export function NumField({
   const [unit, setUnit] = useState(parsed?.unit ?? units[0]);
   const editTarget = useContext(InspectorCtx)?.editTarget;
   // 確定のたびに input を作り直さず、矢印キーを続けて押してもフォーカスを保つ。
-  // blur 後は整形された値や、空欄を取り消して戻った値を表示し直す。
+  // blur の後は、整形した値や、空欄を取り消して戻った値を表示し直す。
   const editing = useRef(false);
   const stopScrub = useRef<(() => void) | null>(null);
   const { ref, afterCommit } = useCommitSync<HTMLInputElement>(String(parsed?.num ?? ""), editing);
@@ -443,7 +443,7 @@ export function NumField({
 
   const commit = (raw: string) => {
     const t = raw.trim();
-    // 触っただけ（表示中の値のまま）なら書き込まない（大きい画面から受け継いだ値をここに固定しない）
+    // 触っただけ（表示中の値のまま）なら書き込まない（大きい画面から受け継いだ値を、ここで固定しない）
     if (t === String(parsed?.num ?? "")) return;
     if (t === "") {
       onChange(null);
@@ -571,7 +571,7 @@ export function NumField({
   );
 }
 
-/** インスペクタ連携版：ドラッグ増減・右クリックリセット付き */
+/** インスペクタと連携する版: ドラッグでの増減と、右クリックでのリセット付き */
 export function PropNum({
   prop,
   pre,
@@ -590,16 +590,16 @@ export function PropNum({
   max?: number;
   placeholder?: string;
   title?: string;
-  /** 入力を空欄で確定したときに設定する値。未指定ならプロパティを削除 */
+  /** 入力を空欄で確定したときに設定する値。指定しなければ、プロパティを削除する */
   emptyValue?: string;
-  /** 値が数値でないときにドラッグを始める値（px） */
+  /** 値が数値でないときに、ドラッグを始める値（px） */
   scrubFrom?: () => number | undefined;
 }) {
   const insp = useInspector();
   const info = insp.get(prop);
   /**
-   * 空欄で確定したときの値。パソコン幅以外では消すと大きい画面の値が出てくるため、
-   * CSS の初期値（なし・auto など）で上書きする（元に戻すのは右クリック）
+   * 空欄で確定したときの値。パソコン以外の幅では、消すと大きい画面の値が適用されるため、
+   * CSS の初期値（なし・auto など）で上書きする（元に戻すには右クリックを使う）
    */
   const cleared = emptyValue ?? insp.cleared(prop);
   return (
@@ -666,9 +666,9 @@ export function TextField({
 /* ---------- 確定（blur）で書き込む入力欄 ---------- */
 
 /**
- * blur で確定する入力欄を、外での変更（元に戻す・レイヤーでの名前変更・他の編集者の変更）に
- * 合わせて表示し直す。未確定の入力中は書き換えない。
- * 確定した値が整形された・空欄を取り消したときも、書き込まれた値を表示し直す
+ * blur で確定する入力欄の表示を、外での変更（元に戻す操作・レイヤーでの名前の変更・他の編集者の変更）に
+ * 合わせて更新する。確定していない入力の途中では書き換えない。
+ * 確定した値が整形されたときや、空欄を取り消したときも、書き込まれた値を表示し直す
  */
 function useCommitSync<T extends HTMLInputElement | HTMLTextAreaElement>(value: string, editing?: { current: boolean }) {
   const ref = useRef<T>(null);
@@ -676,7 +676,7 @@ function useCommitSync<T extends HTMLInputElement | HTMLTextAreaElement>(value: 
   latest.current = value;
   const sync = () => {
     const el = ref.current;
-    // フォーカスだけでは保護せず、未確定の入力がある間だけ保護する。
+    // フォーカスがあるだけでは保護せず、確定していない入力がある間だけ保護する。
     const busy = editing?.current ?? document.activeElement === el;
     if (el && !busy && el.value !== latest.current) {
       el.value = latest.current;
@@ -692,7 +692,7 @@ type CommitProps<T> = {
   onCommit: (v: string) => void;
 } & Omit<T, "value" | "defaultValue" | "onBlur">;
 
-/** blur（Enter などで外す）で値を確定する入力欄。表示は value に追従する */
+/** blur（Enter などでフォーカスを外す）で値を確定する入力欄。表示は value に追従する */
 export function CommitInput({
   value,
   onCommit,
@@ -712,7 +712,7 @@ export function CommitInput({
         rest.onInput?.(e);
       }}
       onBlur={(e) => {
-        // 入力せずに離れただけなら、他の編集者やUndoの変更を古い表示値で上書きしない。
+        // 入力せずに離れただけなら、他の編集者や元に戻す操作による変更を、古い表示の値で上書きしない。
         const changed = editing.current;
         editing.current = false;
         if (changed) onCommit(e.target.value);
@@ -742,7 +742,7 @@ export function CommitTextarea({
         rest.onInput?.(e);
       }}
       onBlur={(e) => {
-        // 入力せずに離れただけなら、他の編集者やUndoの変更を古い表示値で上書きしない。
+        // 入力せずに離れただけなら、他の編集者や元に戻す操作による変更を、古い表示の値で上書きしない。
         const changed = editing.current;
         editing.current = false;
         if (changed) onCommit(e.target.value);
@@ -752,9 +752,9 @@ export function CommitTextarea({
   );
 }
 
-/* ---------- {変数} 予測変換 ---------- */
+/* ---------- {変数} の予測変換 ---------- */
 
-/** 変数一覧を開くショートカットの表記（glyphs で Mac 以外は Ctrl+/ になる） */
+/** 変数の一覧を開くショートカットの表記（Mac 以外では glyphs によって Ctrl+/ になる） */
 export const VAR_LIST_KBD = "⌘/";
 
 export interface VarSuggest {
@@ -762,11 +762,11 @@ export interface VarSuggest {
   query: VarQuery;
   matches: string[];
   index: number;
-  /** 末尾に「変数を探す」を出す（index === matches.length で選択中） */
+  /** 末尾に「変数を探す」を表示する（index === matches.length のとき、これを選択中） */
   explore?: boolean;
 }
 
-/** 候補の上下移動 */
+/** 候補の選択を上下に動かす */
 export function moveVarSuggest(s: VarSuggest, dir: 1 | -1): VarSuggest {
   const n = s.matches.length + (s.explore ? 1 : 0);
   return { ...s, index: (s.index + dir + n) % n };
@@ -778,27 +778,27 @@ export function pickedVar(s: VarSuggest): string | null {
 }
 
 /**
- * 候補メニューを出すか。「{」や一覧のショートカットでは、候補が無くても
- * 「変数を探す」を出す
+ * 候補のメニューを表示するか。「{」や一覧のショートカットで開いたときは、候補が無くても
+ * 「変数を探す」を表示する
  */
 export function shouldShowVarSuggest(q: VarQuery | null, matches: string[], explore: boolean) {
   return !!q && (matches.length > 0 || (explore && q.mode !== "word"));
 }
 
-/** 候補を確定するキーか（「{」なしの予測変換は Enter を改行・確定に残し Tab のみ） */
+/** 候補を確定するキーか（「{」なしの予測変換では、Enter は改行や確定に残し、Tab だけで確定する） */
 export function isVarAcceptKey(s: VarSuggest, key: string): boolean {
   return key === "Tab" || (key === "Enter" && s.query.mode !== "word");
 }
 
 /**
- * 基準の矩形に付けて出すメニューの位置。下に入らなければ広い方（上 / 下）に出し、
- * 高さはそちら側の空きまでに抑えて画面からはみ出さないようにする
+ * 基準の矩形に付けて表示するメニューの位置。下に収まらなければ広い方（上か下）に表示し、
+ * 高さはそちら側の空きまでに抑えて、画面からはみ出さないようにする
  */
 export function anchoredMenuPos(
   r: { left: number; top: number; bottom: number },
   width: number,
   height: number,
-  /** false = height は上下を決めるだけに使い、高さは空きまで許す（中身の高さに任せる） */
+  /** false = height は上下のどちらに出すかの判定だけに使い、高さは空きまで許す（中身の高さに任せる） */
   capToHeight = true
 ): CSSProperties {
   const margin = 8;
@@ -817,13 +817,13 @@ export function anchoredMenuPos(
   };
 }
 
-/** Does the active input/caret remain visible inside its scroll containers? */
+/** 入力中の欄やキャレットが、スクロールする親要素の中で見えているか。 */
 export function varSuggestionAnchorVisible(
   anchor: HTMLElement,
   rect = anchor.getBoundingClientRect(),
 ): boolean {
   if (!anchor.isConnected) return false;
-  // A collapsed caret range can be zero pixels wide.
+  // 範囲の無いキャレットは、幅が 0px のことがある。
   let left = 0, top = 0, right = window.innerWidth, bottom = window.innerHeight;
   for (let el = anchor.parentElement; el; el = el.parentElement) {
     const style = window.getComputedStyle(el);
@@ -839,18 +839,18 @@ export function varSuggestionAnchorVisible(
     rect.bottom > top && rect.top < bottom;
 }
 
-/** 候補メニューの位置（基準の矩形の下、入らなければ上） */
+/** 候補のメニューの位置（基準の矩形の下。収まらなければ上） */
 export function varSuggestPos(
   r: { left: number; top: number; bottom: number },
   count: number,
   width = 320
 ): CSSProperties {
-  // 一覧（CSS で最大 256px）と、見出し・「変数を探す」・操作の案内。
-  // 見積もりは上下を決めるだけに使い、高さは中身に任せる（見積もりで一覧を縮めない）
+  // 一覧（CSS で最大 256px）と、見出し・「変数を探す」・操作の案内の高さ。
+  // 見積もりは上下のどちらに出すかの判定だけに使い、高さは中身に任せる（見積もりで一覧を縮めない）
   return anchoredMenuPos(r, Math.max(width, 320), Math.min(count * 32, 256) + 96, false);
 }
 
-/** 変数の候補メニュー（キャンバスのテキスト編集・VarInput 共用） */
+/** 変数の候補のメニュー（キャンバスでのテキスト編集と VarInput で共用） */
 export function VarSuggestMenu({
   suggest,
   samples,
@@ -863,7 +863,7 @@ export function VarSuggestMenu({
   suggest: VarSuggest;
   samples?: Record<string, string>;
   onPick: (name: string) => void;
-  /** 「変数を探す」を押したとき */
+  /** 「変数を探す」を押したときの処理 */
   onExplore?: () => void;
   menuRef?: Ref<HTMLDivElement>;
 }) {
@@ -874,8 +874,8 @@ export function VarSuggestMenu({
     const list = listRef.current;
     const selected = list?.children[index] as HTMLElement | undefined;
     if (!list || !selected) return;
-    // Only scroll the suggestion list. scrollIntoView() may scroll the editor
-    // and move the active input off screen while the menu is open.
+    // 候補の一覧だけをスクロールする。scrollIntoView() はエディタ全体をスクロールし、
+    // メニューを開いている間に入力中の欄を画面の外へ動かしてしまうことがある。
     const top = selected.offsetTop - list.offsetTop;
     const bottom = top + selected.offsetHeight;
     if (top < list.scrollTop) list.scrollTop = top;
@@ -895,13 +895,13 @@ export function VarSuggestMenu({
     );
   };
 
-  // 拡大縮小（CSS zoom）された中でも位置がずれないよう、body 直下に出す
+  // 拡大・縮小（CSS の zoom）された中でも位置がずれないよう、body の直下に表示する
   return createPortal(
     <div
       ref={menuRef}
       className="dd-menu var-comp"
       style={suggest.pos}
-      // スクリプト画面の Esc（画面を閉じる）より先に、この候補を閉じさせる
+      // スクリプトの画面の Esc（画面を閉じる）より先に、この候補を閉じる
       data-se-popover=""
       onMouseDown={(e) => e.preventDefault()}
     >
@@ -956,7 +956,7 @@ export function VarSuggestMenu({
   );
 }
 
-/* ---------- {変数} 予測変換つきテキスト入力 ---------- */
+/* ---------- {変数} の予測変換付きのテキスト入力欄 ---------- */
 
 export function VarInput({
   value,
@@ -977,35 +977,35 @@ export function VarInput({
   id,
 }: {
   value: string;
-  /** blur時に確定（Enterでもblurする） */
+  /** blur で確定する（Enter でも blur する） */
   onCommit: (v: string) => void;
   placeholder?: string;
   /** 補完する変数名の候補 */
   names: string[];
   /** 候補に添える値の見本 */
   samples?: Record<string, string>;
-  /** 指定すると候補の末尾に「変数を探す」を出す（この要素の位置で使える変数を見せる） */
+  /** 指定すると、候補の末尾に「変数を探す」を表示する（この要素の位置で使える変数を表示する） */
   nodeId?: string;
-  /** 「{」を入れなくても、入力中の語やフォーカス時に候補を出す */
+  /** 「{」を入れなくても、入力中の語やフォーカスしたときに候補を表示する */
   eager?: boolean;
-  /** 「変数を探す」に足す、見本の無い変数（スクリプトで作る変数など） */
+  /** 「変数を探す」に追加する、見本の無い変数（スクリプトで作る変数など） */
   extraNames?: string[];
   localNames?: string[];
   sourceStepId?: string;
   valueContext?: ValueContext;
   className?: string;
   style?: CSSProperties;
-  /** Compute expensive suggestions only while this input is focused. */
+  /** 処理の重い候補の計算は、この入力欄にフォーカスがある間だけ行う。 */
   onActivate?: () => void;
   onDeactivate?: () => void;
-  /** Optional DOM identifier for an associated visible label. */
+  /** 対応する、画面に表示するラベルのための DOM の ID（任意）。 */
   id?: string;
 }) {
   const fieldId = useId();
   const ref = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [sug, setSug] = useState<VarSuggest | null>(null);
-  /** 「変数を探す」で置き換える範囲（開いている間は blur で確定しない） */
+  /** 「変数を探す」で置き換える範囲（開いている間は、blur で確定しない） */
   const [explore, setExplore] = useState<{ start: number; end: number } | null>(null);
 
   const explorable = nodeId !== undefined;
@@ -1015,7 +1015,7 @@ export function VarInput({
     const before = el.value.slice(0, el.selectionStart ?? 0);
     let query = findVarQuery(before, names, manual && !eager);
     if (eager && (!query || query.mode === "word")) {
-      // 「{」なし: 入力中の語の途中まで一致する変数（空欄・ショートカットなら一覧）を出す
+      // 「{」なし: 入力中の語に途中まで一致する変数を表示する（空欄やショートカットなら一覧を表示する）
       const q = findVarQuery(before, names, true);
       if (q && (q.partial || !el.value || manual)) query = q;
     }
@@ -1039,8 +1039,8 @@ export function VarInput({
     });
   };
 
-  // If the parent loads candidates on focus, refresh the menu after that
-  // render. The first focus event still sees the previous (empty) list.
+  // 親がフォーカスしたときに候補を読み込む場合は、その描画の後でメニューを更新する。
+  // 最初のフォーカスのイベントでは、まだ以前の（空の）一覧しか見えない。
   useEffect(() => {
     if (eager && !dismissedByOutsideClick.current && ref.current && document.activeElement === ref.current && !explore) {
       update(true);
@@ -1088,8 +1088,8 @@ export function VarInput({
     const dismissOutside = (e: PointerEvent) => {
       const target = e.target as Node;
       if (ref.current?.contains(target) || menuRef.current?.contains(target)) return;
-      // A non-focusable canvas/label may not blur the input. Dismiss immediately.
-      // Do not reopen it when lazy variable names change while focus remains.
+      // フォーカスを受け取らないキャンバスやラベルを押しても、入力欄が blur されないことがある。すぐに閉じる。
+      // フォーカスが残っている間に、遅れて読み込んだ変数名が変わっても、開き直さない。
       dismissedByOutsideClick.current = true;
       setSug(null);
     };
@@ -1100,8 +1100,8 @@ export function VarInput({
         setSug(null);
         return;
       }
-      // Autofocus can scroll a formerly off-screen input. Keep its suggestion
-      // attached while the input is visible; close only when scrolled away.
+      // 自動フォーカスで、画面の外にあった入力欄が見える位置までスクロールされることがある。
+      // 入力欄が見えている間は候補を付けたままにし、スクロールして見えなくなったときだけ閉じる。
       const rect = input.getBoundingClientRect();
       setSug((current) => current && ({
         ...current,
@@ -1133,7 +1133,7 @@ export function VarInput({
         onFocus={() => {
           dismissedByOutsideClick.current = false;
           onActivate?.();
-          // The parent may populate lazy candidates immediately after focus.
+          // 親が、フォーカスの直後に遅れて候補を入れることがある。
           if (eager && !explore) update(true);
         }}
         onInput={(e) => {
@@ -1213,7 +1213,7 @@ export function VarInput({
   );
 }
 
-/* ---------- ドロップダウン（オリジナルUI） ---------- */
+/* ---------- ドロップダウン（独自の UI） ---------- */
 
 export interface DdOption {
   value: string;
@@ -1240,10 +1240,10 @@ export function Dropdown({
   placeholder?: string;
   style?: CSSProperties;
   menuWidth?: number;
-  /** 通常の選択欄ではなく、アイコン等を開閉ボタンとして使う */
+  /** 通常の選択欄ではなく、アイコンなどを開閉ボタンとして使う */
   trigger?: ReactNode;
   title?: string;
-  /** 説明文を折り返さず省略し、全文をツールチップに残す */
+  /** 説明文を折り返さずに省略し、全文はツールチップに残す */
   truncateDescriptions?: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -1253,7 +1253,7 @@ export function Dropdown({
 
   const selected = options.find((o) => o.value === (value ?? ""));
 
-  // 開いたらボタン位置からメニューを固定配置（下に収まらなければ上へ）
+  // 開いたら、ボタンの位置を基準にメニューを固定配置する（下に収まらなければ上に表示する）
   useLayoutEffect(() => {
     if (!open || !btnRef.current) return;
     const r = btnRef.current.getBoundingClientRect();
@@ -1261,7 +1261,7 @@ export function Dropdown({
       320,
       options.reduce((h, o) => h + (o.desc ? 44 : 32), 16)
     );
-    // 見積もりは上下どちらに出すかの判定だけに使い、高さは中身に任せる（見積もりより項目が高いと最後が切れるため）
+    // 見積もりは上下のどちらに出すかの判定だけに使い、高さは中身に任せる（見積もりより項目が高いと、最後の項目が切れるため）
     setPos(anchoredMenuPos(r, menuWidth ?? Math.max(r.width, 160), estH, false));
   }, [open, options, menuWidth]);
 
@@ -1330,8 +1330,8 @@ export function Dropdown({
                 className={`dd-item${o.desc ? " tall" : ""}${isSel ? " is-sel" : ""}`}
                 title={truncateDescriptions ? [typeof o.label === "string" ? o.label : undefined, o.desc].filter(Boolean).join("\n") : undefined}
                 onClick={() => {
-                  // 選択による親側の再描画より先にメニューを閉じる。
-                  // 親が選択結果に応じて構造を変える場合でも、開いたメニューの
+                  // 選択による親の再描画より先に、メニューを閉じる。
+                  // 親が選択の結果に応じて構造を変える場合でも、開いたメニューの
                   // DOM と React の削除処理が競合しないようにする。
                   setOpen(false);
                   onChange(o.value);
@@ -1360,7 +1360,7 @@ export function Dropdown({
   );
 }
 
-/** インスペクタ連携版（先頭に「未設定」を付ける） */
+/** インスペクタと連携する版（先頭に「未設定」を付ける） */
 export function PropSelect({
   prop,
   options,
@@ -1430,7 +1430,7 @@ export function PropSeg({
       value={info.value}
       options={options}
       onChange={(v) => {
-        // 選択中のものを押すと解除（この画面幅・状態で設定したものだけ。受け継いだ値はそのまま）
+        // 選択中のものを押すと解除する（この画面幅・状態で設定したものだけ。受け継いだ値はそのまま）
         if (v === info.value) {
           if (allowUnset && info.setHere) insp.set({ [prop]: null });
           return;
@@ -1452,9 +1452,9 @@ export function parseColor(v: string | undefined): { hex: string; alpha: number 
     const [r, g, b] = short[1].split("");
     return { hex: `#${r}${r}${g}${g}${b}${b}`, alpha: short[2] ? parseInt(short[2].repeat(2), 16) / 255 : 1 };
   }
-  // Let the browser resolve named colors, HSL and modern RGB syntax. These
-  // are valid saved CSS too; opacity edits must not replace them with black.
-  // Hex values above remain lossless (including their authored alpha).
+  // 名前付きの色、HSL、新しい書き方の RGB は、ブラウザに解決させる。これらも保存できる
+  // 正しい CSS なので、不透明度を編集したときに黒に置き換えてはいけない。
+  // 上の16進数の値は、（書かれたアルファ値も含めて）損なわずに扱える。
   if (typeof document !== "undefined") {
     const context = document.createElement("canvas").getContext("2d");
     if (context) {
@@ -1514,7 +1514,7 @@ export function pushRecentColor(color: string): void {
   }
 }
 
-/** Figmaの塗り行：スウォッチ + HEX + 不透明度% */
+/** Figma の塗りの行: 色見本 + HEX + 不透明度（%） */
 export function FillControl({
   value,
   onChange,
@@ -1524,7 +1524,7 @@ export function FillControl({
 }: {
   value: string | undefined;
   onChange: (v: string | null) => void;
-  /** ピッカー・不透明度スライダーの連続変更を1回の履歴にまとめる */
+  /** ピッカーや不透明度のスライダーでの連続した変更を、1回の履歴にまとめる */
   onChangeStart?: () => void | (() => void);
   onChangeTransient?: (v: string | null) => void;
   allowClear?: boolean;
@@ -1538,7 +1538,7 @@ export function FillControl({
   const ref = useRef<HTMLDivElement>(null);
   const { hex, alpha } = parseColor(value);
   const isSet = value !== undefined;
-  // ピッカーを閉じたとき、その時点の色を「最近使った色」に記録する
+  // ピッカーを閉じたときに、その時点の色を「最近使った色」に記録する
   const latest = useRef<string | undefined>(value);
   const changing = useRef(false);
   const endChange = useRef<(() => void) | undefined>(undefined);
@@ -1568,12 +1568,12 @@ export function FillControl({
     if (!open) return;
     const element = ref.current;
     let commitTimer: ReturnType<typeof setTimeout> | undefined;
-    // 最後のnative changeが同値だとReactのonChangeは省かれる。通常のinput変更と別に確定を受け取る。
+    // 最後の標準の change が同じ値だと、React の onChange は呼ばれない。通常の input の変更とは別に、確定を受け取る。
     const onCommit = (event: Event) => {
       const input = event.target as HTMLInputElement;
       if (input.type !== "color") return;
       clearTimeout(commitTimer);
-      // changeだけを送るブラウザでも、Reactの変更処理より後で終了させる。
+      // change だけを送るブラウザでも、React の変更処理より後で連続した変更を終える。
       commitTimer = setTimeout(finishContinuousChange, 0);
     };
     element?.addEventListener("change", onCommit);
@@ -1632,7 +1632,7 @@ export function FillControl({
           placeholder={tr("Not set")}
           onBlur={(e) => {
             const t = e.target.value.trim().replace(/^#/, "");
-            // 触っただけなら書き込まない（名前付きの色・透明などが黒に変わらないように）
+            // 触っただけなら書き込まない（名前付きの色や透明などが黒に変わらないように）
             if (t === (isSet ? hex.slice(1) : "")) return;
             if (t === "") {
               if (allowClear) onChange(null);
@@ -1788,11 +1788,11 @@ export function PropFill({
   dflt,
 }: {
   label?: string;
-  /** ラベル横の「i」にホバーで出す説明 */
+  /** ラベルの横の「i」にホバーしたときに表示する説明 */
   info?: string;
   prop: string;
   allowClear?: boolean;
-  /** 上位が未設定のときに比べる値（ほかの設定と一緒にパネルが入れる色。線の太さと一緒に入る線の色など） */
+  /** 上位が未設定のときに比べる値（他の設定と一緒にパネルが入れる色。線の太さと一緒に入る線の色など） */
   dflt?: string;
 }) {
   const insp = useInspector();
@@ -1821,7 +1821,7 @@ export function PropFill({
 
 /* ---------- 4方向（余白）/ 4隅（角丸） ---------- */
 
-/** CSSショートハンド（1〜4値）から i 番目（上右下左）の値を取り出す */
+/** CSS の一括指定（1〜4個の値）から、i 番目（上・右・下・左）の値を取り出す */
 export function shorthandSide(
   sh: string | undefined,
   i: number
@@ -1858,7 +1858,7 @@ export function AlignGrid({ isColumn }: { isColumn: boolean }) {
       const on =
         (justify === j || (justify.startsWith("space") && j === "center")) &&
         align === a;
-      // 3本線グリフ: 縦フローは横線を積む（横位置=align）、横フローは縦線を並べる
+      // 3本線の記号: 縦のフローでは横線を積み（横の位置 = align）、横のフローでは縦線を並べる
       const glyphStyle: CSSProperties = isColumn
         ? { flexDirection: "column", alignItems: POS_VALUES[x] }
         : { flexDirection: "row", alignItems: POS_VALUES[y] };

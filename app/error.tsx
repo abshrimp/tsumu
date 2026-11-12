@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { tr } from "../lib/i18n";
 
-/** ページ内で起きた表示エラーの代わりに出す画面（エラーの中身は出さない） */
+/** ページ内で表示エラーが起きたときに代わりに出す画面（エラーの内容は表示しない） */
 export default function ErrorPage({ error, reset }: { error: Error; reset: () => void }) {
   useEffect(() => {
     console.error(error);
