@@ -62,7 +62,7 @@ A `DocNode` has a `type` and a `semantic` (the HTML tag to emit). It can also ha
 | Collaboration | `custom-worker.ts`: one WebSocket Durable Object per site generation<br>`lib/collab-events.ts` and `app/api/collab/events`: Server-Sent Events on Node.js and Docker<br>`lib/collab.ts`: messages<br>`lib/merge.ts`: three-way merge by node ID, then by property; an array counts as one value |
 | AI | `lib/ai/` (providers, prompt, streaming); `lib/aiOps.ts` (the op schema, and the apply function used on both server and client) |
 | Comments, activity | `lib/comments.ts`, `lib/comment-store.ts`, `lib/activity.ts` |
-| Auth | `auth.ts`, `middleware.ts`, `lib/allowlist.ts`. Without `AUTH_*`, the editor opens only under `npm run dev` or with `ALLOW_ANONYMOUS=true` (`lib/anonymous.ts`). |
+| Auth | `auth.ts`, `proxy.ts`, `lib/allowlist.ts`. Without `AUTH_*`, the editor opens only under `npm run dev` or with `ALLOW_ANONYMOUS=true` (`lib/anonymous.ts`). |
 | i18n | `lib/i18n.ts`. Source strings are English, wrapped in `tr("…")`. Japanese translations are in `lib/locales/ja.ts`. |
 | Help and tutorial | `lib/manualTopics.ts`, `components/HelpCenter.tsx`, `HelpFigures.tsx`, `Tutorial.tsx` |
 
@@ -152,7 +152,7 @@ A page's settings in the editor can also load HTML into one page, either convert
 
 ### HTML ZIP imports
 
-`lib/html-zip.ts` imports a site packaged as a ZIP (up to 200 files). The original files are stored unchanged. For each CSS file, `lib/zip-css.ts` additionally records the archive paths of the files it depends on: relative `url()` resources, `image-set()` images and `@import`s, resolved against the stylesheet's own directory (`lib/zip-references.ts`). Only ZIPs imported since this was introduced carry the metadata; older imports aren't migrated, so re-import an old ZIP if you need it.
+`lib/html-zip.ts` imports a site packaged as a ZIP (up to 200 files). The original files are stored unchanged. For each CSS file, `lib/zip-css.ts` additionally records the archive paths of the files it depends on: relative `url()` resources, `image-set()` images and `@import`s, resolved against the stylesheet's own directory (`lib/zip-references.ts`).
 
 - **Preview.** Each stylesheet stays a separate sheet, so import order, conditions and layers are kept. Dependencies are served as signed URLs from server storage, or as data URLs when the files are kept in the browser. Only an `@import` that points back at one of its own ancestors is replaced with an empty sheet. A preview whose signed URLs are about to expire offers a refresh instead of reloading itself, because a reload resets forms and scripts.
 - **Export.** Each CSS file is written as its own UTF-8 file, with references pointing at the generated asset filenames. Integrity hashes are dropped only from links to imported local CSS whose bytes change when references are rewritten.

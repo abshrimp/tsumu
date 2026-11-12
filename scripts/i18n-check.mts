@@ -48,7 +48,7 @@ const walk = (dir: string) => {
   }
 };
 for (const d of ["app", "components", "lib"]) walk(path.join(root, d));
-files.push(path.join(root, "auth.ts"), path.join(root, "middleware.ts"));
+files.push(path.join(root, "auth.ts"), path.join(root, "proxy.ts"));
 
 const literal = (node: ts.Node | undefined): string | undefined =>
   node && ts.isStringLiteralLike(node) ? node.text : undefined;
