@@ -5,7 +5,7 @@ import { authCallbacks } from "./lib/auth-policy";
 export { allowedEmails } from "./lib/allowlist";
 
 /**
- * Google 認証の環境変数が揃っているか。揃っていなければ、ログインなしで開ける（middleware.ts）。
+ * Google 認証の環境変数が揃っているか。揃っていなければ、ログインなしで開ける（proxy.ts）。
  * Cloudflare Workers ではシークレットをリクエストの処理中にしか読めないため、
  * モジュールの読み込み時には評価せず、呼び出すたびに判定する
  */
@@ -37,9 +37,9 @@ const authConfig = (): NextAuthConfig => ({
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
 
-// Node.js で配備した場合も middleware は Edge で動くため、SQLite を読めない。
-// ここでは Cookie の検証だけを行い、現在の許可は各 API の auth() で必ず確認する。
-export const { auth: middlewareAuth } = NextAuth(() => ({
+// Proxy では Cookie の検証だけを行い、権限の再確認は各 API の auth() で行う。
+// 設定済みの許可リストが更新されても、Cookie の状態だけでアクセスを許可しない。
+export const { auth: proxyAuth } = NextAuth(() => ({
   ...authConfig(),
   callbacks: { signIn: authCallbacks.signIn },
 }));

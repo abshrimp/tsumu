@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { evaluateValueRecipe } from "../lib/script-model/recipe-runtime";
+import { validDocumentScripts } from "../lib/document-validation";
 import { defaultTransform, VALUE_TRANSFORM_KINDS, parseValueOperandInput, formatValueOperandInput, type ValueTransform } from "../lib/script-model/compose";
 
 
@@ -61,22 +62,31 @@ test("all advertised transforms have stable, serializable defaults", () => {
 
 test("numeric operations accept number-like input, reject invalid coercions, and bound division", () => {
   assert.deepEqual(run(12, [
-    { kind: "math", operation: "add", operand: 8 },
-    { kind: "math", operation: "divide", operand: 4 },
+    { kind: "math", operation: "add", operandType: "number", operand: 8 },
+    { kind: "math", operation: "divide", operandType: "number", operand: 4 },
   ]), val(5));
-  assert.deepEqual(run("12", [{ kind: "math", operation: "add", operand: 1 }]), val(13));
-  assert.deepEqual(run(true, [{ kind: "math", operation: "add", operand: 1 }]),
+  assert.deepEqual(run("12", [{ kind: "math", operation: "add", operandType: "number", operand: 1 }]), val(13));
+  assert.deepEqual(run(true, [{ kind: "math", operation: "add", operandType: "number", operand: 1 }]),
     { kind: "error", code: "type-mismatch" });
-  assert.deepEqual(run("abc", [{ kind: "math", operation: "add", operand: 1 }]),
+  assert.deepEqual(run("abc", [{ kind: "math", operation: "add", operandType: "number", operand: 1 }]),
     { kind: "error", code: "type-mismatch" });
-  assert.deepEqual(run(12, [{ kind: "math", operation: "divide", operand: 0 }]),
+  assert.deepEqual(run(12, [{ kind: "math", operation: "divide", operandType: "number", operand: 0 }]),
     { kind: "error", code: "division-by-zero" });
-  assert.deepEqual(run(1e308, [{ kind: "math", operation: "multiply", operand: 10 }]),
+  assert.deepEqual(run(1e308, [{ kind: "math", operation: "multiply", operandType: "number", operand: 10 }]),
     { kind: "error", code: "limit-exceeded" });
-  assert.deepEqual(run(8, [{ kind: "math", operation: "remainder", operand: 3 }]), val(2));
-  assert.deepEqual(run(8, [{ kind: "math", operation: "subtract", operand: 3 }]), val(5));
+  assert.deepEqual(run(8, [{ kind: "math", operation: "remainder", operandType: "number", operand: 3 }]), val(2));
+  assert.deepEqual(run(8, [{ kind: "math", operation: "subtract", operandType: "number", operand: 3 }]), val(5));
 });
 
+
+
+test("math transforms require an explicit operand type rather than inferring an old schema", () => {
+  const malformed = { kind: "math", operation: "add", operand: 1 } as ValueTransform;
+  assert.deepEqual(run(5, [malformed]), { kind: "error", code: "invalid-recipe" });
+  assert.equal(validDocumentScripts([{ id: "s", trigger: "load", pos: { x: 0, y: 0 },
+    steps: [{ id: "op", kind: "transform", source: "value", into: "value", transform: malformed }] }]), false);
+  assert.deepEqual(run(5, [{ kind: "math", operation: "add", operandType: "number", operand: 1 }]), val(6));
+});
 
 test("split, join and replace coerce scalars without coercing lists", () => {
   const items = run(" blue, , red, green ", [{ kind: "split", separator: "," }]);
@@ -179,7 +189,7 @@ test("runtime source serialization works with the generated helper shim", () => 
   const source = evaluateValueRecipe.toString();
   const pure = new Function("const __name = (fn) => fn; return (" + source + ")")() as typeof evaluateValueRecipe;
   assert.deepEqual(pure([3, 1, 2], [{ kind: "sort", field: "", direction: "asc" }]), val([1, 2, 3]));
-  assert.deepEqual(pure(5, [{ kind: "math", operation: "divide", operand: 2 }]), val(2.5));
+  assert.deepEqual(pure(5, [{ kind: "math", operation: "divide", operandType: "number", operand: 2 }]), val(2.5));
 });
 
 test("math operands can resolve nested variables and safely parse numeric form strings", () => {
@@ -196,7 +206,7 @@ test("math operands can resolve nested variables and safely parse numeric form s
     { kind: "math", operation: "add", operandType: "variable", operand: "missing" },
   ], {}), { kind: "error", code: "type-mismatch" });
   assert.deepEqual(evaluateValueRecipe(12, [
-    { kind: "math", operation: "add", operand: 3 },
+    { kind: "math", operation: "add", operandType: "number", operand: 3 },
   ]), val(15)); // 既定の被演算子は、数値として解釈する。
 });
 

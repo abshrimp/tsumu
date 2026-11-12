@@ -28,15 +28,15 @@ function fixture({ cookie = true, allowed = false, configured = true, anonymous 
   const session = { user: { email: "editor@example.com" } };
   const auth = {
     authConfigured: () => configured,
-    middlewareAuth: async () => { cookieChecks++; return cookie ? session : null; },
+    proxyAuth: async () => { cookieChecks++; return cookie ? session : null; },
     auth: async () => { permissionChecks++; return cookie && allowed ? session : null; },
   };
   const serverTr = async () => (s: string) => s;
-  const middleware = load("../middleware.ts", {
+  const proxy = load("../proxy.ts", {
     "next/server": { NextResponse }, "./auth": auth,
     "./lib/lang": { langOfRequest: () => "en" },
     "./lib/anonymous": { anonymousAllowed: () => anonymous },
-  }).default;
+  }).proxy;
   const redirect = (destination: string) => { throw new Error(`redirect:${destination}`); };
   const login = load("../app/login/page.tsx", {
     "../../auth": auth, "next/navigation": { redirect },
@@ -46,7 +46,7 @@ function fixture({ cookie = true, allowed = false, configured = true, anonymous 
     "next/server": { NextResponse }, "../auth": auth,
     "./i18n-server": { serverTr }, "./anonymous": { anonymousAllowed: () => anonymous },
   });
-  const request = (path: string, method = "GET", headers: Record<string, string> = {}) => middleware({
+  const request = (path: string, method = "GET", headers: Record<string, string> = {}) => proxy({
     nextUrl: new URL(`https://editor.example${path}`), method, headers: new Headers(headers),
   });
   return {
@@ -60,7 +60,7 @@ function fixture({ cookie = true, allowed = false, configured = true, anonymous 
 test("a revoked user with an unexpired cookie can reach login after an API 401", async () => {
   const f = fixture();
   // ホームは、/api/sites が 401 を返すと /login へ移動する。
-  // 古い Cookie は middleware の検証を通るが、API での現在の権限の確認で拒否される。
+  // 古い Cookie は proxy の検証を通るが、API での現在の権限の確認で拒否される。
   assert.equal((await f.request("/")).status, 200);
   assert.equal((await f.requireAuth()).status, 401);
   const loginResponse = await f.request("/login");

@@ -5,7 +5,7 @@ import { transformSync } from "esbuild";
 import { NextRequest, NextResponse } from "next/server";
 import { isCrossSiteWrite } from "../lib/csrf";
 
-const code = transformSync(readFileSync(new URL("../middleware.ts", import.meta.url), "utf8"), {
+const code = transformSync(readFileSync(new URL("../proxy.ts", import.meta.url), "utf8"), {
   loader: "ts", format: "cjs", target: "es2022",
 }).code;
 
@@ -15,7 +15,7 @@ function fixture(configured: boolean) {
     "next/server": { NextResponse },
     "./auth": {
       authConfigured: () => configured,
-      middlewareAuth: async () => {
+      proxyAuth: async () => {
         sessionChecks++;
         return { user: { email: "editor@example.test" } };
       },
@@ -29,12 +29,12 @@ function fixture(configured: boolean) {
     assert.ok(Object.hasOwn(dependencies, id), `Unexpected dependency: ${id}`);
     return dependencies[id];
   }, module, module.exports);
-  return { middleware: module.exports.default, sessionChecks: () => sessionChecks };
+  return { proxy: module.exports.proxy, sessionChecks: () => sessionChecks };
 }
 
 for (const configured of [true, false]) {
-  test(`middleware rejects malformed CSRF headers before access checks (${configured ? "authenticated" : "anonymous"})`, async () => {
-    const { middleware, sessionChecks } = fixture(configured);
+  test(`proxy rejects malformed CSRF headers before access checks (${configured ? "authenticated" : "anonymous"})`, async () => {
+    const { proxy, sessionChecks } = fixture(configured);
     const cases: Record<string, string>[] = [
       { origin: "" },
       { "sec-fetch-site": "", origin: "https://editor.example.test" },
@@ -42,7 +42,7 @@ for (const configured of [true, false]) {
       { origin: "https://editor.example.test", "x-forwarded-host": "editor.example.test/path" },
     ];
     for (const headers of cases) {
-      const response = await middleware(new NextRequest("https://editor.example.test/api/doc", {
+      const response = await proxy(new NextRequest("https://editor.example.test/api/doc", {
         method: "PUT", headers,
       }));
       assert.equal(response.status, 403, JSON.stringify(headers));
@@ -51,15 +51,15 @@ for (const configured of [true, false]) {
     assert.equal(sessionChecks(), 0, "invalid requests must stop before session checks");
   });
 
-  test(`middleware preserves valid CSRF requests (${configured ? "authenticated" : "anonymous"})`, async () => {
-    const { middleware, sessionChecks } = fixture(configured);
+  test(`proxy preserves valid CSRF requests (${configured ? "authenticated" : "anonymous"})`, async () => {
+    const { proxy, sessionChecks } = fixture(configured);
     const cases: Record<string, string>[] = [
       {},
       { origin: "https://editor.example.test", "sec-fetch-site": "same-origin" },
       { origin: "https://public.example.test", "x-forwarded-host": "public.example.test", "x-forwarded-proto": "https" },
     ];
     for (const headers of cases) {
-      const response = await middleware(new NextRequest("https://editor.example.test/api/doc", {
+      const response = await proxy(new NextRequest("https://editor.example.test/api/doc", {
         method: "PUT", headers,
       }));
       assert.equal(response.headers.get("x-middleware-next"), "1", JSON.stringify(headers));
