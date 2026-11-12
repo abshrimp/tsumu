@@ -420,3 +420,18 @@ test("a real mouse drop still moves one stack and supports Undo/Redo", async ({ 
   await page.keyboard.press("Control+z"); expect((await snapshot(page)).doc).toEqual(before.doc);
   await page.keyboard.press("Control+y"); expect((await snapshot(page)).doc).toEqual(moved.doc);
 });
+
+test("duplicating from an open menu follows its block after another edit shifts the list", async ({ page }) => {
+  await page.locator('.se-ws [data-sel-key="step:wait"]').click({ button: "right", position: { x: 8, y: 8 } });
+  await page.evaluate(() => {
+    (window as any).scriptDragEditor.getState().updateDoc((doc: any) => {
+      doc.pages.p.pageScripts[0].steps.unshift({ id: "earlier", kind: "wait", seconds: 9 });
+    });
+  });
+  await expect(page.locator('.se-ws [data-sel-key="step:earlier"]')).toBeVisible();
+  await page.locator(".se-menu button").first().click();
+  const steps = (await snapshot(page)).doc.pages.p.pageScripts[0].steps;
+  expect(steps.map((step: { seconds: number }) => step.seconds)).toEqual([9, 1, 1]);
+  expect(steps[1].id).toBe("wait");
+  expect(steps[2].id).not.toBe("wait");
+});

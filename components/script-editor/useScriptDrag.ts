@@ -9,7 +9,7 @@ import { scriptUid } from "../../lib/script";
 import { isDataStep } from "../../lib/data";
 import { PAGE_TARGET } from "../../lib/types";
 import { type Payload } from "./palette";
-import { connectNewTransform, insertAt, parseSlot, takeAt } from "./step-tree";
+import { connectNewTransform, insertAt, parseSlot, slotKey } from "./step-tree";
 import { SlotIndex, type SlotPoint } from "./slot-index";
 import type { Drag, Marquee, Menu, ScriptEditorLatest } from "../ScriptEditor";
 
@@ -224,9 +224,9 @@ export function useScriptDrag({
       }
     };
     const onUp = (e: PointerEvent) => {
-      cancelFrame();
       const gesture = marqueeRef.current ?? dragRef.current;
       if (!gesture || e.pointerId !== gesture.pointerId) return;
+      cancelFrame();
       if (marqueeRef.current) {
         marqueeRef.current = null;
         marqueeGesture = null;
@@ -256,7 +256,7 @@ export function useScriptDrag({
       const { scripts: cur, commit, focusNodeId: focus } = latest.current;
       const ws = wsRef.current;
       let base = cur;
-      if (p.type === "steps" && p.from) base = takeAt(cur, p.from)[0];
+      if (p.type === "steps" && p.from) base = p.from.remaining;
       if (p.type === "script") {
         const ids = new Set(p.group.map((s) => s.id));
         base = cur.filter((s) => !ids.has(s.id));
@@ -271,6 +271,7 @@ export function useScriptDrag({
         return;
       }
       if (slot) {
+        if (p.type === "steps" && p.from && slot === slotKey(p.from.loc)) return;
         const loc = parseSlot(slot);
         if (p.type === "steps") {
           // Only newly inserted blocks inherit the previous output automatically.
@@ -326,17 +327,23 @@ export function useScriptDrag({
         ]);
       }
       // 選択中のスクリプトをまとめて同じだけ動かす
-      const dx = pos.x - p.script.pos.x;
-      const dy = pos.y - p.script.pos.y;
-      const ids = new Set(p.group.map((s) => s.id));
+      let dx = pos.x - p.script.pos.x;
+      let dy = pos.y - p.script.pos.y;
+      const ids = new Set<string>();
+      for (const script of p.group) {
+        ids.add(script.id);
+        dx = Math.max(dx, 8 - script.pos.x);
+        dy = Math.max(dy, 8 - script.pos.y);
+      }
+      if (!dx && !dy) return;
       commit(
         cur.map((s) =>
           ids.has(s.id)
             ? {
                 ...s,
                 pos: {
-                  x: Math.max(8, s.pos.x + dx),
-                  y: Math.max(8, s.pos.y + dy),
+                  x: s.pos.x + dx,
+                  y: s.pos.y + dy,
                 },
               }
             : s
