@@ -36,7 +36,7 @@ for (const kind of ["html", "redirect"] as const) {
       await page.evaluate(() => (window as any).pageKindEditor.getState().updatePage("p", { title: "Undo this" }));
       await page.getByRole("button", { name: kind === "html" ? "HTML" : "リダイレクト", exact: true }).click();
       await expect(page.getByRole("dialog")).toBeVisible();
-      await page.evaluate(interruption => {
+      await page.evaluate((interruption: string) => {
         const state = () => (window as any).pageKindEditor.getState();
         if (["rawHtml", "redirectTo", "rewriteTo", "delete", "unrelated"].includes(interruption)) {
           const remote = structuredClone(state().doc);
