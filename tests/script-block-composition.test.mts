@@ -670,7 +670,8 @@ test("server preview calculates with numeric strings and filters lists through l
     { id: "rate", kind: "set-var", value: "1.5", into: "rate" },
     { id: "calc", kind: "transform", source: "data.price", into: "total",
       transform: { kind: "math", operation: "multiply", operandType: "variable", operand: "rate" } },
-    { id: "append", kind: "set-list-item", list: "data.tags", key: "", value: "green" },
+    { id: "copy-tags", kind: "set-var", value: "{data.tags}", into: "tags" },
+    { id: "append", kind: "set-list-item", list: "tags", key: "", value: "green" },
     { id: "empty-tags", kind: "set-var", value: "[]", into: "filteredTags" },
     { id: "filter-tags", kind: "for-each", array: "tags", then: [
       { id: "keep", kind: "if", cond: {
