@@ -16,6 +16,8 @@ import { setVarPath, withinScriptValueLimit } from "./value-semantics";
 import { PAGE_STEP_RUNNER_SOURCE } from "./page-load-steps";
 import { cssValue, generateSiteCss, rawHtmlWithBodyStyles, usedGoogleFonts } from "./generator/css";
 import { headHtmlToJsx } from "./generator/head";
+import { deferRunnableScripts } from "./generator/defer-scripts";
+import { codeLiteral } from "./generator/code-literal";
 import { SAFE_FETCH_SOURCE } from "./generator/safe-fetch-source";
 import { buildAssetNames, buildClassNames, buildComponentNames } from "./generator/names";
 import { htmlZipExportSource, htmlZipExportUrl, importedAssetPath, isZipJavascript } from "./generator/imported-assets";
@@ -24,6 +26,7 @@ import { imageRefSrc, jsxString, raiseOverCrispSvg, smartLinkComponent } from ".
 import { renderNode, type JsxContext } from "./generator/render";
 import {
   PAGE_HTML_COMPONENT,
+  RUNNABLE_SCRIPT,
   PWA_REGISTER_SCRIPT,
   PWA_SERVICE_WORKER,
   SEARCH_FORM_COMPONENT,
@@ -569,18 +572,22 @@ ${loadingBody || `      ${fallbackBody}`}
     .map((src) => `\n        <Script src=${jsxString(src)} strategy="afterInteractive" />`)
     .join("");
   const bodyEndHtml = doc.customBodyEndHtml?.trim() ?? "";
+  const bodyEndNeedsPageHtml = RUNNABLE_SCRIPT.test(bodyEndHtml);
+  if (bodyEndNeedsPageHtml) files["components/PageHtml.tsx"] = PAGE_HTML_COMPONENT;
   // <head> を dangerouslySetInnerHTML にすると、ページ遷移で React が <head> の中身を置き換え、
   // Next.js が入れた CSS の <link> まで消える。要素ごとに JSX にして <head> の子として出す
   const headTag = headHtml ? `\n      <head>${headHtmlToJsx(headHtml, "        ")}\n      </head>` : "";
   const bodyEndTag = bodyEndHtml
-    ? `\n        <div\n          dangerouslySetInnerHTML={{ __html: ${JSON.stringify(bodyEndHtml)} }}\n        />`
+    ? bodyEndNeedsPageHtml
+      ? `\n        <PageHtml html={${codeLiteral(bodyEndHtml)}} staticHtml={${codeLiteral(deferRunnableScripts(bodyEndHtml))}} />`
+      : `\n        <div\n          dangerouslySetInnerHTML={{ __html: ${JSON.stringify(bodyEndHtml)} }}\n        />`
     : "";
 
   const viewportExport = pwaThemeColor
     ? `\nexport const viewport: Viewport = {\n  themeColor: ${JSON.stringify(pwaThemeColor)},\n};\n`
     : "";
   files["app/layout.tsx"] = `import type { Metadata${pwaThemeColor ? ", Viewport" : ""} } from "next";
-${fontImports}${siteScripts.length ? 'import Script from "next/script";\n' : ""}${loading ? 'import SiteLoadingScreen from "@/components/SiteLoadingScreen";\n' : ""}import "./globals.css";
+${fontImports}${siteScripts.length ? 'import Script from "next/script";\n' : ""}${bodyEndNeedsPageHtml ? 'import PageHtml from "@/components/PageHtml";\n' : ""}${loading ? 'import SiteLoadingScreen from "@/components/SiteLoadingScreen";\n' : ""}import "./globals.css";
 import "../styles/site.css";
 
 export const metadata: Metadata = {
