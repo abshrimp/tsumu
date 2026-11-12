@@ -308,9 +308,8 @@ function render(ctx: Context, id: string, top: boolean): string {
         (hasVars(src) && ctx.template ? attr("data-image-src-parts", templateParts(src)) : "") +
         attr("alt", im.alt);
       const crisp = crispSvgSize(ctx.doc, n);
-      if (crisp) return "<span" + commonAttrs.replace(attr("class", cls), attr("class", "crisp-svg " + cls)) + ">" +
-        '<svg aria-hidden="true" width="' + crisp.width + '" height="' + crisp.height +
-        '" viewBox="0 0 ' + crisp.width + " " + crisp.height + '"></svg>' +
+      if (crisp) return "<span" + commonAttrs.replace(attr("class", cls), attr("class", "crisp-svg " + cls)) +
+        attr("style", "--crisp-svg-width:" + crisp.width + "px;--crisp-svg-ratio:" + crisp.width + "/" + crisp.height) + ">" +
         "<img" + imageAttrs + attr("width", crisp.width * 2) + attr("height", crisp.height * 2) + "></span>";
       return "<img" + commonAttrs + imageAttrs +
         attr("width", im.width || 800) + attr("height", im.height || 500) +
