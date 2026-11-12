@@ -29,7 +29,8 @@ export function scopedAssetIds(doc: SiteDoc, assets: Record<string, Asset>): Set
     raw = raw.trim();
     if (!raw || raw.startsWith("#")) return;
     if (++references > 100000) throw new Error("Too many asset references in this partial export.");
-    if (/^(?:data:|tsumu-zip-css:)/i.test(raw)) { urls.add(raw.split("#", 1)[0]); return; }
+    if (/^tsumu-zip-css:/i.test(raw)) { urls.add(raw.split(/[?#]/, 1)[0]); return; }
+    if (/^data:/i.test(raw)) { urls.add(raw.split("#", 1)[0]); return; }
     if (absolute.test(raw)) return;
     try {
       const url = new URL(raw, base);

@@ -49,15 +49,15 @@ async function serverWrite(doc: SiteDoc, uploads: string[]): Promise<string> {
   }).catch(() => null);
   const data = await response?.json().catch(() => null);
   if (response?.ok && data?.site?.id === id) return id;
-  if (response && response.status >= 400 && response.status < 500) {
-    throw new Error(data?.error || tr("Could not create the site."));
+  // API の明示的な拒否ならアップロードを取り消せる。プロキシの 408 などは保存後にも届き得る。
+  if (response && [400, 401, 403, 404, 409, 413, 415].includes(response.status) && typeof data?.error === "string") {
+    throw new Error(data.error || tr("Could not create the site."));
   }
+  // 確認中に処理が失敗しても、サーバーで確定済みかもしれないアセットを削除しない。
+  uploads.length = 0;
   const saved = await fetch("/api/doc?site=" + id, { credentials: "same-origin", redirect: "error" }).then(res => res.ok ? res.json() : null).catch(() => null);
   // DocumentRoom は保存した行から文書を組み直すため、設定や ID の並びは変わり得る。
   if (saved?.exists && saved.doc && createDocPatch(doc, saved.doc)?.length === 0) return id;
-  // 通信やプロキシの失敗は、トランザクションが取り消されたことの証明にはならない。
-  // 処理中のサイトや、すでに編集されたサイトが使うかもしれない、アップロードしたバイト列は削除しない。
-  uploads.length = 0;
   throw new Error(tr("Could not confirm the save. Check the site list on the home screen."));
 }
 

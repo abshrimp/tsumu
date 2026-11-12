@@ -1,4 +1,4 @@
-import type { Asset, BreakpointDef, DocNode, NodeStyles, Page, SiteDoc, StyleMap, StyleState } from "./types";
+import type { Asset, BreakpointDef, DocNode, LinkSetting, NodeStyles, Page, SiteDoc, StyleMap, StyleState } from "./types";
 import { genId } from "./presets";
 import { escapeStyleContent } from "./css-assets";
 import { MAX_NODE_DEPTH } from "./doc-tree";
@@ -14,7 +14,12 @@ import { importedAssetPath, isZipJavascript } from "./generator/imported-assets"
 
 /** 1つの HTML のページを、個別に編集できる Tsumu の要素に変換したもの。 */
 export type HtmlConversion = { doc: SiteDoc; warnings: string[] };
-type Options = { assets?: Asset[]; breakpoints?: BreakpointDef[] };
+type Options = {
+  assets?: Asset[];
+  breakpoints?: BreakpointDef[];
+  pageId?: string;
+  resolvePageLink?: (href: string) => LinkSetting | undefined;
+};
 
 const TAGS = new Set([
   "div", "section", "header", "footer", "nav", "main", "article", "aside",
@@ -596,7 +601,10 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       return add(common);
     }
     if (tag === "a") {
-      common.link = { kind: "url", url: safeNavigationUrl(element.getAttribute("href") || ""), newTab: element.getAttribute("target") === "_blank" };
+      const href = element.getAttribute("href")?.trim();
+      const safe = safeNavigationUrl(href ?? "");
+      const target = href !== undefined && (href === safe || href === "") ? options.resolvePageLink?.(href) : undefined;
+      common.link = { ...(target ?? { kind: "url", url: safe }), newTab: element.getAttribute("target") === "_blank" };
     } else if (!SEMANTICS.has(tag) && !/^h[1-6]$/.test(tag) && tag !== "p") {
       common.semantic = "custom";
       common.customTag = tag;
@@ -659,7 +667,7 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
     }
   }
   const bodyStyles = toStyles(parsed.body);
-  const pageId = genId("page");
+  const pageId = options.pageId ?? genId("page");
   const name = parsed.title.trim() || tr("Page converted from HTML");
   const description = parsed.head.querySelector('meta[name="description"]')?.getAttribute("content") || "";
   const retainedCss = unusedRules.length ? "<style>\n" + escapeStyleContent(unusedRules.join("\n")) + "\n</style>" : "";

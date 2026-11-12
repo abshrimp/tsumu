@@ -469,7 +469,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
     const output = path.slice(7);
     // Service Worker は file:// からは使えない。それ以外は、そのまま読める。
     files[output] = output.endsWith(".css")
-      ? rewriteCssRootUrls(source, output.startsWith("assets/") ? "./" : "../") : source;
+      ? rewriteCssRootUrls(source, pagePrefix(output)) : source;
   }
   for (const [path, binary] of Object.entries(next.binaries)) {
     if (path.startsWith("public/")) binaries[path.slice(7)] = binary;

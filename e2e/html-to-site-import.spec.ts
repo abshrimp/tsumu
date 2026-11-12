@@ -349,7 +349,9 @@ test("linked CSS @imports and external JS module files are preserved and resolve
 test("multi-page HTML ZIP imports every page and converts internal page links", async ({ page }) => {
   await localMode(page);
   const zip = new JSZip();
-  zip.file("docs.html", '<html><head><title>Docs file</title></head><body><p>Separate page</p></body></html>');
+  zip.file("docs.html", '<html><head><title>Docs file</title><base href="./docs/index.htm?view=full"></head><body>' +
+    '<a id="base-page" href="index.htm">Docs index</a><a id="base-section" href="#chapter">Chapter</a>' +
+    '<a id="empty-fragment" href="#">Top</a><a id="outside-zip" href="appendix.html">Appendix</a></body></html>');
   zip.file("docs/index.htm", '<html><head><title>Docs</title></head><body><a id="home" href="../">Home</a></body></html>');
   zip.file("index.htm", '<html><head><title>Multi HTML</title></head><body><a id="next" href="about.html">About</a>' +
     '<a id="docs" href="docs/">Documentation</a><a id="root" href="/?lang=en#home">Home</a></body></html>');
@@ -370,6 +372,12 @@ test("multi-page HTML ZIP imports every page and converts internal page links", 
   expect(linkFor("home")).toMatchObject({ kind: "page", pageId: doc.pageOrder[0] });
   expect(linkFor("root")).toMatchObject({ kind: "url", url: "/?lang=en#home" });
   expect(linkFor("docs")).toMatchObject({ kind: "page", pageId: doc.pageOrder[2] });
+  expect(linkFor("base-page")).toMatchObject({ kind: "page", pageId: doc.pageOrder[2] });
+  expect(linkFor("empty-fragment")).toMatchObject({ kind: "url", url: "/docs-2?view=full#" });
+  expect(linkFor("outside-zip")).toMatchObject({ kind: "url", url: "/docs/appendix.html" });
+  expect(linkFor("base-section")).toMatchObject({ kind: "url", url: "/docs-2?view=full#chapter" });
+  const output = generateExportProject(doc, "html");
+  expect(output.files["docs/index.html"]).toContain('href="../docs-2/index.html?view=full#chapter"');
   const aboutId = doc.pageOrder.find((id: string) => doc.pages[id].slug === "about");
   expect(linkFor("next")).toMatchObject({ kind: "page", pageId: aboutId });
   expect(linkFor("query-only")).toMatchObject({ kind: "url", url: "/about?lang=en#details" });
@@ -414,6 +422,7 @@ test("HTML ZIP survives save, reload, HTML export ZIP and reimport with editable
     .file("index.html", '<!doctype html><html><head><title>Import round trip</title>' +
       '<link rel="stylesheet" href="main.css"></head><body>' +
       '<section id="roundtrip-card" class="card"><h1>Roundtrip verified</h1></section>' +
+      '<a id="self" href="index.html#roundtrip-card">Jump to card</a>' +
       '</body></html>')
     .file("main.css", ".card { display: flex; gap: 12px; }");
   await page.goto("/");
@@ -428,6 +437,8 @@ test("HTML ZIP survives save, reload, HTML export ZIP and reimport with editable
   await expect(page.locator(".app")).toBeVisible();
   const saved = await importedDoc(page);
   const originalCard = Object.values(saved.nodes).find((node: any) => node.attrId === "roundtrip-card") as any;
+  const self = Object.values(saved.nodes).find((node: any) => node.attrId === "self") as any;
+  expect(self.link).toMatchObject({ kind: "url", url: "/#roundtrip-card" });
   expect(originalCard?.styles?.base?.default?.display).toBe("flex");
   expect(originalCard?.styles?.base?.default?.gap).toBe("12px");
   const output = generateExportProject(saved, "html");

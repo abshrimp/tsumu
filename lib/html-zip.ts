@@ -23,7 +23,8 @@ const cleanZipPath = (value: string) =>
 export function rewriteZipReferences(html: string, htmlPath: string, urls: Map<string, string>) {
   const doc = new DOMParser().parseFromString(html, "text/html");
   const base = Array.from(doc.querySelectorAll("base[href]")).find(el => el.namespaceURI === "http://www.w3.org/1999/xhtml");
-  const resolve = archiveResolver(htmlPath, archiveBaseUrl(htmlPath, base?.getAttribute("href")), urls);
+  const baseHref = base?.getAttribute("href");
+  const resolve = archiveResolver(htmlPath, archiveBaseUrl(htmlPath, baseHref), urls);
   for (const el of Array.from(doc.querySelectorAll<HTMLElement>("[src],[href],[poster],[xlink\\:href]"))) {
     for (const attr of ["src", "href", "poster", "xlink:href"]) {
       const value = el.getAttribute(attr);
@@ -45,7 +46,7 @@ export function rewriteZipReferences(html: string, htmlPath: string, urls: Map<s
   for (const el of Array.from(doc.querySelectorAll("style"))) {
     el.textContent = rewriteCssAssetUrls(el.textContent ?? "", resolve);
   }
-  return `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`;
+  return { html: `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`, baseHref };
 }
 
 
@@ -266,7 +267,7 @@ export async function readHtmlZip(
     if (!source.trim()) throw new Error(tr("The HTML file in the ZIP is empty. The existing page has not been replaced."));
     // HTML モードでの取り込みでは、書かれたソースを解析・直列化しない。
     // 視覚的なノードへの取り込みでは、変換のために解決した参照が必要になる。
-    const html = sourceOnly ? source : rewriteZipReferences(htmlText.get(htmlEntry.name) ?? "", path, urls);
+    const html = sourceOnly ? source : rewriteZipReferences(htmlText.get(htmlEntry.name) ?? "", path, urls).html;
     return {
       assets, html, source,
       zip: { path, assetIds: assets.map(a => a.id) }, name: htmlEntry.name,
@@ -280,7 +281,7 @@ export async function readHtmlZipPages(zip: JSZip, progress: (message: string) =
   const entries = [htmlEntry, ...htmlEntries.filter((entry) => entry !== htmlEntry)];
   const pages = entries.map((entry) => ({
     name: cleanZipPath(entry.name),
-    html: rewriteZipReferences(htmlText.get(entry.name) ?? "", cleanZipPath(entry.name), urls),
+    ...rewriteZipReferences(htmlText.get(entry.name) ?? "", cleanZipPath(entry.name), urls),
   }));
   return { assets, pages };
 }
