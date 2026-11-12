@@ -33,6 +33,7 @@ import {
 import { renderNode, type JsxContext } from "./render";
 import { cssValue } from "./css";
 import { RUNNABLE_SCRIPT } from "./templates";
+import { deferRunnableScripts } from "./defer-scripts";
 import { codeLiteral } from "./code-literal";
 import { parseValueLiteral } from "../value-semantics";
 
@@ -215,7 +216,7 @@ export function generatePageFile(
       return `      <div style={{ display: "contents" }} dangerouslySetInnerHTML={{ __html: ${codeLiteral(html)} }} />`;
     }
     ctx.usesPageHtml = true;
-    return `      <PageHtml html={${codeLiteral(html)}} />`;
+    return `      <PageHtml html={${codeLiteral(html)}} staticHtml={${codeLiteral(deferRunnableScripts(html))}} />`;
   };
   // Imported HTML snippets may refer to assets in Tsumu's temporary storage.
   // Rewrite their paths to the bundled export so they work after deployment.
