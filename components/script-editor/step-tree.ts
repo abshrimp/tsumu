@@ -25,7 +25,7 @@ function branchOf(list: string): [string, string] {
 // in document order consistently for both slot lookup and immutable edits.
 function findBranchOwner(steps: ScriptStep[], id: string): ScriptStep | null {
   for (const step of steps) {
-    if (step.kind !== "if" && step.kind !== "repeat" && step.kind !== "for-each") continue;
+    if (!("then" in step)) continue;
     if (step.id === id) return step;
     const nested = findBranchOwner(step.then, id);
     if (nested) return nested;
