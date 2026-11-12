@@ -128,6 +128,23 @@ async function scaleScriptModal(page: Page) {
   });
 }
 
+test("dropping over the right side of a wide step shows the insertion bar and inserts there", async ({ page }) => {
+  await page.addStyleTag({ content: '.se-ws [data-sel-key="step:wait"] { min-width: 470px; }' });
+  const target = page.locator('.se-ws .se-stack[data-script-id="script"] .se-slot').last();
+  const rect = (await target.boundingBox())!;
+  expect(rect.width).toBeGreaterThan(300);
+
+  await start(page, "palette");
+  await pointer(page, "pointermove", { x: rect.x + rect.width - 30, y: rect.y });
+  await expect(target).toHaveClass(/is-active/);
+  await pointer(page, "pointerup", { x: rect.x + rect.width - 30, y: rect.y, buttons: 0 });
+
+  await expect(transient(page)).toHaveCount(0);
+  const scripts = (await snapshot(page)).doc.pages.p.pageScripts;
+  expect(scripts).toHaveLength(1);
+  expect(scripts[0].steps.map((step: { kind: string }) => step.kind)).toEqual(["wait", "wait"]);
+});
+
 test("dragged steps retain their width without narrowing the source stack", async ({ page }) => {
   // 幅の広い手順が、元の並びの幅を決める。それを取り除くと、通常は並びが縮む。
   await page.addStyleTag({ content: '.se-ws [data-sel-key="step:wait"] { min-width: 480px; }' });
