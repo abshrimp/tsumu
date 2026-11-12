@@ -40,6 +40,7 @@ import { StyleCheck, differsFrom } from "./BackgroundSec";
 import {
   GRID_DEFAULT_COLUMNS,
   MainSizeField,
+  HeightModeControl,
   SIZE_LIMIT_PROPS,
   flowMode,
   selectedSize,
@@ -139,6 +140,7 @@ export function LayoutSec() {
             <Maximize2 size={13} />
           </button>
         </div>
+        <HeightModeControl axis={parentDir === "column" ? "main" : "cross"} />
       </Grp>
 
       {sizeDetail && (
