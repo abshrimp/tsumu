@@ -2,7 +2,7 @@
 
 <p align="center">
   <strong>Design freely. Build openly.</strong><br>
-  オープンソースのビジュアルウェブサイトビルダー。
+  画面上でパーツを配置して、Webサイトを作れるオープンソースのツール。
 </p>
 
 <p align="center">
