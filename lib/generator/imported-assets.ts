@@ -7,7 +7,8 @@ import type { Asset } from "../types";
  * import "./chunk.js" や new URL("./icon.svg", import.meta.url) は、Tsumu が平らにした
  * アセット名ではなく、そのスクリプトファイルを基準に解決される。
  *
- * 既存の文書からの参照のために、通常の平らにした出力も残す。
+ * HTML や CSS で解決したアセットの URL は平らな出力パスを使うため、
+ * モジュールの相対参照用のパスと両方を出力する。
  */
 export function importedAssetPath(asset: Asset): string | null {
   const zip = asset.zip;
