@@ -2,6 +2,15 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
+  "Height behavior": "高さの設定方法",
+  "Fit content": "内容に合わせる",
+  "Fixed height": "高さを固定",
+  "Match parent height": "親の高さに合わせる",
+  "At least screen height": "画面の高さ以上",
+  "Fill remaining height": "残りの高さを埋める",
+  "Custom value": "カスタム値",
+  "100% height needs a parent with a defined height. Otherwise it may behave like automatic height.": "親の高さが決まっていない場合、100%を指定しても自動の高さと同じになることがあります。",
+  "The element can grow taller when its content needs more space.": "内容が増えた場合は、それに合わせて高さが伸びます。",
   "Contains any": "いずれかを含む",
   "{subject} contains any of {v}": "{subject}が{v}のいずれかを含む",
   "No editing data was found in the ZIP. The HTML will be converted and imported.": "ZIPに編集データが見つかりませんでした。HTMLを変換して読み込みます。",
