@@ -404,7 +404,7 @@ function SetVarBody({ step }: { step: Extract<ScriptStep, { kind: "set-var" }> }
       }} />
       {step.into && value !== undefined && value !== null && (
         <span className="se-blk-note">{Array.isArray(value)
-          ? tr("List · {length} items (can be shown in a list display)", { length: value.length })
+          ? tr("List · {length} sample items", { length: value.length })
           : isNested(value)
             ? tr("Use it in elements like {{into}.field}", { into: step.into })
             : tr("Sample: {p1}", { p1: readableValue(value) })}</span>
