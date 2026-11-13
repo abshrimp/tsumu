@@ -22,7 +22,7 @@ import {
   TRIGGER_ICON,
   type Payload,
 } from "./script-editor/palette";
-import { insertAt, listIn, mapStep, numberFilters, removeKeys, takeAt } from "./script-editor/step-tree";
+import { insertAt, listIn, mapStep, numberFilters, removeKeys, takeSelectedSteps } from "./script-editor/step-tree";
 import { copyScriptBlocks, pasteScriptBlocks, type ScriptBlockClipboard } from "./script-editor/clipboard";
 import { buildTree, collectTargets, type MenuTarget } from "./script-editor/targets";
 import { useScriptDrag } from "./script-editor/useScriptDrag";
@@ -730,7 +730,10 @@ function ScriptEditorInner({
       begin(
         e,
         () => {
-          const [remaining, steps] = takeAt(latest.current.scripts, loc);
+          const selectedIds = new Set([...selectedRef.current]
+            .filter((key) => key.startsWith("step:"))
+            .map((key) => key.slice("step:".length)));
+          const [remaining, steps] = takeSelectedSteps(latest.current.scripts, loc, selectedIds);
           return { type: "steps", steps, from: { loc, remaining } };
         },
         `step:${stepId}`
