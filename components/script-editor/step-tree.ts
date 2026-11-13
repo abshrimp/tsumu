@@ -107,6 +107,40 @@ export function takeAt(scripts: PageScript[], loc: Loc): [PageScript[], ScriptSt
   return [next, taken];
 }
 
+/**
+ * ドラッグでは選択したブロックだけを取り出し、後続のブロックは元の並びに残す。
+ * 親の条件・ループを選択したときはその内側もまとめて1ブロックとして扱う。
+ */
+export function takeSelectedSteps(
+  scripts: PageScript[], loc: Loc, selectedIds: ReadonlySet<string>
+): [PageScript[], ScriptStep[]] {
+  const script = scripts.find((item) => item.id === loc.scriptId);
+  const list = script && listIn(script, loc.list);
+  const grabbed = list?.[loc.index];
+  if (!script || !grabbed) return [scripts, []];
+  const ids = selectedIds.has(grabbed.id) ? selectedIds : new Set([grabbed.id]);
+  const taken: ScriptStep[] = [];
+  const collect = (steps: ScriptStep[]) => {
+    for (const step of steps) {
+      if (ids.has(step.id)) {
+        taken.push(step);
+      } else if ("then" in step) {
+        collect(step.then);
+        if (step.kind === "if" && step.else) collect(step.else);
+      }
+    }
+  };
+  collect(script.steps);
+  if (!taken.length) return [scripts, []];
+  const remaining = removeKeys(scripts, taken.map((step) => `step:${step.id}`));
+  const source = remaining.find((item) => item.id === script.id);
+  return [
+    !script.trigger && source && !source.steps.length
+      ? remaining.filter((item) => item.id !== script.id) : remaining,
+    taken,
+  ];
+}
+
 export function insertAt(
   scripts: PageScript[],
   loc: Loc,
