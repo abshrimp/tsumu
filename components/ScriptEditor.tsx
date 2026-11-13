@@ -255,7 +255,10 @@ function ScriptEditorInner({
   }, [tree]);
   const fieldLookup = useMemo(() => indexFieldTargets(doc, tree), [doc, tree]);
   const arrays = useMemo(() => pageArrays(doc, activePageId), [doc, activePageId]);
-  const samples = useMemo(() => previewDataVars(doc, activePageId), [doc, activePageId]);
+  const { samples, listCounts } = useMemo(() => {
+    const listCounts: Record<string, number> = {};
+    return { samples: previewDataVars(doc, activePageId, { listCounts }), listCounts };
+  }, [doc, activePageId]);
   const variableIndex = useMemo(() => pageVariableIndex(doc, activePageId), [doc, activePageId]);
   // 値の加工のブロックは、すべて同じ値の候補を使う。ブロックごとにページの全変数の
   // オブジェクトを作り直すと、大きなワークスペースで処理量が2乗に増えてしまう。
@@ -687,6 +690,7 @@ function ScriptEditorInner({
     virtualizeStacks: scripts.length > 40 || stepOwners.size > 320,
     variableIndex,
     transformSources,
+    listCounts,
     pageLoadScriptIds,
     serverStepIds,
     elements,
@@ -756,7 +760,7 @@ function ScriptEditorInner({
     },
   }), [doc, activePageId, extraRootIds, targets, tree, targetLookup, fieldLookup, scripts,
     stepOwners, variableIndex, transformSources, pageLoadScriptIds, serverStepIds, elements, focusNodeId,
-    commit, updateDoc, nodeIds, arrays, samples, begin]);
+    commit, updateDoc, nodeIds, arrays, samples, listCounts, begin]);
   const ctx = useMemo<EdCtx>(() => ({ ...sharedCtx, selected, zOrder }),
     [sharedCtx, selected, zOrder]);
 
