@@ -292,8 +292,10 @@ export const SCRIPT_RUNTIME = `function (env) {
       "; SameSite=Lax" + (location.protocol === "https:" ? "; Secure" : "");
     return cookieGet(encodeURIComponent(k)) === v;
   }
-  // Persist JSON value kinds explicitly; storage drivers themselves accept strings.
+  // Store ordinary strings verbatim. Wrap other JSON types so loading preserves their types.
+  // A string that itself looks like our typed envelope needs escaping to round-trip safely.
   function encodeStored(value) {
+    if (typeof value === "string" && decodeStored(value) === value) return value;
     return "tsumu-store-v1:" + JSON.stringify({
       value: value === undefined ? null : value,
       missing: value === undefined
