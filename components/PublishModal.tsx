@@ -119,6 +119,8 @@ async function gitBlobShaOf(body: Uint8Array): Promise<string> {
 
 /** これより大きいテキストは先に blob にして、ツリーを作るリクエストを軽くする */
 const INLINE_TEXT_LIMIT = 32 * 1024;
+/** GitHub's content-creation secondary limit is shared by blobs, trees and commits. */
+const UPLOAD_START_INTERVAL_MS = 1000;
 
 /** 保存先にアセットが無い（削除済みなど）。公開は警告を出して続ける */
 class MissingAssetError extends Error {}
@@ -169,8 +171,30 @@ async function postPublish<T>(conf: PublishConfig, target: PublishTarget, body: 
     body: JSON.stringify({ ...publishFields(conf, target), ...body }),
   });
   const data = (await res.json().catch(() => null)) as
-    | (T & { error?: string; missing?: boolean })
+    | (T & {
+        error?: string;
+        missing?: boolean;
+        treeError?: { kind?: unknown; path?: unknown; batch?: unknown; total?: unknown };
+      })
     | null;
+  // Only recognize typed error details from our publish endpoint. Do not surface
+  // arbitrary upstream GitHub messages; localize the known templates in the UI
+  // so English, Japanese and other languages all pass the safe-message boundary.
+  const issue = data?.treeError;
+  if (res.status === 429 && issue?.kind === "rate-limit") {
+    throw new Error(tr("GitHub is temporarily limiting publishing requests. Wait before trying again."));
+  }
+  if (res.status === 422 && issue?.kind === "validation") {
+    if (typeof issue.path === "string") {
+      throw new Error(tr("GitHub rejected the published file {path} (422). Check its path and contents.", { path: issue.path }));
+    }
+    if (typeof issue.batch === "number" && Number.isInteger(issue.batch) && issue.batch > 0 &&
+        typeof issue.total === "number" && Number.isInteger(issue.total) && issue.total >= issue.batch) {
+      throw new Error(tr("GitHub rejected publish tree batch {batch} of {total} (422). Check the generated files.", {
+        batch: issue.batch, total: issue.total,
+      }));
+    }
+  }
   if (res.status === 409) throw new PublishConflictError(data?.error ?? tr(publishConflictMessage));
   if (data?.missing) {
     throw new MissingAssetError(data.error ?? fallback);
@@ -405,13 +429,29 @@ export default function PublishModal({
       let nextAsset = 0;
       let uploadedAssets = 0;
       let failed = false;
+      // GitHub recommends serial writes and a pause between mutations. Throttle starts,
+      // including on slow networks, so uploads don't exhaust the shared content-creation limit
+      // just before the final tree/commit requests. Keep the first upload immediate.
+      let nextUploadAt = 0;
+      let uploadGate: Promise<void> = Promise.resolve();
+      const reserveUploadSlot = (): Promise<void> => {
+        const turn = uploadGate.then(async () => {
+          const delay = Math.max(0, nextUploadAt - Date.now());
+          if (delay > 0) await new Promise<void>(resolve => setTimeout(resolve, delay));
+          nextUploadAt = Date.now() + UPLOAD_START_INTERVAL_MS;
+        });
+        uploadGate = turn;
+        return turn;
+      };
       if (pending.length) {
         setProgress(tr("Uploading assets… 0/{length}", { length: pending.length }));
       }
-      const uploaders = Array.from({ length: Math.min(4, pending.length) }, async () => {
-        // 1件でも失敗したら、残りは送らない
+      const uploaders = Array.from({ length: Math.min(2, pending.length) }, async () => {
+        // 1件でも失敗したら、予約済みの開始枠からも追加のアップロードを送らない。
         while (!failed && nextAsset < pending.length) {
           const asset = pending[nextAsset++];
+          await reserveUploadSlot();
+          if (failed) return;
           try {
             const uploaded = await postPublish<{ sha: string }>(targets, site,
               { action: "upload", target: site, ...asset },

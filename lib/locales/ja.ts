@@ -2,6 +2,9 @@
 import type { Dict } from "../i18n";
 
 const ja: Dict = {
+  "GitHub is temporarily limiting publishing requests. Wait before trying again.": "GitHubの一時的な利用制限に達しました。時間を空けてから再度公開してください。",
+  "GitHub rejected the published file {path} (422). Check its path and contents.": "GitHubが公開ファイル {path} を受け付けませんでした（422）。ファイル名と内容を確認してください。",
+  "GitHub rejected publish tree batch {batch} of {total} (422). Check the generated files.": "GitHubが公開用ツリーの{batch}/{total}番目のまとまりを受け付けませんでした（422）。書き出すファイルを確認してください。",
   "Contains any": "いずれかを含む",
   "{subject} contains any of {v}": "{subject}が{v}のいずれかを含む",
   "No editing data was found in the ZIP. The HTML will be converted and imported.": "ZIPに編集データが見つかりませんでした。HTMLを変換して読み込みます。",
