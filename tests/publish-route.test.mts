@@ -456,6 +456,7 @@ test("GitHub 422 reports an offending tree entry without reflecting raw API cont
   assert.equal(response.status, 422);
   const body = await response.json();
   assert.ok(body.error.includes("app/page.tsx"));
+  assert.deepEqual(body.treeError, { kind: "validation", path: "app/page.tsx", batch: 1, total: 1 });
   assert.doesNotMatch(body.error, /secret pasted/i);
   assert.equal(f.trees.length, 1);
   assert.deepEqual(f.refUpdates, []);
@@ -472,7 +473,9 @@ test("GitHub 422 invalid blob SHA is linked to its own path, not upstream prose"
     assetShas: { "public/assets/image.png": sha },
   });
   assert.equal(response.status, 422);
-  assert.ok((await response.json()).error.includes("public/assets/image.png"));
+  const data = await response.json();
+  assert.ok(data.error.includes("public/assets/image.png"));
+  assert.equal(data.treeError.path, "public/assets/image.png");
   assert.deepEqual(f.refUpdates, []);
 });
 
@@ -485,7 +488,9 @@ test("GitHub tree abuse throttling is not misreported as a bad file", async () =
   const response = await f.send({ action: "commit", files: { "index.html": "<h1>hello</h1>" } });
   assert.equal(response.status, 429);
   assert.equal(response.headers.get("Retry-After"), "60");
-  assert.match((await response.json()).error, /temporarily limiting publishing requests/);
+  const data = await response.json();
+  assert.match(data.error, /temporarily limiting publishing requests/);
+  assert.deepEqual(data.treeError, { kind: "rate-limit", path: null, batch: 1, total: 1 });
   assert.deepEqual(f.refUpdates, []);
 });
 
