@@ -59,7 +59,7 @@ test("script storage round-trips primitive and structured JSON values locally an
       (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key),
     ) as { storeGet(k: string, shared: boolean): unknown; storeSet(k: string, v: unknown, shared: boolean): void };
   const cases: Array<[string, unknown]> = [
-    ["number", 12], ["string", "0012"], ["text", "日本語 + quoted \"text\""], 
+    ["number", 12], ["string", "0012"], ["text", "日本語 + quoted \"text\""],
     ["json-looking-string", '{"city":"Kyoto"}'], ["prefix-string", "tsumu-store-v1:plain"],
     ["envelope-looking-string", 'tsumu-store-v1:{"value":12,"missing":false}'],
     ["boolean", false], ["null", null],
