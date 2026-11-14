@@ -59,7 +59,10 @@ test("script storage round-trips primitive and structured JSON values locally an
       (value: object, key: string) => Object.prototype.hasOwnProperty.call(value, key),
     ) as { storeGet(k: string, shared: boolean): unknown; storeSet(k: string, v: unknown, shared: boolean): void };
   const cases: Array<[string, unknown]> = [
-    ["number", 12], ["string", "0012"], ["boolean", false], ["null", null],
+    ["number", 12], ["string", "0012"], ["text", "日本語 + quoted \"text\""], 
+    ["json-looking-string", '{"city":"Kyoto"}'], ["prefix-string", "tsumu-store-v1:plain"],
+    ["envelope-looking-string", 'tsumu-store-v1:{"value":12,"missing":false}'],
+    ["boolean", false], ["null", null],
     ["array", [1, false, null, { city: "Kyoto" }]],
     ["dictionary", { a: 1, b: [2] }], ["missing", undefined],
   ];
@@ -68,6 +71,12 @@ test("script storage round-trips primitive and structured JSON values locally an
       storage.storeSet(key, value, shared);
       assert.deepEqual(storage.storeGet(key, shared), value, key);
       assert.equal(cookies.has(key), shared);
+      if (typeof value === "string" && key !== "envelope-looking-string") {
+        const raw = shared
+          ? decodeURIComponent((cookies.get(key) ?? "").slice(key.length + 1))
+          : values.get(key);
+        assert.equal(raw, value, `stored string must be verbatim: ${key}`);
+      }
     }
     assert.equal(storage.storeGet("absent", shared), undefined);
   }
