@@ -13,16 +13,23 @@ const require = createRequire(new URL("../components/PublishModal.tsx", import.m
 const source = readFileSync(new URL("../components/PublishModal.tsx", import.meta.url), "utf8");
 const code = transformSync(source, { loader: "tsx", jsx: "automatic", format: "cjs" }).code;
 const old = "a".repeat(40);
-function fixture({ conflict = false, missingHead = false, asset = false, document, snapshot, analyzeSvg }: {
+function fixture({ conflict = false, missingHead = false, asset = false, document, snapshot, analyzeSvg, commitFailure }: {
   conflict?: boolean; missingHead?: boolean; asset?: boolean; document?: SiteDoc;
   analyzeSvg?: typeof detectSvgFilters;
   snapshot?: { blobs: Record<string, string>; generated: Record<string, string> | null };
+  commitFailure?: { status: number; body: object };
 } = {}) {
   let branch = "main", site = "example";
   let confirm: (yes: boolean) => void = () => { throw new Error("Confirmation not shown"); };
   let waiting = false;
   const writes: any[] = [], published: string[] = [], updates: { index: number; value: any }[] = [];
   const confirmations: string[] = [];
+  const trustedMessages = new Set<string>();
+  const translate = (value: string, vars: Record<string, string | number> = {}) => {
+    const translated = value.replace(/\{([a-zA-Z]+)\}/g, (match, key: string) => vars[key] === undefined ? match : String(vars[key]));
+    trustedMessages.add(translated);
+    return translated;
+  };
   const doc = document ?? { siteName: "Example", assets: {} };
   let documentWrites = 0;
   const store = {
@@ -66,14 +73,15 @@ function fixture({ conflict = false, missingHead = false, asset = false, documen
         },
     },
     "../lib/generator/checks": { runChecks: () => [] },
-    "../lib/errors": { userMessage: (e: Error) => e.message },
+    "../lib/errors": { userMessage: (e: Error, fallback: string) => trustedMessages.has(e.message) ? e.message : fallback },
     "../lib/site": { sitePublishFields: () => ({ site, dest: { repo: "owner/site", branch, previewBranch: "preview" } }) },
-    "../lib/i18n": { tr: (s: string, values: Record<string, string> = {}) => s.replace(/\{(\w+)\}/g, (match, key) => values[key] ?? match), getLang: () => "en" },
+    "../lib/i18n": { tr: translate, getLang: () => "en" },
   };
   const request = async (_url: string, init: RequestInit) => {
     const body = JSON.parse(String(init.body)); writes.push(body);
     if (body.action === "tree") return Response.json({ ...(missingHead ? {} : { head: old }), blobs: { "app/page.tsx": "manual" }, manifest: {}, generated: {}, ...snapshot });
     if (body.dest.branch !== body.expected.productionBranch || conflict) return Response.json({ error: "Destination or head changed; reopen and review." }, { status: 409 });
+    if (body.action === "commit" && commitFailure) return Response.json(commitFailure.body, { status: commitFailure.status });
     return Response.json({ sha: "asset", commitUrl: "https://example.com/commit" });
   };
   const module = { exports: {} as any };
@@ -249,4 +257,30 @@ test("recreating a deleted GitHub file requires confirmation before uploading or
       assert.equal(f.writes.at(-1).expectedHead, old);
     }
   }
+});
+
+
+test("typed GitHub tree failures remain actionable in English without trusting raw API errors", async () => {
+  for (const [status, detail, expected] of [
+    [422, { kind: "validation", path: "app/page.tsx", batch: 1, total: 2 }, "app/page.tsx"],
+    [422, { kind: "validation", path: null, batch: 2, total: 3 }, "batch 2 of 3"],
+    [429, { kind: "rate-limit", path: null, batch: 1, total: 1 }, "temporarily limiting"],
+  ] as const) {
+    const f = fixture({ snapshot: { blobs: {}, generated: {} }, commitFailure: {
+      status, body: { error: "SECRET from the upstream provider", treeError: detail },
+    } });
+    await f.run();
+    assert.deepEqual(f.writes.map(w => w.action), ["tree", "commit"]);
+    assert.deepEqual(f.published, []);
+    const result = f.updates.find(u => typeof u.value?.error === "string");
+    assert.ok(result, "the publish modal should report an actionable error");
+    assert.match(result.value.error, new RegExp(expected.replace(/[.*+?^{}()|[\]\\]/g, "\\$&")));
+    assert.doesNotMatch(result.value.error, /SECRET/);
+  }
+
+  const untyped = fixture({ snapshot: { blobs: {}, generated: {} }, commitFailure: {
+    status: 422, body: { error: "SECRET from an untyped provider failure" },
+  } });
+  await untyped.run();
+  assert.equal(untyped.updates.find(u => typeof u.value?.error === "string")?.value.error, "Couldn't publish");
 });
