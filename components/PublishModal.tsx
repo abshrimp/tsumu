@@ -119,6 +119,8 @@ async function gitBlobShaOf(body: Uint8Array): Promise<string> {
 
 /** これより大きいテキストは先に blob にして、ツリーを作るリクエストを軽くする */
 const INLINE_TEXT_LIMIT = 32 * 1024;
+/** GitHub's content-creation secondary limit is shared by blobs, trees and commits. */
+const UPLOAD_START_INTERVAL_MS = 1000;
 
 /** 保存先にアセットが無い（削除済みなど）。公開は警告を出して続ける */
 class MissingAssetError extends Error {}
@@ -405,13 +407,29 @@ export default function PublishModal({
       let nextAsset = 0;
       let uploadedAssets = 0;
       let failed = false;
+      // GitHub recommends serial writes and a pause between mutations. Throttle starts,
+      // including on slow networks, so uploads don't exhaust the shared content-creation limit
+      // just before the final tree/commit requests. Keep the first upload immediate.
+      let nextUploadAt = 0;
+      let uploadGate: Promise<void> = Promise.resolve();
+      const reserveUploadSlot = (): Promise<void> => {
+        const turn = uploadGate.then(async () => {
+          const delay = Math.max(0, nextUploadAt - Date.now());
+          if (delay > 0) await new Promise<void>(resolve => setTimeout(resolve, delay));
+          nextUploadAt = Date.now() + UPLOAD_START_INTERVAL_MS;
+        });
+        uploadGate = turn;
+        return turn;
+      };
       if (pending.length) {
         setProgress(tr("Uploading assets… 0/{length}", { length: pending.length }));
       }
-      const uploaders = Array.from({ length: Math.min(4, pending.length) }, async () => {
-        // 1件でも失敗したら、残りは送らない
+      const uploaders = Array.from({ length: Math.min(2, pending.length) }, async () => {
+        // 1件でも失敗したら、予約済みの開始枠からも追加のアップロードを送らない。
         while (!failed && nextAsset < pending.length) {
           const asset = pending[nextAsset++];
+          await reserveUploadSlot();
+          if (failed) return;
           try {
             const uploaded = await postPublish<{ sha: string }>(targets, site,
               { action: "upload", target: site, ...asset },
