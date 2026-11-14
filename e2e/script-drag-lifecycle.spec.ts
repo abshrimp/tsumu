@@ -295,7 +295,13 @@ test("drag preview keeps the original input controls and appears above every scr
     className: await original.getAttribute("class"),
     controls: await original.locator("input,select,textarea").count(),
   };
-  await start(page, "step");
+  const rect = (await original.boundingBox())!;
+  await original.dispatchEvent("pointerdown", {
+    pointerId: 1, pointerType: "touch", button: 0, buttons: 1,
+    clientX: rect.x + 6, clientY: rect.y + 6,
+  });
+  const p = await point(page);
+  await pointer(page, "pointermove", { x: p.x - 50, y: p.y - 50 });
   const preview = page.locator('.se-ghost [data-sel-key="step:value"]');
   await expect(preview).toBeVisible();
   expect(await preview.getAttribute("class")).toBe(before.className);
@@ -432,7 +438,8 @@ for (const hasTrailingBlock of [false, true]) {
     const ghost = page.locator('.se-ghost [data-sel-key="step:condition"]');
     await expect(ghost).toBeVisible();
     if (hasTrailingBlock) {
-      await expect(page.locator('.se-ghost [data-sel-key="step:after-condition"]')).toBeVisible();
+      await expect(page.locator('.se-ghost [data-sel-key="step:after-condition"]')).toHaveCount(0);
+      await expect(page.locator('.se-ws [data-sel-key="step:after-condition"]')).toBeVisible();
     }
     const after = await appearance('.se-ghost [data-sel-key="step:condition"]');
     expect(after.controls).toEqual(before.controls);
