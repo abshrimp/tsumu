@@ -171,8 +171,30 @@ async function postPublish<T>(conf: PublishConfig, target: PublishTarget, body: 
     body: JSON.stringify({ ...publishFields(conf, target), ...body }),
   });
   const data = (await res.json().catch(() => null)) as
-    | (T & { error?: string; missing?: boolean })
+    | (T & {
+        error?: string;
+        missing?: boolean;
+        treeError?: { kind?: unknown; path?: unknown; batch?: unknown; total?: unknown };
+      })
     | null;
+  // Only recognize typed error details from our publish endpoint. Do not surface
+  // arbitrary upstream GitHub messages; localize the known templates in the UI
+  // so English, Japanese and other languages all pass the safe-message boundary.
+  const issue = data?.treeError;
+  if (res.status === 429 && issue?.kind === "rate-limit") {
+    throw new Error(tr("GitHub is temporarily limiting publishing requests. Wait before trying again."));
+  }
+  if (res.status === 422 && issue?.kind === "validation") {
+    if (typeof issue.path === "string") {
+      throw new Error(tr("GitHub rejected the published file {path} (422). Check its path and contents.", { path: issue.path }));
+    }
+    if (typeof issue.batch === "number" && Number.isInteger(issue.batch) && issue.batch > 0 &&
+        typeof issue.total === "number" && Number.isInteger(issue.total) && issue.total >= issue.batch) {
+      throw new Error(tr("GitHub rejected publish tree batch {batch} of {total} (422). Check the generated files.", {
+        batch: issue.batch, total: issue.total,
+      }));
+    }
+  }
   if (res.status === 409) throw new PublishConflictError(data?.error ?? tr(publishConflictMessage));
   if (data?.missing) {
     throw new MissingAssetError(data.error ?? fallback);
