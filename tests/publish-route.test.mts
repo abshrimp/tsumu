@@ -454,7 +454,7 @@ test("GitHub 422 reports an offending tree entry without reflecting raw API cont
   const response = await f.send({ action: "commit", files: { "app/page.tsx": "page" } });
   assert.equal(response.status, 422);
   const body = await response.json();
-  assert.match(body.error, /app\\/page\\.tsx/);
+  assert.ok(body.error.includes("app/page.tsx"));
   assert.doesNotMatch(body.error, /secret pasted/i);
   assert.equal(f.trees.length, 1);
   assert.deepEqual(f.refUpdates, []);
@@ -471,7 +471,7 @@ test("GitHub 422 invalid blob SHA is linked to its own path, not upstream prose"
     assetShas: { "public/assets/image.png": sha },
   });
   assert.equal(response.status, 422);
-  assert.match((await response.json()).error, /public\\/assets\\/image\\.png/);
+  assert.ok((await response.json()).error.includes("public/assets/image.png"));
   assert.deepEqual(f.refUpdates, []);
 });
 
