@@ -90,6 +90,71 @@ interface TreeItem {
   sha?: string;
 }
 
+/**
+ * GitHub's 422 body may identify the invalid entry. Do not forward its raw message:
+ * GitHub can quote submitted content, including user data, in validation errors.
+ */
+async function describeTreeRejection(
+  res: Response,
+  chunk: TreeItem[],
+  batch: number,
+  total: number,
+  tr: (key: string, values?: Record<string, string | number>) => string
+): Promise<{ message: string; rateLimited: boolean; retryAfter: string | null }> {
+  let payload: unknown;
+  try { payload = await res.clone().json(); } catch { /* HTML/non-JSON API error */ }
+  const body = payload && typeof payload === "object" && !Array.isArray(payload)
+    ? payload as { message?: unknown; errors?: unknown } : null;
+  const upstreamMessage = typeof body?.message === "string" ? body.message : "";
+  const errors = Array.isArray(body?.errors) ? body.errors : [];
+  const retryHeader = res.headers.get("retry-after");
+  const retryAfter = retryHeader && /^\\d{1,4}$/.test(retryHeader) ? retryHeader : null;
+  const rateLimited = !!retryAfter ||
+    /secondary rate limit|abuse detection|too many requests|endpoint has been spammed|temporarily blocked/i.test(upstreamMessage);
+
+  let invalidIndex = -1;
+  const diagnostics: { field?: string; code?: string; index?: number }[] = [];
+  for (const item of errors.slice(0, 5)) {
+    if (!item || typeof item !== "object") continue;
+    const error = item as { field?: unknown; code?: unknown; index?: unknown; value?: unknown };
+    const index = typeof error.index === "number" && Number.isInteger(error.index) &&
+      error.index >= 0 && error.index < chunk.length ? error.index : -1;
+    if (invalidIndex < 0) {
+      if (index >= 0) invalidIndex = index;
+      else if (typeof error.value === "string") invalidIndex = chunk.findIndex(entry => entry.path === error.value);
+    }
+    diagnostics.push({
+      field: typeof error.field === "string" && /^[a-zA-Z0-9_.-]{1,64}$/.test(error.field) ? error.field : undefined,
+      code: typeof error.code === "string" && /^[a-zA-Z0-9_.-]{1,64}$/.test(error.code) ? error.code : undefined,
+      index: index < 0 ? undefined : index,
+    });
+  }
+  // Some GitHub versions put the offending object SHA only in the top-level message.
+  // Match it against our own entries; never expose arbitrary upstream message content.
+  if (invalidIndex < 0) {
+    const sha = upstreamMessage.match(/\\b[0-9a-f]{40}\\b/i)?.[0];
+    if (sha) invalidIndex = chunk.findIndex(entry => entry.sha?.toLowerCase() === sha.toLowerCase());
+  }
+  console.warn("GitHub rejected a publish tree", {
+    status: res.status, batch, total, entries: chunk.length,
+    reason: rateLimited ? "rate-limit" : "validation",
+    invalidIndex: invalidIndex < 0 ? undefined : invalidIndex,
+    diagnostics,
+  });
+
+  if (rateLimited) {
+    return {
+      message: tr("GitHub is temporarily limiting publishing requests. Wait before trying again."),
+      rateLimited: true,
+      retryAfter,
+    };
+  }
+  const message = invalidIndex >= 0
+    ? tr("GitHub rejected the published file {path} (422). Check its path and contents.", { path: chunk[invalidIndex].path })
+    : tr("GitHub rejected publish tree batch {batch} of {total} (422). Check the generated files.", { batch, total });
+  return { message, rateLimited: false, retryAfter: null };
+}
+
 /** 公開先の設定状況（?site= のサイト。公開ダイアログの表示に使う） */
 export async function GET(req: Request) {
   const tr = await serverTr();
@@ -528,13 +593,20 @@ export async function POST(req: Request) {
     if (current.length) chunks.push(current);
 
     let treeSha: string | undefined;
-    for (const chunk of chunks) {
+    for (const [index, chunk] of chunks.entries()) {
       const treeRes = await gh(`/git/trees`, {
         method: "POST",
         body: JSON.stringify(
           treeSha ? { base_tree: treeSha, tree: chunk } : { tree: chunk }
         ),
       });
+      if (treeRes.status === 422) {
+        const issue = await describeTreeRejection(treeRes, chunk, index + 1, chunks.length, tr);
+        return NextResponse.json({ error: issue.message }, {
+          status: issue.rateLimited ? 429 : 422,
+          headers: issue.retryAfter ? { "Retry-After": issue.retryAfter } : undefined,
+        });
+      }
       if (!treeRes.ok) await fail(tr("Creating the tree"), treeRes);
       treeSha = (await treeRes.json()).sha as string;
     }
