@@ -108,7 +108,7 @@ async function describeTreeRejection(
   const upstreamMessage = typeof body?.message === "string" ? body.message : "";
   const errors = Array.isArray(body?.errors) ? body.errors : [];
   const retryHeader = res.headers.get("retry-after");
-  const retryAfter = retryHeader && /^\\d{1,4}$/.test(retryHeader) ? retryHeader : null;
+  const retryAfter = retryHeader && /^[0-9]{1,4}$/.test(retryHeader) ? retryHeader : null;
   const rateLimited = !!retryAfter ||
     /secondary rate limit|abuse detection|too many requests|endpoint has been spammed|temporarily blocked/i.test(upstreamMessage);
 
@@ -132,7 +132,7 @@ async function describeTreeRejection(
   // Some GitHub versions put the offending object SHA only in the top-level message.
   // Match it against our own entries; never expose arbitrary upstream message content.
   if (invalidIndex < 0) {
-    const sha = upstreamMessage.match(/\\b[0-9a-f]{40}\\b/i)?.[0];
+    const sha = upstreamMessage.match(/[0-9a-f]{40}/i)?.[0];
     if (sha) invalidIndex = chunk.findIndex(entry => entry.sha?.toLowerCase() === sha.toLowerCase());
   }
   console.warn("GitHub rejected a publish tree", {
