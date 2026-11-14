@@ -100,7 +100,7 @@ async function describeTreeRejection(
   batch: number,
   total: number,
   tr: (key: string, values?: Record<string, string | number>) => string
-): Promise<{ message: string; rateLimited: boolean; retryAfter: string | null }> {
+): Promise<{ message: string; rateLimited: boolean; retryAfter: string | null; path: string | null }> {
   let payload: unknown;
   try { payload = await res.clone().json(); } catch { /* HTML/non-JSON API error */ }
   const body = payload && typeof payload === "object" && !Array.isArray(payload)
@@ -147,12 +147,13 @@ async function describeTreeRejection(
       message: tr("GitHub is temporarily limiting publishing requests. Wait before trying again."),
       rateLimited: true,
       retryAfter,
+      path: null,
     };
   }
   const message = invalidIndex >= 0
     ? tr("GitHub rejected the published file {path} (422). Check its path and contents.", { path: chunk[invalidIndex].path })
     : tr("GitHub rejected publish tree batch {batch} of {total} (422). Check the generated files.", { batch, total });
-  return { message, rateLimited: false, retryAfter: null };
+  return { message, rateLimited: false, retryAfter: null, path: invalidIndex >= 0 ? chunk[invalidIndex].path : null };
 }
 
 /** 公開先の設定状況（?site= のサイト。公開ダイアログの表示に使う） */
@@ -602,7 +603,15 @@ export async function POST(req: Request) {
       });
       if (treeRes.status === 422) {
         const issue = await describeTreeRejection(treeRes, chunk, index + 1, chunks.length, tr);
-        return NextResponse.json({ error: issue.message }, {
+        return NextResponse.json({
+          error: issue.message,
+          treeError: {
+            kind: issue.rateLimited ? "rate-limit" : "validation",
+            path: issue.path,
+            batch: index + 1,
+            total: chunks.length,
+          },
+        }, {
           status: issue.rateLimited ? 429 : 422,
           headers: issue.retryAfter ? { "Retry-After": issue.retryAfter } : undefined,
         });
