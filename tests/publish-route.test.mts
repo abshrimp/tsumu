@@ -29,6 +29,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
   const refUpdates: { sha: string; force: boolean }[] = [];
   const uploaded: { content: string; encoding: string }[] = [];
   let recorded = false;
+  let treeRejection: { body: object; headers?: Record<string, string> } | null = null;
   const gh = async (path: string, options: { body?: string } = {}) => {
     if (options.body) writes.push(path);
     if (path.startsWith("/git/ref/heads/")) return NextResponse.json({ object: { sha: "head" } });
@@ -42,6 +43,7 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
     }
     if (path === "/git/trees") {
       trees.push(JSON.parse(options.body!));
+      if (treeRejection) return NextResponse.json(treeRejection.body, { status: 422, headers: treeRejection.headers });
       return NextResponse.json({ sha: "new-tree" });
     }
     if (path === "/git/commits") return NextResponse.json({ sha: "new-commit" });
@@ -85,7 +87,11 @@ function fixture(truncated?: boolean, manifestText?: string, documentBlob?: stri
   const send = (body: object) => post(new Request("https://example.com/api/publish", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ expected: { site: "site", target: "production", repo: "test/site", branch: "main", productionBranch: "main" }, expectedHead: "head", exportOptions: { framework: "nextjs", language: "typescript", style: "css" }, ...body, site: "site", target: "production" }),
   }));
-  return { entries, trees, writes, refUpdates, uploaded, send, get recorded() { return recorded; } };
+  return {
+    entries, trees, writes, refUpdates, uploaded, send,
+    rejectTree(body: object, headers?: Record<string, string>) { treeRejection = { body, headers }; },
+    get recorded() { return recorded; },
+  };
 }
 
 test("公開 API は手で追加した Git の項目をモード・種類ごと保持する", async () => {
@@ -436,4 +442,59 @@ test("publication rejects padded credential headers before any remote write", as
     assert.deepEqual(f.writes, []);
     assert.deepEqual(f.uploaded, []);
   }
+});
+
+
+test("GitHub 422 reports an offending tree entry without reflecting raw API content", async () => {
+  const f = fixture();
+  f.rejectTree({
+    message: "Validation Failed: secret pasted into an upstream error",
+    errors: [{ resource: "Tree", field: "tree", code: "invalid", index: 0, message: "secret pasted into an upstream error" }],
+  });
+  const response = await f.send({ action: "commit", files: { "app/page.tsx": "page" } });
+  assert.equal(response.status, 422);
+  const body = await response.json();
+  assert.match(body.error, /app\\/page\\.tsx/);
+  assert.doesNotMatch(body.error, /secret pasted/i);
+  assert.equal(f.trees.length, 1);
+  assert.deepEqual(f.refUpdates, []);
+  assert.equal(f.recorded, false);
+});
+
+test("GitHub 422 invalid blob SHA is linked to its own path, not upstream prose", async () => {
+  const f = fixture();
+  const sha = "d".repeat(40);
+  f.rejectTree({ message: `tree.sha ${sha} is not a valid blob` });
+  const response = await f.send({
+    action: "commit",
+    files: { "app/page.tsx": "page" },
+    assetShas: { "public/assets/image.png": sha },
+  });
+  assert.equal(response.status, 422);
+  assert.match((await response.json()).error, /public\\/assets\\/image\\.png/);
+  assert.deepEqual(f.refUpdates, []);
+});
+
+test("GitHub tree abuse throttling is not misreported as a bad file", async () => {
+  const f = fixture();
+  f.rejectTree({
+    message: "You have triggered an abuse detection mechanism",
+    errors: [],
+  }, { "Retry-After": "60" });
+  const response = await f.send({ action: "commit", files: { "index.html": "<h1>hello</h1>" } });
+  assert.equal(response.status, 429);
+  assert.equal(response.headers.get("Retry-After"), "60");
+  assert.match((await response.json()).error, /temporarily limiting publishing requests/);
+  assert.deepEqual(f.refUpdates, []);
+});
+
+test("unrecognized GitHub 422 errors report the tree batch without revealing untrusted prose", async () => {
+  const f = fixture();
+  f.rejectTree({ message: "Unrecognized payload with sensitive user data" });
+  const response = await f.send({ action: "commit", files: { "index.html": "<h1>hello</h1>" } });
+  assert.equal(response.status, 422);
+  const message = (await response.json()).error;
+  assert.match(message, /batch 1 of 1/);
+  assert.doesNotMatch(message, /sensitive user data/);
+  assert.deepEqual(f.refUpdates, []);
 });
