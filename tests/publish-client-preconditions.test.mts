@@ -274,7 +274,7 @@ test("typed GitHub tree failures remain actionable in English without trusting r
     assert.deepEqual(f.published, []);
     const result = f.updates.find(u => typeof u.value?.error === "string");
     assert.ok(result, "the publish modal should report an actionable error");
-    assert.match(result.value.error, new RegExp(expected.replace(/[.*+?^{}()|[\]\\]/g, "\\$&")));
+    assert.ok(result.value.error.includes(expected));
     assert.doesNotMatch(result.value.error, /SECRET/);
   }
 
