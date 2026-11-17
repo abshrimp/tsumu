@@ -37,7 +37,7 @@ import { loadServerStatus, type ServerStatus } from "../lib/status";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { createLocalBrowserSite } from "../lib/browser-site-create";
 import { resolveMcpEndpoint } from "../lib/external-edit/config";
-import { draftFromLocation, prepareDraftSignIn, clearDraftLink, type DraftLink } from "../lib/external-edit/draft-link";
+import { draftFromLocation, hasDraftResumeMarker, resumeDraftAfterSignIn, prepareDraftSignIn, clearDraftLink, type DraftLink } from "../lib/external-edit/draft-link";
 import { createBrowserDoc, deleteBrowserDoc, readBrowserDoc } from "../lib/browser-doc-storage";
 import { siteThumbnailImages, type SiteThumbnailImage } from "../lib/site-thumbnail";
 import { storageKey } from "../lib/storage-keys";
@@ -589,12 +589,13 @@ export default function Home() {
   const importFileInput = useRef<HTMLInputElement>(null);
   const importActive = useRef(false);
   const [initialDraft] = useState(draftFromLocation);
+  const [resumeRequested] = useState(hasDraftResumeMarker);
   const pendingDraft = useRef(initialDraft);
   const [draggingFile, setDraggingFile] = useState(false);
   const [importStatus, setImportStatus] = useState<
     { kind: "loading"; message: string; source?: "remote" } |
     { kind: "error"; message: string; source?: "remote" } | null
-  >(() => initialDraft
+  >(() => initialDraft || resumeRequested
     ? { kind: "loading", message: tr("Reading edit data…"), source: "remote" } : null);
 
   useEffect(() => {
@@ -672,9 +673,10 @@ export default function Home() {
   }, []);
 
   const load = useCallback(async (isCurrent: () => boolean = () => true) => {
-    const draft = pendingDraft.current;
+    let draft = pendingDraft.current;
+    const resumingDraft = hasDraftResumeMarker();
     setLoadError(null);
-    if (draft) setImportStatus({ kind: "loading", message: tr("Reading edit data…"), source: "remote" });
+    if (draft || resumingDraft) setImportStatus({ kind: "loading", message: tr("Reading edit data…"), source: "remote" });
     try {
       const statusRequest = loadServerStatus().then(value => {
         if (isCurrent()) setStatus(value);
@@ -683,9 +685,17 @@ export default function Home() {
       const res = await fetch("/api/sites");
       if (!isCurrent()) return;
       if (res.status === 401) {
-        const marker = prepareDraftSignIn(draft, tr("Sign in, then reopen your original import link. This browser could not keep it during sign-in."));
+        const marker = await prepareDraftSignIn(draft, tr("Sign in, then reopen your original import link. This browser could not keep it during sign-in."));
+        if (!isCurrent()) return;
+        if (marker === null) throw new Error(tr("Could not restore the site."));
         window.location.href = "/login" + marker;
         return;
+      }
+      if (!draft && resumingDraft) {
+        draft = await resumeDraftAfterSignIn();
+        if (!isCurrent()) return;
+        if (!draft) throw new Error(tr("Could not restore the site."));
+        pendingDraft.current = draft;
       }
       const mode: Store = res.status === 503 ? "local" : "server";
       let list: SiteRecord[];
@@ -709,7 +719,7 @@ export default function Home() {
     } catch (error) {
       if (!isCurrent()) return;
       const message = error instanceof Error ? error.message : tr("Couldn't load");
-      if (draft) setImportStatus({ kind: "error", message, source: "remote" });
+      if (draft || resumingDraft) setImportStatus({ kind: "error", message, source: "remote" });
       else setLoadError(message);
       setSites((prev) => prev ?? []);
     }
@@ -717,7 +727,7 @@ export default function Home() {
 
   useEffect(() => {
     let current = true;
-    if (!pendingDraft.current) clearDraftLink();
+    if (!pendingDraft.current && !hasDraftResumeMarker()) clearDraftLink();
     void load(() => current);
     return () => { current = false; };
   }, [load]);

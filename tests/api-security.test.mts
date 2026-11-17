@@ -165,6 +165,9 @@ describe("api-auth-runtime", () => {
       const methods = Object.keys(route.handlers).filter(m => ["GET", "POST", "PUT", "PATCH", "DELETE"].includes(m));
       assert.ok(methods.length > 0, name + " must expose an HTTP method");
       for (const method of methods) {
+        // The encrypted OAuth handoff is intentionally staged or discarded before sign-in.
+        // Only its credential-consuming PATCH handler requires an authenticated editor.
+        if (name === "external-edit/draft-handoff/route.ts" && (method === "POST" || method === "DELETE")) continue;
         const handler = route.handlers[method] as (request: Request, context: unknown) => Promise<Response>;
         const endpoint = "/api/" + name.slice(0, -"/route.ts".length).replace("[id]", "site");
         const request = new Request("https://editor.example.test" + endpoint, { method });
@@ -1232,7 +1235,7 @@ function load(path: string, mocks: Record<string, unknown>): any {
   return module.exports;
 }
 
-function fixture({ cookie = true, allowed = false, configured = true, anonymous = false } = {}) {
+function fixture({ cookie = true, allowed = false, configured = true, anonymous = false, draftCookie = false } = {}) {
   class NextResponse extends Response {
     static next() { return new NextResponse(null, { headers: { "x-middleware-next": "1" } }); }
     static redirect(url: URL) { return new NextResponse(null, { status: 307, headers: { location: url.href } }); }
@@ -1254,6 +1257,7 @@ function fixture({ cookie = true, allowed = false, configured = true, anonymous 
   const redirect = (destination: string) => { throw new Error(`redirect:${destination}`); };
   const login = load("../app/login/page.tsx", {
     "../../auth": auth, "next/navigation": { redirect },
+    "next/headers": { cookies: async () => ({ has: (name: string) => draftCookie && name === "tsumu-import-handoff" }) },
     "../../lib/i18n-server": { serverTr },
   }).default;
   const { requireAuth } = load("../lib/server.ts", {
@@ -1298,6 +1302,11 @@ test("an already authorized session carries only the import marker from Login to
   await assert.rejects(f.login(undefined, "1"), { message: "redirect:/?resume-import=1" });
   await assert.rejects(f.login(undefined, "0"), { message: "redirect:/" });
   await assert.rejects(f.login(), { message: "redirect:/" });
+});
+
+test("an OAuth error page preserves the encrypted handoff marker for an authorized session", async () => {
+  const f = fixture({ allowed: true, draftCookie: true });
+  await assert.rejects(f.login("OAuthCallbackError"), { message: "redirect:/?resume-import=1" });
 });
 
 test("signed-out users still see login and brand icons while protected pages/API requests remain blocked", async () => {

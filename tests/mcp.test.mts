@@ -1,6 +1,6 @@
 import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { clearDraftLink, draftFromLocation, prepareDraftSignIn } from "../lib/external-edit/draft-link";
+import { clearDraftLink, draftFromLocation, hasDraftResumeMarker, prepareDraftSignIn, resumeDraftAfterSignIn } from "../lib/external-edit/draft-link";
 import { DEFAULT_MCP_ENDPOINT, resolveMcpEndpoint } from "../lib/external-edit/config";
 import { MCP_PAIRING_HISTORY_COOKIE, rememberMcpPairingCodeIssued } from "../lib/external-edit/pairing-history";
 import { fakeIndexedDB } from "./helpers/fake-indexeddb";
@@ -8,42 +8,71 @@ import { createLocalBrowserSite } from "../lib/browser-site-create";
 import { readBrowserDoc } from "../lib/browser-doc-storage";
 import { loadLocalSites } from "../lib/site";
 
-test("Google sign-in resumes the draft in the same tab without putting its credential in the callback", () => {
+test("Google OAuth resumes drafts without storing their secrets in Web Storage or callback URLs", async () => {
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const originalFetch = globalThis.fetch;
   const secret = "s".repeat(43);
   const id = "12345678-1234-4234-8234-123456789abc";
   const location = new URL(`https://tsumu.test/login#tsumu-import=${id}.${secret}`);
-  const items = new Map<string, string>();
+  const requests: Array<{ method: string; body?: unknown }> = [];
+  let pending: unknown = null;
+  let alerts = 0;
   Object.defineProperty(globalThis, "window", { configurable: true, value: {
     location,
     history: { replaceState(_state: unknown, _title: string, url: string) { location.href = new URL(url, location).href; } },
-    sessionStorage: { setItem: (k: string, v: string) => items.set(k, v), getItem: (k: string) => items.get(k), removeItem: (k: string) => items.delete(k) },
+    sessionStorage: {
+      setItem: () => { throw new Error("Session storage must not receive credentials"); },
+      getItem: () => { throw new Error("Session storage must not be read"); },
+      removeItem: () => { throw new Error("Session storage must not be used"); },
+    },
+    alert: () => { alerts++; },
   } });
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    assert.equal(input, "/api/external-edit/draft-handoff");
+    const method = init?.method ?? "GET";
+    const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
+    requests.push({ method, body });
+    if (method === "POST") pending = body;
+    if (method === "DELETE") pending = null;
+    if (method === "PATCH") {
+      const draft = pending;
+      pending = null;
+      return Response.json({ draft });
+    }
+    return Response.json({ ok: true });
+  }) as typeof fetch;
   try {
-    const callback = "/" + prepareDraftSignIn(draftFromLocation(), "Storage unavailable");
+    const callback = "/" + await prepareDraftSignIn(draftFromLocation(), "Storage unavailable");
     assert.equal(callback, "/?resume-import=1");
     assert.equal(location.hash, "");
+    assert.equal(requests[0].method, "POST");
+    assert.deepEqual(requests[0].body, { id, secret });
+    assert.equal(alerts, 0);
     location.href = "https://tsumu.test/login?error=AccessDenied";
-    const retry = "/" + prepareDraftSignIn(draftFromLocation(), "Storage unavailable");
-    assert.equal(retry, callback, "retrying with a permitted Google account resumes the same import");
+    const retry = "/" + await prepareDraftSignIn(draftFromLocation(), "Storage unavailable", true);
+    assert.equal(retry, callback, "a failed Google sign-in may retry the same pending import");
     location.href = "https://tsumu.test/?error=AccessDenied";
-    assert.equal(draftFromLocation(), null, "an error on Home cannot activate a pending draft");
-    // Cancelled sign-in must not import a draft on an ordinary Home visit.
-    location.pathname = "/";
-    location.search = "";
+    assert.equal(hasDraftResumeMarker(), false, "unrelated navigation cannot import a pending draft");
     assert.equal(draftFromLocation(), null);
     location.href = new URL(callback + "&lang=en", location).href;
-    assert.deepEqual(draftFromLocation(), { id, secret });
+    assert.equal(hasDraftResumeMarker(), true);
+    assert.deepEqual(await resumeDraftAfterSignIn(), { id, secret });
+    assert.equal(await resumeDraftAfterSignIn(), null, "handoff is consumed after first retrieval");
     clearDraftLink();
     assert.equal(location.search, "?lang=en");
-    assert.equal(items.size, 0);
     assert.equal(draftFromLocation(), null);
-    prepareDraftSignIn({ id, secret }, "Storage unavailable");
+    assert.equal(hasDraftResumeMarker(), false);
+    await prepareDraftSignIn({ id, secret }, "Storage unavailable");
     location.href = "https://tsumu.test/login";
-    assert.equal(prepareDraftSignIn(draftFromLocation(), "Storage unavailable"), "");
+    assert.equal(await prepareDraftSignIn(draftFromLocation(), "Storage unavailable"), "");
+    assert.equal(requests.at(-1)?.method, "DELETE");
     location.search = "?error=OAuthCallbackError";
-    assert.equal(draftFromLocation(), null, "a later unrelated sign-in cannot resume the abandoned draft");
+    assert.equal(await prepareDraftSignIn(draftFromLocation(), "Storage unavailable", false), "",
+      "a new sign-in cannot reuse a previous handoff");
+    assert.equal(alerts, 0);
+    assert.doesNotMatch(JSON.stringify(requests.map(({ method }) => method)), new RegExp(secret));
   } finally {
+    globalThis.fetch = originalFetch;
     if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
     else Reflect.deleteProperty(globalThis, "window");
   }

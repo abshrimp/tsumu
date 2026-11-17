@@ -21,6 +21,11 @@ export async function proxy(req: NextRequest) {
   if (pathname.startsWith("/api/") && isCrossSiteWrite(req)) {
     return NextResponse.json({ error: en ? "Cross-site requests are not allowed" : "ほかのサイトからのリクエストは受け付けません" }, { status: 403 });
   }
+  // Allow saving or discarding the encrypted OAuth handoff before authentication.
+  // Retrieval still requires an authenticated, authorized user.
+  if (pathname === "/api/external-edit/draft-handoff" && (req.method === "POST" || req.method === "DELETE")) {
+    return NextResponse.next();
+  }
   // Google 認証が未設定なら、ALLOW_ANONYMOUS=true（または npm run dev）のときだけ、ログインなしで開ける
   //（URL を知っている人は、誰でも編集・公開できる）
   if (!authConfigured()) {

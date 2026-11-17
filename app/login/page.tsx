@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { auth, authConfigured } from "../../auth";
 import { Globe, MousePointerClick, Smartphone } from "lucide-react";
 import { DRAFT_RESUME_PARAM } from "../../lib/external-edit/draft-link";
+import { DRAFT_HANDOFF_COOKIE } from "../../lib/external-edit/draft-handoff";
 import GoogleSignIn from "../../components/GoogleSignIn";
 import BrandMark from "../../components/BrandMark";
 import { serverTr } from "../../lib/i18n-server";
@@ -72,9 +74,10 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string; [DRAFT_RESUME_PARAM]?: string }>;
 }) {
   const { error, [DRAFT_RESUME_PARAM]: resume } = await searchParams;
+  const resumeAfterError = !!error && (await cookies()).has(DRAFT_HANDOFF_COOKIE);
   // Edge での Cookie の検証と違い、auth() は現在の許可リストも確認する。
   if (authConfigured() && await auth()) {
-    redirect(resume === "1" ? `/?${DRAFT_RESUME_PARAM}=1` : "/");
+    redirect(resume === "1" || resumeAfterError ? `/?${DRAFT_RESUME_PARAM}=1` : "/");
   }
   const tr = await serverTr();
   return (
@@ -118,6 +121,7 @@ export default async function LoginPage({
             label={tr("Sign in with Google")}
             busyLabel={tr("Redirecting to Google…")}
             resumeError={tr("Sign in, then reopen your original import link. This browser could not keep it during sign-in.")}
+            resumeAfterError={resumeAfterError}
           />
           <p className="login-note">{tr("Sign in with a Google account that has been granted access.")}</p>
         </div>
