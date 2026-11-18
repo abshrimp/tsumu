@@ -1,23 +1,23 @@
 // @ts-ignore .open-next/worker.js はビルド時に生成される
-import nextHandler from "./.open-next/worker.js";
+import nextHandler from "../.open-next/worker.js";
 import { DurableObject } from "cloudflare:workers";
-import { getDbFromBinding, type D1LikeDatabase } from "./lib/db";
-import { runAssetGc, type AssetGcDocumentNamespace } from "./lib/asset-gc";
-import type { KVLikeNamespace } from "./lib/kv";
+import { getDbFromBinding, type D1LikeDatabase } from "../lib/db";
+import { runAssetGc, type AssetGcDocumentNamespace } from "../lib/asset-gc";
+import type { KVLikeNamespace } from "../lib/kv";
 export { DocumentRoom } from "./document-room";
-import { validateDocBody, type SaveDocResult } from "./lib/doc-storage";
+import { validateDocBody, type SaveDocResult } from "../lib/doc-storage";
 import type {
   CollabClientMessage,
   DocChangeMessage,
-} from "./lib/collab";
-import { parseActivityUser, recordActivity, type ActivityUser } from "./lib/activity";
-import { isSiteId } from "./lib/site-model";
-import { getSiteRoomKey, recordSiteSavedAt } from "./lib/sites";
-import { getAccountRole, isEmailAllowed, parseAllowedEmails } from "./lib/allowlist";
-import { collaborationIdentityAllowed } from "./lib/anonymous";
-import { isDocPatch } from "./lib/doc-patch";
-import { extractAssetReferences } from "./lib/asset-gc-plan";
-import { siteOwnsAssets } from "./lib/site-asset-access";
+} from "../lib/collab";
+import { parseActivityUser, recordActivity, type ActivityUser } from "../lib/activity";
+import { isSiteId } from "../lib/site-model";
+import { getSiteRoomKey, recordSiteSavedAt } from "../lib/sites";
+import { getAccountRole, isEmailAllowed, parseAllowedEmails } from "../lib/allowlist";
+import { collaborationIdentityAllowed } from "../lib/anonymous";
+import { isDocPatch } from "../lib/doc-patch";
+import { extractAssetReferences } from "../lib/asset-gc-plan";
+import { siteOwnsAssets } from "../lib/site-asset-access";
 
 interface WorkerEnv {
   COLLAB_ROOM: DurableObjectNamespace<CollaborationRoom>;
@@ -263,7 +263,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
         getSnapshot(): Promise<{ body: string; rev: string; savedAt: number } | null>;
         getMetadata(): Promise<{ rev: string; savedAt: number } | null>;
         replaceDocument(raw: string, base: string | null): Promise<SaveDocResult>;
-        patchDocument(patch: import("./lib/doc-patch").DocPatch, base: string): Promise<SaveDocResult>;
+        patchDocument(patch: import("../lib/doc-patch").DocPatch, base: string): Promise<SaveDocResult>;
       };
       if (input.type === "load") {
         // 再接続した編集者は、すでにこの版を持っている。メタデータだけを照会すれば、
@@ -524,4 +524,4 @@ export default {
 
 // OpenNext 側でこれらを有効にした場合も、カスタム Worker から公開できるようにする
 // @ts-ignore .open-next/worker.js はビルド時に生成される
-export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "./.open-next/worker.js";
+export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "../.open-next/worker.js";

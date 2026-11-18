@@ -1253,7 +1253,7 @@ function assetDeleteRoute({ backend = "d1", configured = true, siteExists = true
       siteOwnsAssets: async (_db: unknown, _site: string, paths: string[]) => !paths.includes("assets/unowned.png"),
     },
     "../../../lib/site-model": { isSiteId: () => true },
-    "../../../auth": { authConfigured: () => false },
+    "../../../lib/auth": { authConfigured: () => false },
     "../../../lib/allowlist": { allowedEmails: () => [] },
     "../../../lib/kv": { assetStore: () => ({ async delete() { deleted++; } }), MAX_ASSET_BYTES: 25 * 1024 * 1024 },
     "../../../lib/errors": { userMessage: (_e: unknown, fallback: string) => fallback },
@@ -2182,11 +2182,11 @@ describe("asset-font-cors", () => {
     const auth = { authConfigured: () => configured, auth: async () => { authCalls++; return session ? { user: { email: "editor@example.test" } } : null; } };
     const serverTr = async () => (text: string) => text;
     const { requireAuth } = load("../lib/server.ts", {
-      "next/server": { NextResponse }, "../auth": auth,
+      "next/server": { NextResponse }, "./auth": auth,
       "./i18n-server": { serverTr }, "./anonymous": { anonymousAllowed: () => anonymous },
     });
     const { GET } = load("../app/api/assets/file/route.ts", {
-      "next/server": { NextResponse }, "../../../../auth": auth,
+      "next/server": { NextResponse }, "../../../../lib/auth": auth,
       "../../../../lib/server": { requireAuth }, "../../../../lib/i18n-server": { serverTr },
       "../../../../lib/asset-token": { verifyAssetToken },
       "../../../../lib/kv": { assetStore: () => ({
@@ -2443,7 +2443,7 @@ function trashRoute({
     "../../../../lib/server": { requireAuth: async () => null, sessionUser: async () => null },
     "../../../../lib/site-access": { requireSiteAccess: async () => null },
     "../../../../lib/allowlist": { allowedEmails: () => [] },
-    "../../../../auth": { authConfigured: () => false },
+    "../../../../lib/auth": { authConfigured: () => false },
     "../../../../lib/site-server": { siteIdOf: async (site: unknown) => site === "site" ? "site"
       : NextResponse.json({ error: "Invalid site" }, { status: 400 }) },
     "../../../../lib/asset-gc-plan": { assetUploadedAt },
@@ -3168,7 +3168,7 @@ test("POST /api/assets enforces SVG extension/MIME parity and static SVG safety"
     "../../../lib/site-access": { requireSiteAccess: async () => null },
     "../../../lib/site-asset-access": { siteHasAsset: async () => true, siteOwnsAssets: async () => true },
     "../../../lib/site-model": { isSiteId: () => true },
-    "../../../auth": { authConfigured: () => false },
+    "../../../lib/auth": { authConfigured: () => false },
     "../../../lib/allowlist": { allowedEmails: () => [] },
     "../../../lib/kv": {
       assetStore: () => ({ async put(path: string) { stored.push(path); } }),

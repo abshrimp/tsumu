@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { proxyAuth, authConfigured } from "./auth";
+import { proxyAuth, authConfigured } from "./lib/auth";
 import { langOfRequest } from "./lib/lang";
 import { isCrossSiteWrite } from "./lib/csrf";
 import { anonymousAllowed, anonymousHostAllowed } from "./lib/anonymous";

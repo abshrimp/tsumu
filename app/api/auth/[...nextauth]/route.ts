@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { authConfigured, handlers } from "../../../../auth";
+import { authConfigured, handlers } from "../../../../lib/auth";
 import { serverTr } from "../../../../lib/i18n-server";
 
 async function handle(req: NextRequest) {

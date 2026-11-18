@@ -1,7 +1,7 @@
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import Google from "next-auth/providers/google";
-import { envVar } from "./lib/env";
-import { authCallbacks } from "./lib/auth-policy";
+import { envVar } from "./env";
+import { authCallbacks } from "./auth-policy";
 
 /**
  * Google 認証の環境変数が揃っているか。揃っていなければ、ログインなしで開ける（proxy.ts）。

@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/TypeScript-7-3178c6?logo=typescript&logoColor=white" alt="TypeScript 7">
   <img src="https://img.shields.io/badge/deploy-Cloudflare%20%7C%20Node.js%20%7C%20Docker-555" alt="Runs on Cloudflare, Node.js and Docker">
   <img src="https://img.shields.io/badge/i18n-English%20%7C%20%E6%97%A5%E6%9C%AC%E8%AA%9E-555" alt="English and Japanese">
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-2ea44f" alt="PRs welcome"></a>
+  <a href=".github/CONTRIBUTING.md"><img src="https://img.shields.io/badge/PRs-welcome-2ea44f" alt="PRs welcome"></a>
 </p>
 
 <p align="center">
@@ -97,8 +97,8 @@ See the [detailed guide](docs/user-guide.md) for deployment steps, per-target se
 ## Documentation
 
 - [Detailed guide](docs/user-guide.md) · [日本語](docs/user-guide.ja.md)
-- [Architecture](ARCHITECTURE.md) · [Environment variables](.env.example)
-- [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Code of conduct](CODE_OF_CONDUCT.md)
+- [Architecture](docs/ARCHITECTURE.md) · [Environment variables](.env.example)
+- [Contributing](.github/CONTRIBUTING.md) · [Security](.github/SECURITY.md) · [Code of conduct](.github/CODE_OF_CONDUCT.md)
 
 ## License
 

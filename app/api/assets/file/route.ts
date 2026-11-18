@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authConfigured } from "../../../../auth";
+import { authConfigured } from "../../../../lib/auth";
 import { storeUnavailable } from "../../../../lib/unavailable";
 import { serverTr } from "../../../../lib/i18n-server";
 import { requireAuth } from "../../../../lib/server";

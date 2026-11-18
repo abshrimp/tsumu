@@ -175,19 +175,19 @@ test("deployment rejects loss of any existing server storage bindings", () => {
 
 test("repository Worker config declares both SQLite Durable Object classes without unnecessary migrations", () => {
   const config = parseJsonc(readFileSync(new URL("../wrangler.jsonc", import.meta.url), "utf8"));
-  assert.equal(config.main, "custom-worker.ts");
+  assert.equal(config.main, "workers/custom-worker.ts");
   assert.equal(config.migrations, undefined);
   assert.deepEqual(config.exports, completeStorage.exports);
   assert.deepEqual(config.durable_objects.bindings, completeStorage.durable_objects.bindings);
 });
 
 test("Workers Builds generates a config for its connected Worker without changing local defaults", () => {
-  const source = JSON.stringify({ ...completeStorage, name: "tsumu", main: "custom-worker.ts" });
+  const source = JSON.stringify({ ...completeStorage, name: "tsumu", main: "workers/custom-worker.ts" });
   const local = generatedConfig(source);
   const ci = generatedConfig(source, "site-editor");
   assert.equal(local.name, "tsumu");
   assert.equal(ci.name, "site-editor");
-  assert.equal(ci.main, "custom-worker.ts");
+  assert.equal(ci.main, "workers/custom-worker.ts");
   assert.deepEqual(ci.exports, local.exports);
   assert.deepEqual(ci.durable_objects, local.durable_objects);
   assert.deepEqual(ci.d1_databases, local.d1_databases);
@@ -232,16 +232,16 @@ test("asset GC cron triggers use Cloudflare-supported weekday syntax", () => {
 });
 
 function scheduledGc() {
-  const url = new URL("../custom-worker.ts", import.meta.url);
+  const url = new URL("../workers/custom-worker.ts", import.meta.url);
   const require = createRequire(url);
   const calls: AssetGcDependencies[] = [];
   const db = { backend: "d1" };
   const mocks: Record<string, unknown> = {
     "cloudflare:workers": { DurableObject: class {} },
-    "./.open-next/worker.js": {},
+    "../.open-next/worker.js": {},
     "./document-room": {},
-    "./lib/db": { getDbFromBinding: async () => db },
-    "./lib/asset-gc": { runAssetGc: async (options: AssetGcDependencies) => { calls.push(options); } },
+    "../lib/db": { getDbFromBinding: async () => db },
+    "../lib/asset-gc": { runAssetGc: async (options: AssetGcDependencies) => { calls.push(options); } },
   };
   const { code } = transformSync(readFileSync(url, "utf8"), { loader: "ts", format: "cjs", target: "es2022" });
   const mod = { exports: {} as any };
@@ -284,7 +284,7 @@ test("only weekly reconciliation requires the KV listing capability", async () =
 
 describe("cloudflare-preview", () => {
 const production = {
-  name: "tsumu", main: "custom-worker.ts", compatibility_date: "2026-10-19",
+  name: "tsumu", main: "workers/custom-worker.ts", compatibility_date: "2026-10-19",
   assets: { directory: ".open-next/assets", binding: "ASSETS" },
   durable_objects: { bindings: [{ name: "COLLAB_ROOM", class_name: "CollaborationRoom" }] },
   exports: {
@@ -600,16 +600,16 @@ function fixture(initialize = true, allowGenerationClose = false) {
       return documents.patch(patch, base);
     },
   };
-  const url = new URL("../custom-worker.ts", import.meta.url);
+  const url = new URL("../workers/custom-worker.ts", import.meta.url);
   const require = createRequire(url);
   const mocks: Record<string, unknown> = {
     "cloudflare:workers": { DurableObject: class {
       constructor(public ctx: unknown, public env: unknown) {}
     } },
-    "./.open-next/worker.js": {},
+    "../.open-next/worker.js": {},
     "./document-room": { DocumentRoom: class {} },
-    "./lib/db": { getDbFromBinding: async () => ({ execute: async () => ({ rows: [{}] }) }) },
-    "./lib/sites": { getSiteRoomKey: async () => generation },
+    "../lib/db": { getDbFromBinding: async () => ({ execute: async () => ({ rows: [{}] }) }) },
+    "../lib/sites": { getSiteRoomKey: async () => generation },
   };
   const { code } = transformSync(readFileSync(url, "utf8"), { loader: "ts", format: "cjs", target: "es2022" });
   const module = { exports: {} as any };
@@ -854,7 +854,7 @@ function database() {
 
 // Cloudflare の基底クラスだけを置き換え、実際の DocumentRoom のフィールドの初期化も実行する。
 function roomClass() {
-  const url = new URL("../document-room.ts", import.meta.url);
+  const url = new URL("../workers/document-room.ts", import.meta.url);
   const require = createRequire(url);
   const code = transformSync(readFileSync(url, "utf8"), { loader: "ts", format: "cjs", target: "es2022" }).code;
   const module = { exports: {} as { DocumentRoom: new (ctx: { storage: DocumentSqlStorage }) => {
@@ -867,7 +867,7 @@ function roomClass() {
   new Function("require", "module", "exports", code)(
     (name: string) => name === "cloudflare:workers"
       ? { DurableObject: class { constructor(public ctx: unknown) {} } }
-      : name === "./lib/structured-document-store" ? { StructuredDocumentStore } : require(name),
+      : name === "../lib/structured-document-store" ? { StructuredDocumentStore } : require(name),
     module, module.exports,
   );
   return module.exports.DocumentRoom;

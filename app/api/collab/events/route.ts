@@ -4,7 +4,7 @@ import { requireAuth } from "../../../../lib/server";
 import { isEmailAllowed } from "../../../../lib/allowlist";
 import { dbConfigured, getDb } from "../../../../lib/db";
 import { permits, requireSiteAccess, siteRole } from "../../../../lib/site-access";
-import { authConfigured } from "../../../../auth";
+import { authConfigured } from "../../../../lib/auth";
 import { siteIdOf } from "../../../../lib/site-server";
 import { subscribeDocUpdates } from "../../../../lib/collab-events";
 import { collabRoomAvailable } from "../../../../lib/collab";

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { auth, authConfigured } from "../../auth";
+import { auth, authConfigured } from "../../lib/auth";
 import { Globe, MousePointerClick, Smartphone } from "lucide-react";
 import { DRAFT_RESUME_PARAM } from "../../lib/external-edit/draft-link";
 import { DRAFT_HANDOFF_COOKIE } from "../../lib/external-edit/draft-handoff";

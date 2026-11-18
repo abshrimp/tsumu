@@ -539,7 +539,7 @@ AI による編集は、ページに反映する前に、必ず作業用の複�
 
 ## 開発
 
-設計の概要（`SiteDoc` のデータ構造、公開・同時編集・AI の仕組み）は [ARCHITECTURE.ja.md](../ARCHITECTURE.ja.md) にまとめています。
+設計の概要（`SiteDoc` のデータ構造、公開・同時編集・AI の仕組み）は [ARCHITECTURE.ja.md](ARCHITECTURE.ja.md) にまとめています。
 
 ```
 app/
@@ -585,8 +585,8 @@ lib/
   external-edit/      開いているエディタを外部の tsumu-mcp に接続する WebSocket ブリッジ
   manualTopics.ts     ヘルプの記事
   locales/            言語の辞書と自動生成した登録情報
-custom-worker.ts      同時編集の Durable Object を含む Cloudflare Worker のエントリポイント
-document-room.ts      サイトごとの編集データを保存する Durable Object（DocumentRoom）
+workers/custom-worker.ts      同時編集の Durable Object を含む Cloudflare Worker のエントリポイント
+workers/document-room.ts      サイトごとの編集データを保存する Durable Object（DocumentRoom）
 scripts/cloudflare.mjs  デプロイ用の wrangler 設定を生成し、OpenNext を実行
 ```
 

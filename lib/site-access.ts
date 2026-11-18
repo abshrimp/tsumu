@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { Db } from "./db";
 import { dbConfigured, getDb } from "./db";
 import { allowedEmails } from "./allowlist";
-import { auth, authConfigured } from "../auth";
+import { auth, authConfigured } from "./auth";
 import { anonymousAllowed } from "./anonymous";
 import { serverTr } from "./i18n-server";
 import { isValidEmail } from "./email";

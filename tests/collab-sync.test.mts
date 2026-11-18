@@ -93,10 +93,10 @@ for (const method of ["save", "patch"] as const) {
         replacementKey = await f.replace("source", replacement);
       }
     };
-    const { CollaborationRoom } = load("../../custom-worker.ts", {
+    const { CollaborationRoom } = load("../../workers/custom-worker.ts", {
       "cloudflare:workers": { DurableObject: class { constructor(public ctx: unknown, public env: unknown) {} } },
-      "./.open-next/worker.js": {}, "./document-room": { DocumentRoom: class {} },
-      "./lib/db": { getDbFromBinding: async () => f.db },
+      "../.open-next/worker.js": {}, "./document-room": { DocumentRoom: class {} },
+      "../lib/db": { getDbFromBinding: async () => f.db },
     });
     const sender = {
       messages: [] as string[],
@@ -763,13 +763,13 @@ describe("collab-commit-acknowledgment", () => {
 async function fixture(t: TestContext) {
   const f = await setup(t);
   const key = await f.create("source");
-  const { CollaborationRoom } = load("../../custom-worker.ts", {
+  const { CollaborationRoom } = load("../../workers/custom-worker.ts", {
     "cloudflare:workers": { DurableObject: class {
       constructor(public ctx: unknown, public env: unknown) {}
     } },
-    "./.open-next/worker.js": {},
+    "../.open-next/worker.js": {},
     "./document-room": { DocumentRoom: class {} },
-    "./lib/db": { getDbFromBinding: async () => f.db },
+    "../lib/db": { getDbFromBinding: async () => f.db },
   });
   const socket = (clientId: string, email = "owner@example.test") => ({
     messages: [] as string[], closes: [] as Array<[number, string]>,
@@ -938,10 +938,10 @@ async function fixture(t: TestContext) {
     replaceDocument: async (raw: string, base: string | null) => store.replace(raw, base),
     patchDocument: async (value: any, base: string) => store.patch(value, base),
   };
-  const { CollaborationRoom } = load("../../custom-worker.ts", {
+  const { CollaborationRoom } = load("../../workers/custom-worker.ts", {
     "cloudflare:workers": { DurableObject: class { constructor(public ctx: unknown, public env: unknown) {} } },
-    "./.open-next/worker.js": {}, "./document-room": {},
-    "./lib/db": { getDbFromBinding: async () => h.db },
+    "../.open-next/worker.js": {}, "./document-room": {},
+    "../lib/db": { getDbFromBinding: async () => h.db },
   });
   const socket = () => ({ messages: [] as string[],
     deserializeAttachment: () => ({ clientId: "synthetic", siteId: "source", roomKey }),
@@ -1290,11 +1290,11 @@ function socket(email: string, roomKey = "room-s1") {
 }
 
 test("WebSocket sender and recipient follow the current anonymous mode", async () => {
-  const { CollaborationRoom } = loadHandler("../custom-worker.ts", {
+  const { CollaborationRoom } = loadHandler("../workers/custom-worker.ts", {
     "cloudflare:workers": { DurableObject: class {
       constructor(public ctx: unknown, public env: unknown) {}
     } },
-    "./.open-next/worker.js": {},
+    "../.open-next/worker.js": {},
   });
   for (const change of [{ ALLOW_ANONYMOUS: "false" }, {
     AUTH_SECRET: "secret", AUTH_GOOGLE_ID: "client", AUTH_GOOGLE_SECRET: "secret",
@@ -1324,7 +1324,7 @@ test("an anonymous event stream rechecks access on the next notification", async
   process.env.ALLOW_ANONYMOUS = "true";
   const { GET } = loadHandler("../app/api/collab/events/route.ts", {
     "../../../../lib/server": { requireAuth: async () => null },
-    "../../../../auth": { authConfigured: () => false },
+    "../../../../lib/auth": { authConfigured: () => false },
     "../../../../lib/site-server": { siteIdOf: async () => "s1" },
     "../../../../lib/collab": { collabRoomAvailable: () => false },
   });
@@ -1341,12 +1341,12 @@ test("an anonymous event stream rechecks access on the next notification", async
 test("each broadcast reads the allowlist once and refreshes it before the next broadcast", async () => {
   let emails = ["first@example.com", "second@example.com"];
   let reads = 0;
-  const { CollaborationRoom } = loadHandler("../custom-worker.ts", {
+  const { CollaborationRoom } = loadHandler("../workers/custom-worker.ts", {
     "cloudflare:workers": { DurableObject: class {
       constructor(public ctx: unknown, public env: unknown) {}
     } },
-    "./.open-next/worker.js": {},
-    "./lib/db": { getDbFromBinding: async () => ({ execute: async (stmt: unknown) => {
+    "../.open-next/worker.js": {},
+    "../lib/db": { getDbFromBinding: async () => ({ execute: async (stmt: unknown) => {
       const sql = typeof stmt === "string" ? stmt : (stmt as {sql: string}).sql;
       if (sql.includes("site_members")) return { rows: [{role: "editor"}] };
       reads++;
@@ -1375,11 +1375,11 @@ test("each broadcast reads the allowlist once and refreshes it before the next b
 
 test("WebSocket patch saves broadcast deltas to all authorized peers", async () => {
   await withAllowlist(async () => {
-    const { CollaborationRoom } = loadHandler("../custom-worker.ts", {
+    const { CollaborationRoom } = loadHandler("../workers/custom-worker.ts", {
       "cloudflare:workers": { DurableObject: class {
         constructor(public ctx: unknown, public env: unknown) {}
       } },
-      "./.open-next/worker.js": {},
+      "../.open-next/worker.js": {},
     });
     const d1 = d1Binding();
     const db = await getDbFromBinding(d1);
@@ -1451,7 +1451,7 @@ test("SSE broadcasts patch deltas to all authorized clients", async () => {
   await withAllowlist(async () => {
     const { GET } = loadHandler("../app/api/collab/events/route.ts", {
       "../../../../lib/server": { requireAuth: async (mode: string) => { assert.equal(mode, "user"); return { email: "editor@example.com" }; } },
-      "../../../../auth": { authConfigured: () => true },
+      "../../../../lib/auth": { authConfigured: () => true },
       "../../../../lib/site-server": { siteIdOf: async () => "s1" },
       "../../../../lib/collab": { collabRoomAvailable: () => false },
     });
@@ -1484,11 +1484,11 @@ test("SSE broadcasts patch deltas to all authorized clients", async () => {
 
 test("open WebSockets lose read, write and broadcast access when their account is removed", async () => {
   await withAllowlist(async () => {
-    const { CollaborationRoom } = loadHandler("../custom-worker.ts", {
+    const { CollaborationRoom } = loadHandler("../workers/custom-worker.ts", {
       "cloudflare:workers": { DurableObject: class {
         constructor(public ctx: unknown, public env: unknown) {}
       } },
-      "./.open-next/worker.js": {},
+      "../.open-next/worker.js": {},
     });
     const d1 = d1Binding();
     const db = await getDbFromBinding(d1);
@@ -1528,7 +1528,7 @@ test("an open SSE stream closes without leaking the next document after revocati
   await withAllowlist(async () => {
     const { GET } = loadHandler("../app/api/collab/events/route.ts", {
       "../../../../lib/server": { requireAuth: async (mode: string) => { assert.equal(mode, "user"); return { email: "editor@example.com" }; } },
-      "../../../../auth": { authConfigured: () => true },
+      "../../../../lib/auth": { authConfigured: () => true },
       "../../../../lib/site-server": { siteIdOf: async () => "s1" },
       "../../../../lib/collab": { collabRoomAvailable: () => false },
     });
@@ -1549,9 +1549,9 @@ test("an open SSE stream closes without leaking the next document after revocati
 
 test("a disconnected saving sender does not prevent persistence, activity or peer notifications", async () => {
   await withAllowlist(async () => {
-    const { CollaborationRoom } = loadHandler("../custom-worker.ts", {
+    const { CollaborationRoom } = loadHandler("../workers/custom-worker.ts", {
       "cloudflare:workers": { DurableObject: class { constructor(public ctx: unknown, public env: unknown) {} } },
-      "./.open-next/worker.js": {},
+      "../.open-next/worker.js": {},
     });
     const d1 = d1Binding();
     const db = await getDbFromBinding(d1);
@@ -1603,7 +1603,7 @@ function handler(authorize: () => Promise<boolean> = async () => true) {
     "../../../../lib/allowlist": { isEmailAllowed: authorize },
     "../../../../lib/db": { dbConfigured: () => false },
     "../../../../lib/site-access": { requireSiteAccess: async () => null, permits: () => true, siteRole: async () => "editor" },
-    "../../../../auth": { authConfigured: () => true },
+    "../../../../lib/auth": { authConfigured: () => true },
     "../../../../lib/site-server": { siteIdOf: async () => "site" },
     "../../../../lib/collab": { collabRoomAvailable: () => false },
     "../../../../lib/collab-events": { subscribeDocUpdates: (_: string, callback: typeof listener) => {

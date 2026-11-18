@@ -776,7 +776,7 @@ async function fixture(t: Parameters<typeof setup>[0], operation: "production" |
   };
   const siteServer = load("../../lib/site-server.ts", common);
   const server = load("../../lib/server.ts", {
-    ...common, "../auth": { authConfigured: () => false }, "./anonymous": { anonymousAllowed: () => true },
+    ...common, "./auth": { authConfigured: () => false }, "./anonymous": { anonymousAllowed: () => true },
   });
   let beforeRef: (() => Promise<void>) | undefined;
   let refs = 0;

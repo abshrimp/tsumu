@@ -13,15 +13,15 @@ npm ci
 npm run dev
 ```
 
-- The [detailed guide](docs/user-guide.md) lists the runtime requirements and the optional services.
-- [ARCHITECTURE.md](ARCHITECTURE.md) is a map of the code.
+- The [detailed guide](../docs/user-guide.md) lists the runtime requirements and the optional services.
+- [ARCHITECTURE.md](../docs/ARCHITECTURE.md) is a map of the code.
 
 Local development needs no API keys. Keep your environment variables in `.env.local` and your Cloudflare resource IDs in `wrangler.local.jsonc`; Git ignores both.
 
 ## Making a change
 
 - **Keep each pull request focused** on one problem, and explain the behavior that results.
-- **Add a regression test** when you change behavior. Unit tests go in `tests/`, browser tests in `e2e/` (see [`e2e/README.md`](e2e/README.md)).
+- **Add a regression test** when you change behavior. Unit tests go in `tests/`, browser tests in `e2e/` (see [`e2e/README.md`](../e2e/README.md)).
 - **Use English source strings in `tr()`. Code comments may be in English or Japanese.** Japanese translations in `lib/locales/ja.ts` are welcome but **not required for a PR**. Missing translations fall back to English and are reported as CI warnings. New languages only need a dictionary file.
 - **Keep the types, the editor, the generated code and the tests in agreement** about Tsumu's data model and runtime behavior.
 - **Preserve user-authored files when publishing a site.** `_tsumu/` is reserved for Tsumu's document and publish manifests.
@@ -73,4 +73,4 @@ To report a security vulnerability, follow [SECURITY.md](SECURITY.md) instead. P
 
 Everyone taking part is expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-Contributions are distributed under the repository's [MIT license](LICENSE).
+Contributions are distributed under the repository's [MIT license](../LICENSE).

@@ -55,7 +55,7 @@ export async function checkTranslations(root: string, args: readonly string[], o
     }
   };
   for (const d of ["app", "components", "lib"]) walk(path.join(root, d));
-  files.push(path.join(root, "auth.ts"), path.join(root, "proxy.ts"));
+  files.push(path.join(root, "proxy.ts"));
 
   const literal = (node: ts.Node | undefined): string | undefined =>
     node && ts.isStringLiteralLike(node) ? node.text : undefined;

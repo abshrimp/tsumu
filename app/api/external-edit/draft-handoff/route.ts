@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authConfigured } from "../../../../auth";
+import { authConfigured } from "../../../../lib/auth";
 import { readJsonObjectLimited, jsonErrorStatus } from "../../../../lib/api-json";
 import { envVar } from "../../../../lib/env";
 import { requireAuth } from "../../../../lib/server";

@@ -6,7 +6,7 @@ labels: ""
 assignees: ""
 ---
 
-<!-- English and Japanese are both welcome. To report a security vulnerability, see SECURITY.md instead. Please remove private content and credentials before posting. -->
+<!-- English and Japanese are both welcome. To report a security vulnerability, see .github/SECURITY.md instead. Please remove private content and credentials before posting. -->
 
 ## What happened?
 

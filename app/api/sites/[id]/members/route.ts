@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authConfigured } from "../../../../../auth";
+import { authConfigured } from "../../../../../lib/auth";
 import { requireAuth } from "../../../../../lib/server";
 import { dbConfigured, getDb } from "../../../../../lib/db";
 import { allowedEmails, getAccountRole, isEmailAllowed } from "../../../../../lib/allowlist";

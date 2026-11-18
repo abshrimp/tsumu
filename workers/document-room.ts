@@ -2,9 +2,9 @@ import { DurableObject } from "cloudflare:workers";
 import {
   StructuredDocumentStore, type DocumentSqlStorage,
   type SiteSnapshot, type SiteSaveResult,
-} from "./lib/structured-document-store";
-import type { DocPatch } from "./lib/doc-patch";
-import { extractAssetReferences } from "./lib/asset-gc-plan";
+} from "../lib/structured-document-store";
+import type { DocPatch } from "../lib/doc-patch";
+import { extractAssetReferences } from "../lib/asset-gc-plan";
 
 /**
  * 1つのサイトは、常に1つの SQLite 版 Durable Object の ID に対応する。

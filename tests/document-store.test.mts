@@ -1427,10 +1427,10 @@ test("server target envelopes name the room only for accepted writes", async t =
 for (const method of ["save", "patch"] as const) {
   test(`WebSocket ${method} success, conflict and broadcasts do not contain server-only target keys`, async t => {
     const f = await setup(t); const key = await f.create("source");
-    const { CollaborationRoom } = load("../../custom-worker.ts", {
+    const { CollaborationRoom } = load("../../workers/custom-worker.ts", {
       "cloudflare:workers": { DurableObject: class { constructor(public ctx: unknown, public env: unknown) {} } },
-      "./.open-next/worker.js": {}, "./document-room": { DocumentRoom: class {} },
-      "./lib/db": { getDbFromBinding: async () => f.rawDb },
+      "../.open-next/worker.js": {}, "./document-room": { DocumentRoom: class {} },
+      "../lib/db": { getDbFromBinding: async () => f.rawDb },
     });
     const socket = () => ({
       messages: [] as string[],

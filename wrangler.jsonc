@@ -4,7 +4,7 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "tsumu",
-	"main": "custom-worker.ts",
+	"main": "workers/custom-worker.ts",
 	// 03:00 JST daily: expired D1 candidates only. Monday 04:00 JST:
 	// reconcile one KV page to find upload/site-delete orphans (no daily full scan).
 	// Physical deletion is opt-in (ASSET_GC_ENABLED=true).

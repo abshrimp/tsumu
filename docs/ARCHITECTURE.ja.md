@@ -2,7 +2,7 @@
 
 [English](ARCHITECTURE.md) · 日本語
 
-本書では、コードを変更する開発者に向けて、コードベースの全体像を説明します。セットアップとデプロイについては [README](README.ja.md) を参照してください。
+本書では、コードを変更する開発者に向けて、コードベースの全体像を説明します。セットアップとデプロイについては [README](../README.ja.md) を参照してください。
 
 ## 基本となるデータ
 
@@ -51,15 +51,15 @@
 |---|---|
 | エディタの状態、元に戻す・やり直す | `lib/store.ts`（zustand）と `lib/editor-theme.ts`（制作サイトの配色とは独立したエディタ外観のライト／ダーク設定）。文書へのすべての変更がストアを経由するため、どの変更も元に戻す履歴と同期の両方に反映されます。 |
 | キャンバスとパネル | `components/Canvas.tsx` と `canvas/`（CSS、ノードの描画、`NodeView`、`useCanvasData`、`useCanvasDrag`、必要時に `lib/html-zip-source.ts` を読み込む `useHtmlPreview`、およびサンドボックス埋め込み URL を検証する `lib/embed.ts`）、`app/styles/`（エディタ専用のスタイルシートは `app/sites/[id]/layout.tsx` に限定）<br>`LeftPanel.tsx` と `left-panel/`（タブごとに1ファイル。`AssetTrash.tsx` を含む `AssetsTab.tsx` と `CopyToSite.tsx` は必要時に遅延読み込み）、`PagePanel.tsx`<br>`RightPanel.tsx`、`StylePanel.tsx` と `style-panel/`（セクションごとに1ファイルと `FontPicker.tsx`）、`SettingsPanel.tsx`、`ScriptSummary.tsx`、`MotionEditors.tsx`<br>`ScriptEditor.tsx`、`Comments.tsx`、`AiChat.tsx`、`ExternalEditConnection.tsx`、`AllowedAccounts.tsx`、`SiteMembers.tsx`（いずれも必要時に遅延読み込み）、`script-editor/`（パレット、ブロック、手順の本体、入力欄、`useStepDrag`、`useEditorKeys`）<br>`SitePanel.tsx`、`ViewerHeader.tsx` |
-| スタイルから CSS への変換 | `lib/style.ts`、`lib/breakpoints.ts`、`lib/motion.ts`、`lib/keyframes.ts`、`lib/google-font-catalog.ts`（必要時に遅延読み込み。既定の Google Fonts も `Editor.tsx` の起動時に読み込み）、`lib/adobe-fonts-*.ts`（[Adobe Fonts](docs/adobe-fonts.md)）、`lib/uploaded-fonts.ts`（アップロードした WOFF2・WOFF・TTF・OTF フォント） |
+| スタイルから CSS への変換 | `lib/style.ts`、`lib/breakpoints.ts`、`lib/motion.ts`、`lib/keyframes.ts`、`lib/google-font-catalog.ts`（必要時に遅延読み込み。既定の Google Fonts も `Editor.tsx` の起動時に読み込み）、`lib/adobe-fonts-*.ts`（[Adobe Fonts](adobe-fonts.md)）、`lib/uploaded-fonts.ts`（アップロードした WOFF2・WOFF・TTF・OTF フォント） |
 | 生成処理 | `lib/generator.ts`。`generateProject(doc, target)` が Next.js プロジェクトを `{ files, binaries, remoteAssets }` として返します。部品は `lib/generator/` にあります（`names.ts`、`css.ts`、`render.ts` と `render-helpers.ts`、`page.ts`、`head.ts`、`templates.ts`）。 |
 | 出力形式 | `lib/export-formats.ts` と、`lib/generator/` のその他のファイル。詳細は [出力形式](#出力形式) を参照してください。 |
 | 公開と zip での書き出し | `components/PublishModal.tsx` から `app/api/publish/`・`lib/github.ts`・`lib/publish-security.ts`（GitHub Git Data API）または `app/api/publish/gitlab/`・`lib/gitlab.ts`（GitLab.com Commits API。`lib/git-blob-sha.ts` を共用）へ、`components/StaticPublishModal.tsx`（遅延読み込み）から `app/api/publish/static/`・`lib/static-hosting.ts`（Cloudflare Pages）へ、`components/NetlifyPublishModal.tsx`（遅延読み込み）から `app/api/publish/netlify/`・`lib/browser-netlify.ts`・`lib/netlify-publish.ts`（ブラウザ連携の Netlify OAuth）へ（`lib/publish-provider.ts` で選択し、`components/StaticPublishShared.tsx`、`lib/static-hosting-route.ts`、`lib/base64.ts` を共用）。詳細は [公開の仕組み](#公開の仕組み) を参照してください。<br>`components/ExportModal.tsx`（`Header.tsx` から開く）から `lib/exportZip.ts`・`lib/zip.ts`（`CompressionStream` / `DecompressionStream` による外部依存なしの ZIP 読み書き）へ |
 | インポート | `lib/import-site-file.ts`（ファイルからのサイト作成）、`lib/site-import.ts` と `lib/site-import-format.ts`（Tsumu の zip と `doc.json`）、`lib/site-backup.ts`（アセット一式を含むバックアップ zip）、`lib/html-to-site.ts` と `html-file-import.ts`（必要時に遅延読み込み）・`html-zip.ts`（HTML）。詳細は [インポート](#インポート) を参照してください。 |
 | 公開前チェック | `lib/generator/checks.ts` の `runChecks`。リンク切れ、代替テキスト、見出しの順序、小さすぎる文字、レイアウトのはみ出しを検査します。 |
-| 保存 | `lib/site-model.ts`（クライアントからも参照できる純粋なサイトの型と入力検証）と `lib/sites.ts`（D1 へのサイト保存）<br>`document-room.ts`・`lib/structured-document-store.ts`：サイトの作成世代ごとに1つの SQLite 対応 Durable Object を使い、ページ・要素などを個別の行とトランザクション付きの `rev` で保存<br>`lib/site-document-service.ts`：Cloudflare と Node.js の保存先の振り分け<br>`lib/doc-storage.ts`・`lib/node-storage.ts`：Node.js・Docker 用の SQLite<br>`lib/kv.ts`：アセットの本体<br>`lib/browser-doc-storage.ts`：ブラウザのみに保存するサイトの文書・アセット用 IndexedDB（`tsumu-documents`）<br>`lib/local-storage.ts`：`tsumu-*` のブラウザ設定とローカルサイト一覧 |
-| KVアセットのGC | `DELETE /api/assets` が削除の候補をD1に登録し、`lib/asset-gc.ts` が期限切れの候補を毎日処理します。`custom-worker.ts` から週1回呼ばれる処理では、孤立したKVのファイルも確認し、`lib/asset-ledger.ts` が物理オブジェクト（`asset_objects`）とサイト別の所有関係（`site_assets`。アップロード・保存・サイト間のページ／要素コピー時に更新）を記録します。既定では、実際には削除しない試行（dry-run）だけを行います（[詳細](docs/asset-gc.md)（英語））。<br>ゴミ箱：`components/AssetTrash.tsx` から `app/api/assets/trash` を呼び、そのサイトの削除待ち候補の一覧、復元（候補の行を取り除く）、すぐに行う完全な削除（`lib/asset-trash-delete.ts`。定期処理と同じリースと参照の確認を通す）を扱います。 |
-| 同時編集 | `custom-worker.ts`：サイトの作成世代ごとに独立した、WebSocket 用の Durable Object<br>`lib/collab-events.ts` と `app/api/collab/events`：Node.js と Docker における Server-Sent Events<br>`lib/collab.ts`：送受信するメッセージ<br>`lib/merge.ts`：3方向マージ。ノードの ID で照合し、次に項目の単位で照合します。配列は全体を1つの値として扱います。 |
+| 保存 | `lib/site-model.ts`（クライアントからも参照できる純粋なサイトの型と入力検証）と `lib/sites.ts`（D1 へのサイト保存）<br>`workers/document-room.ts`・`lib/structured-document-store.ts`：サイトの作成世代ごとに1つの SQLite 対応 Durable Object を使い、ページ・要素などを個別の行とトランザクション付きの `rev` で保存<br>`lib/site-document-service.ts`：Cloudflare と Node.js の保存先の振り分け<br>`lib/doc-storage.ts`・`lib/node-storage.ts`：Node.js・Docker 用の SQLite<br>`lib/kv.ts`：アセットの本体<br>`lib/browser-doc-storage.ts`：ブラウザのみに保存するサイトの文書・アセット用 IndexedDB（`tsumu-documents`）<br>`lib/local-storage.ts`：`tsumu-*` のブラウザ設定とローカルサイト一覧 |
+| KVアセットのGC | `DELETE /api/assets` が削除の候補をD1に登録し、`lib/asset-gc.ts` が期限切れの候補を毎日処理します。`workers/custom-worker.ts` から週1回呼ばれる処理では、孤立したKVのファイルも確認し、`lib/asset-ledger.ts` が物理オブジェクト（`asset_objects`）とサイト別の所有関係（`site_assets`。アップロード・保存・サイト間のページ／要素コピー時に更新）を記録します。既定では、実際には削除しない試行（dry-run）だけを行います（[詳細](asset-gc.md)（英語））。<br>ゴミ箱：`components/AssetTrash.tsx` から `app/api/assets/trash` を呼び、そのサイトの削除待ち候補の一覧、復元（候補の行を取り除く）、すぐに行う完全な削除（`lib/asset-trash-delete.ts`。定期処理と同じリースと参照の確認を通す）を扱います。 |
+| 同時編集 | `workers/custom-worker.ts`：サイトの作成世代ごとに独立した、WebSocket 用の Durable Object<br>`lib/collab-events.ts` と `app/api/collab/events`：Node.js と Docker における Server-Sent Events<br>`lib/collab.ts`：送受信するメッセージ<br>`lib/merge.ts`：3方向マージ。ノードの ID で照合し、次に項目の単位で照合します。配列は全体を1つの値として扱います。 |
 | AI | `lib/ai/`（プロバイダ、プロンプト、ストリーミング）と `lib/ai-store.ts`（`AiChat.tsx` を遅延読み込みするための軽量チャット状態ストア）、`lib/aiOps.ts`（編集操作の定義と、サーバーとブラウザで共通の適用関数）、`lib/external-edit/`（`bridge.ts`、`config.ts`：開いているエディタを `NEXT_PUBLIC_TSUMU_MCP_URL` 経由で外部の `tsumu-mcp` に WebSocket 接続する任意のブリッジ） |
 | コメント、編集の記録 | `lib/comments.ts`、`lib/comment-store.ts`、`lib/activity.ts` |
 | 認証 | `auth.ts`、`proxy.ts`（認証境界とクリックジャッキング防止ヘッダー）、`lib/allowlist.ts`（ログイン時の `editor`・`viewer` 権限）、`lib/site-access.ts` と `lib/site-asset-access.ts`（サイトごとの `owner`・`editor`・`viewer` メンバー権限とアセット参照権限を API および同時編集の境界で検証）。`AUTH_*` が未設定の場合、エディタを利用できるのは `npm run dev` でのループバック宛てのアクセスか `ALLOW_ANONYMOUS=true` の設定時のみです（`lib/anonymous.ts`）。 |
@@ -187,7 +187,7 @@ AI の処理中に利用者が同じページを編集した場合、AI の変�
 - **テスト**：新しい動作にはテストが必要です。
   - 単体テストは `tests/` に配置します。`tsx` を介して Node.js 組み込みのテストランナーで実行し、`lib/` のモジュールを直接読み込みます。
   - 画面操作のテストは `e2e/`（Playwright）に配置します。ビルドしたエディタを Node.js で起動し、一時的な `TSUMU_DATA_DIR` と `ALLOW_ANONYMOUS=true` を指定して実行します。
-  - CI は Next.js、React、Vue、Nuxt、SvelteKit のサンプルを TypeScript と JavaScript の両方でビルドします。Vue、Nuxt、SvelteKit ではサーバーが返す HTML を検証し、一部の構成では Chromium でブラウザの動作も確認します。ローカルで実行する例は[生成したプロジェクトの確認](CONTRIBUTING.ja.md#生成したプロジェクトの確認)を参照してください。
+  - CI は Next.js、React、Vue、Nuxt、SvelteKit のサンプルを TypeScript と JavaScript の両方でビルドします。Vue、Nuxt、SvelteKit ではサーバーが返す HTML を検証し、一部の構成では Chromium でブラウザの動作も確認します。ローカルで実行する例は[生成したプロジェクトの確認](../.github/CONTRIBUTING.ja.md#生成したプロジェクトの確認)を参照してください。
 
 ```bash
 npm run typecheck

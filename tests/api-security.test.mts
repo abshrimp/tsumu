@@ -273,7 +273,7 @@ describe("api-auth-coverage", () => {
 
   test("HTTP and WebSocket public entrypoints keep separate CSRF/origin checks", () => {
     const proxy = readFileSync(join(root, "proxy.ts"), "utf8");
-    const worker = readFileSync(join(root, "custom-worker.ts"), "utf8");
+    const worker = readFileSync(join(root, "workers/custom-worker.ts"), "utf8");
     assert.match(proxy, /pathname\.startsWith\("\/api\/"\)\s*&&\s*isCrossSiteWrite\s*\(/);
     assert.match(worker, /request\.headers\.get\("Origin"\)\s*!==\s*url\.origin/);
   });
@@ -403,7 +403,7 @@ describe("allowed-users-shapes", () => {
     const module = { exports: {} as Record<string, any> };
     const injected: Record<string, unknown> = {
       "next/server": { NextResponse },
-      "../../../auth": {
+      "../../../lib/auth": {
         authConfigured: () => true,
         auth: async () => ({ user: { email: identity } }),
       },
@@ -1251,17 +1251,17 @@ function fixture({ cookie = true, allowed = false, configured = true, anonymous 
   };
   const serverTr = async () => (s: string) => s;
   const proxy = load("../proxy.ts", {
-    "next/server": { NextResponse }, "./auth": auth,
+    "next/server": { NextResponse }, "./lib/auth": auth,
     "./lib/anonymous": { anonymousAllowed: () => anonymous, anonymousHostAllowed: () => true },
   }).proxy;
   const redirect = (destination: string) => { throw new Error(`redirect:${destination}`); };
   const login = load("../app/login/page.tsx", {
-    "../../auth": auth, "next/navigation": { redirect },
+    "../../lib/auth": auth, "next/navigation": { redirect },
     "next/headers": { cookies: async () => ({ has: (name: string) => draftCookie && name === "tsumu-import-handoff" }) },
     "../../lib/i18n-server": { serverTr },
   }).default;
   const { requireAuth } = load("../lib/server.ts", {
-    "next/server": { NextResponse }, "../auth": auth,
+    "next/server": { NextResponse }, "./auth": auth,
     "./i18n-server": { serverTr }, "./anonymous": { anonymousAllowed: () => anonymous },
   });
   const request = (path: string, method = "GET", headers: Record<string, string> = {}) => proxy({
@@ -1459,7 +1459,7 @@ function fixture(configured: boolean) {
   let sessionChecks = 0;
   const dependencies: Record<string, unknown> = {
     "next/server": { NextResponse: NextResponse },
-    "./auth": {
+    "./lib/auth": {
       authConfigured: () => configured,
       proxyAuth: async () => {
         sessionChecks++;
@@ -2386,7 +2386,7 @@ function requireAuthFixture(session: unknown, configured = true, anonymous = fal
   }).code;
   const injected: Record<string, unknown> = {
     "next/server": { NextResponse },
-    "../auth": { authConfigured: () => configured, auth: async () => session },
+    "./auth": { authConfigured: () => configured, auth: async () => session },
     "./anonymous": { anonymousAllowed: () => anonymous },
     "./i18n-server": { serverTr: async () => (s: string) => s },
     "./activity": { parseActivityUser },

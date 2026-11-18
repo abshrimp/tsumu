@@ -8,7 +8,7 @@ import { requireAuth } from "../../../../lib/server";
 import { requireSiteAccess } from "../../../../lib/site-access";
 import { allowedEmails } from "../../../../lib/allowlist";
 import { sessionUser } from "../../../../lib/server";
-import { authConfigured } from "../../../../auth";
+import { authConfigured } from "../../../../lib/auth";
 import { siteIdOf } from "../../../../lib/site-server";
 import { assetUploadedAt } from "../../../../lib/asset-gc-plan";
 import { serverTr, type Tr } from "../../../../lib/i18n-server";

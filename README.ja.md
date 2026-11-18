@@ -17,7 +17,7 @@
   <img src="https://img.shields.io/badge/TypeScript-7-3178c6?logo=typescript&logoColor=white" alt="TypeScript 7">
   <img src="https://img.shields.io/badge/deploy-Cloudflare%20%7C%20Node.js%20%7C%20Docker-555" alt="Cloudflare・Node.js・Docker で動く">
   <img src="https://img.shields.io/badge/i18n-English%20%7C%20%E6%97%A5%E6%9C%AC%E8%AA%9E-555" alt="English と日本語">
-  <a href="CONTRIBUTING.ja.md"><img src="https://img.shields.io/badge/PRs-welcome-2ea44f" alt="PRs welcome"></a>
+  <a href=".github/CONTRIBUTING.ja.md"><img src="https://img.shields.io/badge/PRs-welcome-2ea44f" alt="PRs welcome"></a>
 </p>
 
 <p align="center">
@@ -97,8 +97,8 @@ npm run dev
 ## ドキュメント
 
 - [詳細ガイド](docs/user-guide.ja.md) · [English](docs/user-guide.md)
-- [設計](ARCHITECTURE.ja.md) · [環境変数](.env.example)
-- [コントリビュート](CONTRIBUTING.ja.md) · [セキュリティ](SECURITY.ja.md) · [行動規範](CODE_OF_CONDUCT.md)（英語）
+- [設計](docs/ARCHITECTURE.ja.md) · [環境変数](.env.example)
+- [コントリビュート](.github/CONTRIBUTING.ja.md) · [セキュリティ](.github/SECURITY.ja.md) · [行動規範](.github/CODE_OF_CONDUCT.md)（英語）
 
 ## ライセンス
 

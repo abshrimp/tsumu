@@ -48,7 +48,7 @@ The opt-in [seven-day asset garbage collector](asset-gc.md) registers D1 candida
 3. Verify site creation, opening, duplication, editing, saving, collaboration, deletion, exports and daily backups in a controlled Cloudflare environment.
 4. Measure initial load on a large site and p50/p95 patch latency, CPU and row usage before production rollout. Local SQLite tests and a successful Worker build do not establish production latency.
 
-The document room's schema is in `lib/structured-document-store.ts`. Routing is in `lib/site-document-service.ts`, and the RPC facade is in `document-room.ts`.
+The document room's schema is in `lib/structured-document-store.ts`. Routing is in `lib/site-document-service.ts`, and the RPC facade is in `workers/document-room.ts`.
 
 ## Hosted Preview storage
 

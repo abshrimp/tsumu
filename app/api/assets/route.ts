@@ -5,7 +5,7 @@ import { requireAuth } from "../../../lib/server";
 import { requireSiteAccess } from "../../../lib/site-access";
 import { isSiteId } from "../../../lib/site-model";
 import { siteHasAsset, siteOwnsAssets } from "../../../lib/site-asset-access";
-import { authConfigured } from "../../../auth";
+import { authConfigured } from "../../../lib/auth";
 import { allowedEmails } from "../../../lib/allowlist";
 import { sessionUser } from "../../../lib/server";
 import { assetStore, MAX_ASSET_BYTES } from "../../../lib/kv";

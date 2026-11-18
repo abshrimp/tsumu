@@ -548,7 +548,7 @@ Where to put them:
 
 ## Development
 
-[ARCHITECTURE.md](../ARCHITECTURE.md) explains the `SiteDoc` data model and how publishing, collaboration and AI edits work.
+[ARCHITECTURE.md](ARCHITECTURE.md) explains the `SiteDoc` data model and how publishing, collaboration and AI edits work.
 
 ```
 app/
@@ -594,8 +594,8 @@ lib/
   external-edit/      Browser WebSocket bridge connecting an open editor tab to tsumu-mcp
   manualTopics.ts     Help articles
   locales/            Translations and generated language registry
-custom-worker.ts      Cloudflare Worker entry, including the collaboration Durable Object
-document-room.ts      The per-site document Durable Object (DocumentRoom)
+workers/custom-worker.ts      Cloudflare Worker entry, including the collaboration Durable Object
+workers/document-room.ts      The per-site document Durable Object (DocumentRoom)
 scripts/cloudflare.mjs  Writes the deploy wrangler config and runs OpenNext
 ```
 

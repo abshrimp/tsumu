@@ -197,7 +197,7 @@ test("browser-local mode disables server-side database and KV storage", () => {
 });
 
 test("direct WebSocket collaboration and scheduled KV garbage collection respect local mode", () => {
-  const source = readFileSync(new URL("../custom-worker.ts", import.meta.url), "utf8");
+  const source = readFileSync(new URL("../workers/custom-worker.ts", import.meta.url), "utf8");
   assert.match(source, /if \(env\.TSUMU_STORAGE_MODE === "local"\)\s*return;/);
   assert.match(source, /if \(env\.TSUMU_STORAGE_MODE === "local"\)\s*\{\s*return new Response\("Collaboration requires server-backed site storage", \{ status: 503 \}\);/);
 });

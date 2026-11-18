@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { serverTr } from "./i18n-server";
-import { auth, authConfigured } from "../auth";
+import { auth, authConfigured } from "./auth";
 import { anonymousAllowed } from "./anonymous";
 import { parseActivityUser, recordActivity, type ActivityUser } from "./activity";
 import { dbConfigured, getDb } from "./db";
