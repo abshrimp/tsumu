@@ -32,14 +32,14 @@ Tsumu lets you create websites with intuitive actions such as dragging and dropp
 
 ## Features
 
-- **Visual editing:** Edit styles, dark mode overrides, hover and custom states, custom fonts (Google Fonts, Adobe Fonts, or uploaded font files), and animations without prior web development knowledge.
-- **No-code scripts:** Build JavaScript just by listing what to do, top to bottom, under a "when".
-- **External data:** Fetch and use JSON from APIs.
-- **Import & backup:** Create an editable site from a Tsumu ZIP, a `doc.json`, an HTML file or a website ZIP, and export or restore full backup ZIPs with their assets.
-- **Flexible output:** Download a Next.js, React, Vue, Nuxt, SvelteKit, or static HTML project as a ZIP. To share one page as a single file, choose **Single HTML**.
-- **Direct publishing:** Commit to a GitHub or GitLab.com repository, or upload static files to Netlify or Cloudflare Pages. The server configuration selects the target.
-- **Real-time collaboration & site permissions:** Edit together with others, leave comments, and grant per-site **Owner**, **Editor**, or **View only** memberships.
-- **Optional AI editing:** Describe changes in plain language with built-in **Ask AI**, or [connect an AI app to an open site](docs/user-guide.md#connecting-an-external-ai-client-mcp) with a 10-minute connection code.
+- **Visual editing:** Edit styles, hover states, and animations without prior web development knowledge.
+- **No-code scripts:** Build scripts simply by arranging blocks.
+- **External data:** Fetch and use data from APIs, including for CMS-style sites.
+- **Import & backup:** Import HTML files or Tsumu-format files, and create backups.
+- **Flexible output:** Export Next.js, React, Vue, Nuxt, SvelteKit, or HTML projects.
+- **Direct publishing:** Publish to GitHub, GitLab.com, Netlify, or Cloudflare Pages in a few steps.
+- **Real-time collaboration & site permissions:** Edit together in real time and leave comments.
+- **AI integration:** Edit pages using [SKILL.md](skills/tsumu-site/SKILL.md), the built-in AI chat, or external AI apps through an MCP server.
 - **Self-hosting:** Run on Cloudflare Workers, Node.js, or Docker.
 - **Help and languages:** Built-in tutorials, illustrated Q&A, and on-screen guides.
 
@@ -47,16 +47,16 @@ Tsumu lets you create websites with intuitive actions such as dragging and dropp
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/en/ai.png" alt="Asking AI to edit the page"><br><sub><b>Ask AI</b></sub></td>
-    <td width="50%"><img src="docs/screenshots/en/publish.png" alt="Publish dialog with test and live sites"><br><sub><b>Publish</b>: Push to GitHub</sub></td>
+    <td width="50%"><img src="docs/screenshots/en/ai.png" alt="Asking AI to edit the page"><br><sub><b>AI chat editing</b></sub></td>
+    <td width="50%"><img src="docs/screenshots/en/publish.png" alt="Publish dialog with test and live sites"><br><sub><b>Publish by uploading</b></sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/en/comments.png" alt="Comment thread pinned to a heading"><br><sub><b>Comments</b></sub></td>
+    <td width="50%"><img src="docs/screenshots/en/comments.png" alt="Comment thread pinned to a heading"><br><sub><b>Commenting</b></sub></td>
     <td width="50%"><img src="docs/screenshots/en/help.png" alt="Help article with a diagram"><br><sub><b>Built-in help</b></sub></td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/screenshots/en/responsive.png" alt="Editing the phone layout"><br><sub><b>Responsive editing</b></sub></td>
-    <td width="50%"><img src="docs/screenshots/en/scripts.png" alt="Script editor listing actions under a trigger"><br><sub><b>No-code scripts</b></sub></td>
+    <td width="50%"><img src="docs/screenshots/en/scripts.png" alt="Script editor listing actions under a trigger"><br><sub><b>No-code scripting</b></sub></td>
   </tr>
 </table>
 
@@ -72,8 +72,6 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) and create a site. Local development needs no API keys or sign-in.
-
-To keep an editable copy with its assets, open **⋯ → Export as zip**, select **Entire project**, and download the ZIP. See the [export options](docs/user-guide.md#output-formats) for page and component exports.
 
 ## Deployment and publishing
 

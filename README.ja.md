@@ -32,14 +32,14 @@ Tsumu を使うと、ドラッグなどの直感的な操作だけで Web サイ
 
 ## 特徴
 
-- **ビジュアル編集**：Web の知識ゼロで、スタイル、ダークモードの配色、ホバーなどでの状態変化、フォント（Google Fonts・Adobe Fonts・フォントファイルのアップロード）、アニメーションまで編集できます。
-- **ノーコードのスクリプト**：「いつ」と「すること」を上から順に並べるだけで、JavaScript のコードが構築できます。
-- **外部データ連携**：API から JSON を取得して利用できます。
-- **インポートとバックアップ**：Tsumu の ZIP・`doc.json`・HTML ファイル・Web サイトの ZIP から、編集できるサイトを作成できます。アセットを含むバックアップ ZIP の書き出しと復元にも対応しています。
-- **選べる出力形式**：Next.js・React・Vue・Nuxt・SvelteKit・静的 HTML のプロジェクトを ZIP で書き出せます。1ページを1ファイルで共有するには「単一のHTML」を選びます。
-- **選べる公開先**：GitHub・GitLab.com のリポジトリへのコミットか、Netlify・Cloudflare Pages への静的ファイルのアップロードで公開できます。公開先はサーバーの設定で選びます。
-- **リアルタイム共同編集とサイト権限**：複数人での同時編集やコメントに加え、サイトごとに **オーナー**・**編集者**・**閲覧のみ** の権限を設定できます。
-- **AI による編集（任意）**：内蔵の「AIに頼む」で文章からページを編集できるほか、10 分間有効な接続コードを使って[編集中のサイトに外部の AI アプリを接続](docs/user-guide.ja.md#外部-ai-クライアントからの編集mcp)できます。
+- **ビジュアル編集**：Web の知識ゼロで、スタイル、ホバーなどでの状態変化、アニメーションまで編集できます。
+- **ノーコードのスクリプト**：ブロックを並べるだけで、スクリプトが構築できます。
+- **外部データ連携**：API からデータを取得して利用できます。CMS などの構築に。
+- **インポートとバックアップ**：HTML ファイルや Tsumu 形式のファイルをインポート。バックアップも可能です。
+- **選べる出力形式**：Next.js・React・Vue・Nuxt・SvelteKit・HTML のプロジェクトを書き出せます。
+- **選べる公開先**：簡単な操作で、GitHub・GitLab.com・Netlify・Cloudflare Pages へアップロードできます。
+- **リアルタイム共同編集とサイト権限**：複数人での同時編集機能やコメント機能があります。
+- **AI との連携**：[SKILL.md](skills/tsumu-site/SKILL.md) や、内臓チャットでのページ編集のほか、MCP サーバー経由での AI による編集にも対応。
 - **セルフホスト**：Cloudflare Workers・Node.js・Docker で動作します。
 - **ヘルプと多言語 UI**：チュートリアル、図解付き Q&A、画面上のガイドを内蔵しています。
 
@@ -47,16 +47,16 @@ Tsumu を使うと、ドラッグなどの直感的な操作だけで Web サイ
 
 <table>
   <tr>
-    <td width="50%"><img src="docs/screenshots/ja/ai.png" alt="AIにページの編集を頼む"><br><sub><b>AIに頼む</b></sub></td>
-    <td width="50%"><img src="docs/screenshots/ja/publish.png" alt="テストサイトと本番サイトを選べる公開画面"><br><sub><b>公開</b>: GitHubにpush</sub></td>
+    <td width="50%"><img src="docs/screenshots/ja/ai.png" alt="AIにページの編集を頼む"><br><sub><b>AI チャット編集</b></sub></td>
+    <td width="50%"><img src="docs/screenshots/ja/publish.png" alt="テストサイトと本番サイトを選べる公開画面"><br><sub><b>アップロードによる公開</b></sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/ja/comments.png" alt="見出しに付けたコメント"><br><sub><b>コメント</b></sub></td>
-    <td width="50%"><img src="docs/screenshots/ja/help.png" alt="図解付きのヘルプ"><br><sub><b>ヘルプ内蔵</b></sub></td>
+    <td width="50%"><img src="docs/screenshots/ja/comments.png" alt="見出しに付けたコメント"><br><sub><b>コメント機能</b></sub></td>
+    <td width="50%"><img src="docs/screenshots/ja/help.png" alt="図解付きのヘルプ"><br><sub><b>内蔵のヘルプ</b></sub></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/screenshots/ja/responsive.png" alt="スマホの見た目を編集"><br><sub><b>画面幅ごとの編集</b></sub></td>
-    <td width="50%"><img src="docs/screenshots/ja/scripts.png" alt="「いつ」と「すること」をカードで並べたスクリプト編集画面"><br><sub><b>ノーコードのスクリプト</b></sub></td>
+    <td width="50%"><img src="docs/screenshots/ja/responsive.png" alt="スマホの見た目を編集"><br><sub><b>レスポンシブ対応の編集</b></sub></td>
+    <td width="50%"><img src="docs/screenshots/ja/scripts.png" alt="「いつ」と「すること」をカードで並べたスクリプト編集画面"><br><sub><b>ノーコードでのスクリプト作成</b></sub></td>
   </tr>
 </table>
 
@@ -72,8 +72,6 @@ npm run dev
 ```
 
 [http://localhost:3000](http://localhost:3000) にアクセスしてサイトを作成します。ローカル開発では API キーやログイン設定は不要です。
-
-アセットを含めて再編集できる形で保存するには、**⋯ → zipでエクスポート** で **プロジェクト全体** を選び、ZIP をダウンロードします。ページやコンポーネントだけを取り出す手順は[出力形式](docs/user-guide.ja.md#出力形式)を参照してください。
 
 ## デプロイと公開
 
