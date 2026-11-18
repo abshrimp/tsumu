@@ -26,11 +26,11 @@ Keep these points in mind when you run Tsumu.
 
 ### Who can do what
 
-- **Set up Google sign-in and an email allowlist** for any editor reachable from the internet.
+- **Set up Google sign-in and an email allowlist** for any editor reachable from the internet. The exception is a setup that keeps editing data in the browser and holds no publishing token on the server (see the [Netlify example](docs/user-guide.md#netlify-publishing-without-sign-in)).
 - **Account login and site access are separate checks.** Login permissions grant an account the ability to sign in, not access to any particular site. Each server-stored site has explicit **Owner**, **Editor**, and **View only** memberships. Owners manage site membership; editors change and publish only their authorized sites; viewers can inspect authorized sites (including comments and member listings) without modifying them. Unlisted sites cannot be retrieved by direct URL. The account-level **View only** role still caps editing permission. Fixed `ALLOWED_EMAILS` administrators retain recovery access to every site.
 - **Uploaded assets are scoped to the site using them.** Access to an unrelated site's raw files or signed preview URLs is not implied by the ability to sign in, and uploaded SVGs are validated on upload to reject active scripts, `<foreignObject>`, event handlers, and unsafe link targets. Previously opened files may remain in the recipient's browser cache even after access is removed.
 - **Removing an account does not clear its browser cache.** Uploaded files are cached privately in the browser for up to a year (their paths never change), so a removed editor can still view files they already opened.
-- **`ALLOW_ANONYMOUS=true` gives those same capabilities to everyone** who can reach the editor. Keep demos isolated from production data and from GitHub or GitLab publishing tokens.
+- **`ALLOW_ANONYMOUS=true` gives those same capabilities to everyone** who can reach the editor. Keep demos isolated from production data and from GitHub, GitLab or Cloudflare publishing tokens.
 - **`npm run dev` without sign-in answers only loopback hosts** (`localhost`, `*.localhost`, `127.0.0.0/8`, and `[::1]`). Requests addressed to any other host name get 403, so a web page can't reach your local editor by pointing its own domain at your machine (DNS rebinding). Setting `ALLOW_ANONYMOUS=true` lifts this restriction.
 
 ### Hosted editor Previews

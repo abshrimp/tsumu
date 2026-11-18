@@ -13,7 +13,7 @@ npm ci
 npm run dev
 ```
 
-- The [README](README.md) lists the runtime requirements and the optional services.
+- The [detailed guide](docs/user-guide.md) lists the runtime requirements and the optional services.
 - [ARCHITECTURE.md](ARCHITECTURE.md) is a map of the code.
 
 Local development needs no API keys. Keep your environment variables in `.env.local` and your Cloudflare resource IDs in `wrangler.local.jsonc`; Git ignores both.

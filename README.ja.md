@@ -35,9 +35,9 @@ Tsumu を使うと、ドラッグなどの直感的な操作だけで Web サイ
 - **ビジュアル編集**：Web の知識ゼロで、スタイル、ダークモードの配色、ホバーなどでの状態変化、フォント（Google Fonts・Adobe Fonts・フォントファイルのアップロード）、アニメーションまで編集できます。
 - **ノーコードのスクリプト**：「いつ」と「すること」を上から順に並べるだけで、JavaScript のコードが構築できます。
 - **外部データ連携**：API から JSON を取得して利用できます。
-- **インポートとバックアップ**：Tsumu のプロジェクト ZIP をホーム画面にドロップすると、デザインと同梱のアセットを復元できます。「履歴・ロールバック」からの完全なバックアップ ZIP の書き出し・復元、`doc.json` の読み込み、HTML ファイルや Web サイトの ZIP から編集可能なページへの変換にも対応しています。 Tsumu MCP が生成した一時リンクからは、新しい編集可能なサイトを直接作成できます。正常に保存できた後、一時データは MCP サーバーから削除されます。
+- **インポートとバックアップ**：Tsumu の ZIP・`doc.json`・HTML ファイル・Web サイトの ZIP から、編集できるサイトを作成できます。アセットを含むバックアップ ZIP の書き出しと復元にも対応しています。
 - **選べる出力形式**：Next.js・React・Vue・Nuxt・SvelteKit・静的 HTML のプロジェクトを ZIP で書き出せます。1ページを1ファイルで共有するには「単一のHTML」を選びます。
-- **選べる公開先**：サーバーの環境変数で GitHub／GitLab.com・Netlify・Cloudflare Pages を切り替え、公開ボタンからデプロイできます。
+- **選べる公開先**：GitHub・GitLab.com のリポジトリへのコミットか、Netlify・Cloudflare Pages への静的ファイルのアップロードで公開できます。公開先はサーバーの設定で選びます。
 - **リアルタイム共同編集とサイト権限**：複数人での同時編集やコメントに加え、サイトごとに **オーナー**・**編集者**・**閲覧のみ** の権限を設定できます。
 - **AI による編集（任意）**：内蔵の「AIに頼む」で文章からページを編集できるほか、10 分間有効な接続コードを使って[編集中のサイトに外部の AI アプリを接続](docs/user-guide.ja.md#外部-ai-クライアントからの編集mcp)できます。
 - **セルフホスト**：Cloudflare Workers・Node.js・Docker で動作します。
@@ -75,24 +75,24 @@ npm run dev
 
 アセットを含めて再編集できる形で保存するには、**⋯ → zipでエクスポート** で **プロジェクト全体** を選び、ZIP をダウンロードします。ページやコンポーネントだけを取り出す手順は[出力形式](docs/user-guide.ja.md#出力形式)を参照してください。
 
-## 公開とデプロイ
+## デプロイと公開
 
-サーバーの `PUBLISH_PROVIDER` に `github`（既定）・`netlify`・`cloudflare` のいずれかを設定します。
+エディタは Cloudflare Workers・Node.js・Docker で動作します。サーバーの保存先（Cloudflare Workers では D1・Durable Objects・KV、Node.js では `TSUMU_DATA_DIR`、Docker では `/data` のボリューム）を設定すると、別の端末からの編集や共同編集ができます。保存先がない場合は、編集データを作成したブラウザ内に保存します。
 
-- **GitHub / GitLab.com**：`PUBLISH_PROVIDER=github` の場合、各サイトの設定からGitHubまたはGitLabを選択できます。GitHubは**Contents: Read and write**権限の`GITHUB_TOKEN`、GitLabは**api**スコープと書き込み権限のある`GITLAB_TOKEN`を設定してください。生成コードと編集用データを選択したリポジトリにコミットします。セルフホスト版GitLabには未対応です。
-- **Netlify**：`NETLIFY_OAUTH_CLIENT_ID` と `NETLIFY_OAUTH_REDIRECT_URI` だけを設定します。**Tsumuのログインもデータベースも不要**です。利用者が初めて**公開**を押すと、自身のNetlifyアカウントでログインし、公開画面に戻ります。チームが1つなら自動選択され、複数の場合は選択します。トークンと公開プロジェクトIDはブラウザ内に保存し、Tsumuサーバーでは永続保存しません。
-- **Cloudflare Pages**：`CLOUDFLARE_ACCOUNT_ID` と `CLOUDFLARE_API_TOKEN` を設定します。
+公開先は、サーバーの `PUBLISH_PROVIDER` で1つ選びます。
 
-Netlify・Cloudflare Pagesでは、生成した静的HTML・CSS・JavaScript・アセットだけをアップロードします。ログイン不要でブラウザ保存を利用する場合は `TSUMU_STORAGE_MODE=local` と `ALLOW_ANONYMOUS=true` を設定し、`AUTH_*` は設定しません。Cloudflare Pages公開には引き続きサーバー保存が必要です。ローカルモードではCloudflare KVへのアップロードも無効になり、アセットはブラウザ内に保存されます（現行の上限は1ファイル2MB）。
+| `PUBLISH_PROVIDER` | 公開のしかた | 必要な設定 |
+|---|---|---|
+| `github`（既定） | GitHub・GitLab.com のリポジトリにコミット | `GITHUB_TOKEN` または `GITLAB_TOKEN` |
+| `netlify` | 利用者自身の Netlify アカウントに静的ファイルをアップロード | Netlify の OAuth アプリ |
+| `cloudflare` | Cloudflare Pages に静的ファイルをアップロード | Cloudflare の API トークンとサーバーの保存先 |
 
-静的ホスティングでもテスト公開が利用できます。独自ドメインは公開サービスで設定し、必要に応じてサイト設定にURLを入力します。公開用トークンがなくてもZIP書き出しは可能です。
-
-編集データをサーバーに保存するには、**Cloudflare Workers** では D1・Durable Objects・KV を設定し、**Node.js** では `TSUMU_DATA_DIR` に保存先を指定します。**Docker** では `/data` にボリュームをマウントします。ブラウザ保存の場合、編集データは作成したブラウザ内に保存されます。アセットを削除したときの扱いは[保存先によって異なります](docs/user-guide.ja.md#エディタのデプロイ)。
+公開用の設定がなくても、ZIP での書き出しはできます。
 
 > [!IMPORTANT]
-> サーバー共有保存では、インターネット公開前に[Googleログイン](docs/user-guide.ja.md#googleログイン)を設定してください。匿名で利用する場合は `TSUMU_STORAGE_MODE=local` と `ALLOW_ANONYMOUS=true` を組み合わせます。ローカルサイトはブラウザ単位で分離されますが、ブラウザのデータ削除によって失われるためバックアップが必要です。Netlifyトークンはブラウザに保存されるので、不審なスクリプトから保護してください。
+> インターネットからアクセスできるエディタには、[Googleログイン](docs/user-guide.ja.md#googleログイン)を設定してください。ログインなしで公開する場合は、編集データをブラウザ内に保存し、サーバーに公開用のトークンを置かない構成にします（[Netlify での設定例](docs/user-guide.ja.md#ログインなしで-netlify-に公開する構成)）。
 
-デプロイ手順、認証、出力形式、環境変数、バックアップ、制限事項は[詳細ガイド](docs/user-guide.ja.md)を参照してください。
+デプロイの手順、公開先ごとの設定、環境変数、バックアップ、制限事項は[詳細ガイド](docs/user-guide.ja.md)を参照してください。
 
 ## ドキュメント
 

@@ -13,7 +13,7 @@ npm ci
 npm run dev
 ```
 
-動作環境と任意の外部サービスは [README](README.ja.md) を、コードの全体像は [ARCHITECTURE.ja.md](ARCHITECTURE.ja.md) を参照してください。
+動作環境と任意の外部サービスは[詳細ガイド](docs/user-guide.ja.md)を、コードの全体像は [ARCHITECTURE.ja.md](ARCHITECTURE.ja.md) を参照してください。
 
 ローカルでの開発に API キーは不要です。環境変数は `.env.local` に、Cloudflare のリソース ID は `wrangler.local.jsonc` に記述してください。いずれも Git の管理対象外です。
 

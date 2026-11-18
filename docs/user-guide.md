@@ -34,13 +34,13 @@ Local development works with no environment variables. In production, configure 
 
 | Setting | Without it | With it |
 |---|---|---|
-| Server storage (D1, Durable Objects and KV on Cloudflare; `TSUMU_DATA_DIR` on Node.js and Docker) | Sites, editing data, comments and uploaded files are saved in the browser. Only that browser can see them, and each file is limited to 2 MB. | Everything is saved on the server. You can edit and comment from other devices and with other people. You also get daily backups and a record of who edited and published. Each file can be up to 25 MB. |
+| Server storage (D1, Durable Objects and KV on Cloudflare; `TSUMU_DATA_DIR` on Node.js and Docker) | Sites, editing data, comments and uploaded files are saved in the browser. Only that browser can see them, and each file is limited to 2 MB. `TSUMU_STORAGE_MODE=local` gives the same behavior even when server storage exists. | Everything is saved on the server. You can edit and comment from other devices and with other people. You also get daily backups and a record of who edited and published. Each file can be up to 25 MB. |
 | Google sign-in (`AUTH_*`) | Local development accepts anonymous requests addressed to loopback hosts. Production requires sign-in unless you explicitly set `ALLOW_ANONYMOUS=true`. | Only the Google accounts you allow can sign in (with **Editor** or **View only** access). |
-| `GITHUB_TOKEN` / `GITLAB_TOKEN` | **Publish** explains what to set up. Exporting code as a zip still works. | Publishes to the GitHub or GitLab.com repository set in each site's settings. |
+| Publishing (`PUBLISH_PROVIDER` and the service's credentials) | **Publish** explains what to set up. Exporting code as a zip still works. | Publishes to the selected service (see [Publish targets](#publish-targets)). |
 | `AI_*` | No **Ask AI** button. | **Ask AI** is available. |
 
 > [!IMPORTANT]
-> If the editor can be reached from the internet, always set up Google sign-in. Run it without sign-in only on your own machine, or as a demo that has no publish target (neither `GITHUB_TOKEN` nor `GITLAB_TOKEN`).
+> If the editor can be reached from the internet, always set up Google sign-in. Run it without sign-in only on your own machine, or when the server holds no publishing token (`GITHUB_TOKEN`, `GITLAB_TOKEN` or `CLOUDFLARE_API_TOKEN`), as in [Netlify publishing without sign-in](#netlify-publishing-without-sign-in).
 
 ## Quick start (local)
 
@@ -92,9 +92,14 @@ On Cloudflare, files in Trash count toward storage usage. Automatic deletion is 
 
 Sign-in turns on once `AUTH_SECRET`, `AUTH_GOOGLE_ID` and `AUTH_GOOGLE_SECRET` are all set. Also set `AUTH_URL` to the editor's URL.
 
-Accounts listed in `ALLOWED_EMAILS` are instance administrators with full recovery access. To allow more accounts (either as **Editors** or **View only**), go to the home screen and open **Settings → Accounts that can sign in** (this needs server storage).
+Accounts listed in `ALLOWED_EMAILS` are instance administrators with full recovery access. To allow more accounts (either as **Editors** or **View only**), go to the home screen and open **Settings → Accounts with access** (this needs server storage).
 
-**Per-site membership:** A login alone grants no access to individual server-stored sites. The creator is the first **Owner**. From the site's **… → Members and permissions** menu, an owner can grant an allowed account **Owner**, **Editor**, or **View only** rights, or remove its access. Editors can change and publish that site; viewers can only inspect it; users not in the site membership cannot see it in the home list or open its URL. Account-wide **View only** access remains a ceiling, so those accounts cannot edit a site even if listed as a site editor. Each site must retain at least one owner.
+Signing in alone grants no access to individual server-stored sites. The creator is the first **Owner**. On the home screen, an owner can open a site's **… → Members and permissions** and give an allowed account **Owner**, **Editor** or **View only** rights, or remove its access.
+
+- Editors can change and publish that site; viewers can't change it.
+- Users who aren't members of a site don't see it in the home list, and opening its URL directly is refused.
+- Account-wide **View only** access is a ceiling: those accounts can't edit a site even if they are its editors.
+- Each site must keep at least one owner.
 
 #### GitHub and GitLab tokens
 
@@ -233,7 +238,17 @@ Reverse proxy setup is the same as for [Node.js](#nodejs).
 
 ## Publish targets
 
-The publishing provider is selected for the entire Tsumu instance by `PUBLISH_PROVIDER` (`github`, `netlify`, `cloudflare`). Server credentials are not stored in site settings. For **Netlify**, configure a Netlify OAuth application. The editor can run without sign-in and without server-backed site storage: each browser owns its local sites and its Netlify login. For **Cloudflare Pages**, configure server API credentials and storage. Each site gets a separate provider project on first publish (Netlify test publishing uses a separate project; Cloudflare Pages uses a preview branch). Only built static HTML/CSS/JS and assets are uploaded; editor data is never included. Static publishing has no build step and does not support server-only Next.js features.
+`PUBLISH_PROVIDER` selects one publishing service for the whole Tsumu instance. Credentials are never stored in site settings.
+
+| `PUBLISH_PROVIDER` | How sites are published | Test publishing | What you configure |
+|---|---|---|---|
+| `github` (default) | Commits the generated code and editing data to each site's GitHub or GitLab.com repository. | Another branch of the same repository | `GITHUB_TOKEN` and/or `GITLAB_TOKEN` (see [Common setup](#common-setup)) |
+| `netlify` | Uploads generated static files to each user's own Netlify account. Works without a Tsumu login or server storage. | A separate Netlify project | A Netlify OAuth app (see [below](#netlify-publishing-without-sign-in)) |
+| `cloudflare` | Uploads generated static files to Cloudflare Pages. | A preview branch (`tsumu-preview`) | `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` and server storage |
+
+For Netlify and Cloudflare Pages, Tsumu creates a project for each site on its first publish, named `<PUBLISH_PROJECT_PREFIX>-<site ID>`. Only the generated static HTML, CSS, JavaScript and assets are uploaded; editing data is never included. Server-only Next.js features are not available.
+
+Configure custom domains with the hosting provider, and enter their URLs in site settings if you want Tsumu to link to them. Deleting a site in Tsumu never deletes its hosting project or repository.
 
 For **Git repositories**, set `PUBLISH_PROVIDER=github`, then open a site's **… → Settings** to configure the fields below. Each site can use GitHub or GitLab.com. You can fill them in when you create the site or later.
 
@@ -247,16 +262,16 @@ For **Git repositories**, set `PUBLISH_PROVIDER=github`, then open a site's **�
 
 Create the site's repository before the first publish. It can be empty or initialized with a README.
 
-### Browser-local Netlify publishing without a Tsumu login
+### Netlify publishing without sign-in
 
-For a public instance such as `tsumu.ebii.net`:
+For a public instance that anyone can open, such as `tsumu.ebii.net`:
 
-1. Set `PUBLISH_PROVIDER=netlify`, `TSUMU_STORAGE_MODE=local`, `ALLOW_ANONYMOUS=true`. Do not set `AUTH_SECRET`, `AUTH_GOOGLE_ID` or `AUTH_GOOGLE_SECRET`. Each visitor's sites and editable documents then stay in that browser even if D1 is bound to the Worker. Server-side KV uploads are also disabled; inline browser assets are limited to 2 MiB per file.
-2. Create an OAuth application in Netlify **User settings → Applications** with callback `https://tsumu.ebii.net/netlify/callback`. Set `NETLIFY_OAUTH_CLIENT_ID` and the exact `NETLIFY_OAUTH_REDIRECT_URI`. No shared Netlify API token, Google login, OAuth Client Secret or `NETLIFY_TOKEN_ENCRYPTION_KEY` is needed.
-3. The visitor clicks **Publish**. The first time, Netlify signs them in. The callback verifies the one-use state and returns to the same site's Publish dialog. If their Netlify account has one team, it is used automatically; otherwise they choose the team. Production and test use distinct Netlify projects.
-4. The browser stores the Netlify OAuth access token and the per-site project IDs in localStorage. For deployment, Tsumu's server acts as a temporary API proxy; it validates the ZIP and the project's Netlify team, and **does not persist credentials or editable documents**. All Netlify usage is charged to the visitor's chosen team.
+1. Set `PUBLISH_PROVIDER=netlify`, `TSUMU_STORAGE_MODE=local` and `ALLOW_ANONYMOUS=true`. Do not set `AUTH_SECRET`, `AUTH_GOOGLE_ID` or `AUTH_GOOGLE_SECRET`. Each visitor's sites and editing data then stay in their browser, even if D1 is bound to the Worker. Server-side KV uploads are also disabled, and assets stored in the browser are limited to 2 MiB per file.
+2. Create an OAuth application in Netlify under **User settings → Applications** with the callback `https://tsumu.ebii.net/netlify/callback`. In Tsumu, set only `NETLIFY_OAUTH_CLIENT_ID` and a `NETLIFY_OAUTH_REDIRECT_URI` that matches the registered callback exactly. No shared Netlify API token or OAuth client secret is needed.
+3. When a visitor clicks **Publish** for the first time, Netlify signs them in and then returns them to the same site's Publish dialog. If their Netlify account has one team, it is used automatically; otherwise they choose one. Production and test use separate Netlify projects.
+4. The browser keeps the Netlify access token and each site's project IDs in localStorage. While publishing, Tsumu's server relays the Netlify API requests and checks the ZIP and the project's team, but **never stores the token or editing data**. Netlify usage is billed to the team the visitor chose.
 
-**Security and recovery:** localStorage tokens are accessible to scripts running on the same origin, so avoid untrusted browser extensions and scripts, and disconnect from Netlify when no longer needed. An editor opened from a different browser cannot read local sites or publishing credentials. Clearing browser data removes the editable sites and Netlify bindings (but does not delete the websites hosted by Netlify). Export a full backup ZIP regularly and re-import to recover editing data. To retain a stable publishing project on another browser, keep its Netlify project ID safely; re-linking existing projects is not automatic.
+Scripts running on the same origin can read tokens in localStorage, so watch out for untrusted scripts and browser extensions. Another browser can't see the local sites or the Netlify connection. Clearing browser data removes the editing data and the link to the Netlify projects, but sites already published on Netlify stay online. Keep backup ZIPs of your editing data. Tsumu does not reconnect to earlier Netlify projects automatically from another browser.
 
 ## Output formats
 
@@ -281,6 +296,8 @@ Formats other than Next.js can't express everything. The dialog lists what the s
 - HTML pages (pages written as raw HTML), except in the two HTML formats;
 - a custom `<script>` at the end of the body, in React, Vue, Nuxt and SvelteKit;
 - CSS Modules or Tailwind CSS with the HTML formats;
+- custom `<script>` on pages that use external data, in React;
+- custom code and loading screens, in Vue, Nuxt and SvelteKit;
 - more than one page with Single HTML.
 
 Data fetches that carry credentials (an `Authorization` header, an API key in the URL or body, and so on) can't be exported or published in any format, Next.js included, because the values would end up in the generated source and in the zip's editing data. Keep credentials in server environment variables or behind an API proxy.
@@ -305,6 +322,8 @@ On the home screen, click **Import** or drop a file onto the page to create a ne
 | A zip exported from Tsumu (it contains both `_tsumu/doc.json` and `_tsumu/assets.json`) | The site is restored, with its images and other assets. |
 | A `doc.json` | The site is restored. Assets embedded as data URLs are uploaded. |
 | An HTML file, or a zip of a website | Every HTML page is converted into editable elements. Links between those pages follow the source HTML’s base URL, including query strings and fragments. The zip's other files are uploaded as assets and the HTML's paths are rewritten. |
+
+Opening a temporary site link created by Tsumu MCP also creates a new site from its content; it never writes into an existing site. Once the new site is saved, the temporary data is deleted from the MCP server.
 
 If you drop a ZIP without editing data onto the home screen, Tsumu alerts you before converting its HTML. Warnings about assets that could not be restored appear once the new site opens. If the connection drops during a server import and Tsumu cannot confirm the save, check the home screen for the new site before importing again.
 
@@ -444,14 +463,14 @@ All variables are optional (see [What you need](#what-you-need)).
 | `ALLOW_ANONYMOUS` | `true` lets the editor open without sign-in on non-loopback hosts and in production when Google sign-in isn't set up (loopback hosts under `npm run dev` open without it). Anyone with the URL can then edit and publish, so use it only locally or for a demo. |
 | `AUTH_URL` | The editor's URL in production, e.g. `https://tsumu.example.com` |
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Google OAuth client |
-| `ALLOWED_EMAILS` | Google accounts that always sign in as **Editors**, comma-separated. These can't be removed or downgraded in the UI. Manage additional **Editor** or **View only** accounts under **Settings** on the home screen. |
+| `ALLOWED_EMAILS` | Google accounts that always sign in as **Editors**, comma-separated. They manage every site as an owner and can't be removed or downgraded in the UI. Manage additional **Editor** or **View only** accounts under **Settings** on the home screen. |
 | `PUBLISH_PROVIDER` | `github` (default), `netlify` or `cloudflare`; selected for the whole Tsumu server |
-| `PUBLISH_PROJECT_PREFIX` | Optional static hosting project prefix (default `tsumu`); choose a unique one per instance |
+| `PUBLISH_PROJECT_PREFIX` | Project name prefix for Netlify and Cloudflare Pages (default `tsumu`). Use a different one for each Tsumu instance. |
 | `GITHUB_TOKEN` | GitHub: Contents: Read and write on every publishing repository |
 | `GITLAB_TOKEN` | GitLab.com: API-scoped token with write permission on every selected project |
-| `NETLIFY_OAUTH_CLIENT_ID` | Netlify OAuth application client ID, configured once per Tsumu installation |
-| `NETLIFY_OAUTH_REDIRECT_URI` | Registered OAuth redirect, e.g. `https://tsumu.ebii.net/netlify/callback` |
-| `TSUMU_STORAGE_MODE` | Optional `local`: force browser-only site and document storage even when D1 is connected |
+| `NETLIFY_OAUTH_CLIENT_ID` | Client ID of the Netlify OAuth app, set for each Tsumu instance |
+| `NETLIFY_OAUTH_REDIRECT_URI` | Redirect URL registered in the Netlify OAuth app, e.g. `https://tsumu.ebii.net/netlify/callback` |
+| `TSUMU_STORAGE_MODE` | `local` keeps sites and editing data in the browser only, even when server storage exists. KV asset uploads are disabled too. |
 | `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` | Cloudflare Pages only: account ID and token with Pages: Edit permission |
 | `AI_ENABLED` | `true` to turn on Ask AI |
 | `AI_PROVIDER` | `anthropic` (default), `gemini`, `openai` or `openai-compatible` |
@@ -482,13 +501,13 @@ Where to put them:
 | SQLite-backed Durable Object row | 8 MB per value | Page, node, component and asset JSON entries are stored independently; Tsumu limits each stored entry to 7 MB. |
 | KV | 1 GB total, 25 MB per file, 1,000 writes per day | All sites share the underlying KV namespace, while each site's Assets tab shows usage and Trash scoped to that site. |
 | KV consistency | Eventual | A new upload can take a few seconds to appear everywhere. |
-| GitHub API | 5,000 requests per hour | One publish uses anywhere from a dozen or fewer requests. |
+| GitHub API | 5,000 requests per hour | One publish uses from a few to a dozen or so requests. |
 
 ### Sites
 
 - Deleting a site deletes its editing data and automatic backups. The published repository remains, and the images in storage aren't deleted right away.
 - Images copied between sites share a stored file. On Cloudflare, deleting an asset in the editor only removes the reference; the file stays in KV for now, because a concurrent save in another site might still use it. Unreferenced files are deleted by garbage collection when `ASSET_GC_ENABLED=true` (see [KV asset GC](asset-gc.md)).
-- Without D1, sites exist only in that browser. Clearing the browser's data loses them.
+- Without server storage, or with `TSUMU_STORAGE_MODE=local`, sites exist only in that browser. Clearing the browser's data loses them.
 
 ### Collaboration
 
@@ -521,7 +540,7 @@ Where to put them:
 - **The first publish is careful too.** It keeps existing files and asks before overwriting any file at the same path.
 - **`_tsumu/` is reserved** for Tsumu's metadata. If the list of generated files there is malformed, publishing stops.
 - Page-specific custom code is inserted at the start and end of the page body, not in `<head>`.
-- On the canvas, custom code and icons are shown sanitized, `embed` iframes are sandboxed and reject same-origin editor URLs and credentialed URLs, and iframes in custom code run in a sandbox on a different origin from the editor. Their scripts and event handlers run only on the published site, so they can't act with your editor session's permissions.
+- On the canvas, custom code and icons are shown sanitized. `embed` iframes are sandboxed and reject same-origin editor URLs and URLs with credentials. Iframes in custom code also run in a sandbox on a different origin from the editor. Scripts and event handlers run only on the published site, so they can't act with your editor session's permissions.
 - `next/image` is exported with `unoptimized` so it works on every host.
 - HTML pages (pages written as raw HTML) don't get the shared layout, metadata or custom code. Only the Next.js and HTML formats can output them.
 - After you split text into spans, each span is edited separately.

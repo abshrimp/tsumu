@@ -35,9 +35,9 @@ Tsumu lets you create websites with intuitive actions such as dragging and dropp
 - **Visual editing:** Edit styles, dark mode overrides, hover and custom states, custom fonts (Google Fonts, Adobe Fonts, or uploaded font files), and animations without prior web development knowledge.
 - **No-code scripts:** Build JavaScript just by listing what to do, top to bottom, under a "when".
 - **External data:** Fetch and use JSON from APIs.
-- **Import & backup:** Drop a Tsumu project ZIP on the home screen to restore the design and its packaged assets, or export/restore a full backup ZIP from **History & rollback**. You can also import a `doc.json` or convert HTML files and website ZIPs into editable pages. One-time AI-generated site links from Tsumu MCP import directly into a new editable site; temporary relay copies are deleted after a confirmed save.
+- **Import & backup:** Create an editable site from a Tsumu ZIP, a `doc.json`, an HTML file or a website ZIP, and export or restore full backup ZIPs with their assets.
 - **Flexible output:** Download a Next.js, React, Vue, Nuxt, SvelteKit, or static HTML project as a ZIP. To share one page as a single file, choose **Single HTML**.
-- **Direct publishing:** Publish to GitHub or GitLab.com, or upload static site files directly to Netlify and Cloudflare Pages, selected by the server environment.
+- **Direct publishing:** Commit to a GitHub or GitLab.com repository, or upload static files to Netlify or Cloudflare Pages. The server configuration selects the target.
 - **Real-time collaboration & site permissions:** Edit together with others, leave comments, and grant per-site **Owner**, **Editor**, or **View only** memberships.
 - **Optional AI editing:** Describe changes in plain language with built-in **Ask AI**, or [connect an AI app to an open site](docs/user-guide.md#connecting-an-external-ai-client-mcp) with a 10-minute connection code.
 - **Self-hosting:** Run on Cloudflare Workers, Node.js, or Docker.
@@ -75,24 +75,24 @@ Open [http://localhost:3000](http://localhost:3000) and create a site. Local dev
 
 To keep an editable copy with its assets, open **⋯ → Export as zip**, select **Entire project**, and download the ZIP. See the [export options](docs/user-guide.md#output-formats) for page and component exports.
 
-## Publishing and deployment
+## Deployment and publishing
 
-Set `PUBLISH_PROVIDER` to `github` (default), `netlify`, or `cloudflare` for the whole Tsumu installation:
+The editor runs on Cloudflare Workers, Node.js or Docker. With server storage (D1, Durable Objects and KV on Cloudflare Workers, `TSUMU_DATA_DIR` on Node.js, or a volume at `/data` on Docker), you can edit from other devices and collaborate with others. Without it, editing data stays in the browser that created it.
 
-- **GitHub / GitLab.com:** With `PUBLISH_PROVIDER=github`, choose **GitHub** or **GitLab** for each site. Configure `GITHUB_TOKEN` (Contents: Read and write) and/or `GITLAB_TOKEN` (GitLab API scope and project write access). Set the repository and branches in site settings. Generated source and editable project data are committed to the selected service. GitLab.com is supported; self-managed GitLab hosts are not.
-- **Netlify:** Configure a Netlify OAuth app (`NETLIFY_OAUTH_CLIENT_ID` and `NETLIFY_OAUTH_REDIRECT_URI`). **No Tsumu login or database is required:** clicking **Publish** opens the visitor's own Netlify login, then returns to Publish. A single Netlify team is auto-selected; otherwise the visitor chooses one. The token and project IDs stay in that browser, while Tsumu's server only relays API operations without persisting credentials.
-- **Cloudflare Pages:** Configure `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` for this installation.
+Choose one publishing target for the server with `PUBLISH_PROVIDER`:
 
-Netlify and Cloudflare Pages upload **only generated static HTML/CSS/JS and assets**, not editable site data. For anonymous browser-only hosting, set `TSUMU_STORAGE_MODE=local` and `ALLOW_ANONYMOUS=true` (without `AUTH_*`). This isolates editable sites by browser without server-side site accounts. Cloudflare Pages still requires server-backed storage. Browser-local mode also disables server-side KV uploads; inline assets are limited to 2 MiB per file.
+| `PUBLISH_PROVIDER` | How sites are published | What you configure |
+|---|---|---|
+| `github` (default) | Commits to a GitHub or GitLab.com repository | `GITHUB_TOKEN` or `GITLAB_TOKEN` |
+| `netlify` | Uploads static files to each user's own Netlify account | A Netlify OAuth app |
+| `cloudflare` | Uploads static files to Cloudflare Pages | A Cloudflare API token and server storage |
 
-Independent preview sites are available for both static hosts. Custom domains are configured with the hosting provider, with optional links in site settings. All methods still support separate ZIP export without a publishing token.
-
-For persistent storage, configure D1, Durable Objects and KV on **Cloudflare Workers**, set `TSUMU_DATA_DIR` on **Node.js**, or mount a volume at `/data` in **Docker**. With browser-only storage, sites stay in the browser that created them. Asset deletion and recovery depend on the [storage backend](docs/user-guide.md#deploying-the-editor).
+ZIP export works without any publishing configuration.
 
 > [!IMPORTANT]
-> For server-backed or shared sites, configure [Google sign-in](docs/user-guide.md#google-sign-in) before exposing the editor publicly. For a deliberately anonymous, browser-local Tsumu instance, use `TSUMU_STORAGE_MODE=local` and `ALLOW_ANONYMOUS=true`. Other browsers cannot see local site documents, but clearing browser storage destroys the local copy unless backed up. Netlify access tokens stored in browser storage must be protected from untrusted scripts.
+> If the editor can be reached from the internet, set up [Google sign-in](docs/user-guide.md#google-sign-in). To run it without sign-in, keep editing data in the browser and keep publishing tokens off the server (see the [Netlify example](docs/user-guide.md#netlify-publishing-without-sign-in)).
 
-See the [detailed guide](docs/user-guide.md) for deployment commands, authentication, publishing formats, environment variables, backups and limitations.
+See the [detailed guide](docs/user-guide.md) for deployment steps, per-target setup, environment variables, backups and limitations.
 
 ## Documentation
 
