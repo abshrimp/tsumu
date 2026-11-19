@@ -12,7 +12,7 @@ import { IMPORT_LIMITS } from "../lib/site-import-format";
 import { usePendingImport } from "../lib/use-pending-import";
 import { useEditor } from "../lib/store";
 
-/** Manual backups live alongside automatic history and published rollbacks. */
+/** Export and restore standalone backup files from the manual history tab. */
 export default function BackupFileControls({ onDone }: { onDone?: () => void }) {
   const doc = useEditor(s => s.doc);
   const input = useRef<HTMLInputElement>(null);

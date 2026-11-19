@@ -5,6 +5,7 @@ import {
   Check,
   CloudOff,
   ExternalLink,
+  FileArchive,
   FlaskConical,
   GitCommitHorizontal,
   Globe,
@@ -1027,7 +1028,7 @@ function BackupHistory({ onDone }: { onDone: () => void }) {
 /** 履歴: 公開サイトのロールバックと、編集データの復元 */
 export function HistoryModal({ onClose }: { onClose: () => void }) {
   const conf = usePublishConfig();
-  const [tab, setTab] = useState<"site" | "doc">("site");
+  const [tab, setTab] = useState<"site" | "doc" | "manual">("site");
   useEscapeToClose(onClose);
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -1048,10 +1049,15 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
             <History size={13} />
             {tr("Automatic backups of edits")}
           </button>
+          <button role="tab" aria-selected={tab === "manual"} className={tab === "manual" ? "is-on" : ""} onClick={() => setTab("manual")}>
+            <FileArchive size={13} />
+            {tr("Manual backup")}
+          </button>
         </div>
-        <BackupFileControls onDone={onClose} />
         <div className="hist-body">
-          {tab === "doc" ? (
+          {tab === "manual" ? (
+            <BackupFileControls onDone={onClose} />
+          ) : tab === "doc" ? (
             <BackupHistory onDone={onClose} />
           ) : conf === null ? (
             <div className="pub-loading">

@@ -236,6 +236,29 @@ test("page appearance uses an icon-only trigger with light and dark menu options
   await expect(options.filter({ hasText: "ダークモード" })).toBeVisible();
 });
 
+test("history separates published, automatic and manual backups into tabs", async ({ page }) => {
+  await openNewSite(page, "Backup tabs");
+  await page.locator('[data-tutorial="menu"] > button').click();
+  await page.locator(".dd-menu .dd-item").filter({ hasText: "履歴・ロールバック" }).click();
+  const dialog = page.getByRole("dialog", { name: "履歴" });
+  const published = dialog.getByRole("tab", { name: "公開サイト" });
+  const automatic = dialog.getByRole("tab", { name: "編集データの自動バックアップ" });
+  const manual = dialog.getByRole("tab", { name: "手動バックアップ" });
+
+  await expect(published).toHaveAttribute("aria-selected", "true");
+  await expect(dialog.locator(".hist-backup")).toHaveCount(0);
+  await automatic.click();
+  await expect(automatic).toHaveAttribute("aria-selected", "true");
+  await expect(dialog.locator(".hist-backup")).toHaveCount(0);
+  await manual.click();
+  await expect(manual).toHaveAttribute("aria-selected", "true");
+  await expect(dialog.locator(".hist-backup")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "バックアップZIPを書き出す" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "バックアップファイルを読み込む" })).toBeVisible();
+  await published.click();
+  await expect(dialog.locator(".hist-backup")).toHaveCount(0);
+});
+
 test("MCP connection opens its own modal dialog from the editor menu", async ({ page }) => {
   const errors = watchErrors(page);
   await openNewSite(page, "MCP menu");

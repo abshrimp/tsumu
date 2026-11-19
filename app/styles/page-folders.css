@@ -1558,11 +1558,14 @@
   display: flex;
   gap: 4px;
   margin-bottom: 12px;
+  overflow-x: auto;
+  scrollbar-width: thin;
   border-bottom: 1px solid var(--border);
 }
 
 .hist-tabs button {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
@@ -2414,6 +2417,6 @@ a.hist-msg:hover {
     min-width: 0;
     font-size: 11px;
     line-height: 1.35;
-    white-space: normal;
+    white-space: nowrap;
   }
 }
