@@ -1576,8 +1576,12 @@ a.btn {
 }
 
 .site-members-emblem {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
+}
+.site-members-emblem svg {
+  width: 17px;
+  height: 17px;
 }
 
 .site-members-heading {
@@ -1762,18 +1766,22 @@ a.btn {
 .modal-heading {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 .modal-heading-icon {
   display: grid;
   place-items: center;
   flex: none;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   background: var(--accent-soft);
   color: var(--accent);
+}
+.modal-heading-icon svg {
+  width: 17px;
+  height: 17px;
 }
 .modal-heading-copy {
   flex: 1;
@@ -1788,7 +1796,7 @@ a.btn {
 }
 .modal-refined-header > .modal-heading + .modal-desc,
 .export-layout-header > .modal-heading + .modal-desc {
-  margin-left: 52px;
+  margin-left: 44px;
 }
 
 /* Shared layout for long-form site, app and editor settings dialogs.
