@@ -17,6 +17,7 @@ import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { usePendingImport } from "../lib/use-pending-import";
 import { docFingerprint, useEditor } from "../lib/store";
 import BackupFileControls from "./BackupFileControls";
+import ModalHeading from "./ModalHeading";
 import { base64ToBytes, utf8ToBase64 as textToBase64 } from "../lib/base64";
 import { CheckList, docWithSvgFilters } from "./PublishShared";
 import { showAlert, showConfirm } from "../lib/dialog";
@@ -496,7 +497,10 @@ export default function PublishModal({
         aria-label={site && phase !== "check" ? tr("Publish to {site}", { site: SITE[site].label() }) : tr("Publish site")}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2>{site && phase !== "check" ? tr("Publish to {site}", { site: SITE[site].label() }) : tr("Publish site")}</h2>
+        <div className="pub-modal-header">
+          <ModalHeading icon={<Globe size={20} />}>{site && phase !== "check" ? tr("Publish to {site}", { site: SITE[site].label() }) : tr("Publish site")}</ModalHeading>
+        </div>
+        <div className="pub-modal-content">
 
         {phase === "check" && targets && !targets.configured && (
           <>
@@ -740,6 +744,7 @@ export default function PublishModal({
             </div>
           </>
         )}
+        </div>
       </div>
     </div>
   );
@@ -1028,7 +1033,7 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal hist-modal" role="dialog" aria-modal="true" aria-label={tr("History")} onClick={(e) => e.stopPropagation()}>
         <div className="export-layout-header">
-          <h2>{tr("History")}</h2>
+          <ModalHeading icon={<History size={20} />}>{tr("History")}</ModalHeading>
           <p className="modal-desc">
             {tr("Return the published site to an earlier version, or bring your edits back to an earlier state.")}
           </p>

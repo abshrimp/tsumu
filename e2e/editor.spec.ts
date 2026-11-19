@@ -223,6 +223,19 @@ test("Custom code and icon scripts stored in documents never execute inside the 
   expect(errors).toEqual([]);
 });
 
+test("page appearance uses an icon-only trigger with light and dark menu options", async ({ page }) => {
+  await openNewSite(page, "Page appearance");
+  const trigger = page.locator(".hdr-page-theme button").first();
+  await expect(trigger).toHaveAttribute("aria-label", "ページの配色");
+  await expect(trigger.locator("svg")).toHaveCount(1);
+  await expect(trigger).toHaveText("");
+  await trigger.click();
+  const options = page.locator(".dd-menu .dd-item");
+  await expect(options).toHaveCount(2);
+  await expect(options.filter({ hasText: "ライトモード" })).toBeVisible();
+  await expect(options.filter({ hasText: "ダークモード" })).toBeVisible();
+});
+
 test("MCP connection opens its own modal dialog from the editor menu", async ({ page }) => {
   const errors = watchErrors(page);
   await openNewSite(page, "MCP menu");
@@ -236,6 +249,7 @@ test("MCP connection opens its own modal dialog from the editor menu", async ({ 
   await expect(page.locator(".mcp-modal .mcp-plugins h3")).toHaveText("AIアプリにTsumuを追加");
   await expect(page.locator(".mcp-modal .mcp-guide-link")).toBeVisible();
   await expect(page.locator(".mcp-modal")).toHaveAttribute("aria-modal", "true");
+  await expect(page.locator(".mcp-modal .modal-heading-icon svg")).toBeVisible();
   await expect(page.getByRole("button", { name: "接続を開始" })).toBeVisible();
   await page.locator(".modal-backdrop .modal-actions button").click();
   await expect(page.locator(".modal-backdrop")).toHaveCount(0);
