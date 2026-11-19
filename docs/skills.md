@@ -16,7 +16,7 @@ The ZIP contains one top-level `tsumu/` folder with `SKILL.md` and **all bundled
 2. In ChatGPT, open **Plugins → Skills → Create → Upload from your computer**, then select the ZIP.
 3. After installation, ask: **"Use the tsumu skill to create a modern portfolio site."**
 
-Skill upload is available only for **eligible ChatGPT Business, Enterprise, Healthcare and Edu accounts**, subject to workspace settings. If Skills is not shown, your account or workspace may not support it. [Official ChatGPT Skills guide](https://help.openai.com/en/articles/20001066-skills-in-chatgpt).
+Skill upload is available only for **eligible ChatGPT Business, Enterprise, Healthcare and Edu accounts**, subject to workspace settings. If Skills is not shown, your account or workspace may not support it. For details, see the [official ChatGPT Skills guide](https://help.openai.com/en/articles/20001066-skills-in-chatgpt).
 
 ### Claude (web or desktop chat)
 
@@ -24,18 +24,18 @@ Skill upload is available only for **eligible ChatGPT Business, Enterprise, Heal
 2. Open **Customize → Skills**, select **+ → Create skill → Upload a skill**, and upload the ZIP.
 3. Enable the `tsumu` Skill and ask Claude to create a new Tsumu website.
 
-Do not upload only `SKILL.md`; the ZIP includes the required references. [Official Claude guide](https://support.claude.com/en/articles/12512180-use-skills-in-claude).
+Upload the entire ZIP, not only `SKILL.md`, because the required references are included in the ZIP. For details, see the [official Claude guide](https://support.claude.com/en/articles/12512180-use-skills-in-claude).
 
 ### Claude Code
 
-Extract the downloaded ZIP into the global skills directory (or replace `~/.claude/skills` with `.claude/skills` for a single project):
+To use the Skill in all projects, extract the downloaded ZIP into `~/.claude/skills` as shown below. For a single project, use `.claude/skills` instead.
 
 ```sh
 mkdir -p ~/.claude/skills
 unzip -o ~/Downloads/tsumu-skill.zip -d ~/.claude/skills
 ```
 
-Restart the session if needed and ask Claude Code to use the `tsumu` Skill.
+Restart the session if needed, then ask Claude Code to use the `tsumu` Skill.
 
 ### Cursor
 
@@ -46,7 +46,7 @@ mkdir -p ~/.cursor/skills
 unzip -o ~/Downloads/tsumu-skill.zip -d ~/.cursor/skills
 ```
 
-Cursor discovers `tsumu/SKILL.md` with its references. [Official Cursor Skills documentation](https://cursor.com/docs/skills).
+Cursor discovers `tsumu/SKILL.md` with its references. For details, see the [official Cursor Skills documentation](https://cursor.com/docs/skills).
 
 ### Codex (CLI, IDE, or app)
 
@@ -57,18 +57,18 @@ mkdir -p ~/.agents/skills
 unzip -o ~/Downloads/tsumu-skill.zip -d ~/.agents/skills
 ```
 
-Open a new Codex session to discover the Skill. [Official OpenAI skill installation reference](https://developers.openai.com/api/reference/cli).
+Open a new Codex session to discover the Skill. For details, see the [official Codex Skills guide](https://learn.chatgpt.com/docs/build-skills).
 
 ### Gemini CLI
 
-Gemini CLI recognizes user-level Skills in `~/.gemini/skills` (also `~/.agents/skills`). Extract the ZIP:
+For user-level Skills, extract the ZIP into `~/.gemini/skills`. Gemini CLI also recognizes `~/.agents/skills`.
 
 ```sh
 mkdir -p ~/.gemini/skills
 unzip -o ~/Downloads/tsumu-skill.zip -d ~/.gemini/skills
 ```
 
-Run `/skills list` (or `gemini skills list`) and confirm that `tsumu` is visible. [Official Gemini CLI Skills guide](https://geminicli.com/docs/cli/skills/).
+Run `/skills list` or `gemini skills list` and confirm that `tsumu` is visible. For details, see the [official Gemini CLI Skills guide](https://geminicli.com/docs/cli/skills/).
 
 ### Google Antigravity
 
@@ -79,7 +79,7 @@ mkdir -p ~/.gemini/config/skills
 unzip -o ~/Downloads/tsumu-skill.zip -d ~/.gemini/config/skills
 ```
 
-Start a new agent session and ask it to use the `tsumu` Skill. [Official Antigravity Skills guide](https://codelabs.developers.google.com/getting-started-agy-ide).
+Start a new agent session and ask it to use the `tsumu` Skill. For details, see the [official Antigravity Skills guide](https://codelabs.developers.google.com/getting-started-agy-ide).
 
 ## MCP connection vs. Skill
 

@@ -57,7 +57,7 @@ mkdir -p ~/.agents/skills
 unzip -o ~/Downloads/tsumu-skill.zip -d ~/.agents/skills
 ```
 
-新しいCodexセッションを開始してSkillを利用します。詳しくは[OpenAI公式ガイド](https://developers.openai.com/api/reference/cli)をご覧ください。
+新しいCodexセッションを開始してSkillを利用します。詳しくは[Codex公式ガイド](https://learn.chatgpt.com/docs/build-skills)をご覧ください。
 
 ### Gemini CLI
 
