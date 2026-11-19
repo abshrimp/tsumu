@@ -381,7 +381,7 @@ test("home and editor share appearance preference without changing page theme", 
   await expect(page.locator("html")).toHaveAttribute("data-editor-theme", "dark");
   await expect(page.locator(".hdr-page-theme")).toBeVisible();
 
-  await page.locator(".hdr-page-theme .dd").click();
+  await page.locator(".hdr-page-theme").getByRole("button", { name: "ページの配色" }).click();
   await page.locator(".dd-menu .dd-item").filter({ hasText: "ダークモード" }).click();
   await page.locator(".panel-l .layer-row").first().click();
   await expect(page.locator(".panel-r")).toHaveClass(/is-dark/);
