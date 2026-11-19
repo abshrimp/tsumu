@@ -1216,7 +1216,36 @@
 }
 
 .modal.pub-modal {
-  width: 560px;
+  display: flex;
+  flex-direction: column;
+  width: 600px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100dvh - 32px);
+  overflow: hidden;
+  padding: 0;
+}
+.pub-modal-header {
+  flex: none;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.pub-modal-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 20px 24px 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.pub-modal-content > :first-child {
+  margin-top: 0;
+}
+.pub-modal-content > .modal-actions:last-child {
+  margin-top: 18px;
+}
+@media (max-width: 560px) {
+  .pub-modal-header { padding: 18px 16px 14px; }
+  .pub-modal-content { padding: 16px; }
 }
 
 .pub-loading {
@@ -1234,8 +1263,8 @@
 .pub-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 10px;
-  margin-bottom: 4px;
+  gap: 12px;
+  margin: 8px 0 16px;
 }
 
 .pub-card {
@@ -1251,7 +1280,7 @@
 
 .pub-card.is-prod {
   border-color: var(--accent-border);
-  background: linear-gradient(180deg, rgba(211, 227, 253, 0.35), transparent 70%);
+  background: linear-gradient(180deg, var(--accent-soft), var(--panel) 75%);
 }
 
 .pub-card header {
@@ -1529,11 +1558,14 @@
   display: flex;
   gap: 4px;
   margin-bottom: 12px;
+  overflow-x: auto;
+  scrollbar-width: thin;
   border-bottom: 1px solid var(--border);
 }
 
 .hist-tabs button {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
@@ -2385,6 +2417,6 @@ a.hist-msg:hover {
     min-width: 0;
     font-size: 11px;
     line-height: 1.35;
-    white-space: normal;
+    white-space: nowrap;
   }
 }

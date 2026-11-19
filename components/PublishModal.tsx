@@ -5,6 +5,7 @@ import {
   Check,
   CloudOff,
   ExternalLink,
+  FileArchive,
   FlaskConical,
   GitCommitHorizontal,
   Globe,
@@ -17,6 +18,7 @@ import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { usePendingImport } from "../lib/use-pending-import";
 import { docFingerprint, useEditor } from "../lib/store";
 import BackupFileControls from "./BackupFileControls";
+import ModalHeading from "./ModalHeading";
 import { base64ToBytes, utf8ToBase64 as textToBase64 } from "../lib/base64";
 import { CheckList, docWithSvgFilters } from "./PublishShared";
 import { showAlert, showConfirm } from "../lib/dialog";
@@ -496,7 +498,10 @@ export default function PublishModal({
         aria-label={site && phase !== "check" ? tr("Publish to {site}", { site: SITE[site].label() }) : tr("Publish site")}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2>{site && phase !== "check" ? tr("Publish to {site}", { site: SITE[site].label() }) : tr("Publish site")}</h2>
+        <div className="pub-modal-header">
+          <ModalHeading icon={<Globe size={20} />}>{site && phase !== "check" ? tr("Publish to {site}", { site: SITE[site].label() }) : tr("Publish site")}</ModalHeading>
+        </div>
+        <div className="pub-modal-content">
 
         {phase === "check" && targets && !targets.configured && (
           <>
@@ -740,6 +745,7 @@ export default function PublishModal({
             </div>
           </>
         )}
+        </div>
       </div>
     </div>
   );
@@ -1022,13 +1028,13 @@ function BackupHistory({ onDone }: { onDone: () => void }) {
 /** 履歴: 公開サイトのロールバックと、編集データの復元 */
 export function HistoryModal({ onClose }: { onClose: () => void }) {
   const conf = usePublishConfig();
-  const [tab, setTab] = useState<"site" | "doc">("site");
+  const [tab, setTab] = useState<"site" | "doc" | "manual">("site");
   useEscapeToClose(onClose);
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal hist-modal" role="dialog" aria-modal="true" aria-label={tr("History")} onClick={(e) => e.stopPropagation()}>
         <div className="export-layout-header">
-          <h2>{tr("History")}</h2>
+          <ModalHeading icon={<History size={20} />}>{tr("History")}</ModalHeading>
           <p className="modal-desc">
             {tr("Return the published site to an earlier version, or bring your edits back to an earlier state.")}
           </p>
@@ -1043,10 +1049,15 @@ export function HistoryModal({ onClose }: { onClose: () => void }) {
             <History size={13} />
             {tr("Automatic backups of edits")}
           </button>
+          <button role="tab" aria-selected={tab === "manual"} className={tab === "manual" ? "is-on" : ""} onClick={() => setTab("manual")}>
+            <FileArchive size={13} />
+            {tr("Manual backup")}
+          </button>
         </div>
-        <BackupFileControls onDone={onClose} />
         <div className="hist-body">
-          {tab === "doc" ? (
+          {tab === "manual" ? (
+            <BackupFileControls onDone={onClose} />
+          ) : tab === "doc" ? (
             <BackupHistory onDone={onClose} />
           ) : conf === null ? (
             <div className="pub-loading">

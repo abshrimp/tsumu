@@ -78,8 +78,6 @@ export default function SiteMembers({ siteId, siteName, onClose }: {
             <h2 id="site-members-title">{tr("Members and permissions")}</h2>
             <p title={siteName}>{siteName}</p>
           </div>
-          <button type="button" className="icon-btn site-members-close" aria-label={tr("Close")}
-            disabled={pending !== null} onClick={onClose}><X size={18} /></button>
         </header>
         <div className="site-members-body">
           <p className="site-members-intro">{tr("Only site owners can change membership. Accounts must first be allowed to sign in.")}</p>

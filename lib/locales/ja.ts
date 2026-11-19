@@ -1757,6 +1757,7 @@ const ja: Dict = {
   "Return the published site to an earlier version, or bring your edits back to an earlier state.": "公開したサイトを前の版に戻したり、編集内容を前の状態に戻したりできます。",
   "Published site": "公開サイト",
   "Automatic backups of edits": "編集データの自動バックアップ",
+  "Manual backup": "手動バックアップ",
   "Your current edits will be replaced with this file's content. Undo (⌘Z) brings back what you have now.": "いまの編集内容がこのファイルの内容に置き換わります。「元に戻す」（⌘Z）で、いまの内容に戻せます。",
   "Hosting": "公開先のホスティング",
   "The service that runs the exported site. It changes how pages that use external JSON are built.\nStandard: Vercel, Netlify, Node.js, etc. Pages are prebuilt and rebuilt at the refresh interval (ISR).\nCloudflare Workers: pages are rendered on every request, and fetched JSON is cached at Cloudflare for the refresh interval.": "書き出したサイトを動かすサービスです。外部のJSONを使うページの作り方が変わります。\n標準: Vercel・Netlify・Node.js など。ページを作り置きし、更新の間隔ごとに作り直します（ISR）。\nCloudflare Workers: アクセスのたびにページを描画し、取得したJSONを、更新の間隔の間はCloudflareのキャッシュに置きます。",

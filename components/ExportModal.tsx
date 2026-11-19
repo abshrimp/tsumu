@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Download } from "lucide-react";
+import ModalHeading from "./ModalHeading";
 import { useEditor } from "../lib/store";
 import { CheckList, docWithSvgFilters } from "./PublishShared";
 import { showAlert } from "../lib/dialog";
@@ -57,7 +58,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
       <div className="modal export-modal export-layout-modal" role="dialog" aria-modal="true" aria-label={tr("Export code")} onClick={(event) => event.stopPropagation()}>
         <div className="export-layout-header">
-          <h2>{tr("Export code")}</h2>
+          <ModalHeading icon={<Download size={20} />}>{tr("Export code")}</ModalHeading>
           <p className="modal-desc">{description}</p>
         </div>
         <div className="export-layout-scroll">

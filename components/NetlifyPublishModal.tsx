@@ -10,6 +10,7 @@ import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { showConfirm } from "../lib/dialog";
 import type { PublishTarget } from "../lib/generator";
 import { CheckList, docWithSvgFilters } from "./PublishShared";
+import ModalHeading from "./ModalHeading";
 import {
   confirmStaticRestore,
   StaticDeploymentHistoryView,
@@ -337,7 +338,10 @@ export default function NetlifyPublishModal({
         aria-label={phase === "history" ? tr("Deployment history") : tr("Publish site")}
         onClick={event => event.stopPropagation()}
       >
-        <h2>{phase === "history" ? tr("Deployment history") : tr("Publish site")}</h2>
+        <div className="pub-modal-header">
+          <ModalHeading icon={phase === "history" ? <History size={20} /> : <Globe size={20} />}>{phase === "history" ? tr("Deployment history") : tr("Publish site")}</ModalHeading>
+        </div>
+        <div className="pub-modal-content">
         {phase === "loading" && (
           <div className="pub-loading" role="status"><LoaderCircle className="spin" size={16} />{tr("Checking Netlify connection…")}</div>
         )}
@@ -464,6 +468,7 @@ export default function NetlifyPublishModal({
             onClose={onClose}
           />
         )}
+        </div>
       </div>
     </div>
   );

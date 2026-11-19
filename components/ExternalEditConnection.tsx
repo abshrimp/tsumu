@@ -88,9 +88,6 @@ export default function ExternalEditConnection() {
         {state.phase === "connecting" && (
           <>
             <p role="status" className="mcp-progress"><LoaderCircle size={16} className="spin" aria-hidden />{tr("Connecting…")}</p>
-            <button type="button" className="btn" onClick={() => { void disconnectExternalEdit(); }}>
-              {tr("Disconnect and revoke")}
-            </button>
           </>
         )}
 

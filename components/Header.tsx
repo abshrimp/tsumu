@@ -49,6 +49,7 @@ import { BP_INFO, BP_ORDER, breakpointForWidth, DEVICE_WIDTHS, parseNumeric } fr
 import { BpIcon, Dropdown, NumField } from "./controls";
 import { tr } from "../lib/i18n";
 import LanguageSelector from "./LanguageSelector";
+import ModalHeading from "./ModalHeading";
 import { currentSiteId } from "../lib/site";
 import type { SiteRole } from "../lib/site-model";
 
@@ -89,7 +90,7 @@ function SettingsModal({ onClose, onOpenMembers, canManageMembers, permissionsAv
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal modal-refined editor-settings-modal" role="dialog" aria-modal="true" aria-labelledby="editor-settings-title" onClick={(e) => e.stopPropagation()}>
         <div className="modal-refined-header">
-          <h2 id="editor-settings-title">{tr("Settings")}</h2>
+          <ModalHeading icon={<Settings size={20} />} id="editor-settings-title">{tr("Settings")}</ModalHeading>
         </div>
         <div className="modal-refined-body">
         <section className="settings-sec">
@@ -156,7 +157,7 @@ function McpConnectionModal({ onClose }: { onClose: () => void }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal mcp-modal modal-refined" role="dialog" aria-modal="true" aria-labelledby="mcp-modal-title" onClick={(e) => e.stopPropagation()}>
         <div className="modal-refined-header">
-          <h2 id="mcp-modal-title">{tr("MCP connection")}</h2>
+          <ModalHeading icon={<Cable size={20} />} id="mcp-modal-title">{tr("MCP connection")}</ModalHeading>
         </div>
         <div className="modal-refined-body">
           <Suspense fallback={<p className="hint" role="status">{tr("Loading…")}</p>}>
@@ -181,7 +182,7 @@ function LogoutModal({ onClose }: { onClose: () => void }) {
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
       <div className="modal modal-refined logout-modal" role="dialog" aria-modal="true" aria-labelledby="logout-modal-title" onClick={(e) => e.stopPropagation()}>
         <div className="modal-refined-header">
-          <h2 id="logout-modal-title">{tr("Sign out?")}</h2>
+          <ModalHeading icon={<LogOut size={20} />} id="logout-modal-title">{tr("Sign out?")}</ModalHeading>
           <p className="modal-desc">
             {tr("You'll need to sign in with Google again to continue.")}
           </p>
@@ -458,7 +459,8 @@ export default function Header({
           <Dropdown
             value={pageTheme}
             title={tr("Page appearance")}
-            menuWidth={250}
+            menuWidth={180}
+            trigger={pageTheme === "dark" ? <Moon size={16} /> : <Sun size={16} />}
             options={[
               { value: "light", label: tr("Light mode"), icon: <Sun size={13} /> },
               { value: "dark", label: tr("Dark mode"), icon: <Moon size={13} /> },

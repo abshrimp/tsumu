@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Search, X } from "lucide-react";
+import ModalHeading from "./ModalHeading";
 import { searchSiteBody, type BodySearchHit } from "../lib/body-search";
 import { tr } from "../lib/i18n";
 import { isEscapeKey } from "../lib/keys";
@@ -48,7 +49,7 @@ export default function BodySearch({ onClose }: { onClose: () => void }) {
     >
       <div className="modal body-search" role="dialog" aria-modal="true" aria-label={tr("Search page text")}>
         <div className="body-search-head">
-          <h2>{tr("Search page text")}</h2>
+          <ModalHeading icon={<Search size={20} />}>{tr("Search page text")}</ModalHeading>
           <button type="button" className="icon-btn" aria-label={tr("Close")} onClick={onClose}>
             <X size={16} />
           </button>

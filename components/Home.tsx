@@ -24,6 +24,7 @@ import {
   Users,
 } from "lucide-react";
 import BrandMark from "./BrandMark";
+import ModalHeading from "./ModalHeading";
 import DialogHost from "./DialogHost";
 import { showAlert, showPrompt } from "../lib/dialog";
 import { tr } from "../lib/i18n";
@@ -413,7 +414,7 @@ function SiteDialog({
     <div className="modal-backdrop" onClick={busy ? undefined : onClose}>
       <form className="modal home-dialog modal-refined" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
         <div className="modal-refined-header">
-          <h2>{site ? tr("Site settings (menu)") : copyOf ? tr("Duplicate site") : tr("New site")}</h2>
+          <ModalHeading icon={site ? <Settings size={20} /> : copyOf ? <Copy size={20} /> : <Plus size={20} />}>{site ? tr("Site settings (menu)") : copyOf ? tr("Duplicate site") : tr("New site")}</ModalHeading>
           <p className="modal-desc">
           {site
             ? provider === "github"
@@ -529,7 +530,7 @@ function AppSettings({ auth, onClose }: { auth: boolean; onClose: () => void }) 
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal home-dialog modal-refined app-settings-modal" role="dialog" aria-modal="true" aria-labelledby="app-settings-title" onClick={(e) => e.stopPropagation()}>
         <div className="modal-refined-header">
-          <h2 id="app-settings-title">{tr("Settings")}</h2>
+          <ModalHeading icon={<Settings size={20} />} id="app-settings-title">{tr("Settings")}</ModalHeading>
           <p className="modal-desc">{tr("These settings apply to all sites.")}</p>
         </div>
         <div className="modal-refined-body">

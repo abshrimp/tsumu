@@ -1576,8 +1576,12 @@ a.btn {
 }
 
 .site-members-emblem {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
+}
+.site-members-emblem svg {
+  width: 17px;
+  height: 17px;
 }
 
 .site-members-heading {
@@ -1596,11 +1600,6 @@ a.btn {
   color: var(--text-3);
   overflow-wrap: anywhere;
   font-size: 12px;
-}
-
-.site-members-close {
-  border-radius: 50%;
-  align-self: flex-start;
 }
 
 .site-members-body {
@@ -1763,6 +1762,43 @@ a.btn {
   }
 }
 
+/* Modal titles use the same icon-and-heading treatment as site membership. */
+.modal-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.modal-heading-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.modal-heading-icon svg {
+  width: 17px;
+  height: 17px;
+}
+.modal-heading-copy {
+  flex: 1;
+  min-width: 0;
+}
+.modal-heading-copy h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.modal-refined-header > .modal-heading + .modal-desc,
+.export-layout-header > .modal-heading + .modal-desc {
+  margin-left: 44px;
+}
+
 /* Shared layout for long-form site, app and editor settings dialogs.
    Keep the heading and actions fixed while only the form content scrolls. */
 .modal.modal-refined {
@@ -1862,6 +1898,10 @@ a.btn {
 @media (max-width: 560px) {
   .modal-refined-header {
     padding: 18px 16px 14px;
+  }
+  .modal-refined-header > .modal-heading + .modal-desc,
+  .export-layout-header > .modal-heading + .modal-desc {
+    margin-left: 0;
   }
   .modal-refined-body {
     padding: 16px;

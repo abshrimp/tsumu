@@ -9,6 +9,7 @@ import { tr } from "../lib/i18n";
 import type { PublishTarget } from "../lib/generator";
 import type { StaticPublishProvider } from "../lib/publish-provider";
 import { CheckList, docWithSvgFilters } from "./PublishShared";
+import ModalHeading from "./ModalHeading";
 import {
   confirmStaticRestore,
   StaticDeploymentHistoryView,
@@ -163,7 +164,10 @@ export default function StaticPublishModal({
         aria-label={historyOpen ? tr("Deployment history") : tr("Publish site")}
         onClick={(event) => event.stopPropagation()}
       >
-        <h2>{historyOpen ? tr("Deployment history") : tr("Publish site")}</h2>
+        <div className="pub-modal-header">
+          <ModalHeading icon={historyOpen ? <History size={20} /> : <Globe size={20} />}>{historyOpen ? tr("Deployment history") : tr("Publish site")}</ModalHeading>
+        </div>
+        <div className="pub-modal-content">
         {historyOpen ? (
           <StaticDeploymentHistoryView
             description={tr("Deployment history is stored by {provider}. Static hosting does not publish the editor document.", { provider: providerName })}
@@ -248,6 +252,7 @@ export default function StaticPublishModal({
             )}
           </>
         )}
+        </div>
       </div>
     </div>
   );
