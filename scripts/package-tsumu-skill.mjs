@@ -1,6 +1,6 @@
 import { readFile, mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
-import { deflateRawSync, crc32 } from "node:zlib";
+import { crc32 } from "node:zlib";
 
 const root = new URL("../skills/tsumu/", import.meta.url);
 const relativeFiles = [
@@ -17,7 +17,8 @@ let offset = 0;
 for (const relative of relativeFiles) {
   const name = Buffer.from("tsumu/" + relative, "utf8");
   const raw = await readFile(new URL(relative, root));
-  const compressed = deflateRawSync(raw, { level: 9 });
+  // Store entries without compression for a byte-for-byte reproducible, prebuilt ZIP.
+  const compressed = raw;
   const checksum = crc32(raw);
   if (name.length > 65535 || raw.length > 0xffffffff || compressed.length > 0xffffffff) {
     throw new Error("Skill package exceeds ZIP32 limits: " + relative);
@@ -26,7 +27,7 @@ for (const relative of relativeFiles) {
   header.writeUInt32LE(0x04034b50, 0);
   header.writeUInt16LE(20, 4);
   header.writeUInt16LE(0x0800, 6);
-  header.writeUInt16LE(8, 8);
+  header.writeUInt16LE(0, 8);
   header.writeUInt16LE(0x0021, 12);
   header.writeUInt32LE(checksum, 14);
   header.writeUInt32LE(compressed.length, 18);
@@ -39,7 +40,7 @@ for (const relative of relativeFiles) {
   directory.writeUInt16LE(20, 4);
   directory.writeUInt16LE(20, 6);
   directory.writeUInt16LE(0x0800, 8);
-  directory.writeUInt16LE(8, 10);
+  directory.writeUInt16LE(0, 10);
   directory.writeUInt16LE(0x0021, 14);
   directory.writeUInt32LE(checksum, 16);
   directory.writeUInt32LE(compressed.length, 20);

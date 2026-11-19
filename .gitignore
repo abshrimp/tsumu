@@ -41,5 +41,3 @@ tsumu-data*.tgz
 # Isolated hosted Worker Preview config (may contain private resource IDs)
 wrangler.preview.generated.jsonc
 
-# Packaged portable AI Skill
-/dist/tsumu-skill.zip

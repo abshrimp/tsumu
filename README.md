@@ -45,9 +45,7 @@ Tsumu lets you create websites with intuitive actions such as dragging and dropp
 
 ## Tsumu AI Skill
 
-The **[tsumu Skill](skills/tsumu/SKILL.md)** generates a real editable site. With an authorized Tsumu MCP connection it returns a private import link; otherwise it produces a `doc.json` or ZIP file. Even without the bundled reference files, the Skill includes a valid offline SiteDoc starter.
-
-To install it in **Claude**, run `npm run skill:package` and upload `dist/tsumu-skill.zip` from **Customize → Skills → Upload a skill**. The ZIP contains the entire `tsumu/` folder and all reference files. CI also attaches the ZIP as a `tsumu-skill` artifact. For **Claude Code**, copy the entire `skills/tsumu/` directory to `.claude/skills/tsumu/`. Merely opening `SKILL.md` does not install its accompanying resources or connect MCP.
+Create editable Tsumu sites with the [Tsumu Skill](docs/skills.md). See the [AI-specific installation guide](docs/skills.md) for download and setup.
 
 ## Screenshots
 

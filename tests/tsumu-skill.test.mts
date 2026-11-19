@@ -3,7 +3,7 @@ import { readFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { inflateRawSync, crc32 } from "node:zlib";
+import { crc32 } from "node:zlib";
 import { test } from "node:test";
 import { validateImportedDoc } from "../lib/site-import-format";
 
@@ -112,16 +112,18 @@ test("Claude skill ZIP contains the tsumu directory and all references", () => {
       cwd: new URL("../", import.meta.url),
     });
     const zip = readFileSync(destination);
+    assert.deepEqual(zip, readFileSync(new URL("../dist/tsumu-skill.zip", import.meta.url)),
+      "Prebuilt Skill ZIP must match npm run skill:package output");
     const members = new Map<string, string>();
     let offset = 0;
     while (offset + 30 <= zip.length && zip.readUInt32LE(offset) === 0x04034b50) {
-      assert.equal(zip.readUInt16LE(offset + 8), 8, "ZIP entry must use deflate");
+      assert.equal(zip.readUInt16LE(offset + 8), 0, "ZIP entries are stored deterministically");
       const compressedSize = zip.readUInt32LE(offset + 18);
       const nameLength = zip.readUInt16LE(offset + 26);
       const extraLength = zip.readUInt16LE(offset + 28);
       const name = zip.subarray(offset + 30, offset + 30 + nameLength).toString("utf8");
       const start = offset + 30 + nameLength + extraLength;
-      const raw = inflateRawSync(zip.subarray(start, start + compressedSize));
+      const raw = zip.subarray(start, start + compressedSize);
       assert.equal(raw.length, zip.readUInt32LE(offset + 22));
       assert.equal(crc32(raw), zip.readUInt32LE(offset + 14));
       assert.ok(!members.has(name), "Duplicate ZIP entry: " + name);

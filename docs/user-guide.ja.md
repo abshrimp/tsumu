@@ -329,7 +329,7 @@ Tsumu MCP が生成したサイトの一時リンクを開いた場合も、そ�
 サイズの上限は、zip が100MB、`doc.json` と HTML ファイルが12MBです。ウェブサイトの zip は200ファイル・CSS 合計2MBまでで、zip 内の HTML と CSS は UTF-8 に対応しています。
 
 > [!TIP]
-> `skills/tsumu/` は、Tsumu で編集可能なサイトを AI に生成させるスキルです。Tsumu MCP に接続・認可している場合は `stage_site_doc` でサイトデータを一時保存し、1時間有効な非公開のインポートリンクを返します。MCP を利用できない場合は `doc.json` または ZIP を生成して手動でインポートできます。リンクの発行だけではサイトは公開されません。
+> `tsumu` Agent Skill の導入は、[AI別のSkill導入ガイド](skills.ja.md)をご覧ください。MCPに接続済みならインポートリンク、未接続なら `doc.json` を生成できます。
 
 ## ページの複製と別サイトへのコピー
 
