@@ -13,7 +13,7 @@ The ZIP contains one top-level `tsumu/` folder with `SKILL.md` and **all bundled
 ### ChatGPT (eligible workspaces)
 
 1. Download `tsumu-skill.zip` above.
-2. In ChatGPT, open **Plugins → Skills → Create → Upload from your computer**, then select the ZIP.
+2. Open [chatgpt.com/skills](https://chatgpt.com/skills), select **Add → Upload from your computer**, then select the ZIP.
 3. After installation, ask: **"Use the tsumu skill to create a modern portfolio site."**
 
 Skill upload is available only for **eligible ChatGPT Business, Enterprise, Healthcare and Edu accounts**, subject to workspace settings. If Skills is not shown, your account or workspace may not support it. For details, see the [official ChatGPT Skills guide](https://help.openai.com/en/articles/20001066-skills-in-chatgpt).
@@ -21,7 +21,7 @@ Skill upload is available only for **eligible ChatGPT Business, Enterprise, Heal
 ### Claude (web or desktop chat)
 
 1. Download the ZIP.
-2. Open **Customize → Skills**, select **+ → Create skill → Upload a skill**, and upload the ZIP.
+2. Open [claude.ai/plugins/new/upload](https://claude.ai/plugins/new/upload) and upload the ZIP.
 3. Enable the `tsumu` Skill and ask Claude to create a new Tsumu website.
 
 Upload the entire ZIP, not only `SKILL.md`, because the required references are included in the ZIP. For details, see the [official Claude guide](https://support.claude.com/en/articles/12512180-use-skills-in-claude).

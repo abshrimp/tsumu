@@ -13,7 +13,7 @@ ZIPの直下に `tsumu/` があり、`SKILL.md` と**参照ファイル一式**�
 ### ChatGPT（対応ワークスペース）
 
 1. 上のZIPをダウンロードします。
-2. ChatGPTの **プラグイン → Skills → 作成 → コンピューターからアップロード** でZIPを選びます。
+2. [chatgpt.com/skills](https://chatgpt.com/skills) を開き、**追加 → コンピューターからアップロード** でZIPを選びます。
 3. 「tsumu Skillを使って、モダンなポートフォリオサイトを作って」と依頼します。
 
 現在、Skillをアップロードできるのは対象の **ChatGPT Business・Enterprise・Healthcare・Edu** で、ワークスペースの設定にもよります。Skillsの項目が表示されない場合、そのアカウントでは利用できない可能性があります。詳しくは[ChatGPT公式ガイド](https://help.openai.com/ja-jp/articles/20001066-skills-in-chatgpt)をご覧ください。
@@ -21,7 +21,7 @@ ZIPの直下に `tsumu/` があり、`SKILL.md` と**参照ファイル一式**�
 ### Claude（Web・デスクトップのチャット）
 
 1. ZIPをダウンロードします。
-2. **Customize → Skills → + → Create skill → Upload a skill** からZIPをアップロードします。
+2. [claude.ai/plugins/new/upload](https://claude.ai/plugins/new/upload) を開き、ZIPをアップロードします。
 3. `tsumu` を有効にして「Tsumuでサイトを作って」と依頼します。
 
 `SKILL.md` だけをアップロードすると参照ファイルを利用できないため、ZIP一式を登録してください。詳しくは[Claude公式ガイド](https://support.claude.com/ja/articles/12512180-claude-でスキルを使用する)をご覧ください。
