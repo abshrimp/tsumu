@@ -45,7 +45,8 @@
     "pretypecheck": "node scripts/sync-locales.mjs",
     "pretest": "node scripts/sync-locales.mjs",
     "pretest:e2e": "node scripts/sync-locales.mjs",
-    "prei18n:check": "node scripts/sync-locales.mjs"
+    "prei18n:check": "node scripts/sync-locales.mjs",
+    "skill:package": "node scripts/package-tsumu-skill.mjs"
   },
   "dependencies": {
     "@noble/hashes": "1.8.0",

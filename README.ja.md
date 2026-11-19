@@ -39,9 +39,13 @@ Tsumu を使うと、ドラッグなどの直感的な操作だけで Web サイ
 - **選べる出力形式**：Next.js・React・Vue・Nuxt・SvelteKit・HTML のプロジェクトを書き出せます。
 - **選べる公開先**：簡単な操作で、GitHub・GitLab.com・Netlify・Cloudflare Pages へアップロードできます。
 - **リアルタイム共同編集とサイト権限**：複数人での同時編集機能やコメント機能があります。
-- **AI との連携**：[SKILL.md](skills/tsumu-site/SKILL.md) や、内臓チャットでのページ編集のほか、MCP サーバー経由での AI による編集にも対応。
+- **AI との連携**：[SKILL.md](skills/tsumu/SKILL.md) や、内臓チャットでのページ編集のほか、MCP サーバー経由での AI による編集にも対応。
 - **セルフホスト**：Cloudflare Workers・Node.js・Docker で動作します。
 - **ヘルプと多言語 UI**：チュートリアル、図解付き Q&A、画面上のガイドを内蔵しています。
+
+## Tsumu AI Skill
+
+Tsumuで編集可能なサイトを生成できます。ダウンロードと各AIへの導入方法は[AI別のSkill導入ガイド](docs/skills.ja.md)をご覧ください。
 
 ## スクリーンショット
 

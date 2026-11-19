@@ -338,7 +338,7 @@ When converted to an editable image, a plain `<img>` keeps its `src` and drops `
 Limits: a zip can be up to 100 MB and a `doc.json` or HTML file up to 12 MB. A zip of a website can hold up to 200 files and 2 MB of CSS. Save HTML and CSS files in the zip as UTF-8.
 
 > [!TIP]
-> `skills/tsumu-site/` is an agent skill that creates an editable Tsumu site. With an authorized Tsumu MCP connection it can stage the document using `stage_site_doc` and return a private, one-hour import link. Otherwise it generates a downloadable `doc.json` or ZIP for manual import. A staged link does not publish the site.
+> For installing the `tsumu` Agent Skill, see the [AI-specific installation guide](skills.md). The Skill creates editable sites, with a private import link when the Tsumu MCP server is connected or a `doc.json` file when it is not.
 
 ## Duplicating and copying pages
 

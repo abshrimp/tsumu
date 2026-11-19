@@ -30,6 +30,14 @@ jobs:
       - run: npm test
         env:
           TSUMU_DOCKER_TESTS: "1"
+      - run: npm run skill:package
+      - run: git diff --exit-code -- dist/tsumu-skill.zip
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tsumu-skill
+          path: dist/tsumu-skill.zip
+          retention-days: 30
+          if-no-files-found: error
       - run: node --import tsx --test e2e/browser-projects.check.mts
       # Untranslated UI copy falls back to English; contributors need not know Japanese.
       - run: npm run i18n:check -- --all
