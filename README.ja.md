@@ -39,9 +39,15 @@ Tsumu を使うと、ドラッグなどの直感的な操作だけで Web サイ
 - **選べる出力形式**：Next.js・React・Vue・Nuxt・SvelteKit・HTML のプロジェクトを書き出せます。
 - **選べる公開先**：簡単な操作で、GitHub・GitLab.com・Netlify・Cloudflare Pages へアップロードできます。
 - **リアルタイム共同編集とサイト権限**：複数人での同時編集機能やコメント機能があります。
-- **AI との連携**：[SKILL.md](skills/tsumu-site/SKILL.md) や、内臓チャットでのページ編集のほか、MCP サーバー経由での AI による編集にも対応。
+- **AI との連携**：[SKILL.md](skills/tsumu/SKILL.md) や、内臓チャットでのページ編集のほか、MCP サーバー経由での AI による編集にも対応。
 - **セルフホスト**：Cloudflare Workers・Node.js・Docker で動作します。
 - **ヘルプと多言語 UI**：チュートリアル、図解付き Q&A、画面上のガイドを内蔵しています。
+
+## Tsumu AI Skill
+
+**[tsumu Skill](skills/tsumu/SKILL.md)** は、Tsumu で編集できるサイトを生成します。MCP 接続・認可済みなら非公開のインポートリンク、未接続なら `doc.json` または ZIP を出力します。参照ファイルを読み込めない場合に備えて、Skill 本文に有効な SiteDoc のひな形も含めています。
+
+**Claude** では `npm run skill:package` を実行して作成される `dist/tsumu-skill.zip` を「Customize → Skills → Upload a skill」から登録します。ZIP には `tsumu/` フォルダと3つの参照ファイルが入っています。CI の `tsumu-skill` アーティファクトからも取得できます。**Claude Code** では `skills/tsumu/` を `.claude/skills/tsumu/` にコピーします。`SKILL.md` だけでは参照ファイルやMCP接続は提供されません。
 
 ## スクリーンショット
 

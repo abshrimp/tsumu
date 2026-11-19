@@ -39,9 +39,15 @@ Tsumu lets you create websites with intuitive actions such as dragging and dropp
 - **Flexible output:** Export Next.js, React, Vue, Nuxt, SvelteKit, or HTML projects.
 - **Direct publishing:** Publish to GitHub, GitLab.com, Netlify, or Cloudflare Pages in a few steps.
 - **Real-time collaboration & site permissions:** Edit together in real time and leave comments.
-- **AI integration:** Edit pages using [SKILL.md](skills/tsumu-site/SKILL.md), the built-in AI chat, or external AI apps through an MCP server.
+- **AI integration:** Edit pages using [SKILL.md](skills/tsumu/SKILL.md), the built-in AI chat, or external AI apps through an MCP server.
 - **Self-hosting:** Run on Cloudflare Workers, Node.js, or Docker.
 - **Help and languages:** Built-in tutorials, illustrated Q&A, and on-screen guides.
+
+## Tsumu AI Skill
+
+The **[tsumu Skill](skills/tsumu/SKILL.md)** generates a real editable site. With an authorized Tsumu MCP connection it returns a private import link; otherwise it produces a `doc.json` or ZIP file. Even without the bundled reference files, the Skill includes a valid offline SiteDoc starter.
+
+To install it in **Claude**, run `npm run skill:package` and upload `dist/tsumu-skill.zip` from **Customize → Skills → Upload a skill**. The ZIP contains the entire `tsumu/` folder and all three reference files. CI also attaches the ZIP as a `tsumu-skill` artifact. For **Claude Code**, copy the entire `skills/tsumu/` directory to `.claude/skills/tsumu/`. Merely opening `SKILL.md` does not install its accompanying resources or connect MCP.
 
 ## Screenshots
 
