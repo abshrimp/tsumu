@@ -71,7 +71,7 @@ test("the AI skill example imports as a valid editable site with resolved refere
 test("the Tsumu site skill declares when to activate and handles MCP import links safely", () => {
   const skill = read("skills/tsumu-site/SKILL.md");
   assert.match(skill, /^---\nname: tsumu-site\n/);
-  assert.match(skill, /^description: .*Tsumu.*new-site/mi);
+  assert.match(skill, /^description: Create a NEW editable website.*in Tsumu\./m);
   assert.match(skill, /^license: MIT$/m);
   assert.match(skill, /^compatibility: .*MCP.*offline/m);
   assert.match(skill, /metadata:\n  author: abshrimp/);
@@ -83,6 +83,6 @@ test("the Tsumu site skill declares when to activate and handles MCP import link
   assert.match(skill, /No staging tool or no authorization/);
   const openai = read("skills/tsumu-site/agents/openai.yaml");
   assert.match(openai, /display_name: "Create a Tsumu Site"/);
-  assert.match(openai, /default_prompt:.*\\$tsumu-site/);
+  assert.match(openai, /default_prompt:.*\$tsumu-site/);
   assert.match(openai, /allow_implicit_invocation: true/);
 });
