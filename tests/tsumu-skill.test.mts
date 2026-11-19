@@ -129,7 +129,7 @@ test("Claude skill ZIP contains the tsumu directory and all references", () => {
       offset = start + compressedSize;
     }
     const expected = ["SKILL.md", "agents/openai.yaml", "references/minimal-site.json",
-      "references/site-doc.md", "references/types.ts"].map(p => "tsumu/" + p).sort();
+      "references/script-model/compose.ts", "references/site-doc.md", "references/types.ts"].map(p => "tsumu/" + p).sort();
     assert.deepEqual([...members.keys()].sort(), expected);
     for (const entry of expected) assert.equal(members.get(entry), read("skills/" + entry));
     assert.match(members.get("tsumu/SKILL.md")!, /^---\nname: tsumu\n/);

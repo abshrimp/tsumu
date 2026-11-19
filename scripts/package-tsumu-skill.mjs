@@ -7,6 +7,7 @@ const relativeFiles = [
   "SKILL.md",
   "agents/openai.yaml",
   "references/minimal-site.json",
+  "references/script-model/compose.ts",
   "references/site-doc.md",
   "references/types.ts",
 ];

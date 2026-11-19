@@ -47,7 +47,7 @@ Tsumu を使うと、ドラッグなどの直感的な操作だけで Web サイ
 
 **[tsumu Skill](skills/tsumu/SKILL.md)** は、Tsumu で編集できるサイトを生成します。MCP 接続・認可済みなら非公開のインポートリンク、未接続なら `doc.json` または ZIP を出力します。参照ファイルを読み込めない場合に備えて、Skill 本文に有効な SiteDoc のひな形も含めています。
 
-**Claude** では `npm run skill:package` を実行して作成される `dist/tsumu-skill.zip` を「Customize → Skills → Upload a skill」から登録します。ZIP には `tsumu/` フォルダと3つの参照ファイルが入っています。CI の `tsumu-skill` アーティファクトからも取得できます。**Claude Code** では `skills/tsumu/` を `.claude/skills/tsumu/` にコピーします。`SKILL.md` だけでは参照ファイルやMCP接続は提供されません。
+**Claude** では `npm run skill:package` を実行して作成される `dist/tsumu-skill.zip` を「Customize → Skills → Upload a skill」から登録します。ZIP には `tsumu/` フォルダと参照ファイル一式が入っています。CI の `tsumu-skill` アーティファクトからも取得できます。**Claude Code** では `skills/tsumu/` を `.claude/skills/tsumu/` にコピーします。`SKILL.md` だけでは参照ファイルやMCP接続は提供されません。
 
 ## スクリーンショット
 
