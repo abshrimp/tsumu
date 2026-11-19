@@ -75,7 +75,7 @@ test("the AI skill example imports as a valid editable site with resolved refere
 test("the Tsumu site skill declares when to activate and handles MCP import links safely", () => {
   const skill = read("skills/tsumu/SKILL.md");
   assert.match(skill, /^---\nname: tsumu\n/);
-  assert.match(skill, /^description: Create a NEW editable website.*in Tsumu\./m);
+  assert.match(skill, /^description: Create a NEW editable Tsumu website/m);
   assert.match(skill, /^license: MIT$/m);
   assert.match(skill, /^compatibility: .*MCP.*offline/m);
   assert.match(skill, /metadata:\n  author: abshrimp/);
