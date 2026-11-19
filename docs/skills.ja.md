@@ -16,7 +16,7 @@ ZIPの直下に `tsumu/` があり、`SKILL.md` と**参照ファイル一式**�
 2. ChatGPTの **プラグイン → Skills → 作成 → コンピューターからアップロード** でZIPを選びます。
 3. 「tsumu Skillを使って、モダンなポートフォリオサイトを作って」と依頼します。
 
-現在、Skillアップロードは対象の **ChatGPT Business・Enterprise・Healthcare・Edu** で、ワークスペース設定にも依存します。Skills項目が表示されない場合、そのアカウントでは利用できない可能性があります。[ChatGPT公式ガイド](https://help.openai.com/ja-jp/articles/20001066-skills-in-chatgpt)。
+現在、Skillをアップロードできるのは対象の **ChatGPT Business・Enterprise・Healthcare・Edu** で、ワークスペースの設定にもよります。Skillsの項目が表示されない場合、そのアカウントでは利用できない可能性があります。詳しくは[ChatGPT公式ガイド](https://help.openai.com/ja-jp/articles/20001066-skills-in-chatgpt)をご覧ください。
 
 ### Claude（Web・デスクトップのチャット）
 
@@ -24,18 +24,18 @@ ZIPの直下に `tsumu/` があり、`SKILL.md` と**参照ファイル一式**�
 2. **Customize → Skills → + → Create skill → Upload a skill** からZIPをアップロードします。
 3. `tsumu` を有効にして「Tsumuでサイトを作って」と依頼します。
 
-`SKILL.md` だけをアップロードすると参照ファイルが利用できません。ZIP一式を登録してください。[Claude公式ガイド](https://support.claude.com/ja/articles/12512180-claude-でスキルを使用する)。
+`SKILL.md` だけをアップロードすると参照ファイルを利用できないため、ZIP一式を登録してください。詳しくは[Claude公式ガイド](https://support.claude.com/ja/articles/12512180-claude-でスキルを使用する)をご覧ください。
 
 ### Claude Code
 
-ZIPをダウンロードし、全プロジェクトで使用する場合は次のように展開します。プロジェクト限定なら `~/.claude/skills` の代わりに `.claude/skills` に展開します。
+ZIPをダウンロードし、全プロジェクトで使用する場合は次のように `~/.claude/skills` に展開します。プロジェクト限定なら、代わりに `.claude/skills` に展開します。
 
 ```sh
 mkdir -p ~/.claude/skills
 unzip -o ~/Downloads/tsumu-skill.zip -d ~/.claude/skills
 ```
 
-必要に応じてセッションを再起動し、`tsumu` Skillの利用を依頼します。
+必要に応じてセッションを再起動してから、`tsumu` Skillの利用を依頼します。
 
 ### Cursor
 
@@ -46,7 +46,7 @@ mkdir -p ~/.cursor/skills
 unzip -o ~/Downloads/tsumu-skill.zip -d ~/.cursor/skills
 ```
 
-Cursorが `tsumu/SKILL.md` と参照ファイルを読み込みます。[Cursor公式ガイド](https://cursor.com/docs/skills)。
+Cursorが `tsumu/SKILL.md` と参照ファイルを読み込みます。詳しくは[Cursor公式ガイド](https://cursor.com/docs/skills)をご覧ください。
 
 ### Codex（CLI・IDE・アプリ）
 
@@ -57,18 +57,18 @@ mkdir -p ~/.agents/skills
 unzip -o ~/Downloads/tsumu-skill.zip -d ~/.agents/skills
 ```
 
-新しいCodexセッションを開始してSkillを利用します。[OpenAI公式ガイド](https://developers.openai.com/api/reference/cli)。
+新しいCodexセッションを開始してSkillを利用します。詳しくは[OpenAI公式ガイド](https://developers.openai.com/api/reference/cli)をご覧ください。
 
 ### Gemini CLI
 
-ユーザー単位なら `~/.gemini/skills`（`~/.agents/skills` も対応）に展開します。
+ユーザー単位なら `~/.gemini/skills` に展開します。`~/.agents/skills` にも対応しています。
 
 ```sh
 mkdir -p ~/.gemini/skills
 unzip -o ~/Downloads/tsumu-skill.zip -d ~/.gemini/skills
 ```
 
-`/skills list` または `gemini skills list` で `tsumu` が表示されるか確認します。[Gemini CLI公式ガイド](https://geminicli.com/docs/cli/skills/)。
+`/skills list` または `gemini skills list` で `tsumu` が表示されるか確認します。詳しくは[Gemini CLI公式ガイド](https://geminicli.com/docs/cli/skills/)をご覧ください。
 
 ### Google Antigravity
 
@@ -79,7 +79,7 @@ mkdir -p ~/.gemini/config/skills
 unzip -o ~/Downloads/tsumu-skill.zip -d ~/.gemini/config/skills
 ```
 
-新しいセッションで `tsumu` Skillを呼び出してください。[Antigravity公式ガイド](https://codelabs.developers.google.com/getting-started-agy-ide?hl=ja)。
+新しいセッションで `tsumu` Skillを呼び出してください。詳しくは[Antigravity公式ガイド](https://codelabs.developers.google.com/getting-started-agy-ide?hl=ja)をご覧ください。
 
 ## SkillとMCP接続の違い
 
