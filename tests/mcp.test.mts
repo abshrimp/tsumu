@@ -383,9 +383,8 @@ test("reload restores an unexpired grant using credentialed cookies, without re-
   assert.equal(useExternalEdit.getState().phase, "disconnected");
 
   await disconnectExternalEdit();
-  assert.equal(requests.at(-1)?.url, "https://mcp.tsumu.ebii.net/bridge/revoke");
-  assert.equal(requests.at(-1)?.credentials, "include");
-  assert.deepEqual(requests.at(-1)?.body, { siteId: "site-b" });
+  assert.equal(requests.at(-1)?.url, "https://mcp.tsumu.ebii.net/bridge/restore",
+    "an unpaired site must not revoke the prior site's separate grant");
   assert.ok(requests.every(request => !request.url.endsWith("/bridge/sessions")),
     "automatic restoration must never silently issue new pairing codes");
 });
