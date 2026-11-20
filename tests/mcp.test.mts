@@ -2,6 +2,7 @@ import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { clearDraftLink, draftFromLocation, hasDraftResumeMarker, prepareDraftSignIn, resumeDraftAfterSignIn } from "../lib/external-edit/draft-link";
 import { DEFAULT_MCP_ENDPOINT, resolveMcpEndpoint } from "../lib/external-edit/config";
+import { OFFICIAL_EDITOR_HOST, OFFICIAL_EDITOR_ORIGIN, OFFICIAL_MCP_ORIGIN, isOfficialEditorHost, isOfficialEditorOrigin } from "../lib/external-edit/official.mjs";
 import { fakeIndexedDB } from "./helpers/fake-indexeddb";
 import { createLocalBrowserSite } from "../lib/browser-site-create";
 import { readBrowserDoc } from "../lib/browser-doc-storage";
@@ -75,6 +76,24 @@ test("Google OAuth resumes drafts without storing their secrets in Web Storage o
     if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
     else Reflect.deleteProperty(globalThis, "window");
   }
+});
+
+describe("hosted-mcp-integration", () => {
+test("official OAuth features are enabled only for the exact hosted editor", () => {
+  assert.equal(OFFICIAL_EDITOR_HOST, "tsumu.ebii.net");
+  assert.equal(OFFICIAL_EDITOR_ORIGIN, "https://tsumu.ebii.net");
+  assert.equal(OFFICIAL_MCP_ORIGIN, DEFAULT_MCP_ENDPOINT);
+  for (const host of ["tsumu.ebii.net", "TSUMU.EBII.NET", "tsumu.ebii.net:443"]) {
+    assert.equal(isOfficialEditorHost(host), true, host);
+  }
+  for (const host of ["", "localhost:3000", "editor.example.org", "mcp.tsumu.ebii.net",
+    "tsumu.ebii.net.evil.example", "fake-tsumu.ebii.net"]) {
+    assert.equal(isOfficialEditorHost(host), false, host);
+  }
+  assert.equal(isOfficialEditorOrigin("https://tsumu.ebii.net"), true);
+  assert.equal(isOfficialEditorOrigin("http://tsumu.ebii.net"), false);
+  assert.equal(isOfficialEditorOrigin("https://editor.example.org"), false);
+});
 });
 
 describe("mcp-config", () => {
@@ -417,7 +436,7 @@ test("a concurrent cookie rotation retries restoration without discarding the si
 test("site authorization uses fragment-only requests and does not expose connection tokens", async t => {
   const { hasMcpSiteApproval } = await import("../lib/external-edit/site-approval");
   const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
-  const location = { hash: "#mcp-select=1" };
+  const location = { origin: "https://tsumu.ebii.net", hash: "#mcp-select=1" };
   Object.defineProperty(globalThis, "window", { configurable: true, value: { location } });
   t.after(() => {
     if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
@@ -428,6 +447,11 @@ test("site authorization uses fragment-only requests and does not expose connect
   assert.equal(hasMcpSiteApproval(), true);
   location.hash = "#mcp-join=malformed";
   assert.equal(hasMcpSiteApproval(), false);
+  location.hash = "#mcp-select=1";
+  location.origin = "https://selfhost.example.org";
+  assert.equal(hasMcpSiteApproval(), false, "self-hosted editors must not accept the hosted OAuth fragment");
+  location.origin = "http://tsumu.ebii.net";
+  assert.equal(hasMcpSiteApproval(), false, "insecure origin must not receive official-site approval");
 });
 });
 
