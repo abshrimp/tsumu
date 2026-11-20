@@ -15,6 +15,7 @@ import { loadServerStatus, serverStatusSnapshot } from "../status";
 import { tr } from "../i18n";
 import { resolveMcpEndpoint } from "./config";
 import { rememberMcpPairingCodeIssued } from "./pairing-history";
+import { forgetMcpConnection, readMcpConnection, rememberMcpConnection } from "./session-persistence";
 
 const ENDPOINT = resolveMcpEndpoint(process.env.NEXT_PUBLIC_TSUMU_MCP_URL);
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
@@ -241,6 +242,7 @@ function scheduleSocketRetry(bridge: ActiveBridge): void {
   if (active !== bridge || bridge.retryTimer !== null) return;
   if (Date.now() >= bridge.session.expiresAt || currentSiteId() !== bridge.siteId) {
     active = null;
+    forgetMcpConnection();
     useExternalEdit.setState({
       phase: "disconnected", code: null, expiresAt: null,
       error: tr("WebSocket connection failed"),
@@ -271,7 +273,12 @@ function openSocket(bridge: ActiveBridge): void {
   bridge.ws = socket;
   socket.onopen = () => {
     if (active !== bridge || bridge.ws !== socket) return;
+    if (currentSiteId() !== bridge.siteId) {
+      void disconnectExternalEdit();
+      return;
+    }
     bridge.reconnects = 0;
+    rememberMcpConnection({ siteId: bridge.siteId, canEdit: bridge.canEdit, session: bridge.session });
     rememberMcpPairingCodeIssued(window.location.hostname, (cookie) => { document.cookie = cookie; });
     useExternalEdit.setState({
       phase: "connected", code: bridge.session.pairingCode,
@@ -292,6 +299,7 @@ function openSocket(bridge: ActiveBridge): void {
     // grant. Reconnecting then would repeatedly evict the replacement socket.
     if (event?.code === 1000 && ["Disconnected", "Session expired", "Replaced"].includes(event.reason)) {
       active = null;
+      forgetMcpConnection();
       useExternalEdit.setState({ phase: "disconnected", code: null, expiresAt: null });
       return;
     }
@@ -299,10 +307,50 @@ function openSocket(bridge: ActiveBridge): void {
   };
 }
 
+/** Resume the currently authorized site after a full editor reload, without a new OAuth code. */
+export function resumeExternalEdit(): void {
+  const siteId = currentSiteId();
+  if (!siteId) return;
+  if (active) {
+    if (active.siteId !== siteId) void disconnectExternalEdit();
+    return;
+  }
+  if (pendingAbort) return;
+  const saved = readMcpConnection();
+  if (!saved) return;
+  if (!validSession(saved.session) || saved.siteId !== siteId) {
+    forgetMcpConnection();
+    // Do not retain an authorized old-site session after navigating elsewhere.
+    if (validSession(saved.session)) void revokeBridgeSession(saved.session);
+    return;
+  }
+  const bridge: ActiveBridge = {
+    ws: null, session: saved.session, siteId: saved.siteId,
+    canEdit: saved.canEdit, retryTimer: null, reconnects: 0,
+  };
+  active = bridge;
+  useExternalEdit.setState({
+    phase: "connecting", code: null, error: null,
+    expiresAt: saved.session.expiresAt, canEdit: saved.canEdit,
+  });
+  openSocket(bridge);
+}
+
+async function revokeBridgeSession(session: BridgeSession): Promise<void> {
+  try {
+    await fetch(ENDPOINT + "/bridge/revoke", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: session.sessionId, connectToken: session.connectToken }),
+      credentials: "omit", cache: "no-store",
+    });
+  } catch { /* The session expires at the relay even if revocation is unavailable. */ }
+}
+
 export async function disconnectExternalEdit(): Promise<void> {
   connectAttempt++;
   pendingAbort?.abort();
   pendingAbort = null;
+  forgetMcpConnection();
   const session = active;
   active = null;
   if (session?.retryTimer !== null && session?.retryTimer !== undefined) clearTimeout(session.retryTimer);
@@ -310,13 +358,7 @@ export async function disconnectExternalEdit(): Promise<void> {
   useExternalEdit.setState({ phase: "disconnected", code: null, expiresAt: null, error: null });
   if (!session) return;
   try { session.ws?.close(1000, "Disconnected"); } catch { /* Revocation still proceeds. */ }
-  try {
-    await fetch(ENDPOINT + "/bridge/revoke", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionId: session.session.sessionId, connectToken: session.session.connectToken }),
-      credentials: "omit", cache: "no-store",
-    });
-  } catch { /* The local connection is already closed. Server expiry is the fallback. */ }
+  await revokeBridgeSession(session.session);
 }
 
 export async function connectExternalEdit(canEdit: boolean): Promise<void> {
