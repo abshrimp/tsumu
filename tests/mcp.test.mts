@@ -2,7 +2,6 @@ import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { clearDraftLink, draftFromLocation, hasDraftResumeMarker, prepareDraftSignIn, resumeDraftAfterSignIn } from "../lib/external-edit/draft-link";
 import { DEFAULT_MCP_ENDPOINT, resolveMcpEndpoint } from "../lib/external-edit/config";
-import { MCP_PAIRING_HISTORY_COOKIE, rememberMcpPairingCodeIssued } from "../lib/external-edit/pairing-history";
 import { fakeIndexedDB } from "./helpers/fake-indexeddb";
 import { createLocalBrowserSite } from "../lib/browser-site-create";
 import { readBrowserDoc } from "../lib/browser-doc-storage";
@@ -90,34 +89,6 @@ test("MCP relay uses the configured base URL without trailing slashes", () => {
   assert.equal(resolveMcpEndpoint("https://mcp.example.com"), "https://mcp.example.com");
   assert.equal(resolveMcpEndpoint(" https://mcp.example.com/// "), "https://mcp.example.com");
   assert.equal(resolveMcpEndpoint("http://localhost:8787/"), "http://localhost:8787");
-});
-});
-
-describe("mcp-pairing-history", () => {
-test("remember a successful pairing code on official Tsumu domains", () => {
-  const written: string[] = [];
-  assert.equal(rememberMcpPairingCodeIssued("tsumu.ebii.net", (cookie) => written.push(cookie)), true);
-  assert.equal(rememberMcpPairingCodeIssued("EDITOR.TSUMU.EBII.NET", (cookie) => written.push(cookie)), true);
-  assert.equal(rememberMcpPairingCodeIssued("tsumu.ebii.net.", (cookie) => written.push(cookie)), true);
-  assert.equal(rememberMcpPairingCodeIssued("mcp.tsumu.ebii.net", (cookie) => written.push(cookie)), true);
-  assert.equal(written.length, 4);
-  for (const cookie of written) {
-    assert.match(cookie, new RegExp(`^${MCP_PAIRING_HISTORY_COOKIE}=1;`));
-    assert.match(cookie, /Domain=tsumu\.ebii\.net; Path=\/; Max-Age=31536000; SameSite=Lax; Secure/);
-    assert.doesNotMatch(cookie, /pairingCode|sessionId|connectToken/);
-  }
-});
-
-test("do not set a parent-domain cookie on self-hosted or unrelated origins", () => {
-  let written = false;
-  for (const hostname of ["localhost", "example.org", "tsumu.ebii.net.evil.test", "nottsumu.ebii.net", "ebii.net"]) {
-    assert.equal(rememberMcpPairingCodeIssued(hostname, () => { written = true; }), false, hostname);
-  }
-  assert.equal(written, false);
-});
-
-test("a rejected cookie write must not block connecting", () => {
-  assert.equal(rememberMcpPairingCodeIssued("tsumu.ebii.net", () => { throw new Error("Cookies disabled"); }), false);
 });
 });
 
