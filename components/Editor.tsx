@@ -48,6 +48,7 @@ import { currentSiteId, siteApi, siteKey } from "../lib/site";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { connectEditorPageHistory } from "../lib/editor-page-history";
 import { knownReconnectSite } from "../lib/external-edit/reconnect-hint";
+import { isOfficialEditorOrigin } from "../lib/external-edit/official.mjs";
 import { storageKey } from "../lib/storage-keys";
 import { trackPanelResize } from "../lib/panel-resize";
 
@@ -178,7 +179,7 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
   useEffect(() => {
     if (!initialLoadComplete || !status) return;
     const siteId = currentSiteId();
-    if (/^#mcp-(?:select|join)=/.test(window.location.hash)) {
+    if (isOfficialEditorOrigin(window.location.origin) && /^#mcp-(?:select|join)=/.test(window.location.hash)) {
       void import("../lib/external-edit/site-approval").then(
         ({ hasMcpSiteApproval, startMcpSiteApproval }) => {
           if (currentSiteId() === siteId && hasMcpSiteApproval()) startMcpSiteApproval(readOnly);
