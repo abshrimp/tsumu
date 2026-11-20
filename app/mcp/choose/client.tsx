@@ -64,9 +64,10 @@ export default function McpSiteChooser() {
       if (event.origin !== window.location.origin || event.source !== selectedWindow) return;
       const data = event.data;
       if (!data || typeof data !== "object" || data.type !== "tsumu-mcp-site-ready") return;
+      const expectedSiteId = pendingSiteId.current;
       selectedWindow = null;
-      pendingSiteId.current = data.siteId === pendingSiteId.current ? null : pendingSiteId.current;
-      if (data.siteId !== pendingSiteId.current) {
+      pendingSiteId.current = null;
+      if (data.siteId !== expectedSiteId) {
         setPending(null);
         setError("選択したサイトと接続先が一致しません。");
         return;
