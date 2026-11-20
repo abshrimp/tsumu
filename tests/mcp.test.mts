@@ -434,7 +434,7 @@ test("a concurrent cookie rotation retries restoration without discarding the si
 });
 
 test("site authorization uses fragment-only requests and does not expose connection tokens", async t => {
-  const { hasMcpSiteApproval } = await import("../lib/external-edit/site-approval");
+  const { hasMcpSiteApproval, startMcpSiteApproval } = await import("../lib/external-edit/site-approval");
   const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   const location = { origin: "https://tsumu.ebii.net", hash: "#mcp-select=1" };
   Object.defineProperty(globalThis, "window", { configurable: true, value: { location } });
@@ -450,6 +450,7 @@ test("site authorization uses fragment-only requests and does not expose connect
   location.hash = "#mcp-select=1";
   location.origin = "https://selfhost.example.org";
   assert.equal(hasMcpSiteApproval(), false, "self-hosted editors must not accept the hosted OAuth fragment");
+  assert.equal(startMcpSiteApproval(true), false, "no connection attempt is started on self-hosted domains");
   location.origin = "http://tsumu.ebii.net";
   assert.equal(hasMcpSiteApproval(), false, "insecure origin must not receive official-site approval");
 });
