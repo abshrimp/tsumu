@@ -240,12 +240,13 @@ function validSession(session: BridgeSession): boolean {
 /** Keep a live editor tab paired across transient network and WebSocket outages. */
 function scheduleSocketRetry(bridge: ActiveBridge): void {
   if (active !== bridge || bridge.retryTimer !== null) return;
-  if (Date.now() >= bridge.session.expiresAt || currentSiteId() !== bridge.siteId) {
-    active = null;
-    useExternalEdit.setState({
-      phase: "disconnected", code: null, expiresAt: null,
-      error: tr("WebSocket connection failed"),
-    });
+  if (currentSiteId() !== bridge.siteId) {
+    abandonLocalBridge(bridge);
+    return;
+  }
+  if (Date.now() >= bridge.session.expiresAt) {
+    abandonLocalBridge(bridge);
+    void resumeExternalEdit();
     return;
   }
   useExternalEdit.setState({ phase: "connecting", code: null, error: null });
@@ -273,7 +274,7 @@ function openSocket(bridge: ActiveBridge): void {
   socket.onopen = () => {
     if (active !== bridge || bridge.ws !== socket) return;
     if (currentSiteId() !== bridge.siteId) {
-      void disconnectExternalEdit();
+      abandonLocalBridge(bridge);
       return;
     }
     bridge.reconnects = 0;
