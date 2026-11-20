@@ -365,12 +365,11 @@ async function renewBridgeSession(bridge: ActiveBridge): Promise<void> {
 export async function resumeExternalEdit(): Promise<void> {
   const siteId = currentSiteId();
   if (!siteId) return;
-  if (!knownReconnectSite(siteId)) return;
   if (active) {
     if (active.siteId !== siteId) abandonLocalBridge(active);
     else return;
   }
-  if (pendingAbort) return;
+  if (!knownReconnectSite(siteId) || pendingAbort) return;
   const attempt = ++connectAttempt;
   const abort = new AbortController();
   pendingAbort = abort;
