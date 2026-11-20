@@ -1,6 +1,6 @@
 # Tsumu editable `doc.json` format
 
-This file documents the JSON that Tsumu's editor actually loads. It is not an HTML snapshot, a Next.js export, or an arbitrary page-design JSON. The authoritative types are `lib/types.ts`, with construction examples in `lib/presets.ts`. The provided [minimal-site.json](minimal-site.json) is a self-contained, visually editable working example.
+This file documents the JSON that Tsumu's editor actually loads. It is not an HTML snapshot, a Next.js export, or an arbitrary page-design JSON. The authoritative types are `lib/types.ts`, with construction examples in `lib/presets.ts`. The provided [minimal-site.json](minimal-site.json) is a self-contained, visually editable **schema** example, not a design template. Design the actual website freely first (optionally with an HTML/CSS prototype), then translate that independent design into the valid SiteDoc structure. Never simply copy the example's nodes, section order, visual styling or content and change its branding.
 
 ## Canonical `doc.json`
 
