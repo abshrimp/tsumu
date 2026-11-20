@@ -157,7 +157,7 @@ export function buildAdditionalFramework(
       // Keep generated Nuxt installs reproducible when an upstream package
       // requests an unpublished @babel/parser patch version.
       // Also avoid vulnerable old glob/minimatch transitive dependencies.
-      overrides: { glob: "^14.0.2", minimatch: "^11.0.1", "@babel/parser": "7.29.14" },
+      overrides: { glob: "^14.0.2", minimatch: "^11.0.1", "@babel/parser": "7.29.14", "@babel/types": "7.29.14" },
       devDependencies: ts ? { typescript: "^5.9.3" } : {},
     });
   } else {
