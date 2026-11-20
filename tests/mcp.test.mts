@@ -389,6 +389,60 @@ test("reload restores an unexpired grant using credentialed cookies, without re-
     "automatic restoration must never silently issue new pairing codes");
 });
 
+test("a concurrent cookie rotation retries restoration without discarding the site grant", async t => {
+  const { resumeExternalEdit, disconnectExternalEdit, useExternalEdit } =
+    await import("../lib/external-edit/bridge");
+  const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const oldSocket = globalThis.WebSocket;
+  const oldFetch = globalThis.fetch;
+  const siteId = "site-race";
+  const local = new Map([["tsumu-mcp-reconnect-known-v1:" + siteId, "1"]]);
+  Object.defineProperty(globalThis, "window", { configurable: true, value: {
+    location: { pathname: "/sites/" + siteId, hostname: "localhost" },
+    localStorage: {
+      getItem: (key: string) => local.get(key) ?? null,
+      setItem: (key: string, val: string) => { local.set(key, val); },
+      removeItem: (key: string) => { local.delete(key); },
+    },
+  } });
+  let socketCount = 0;
+  class FakeWebSocket {
+    readyState = 1;
+    constructor() { socketCount++; }
+    close() { this.readyState = 3; }
+  }
+  globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
+  const sessionId = "12345678-1234-4234-8234-123456789abc";
+  let restores = 0;
+  globalThis.fetch = (async input => {
+    if (String(input).endsWith("/bridge/restore")) {
+      restores++;
+      if (restores === 1) return Response.json({ error: "Rotated by another tab" }, { status: 409 });
+      return Response.json({
+        sessionId, pairingCode: null, connectToken: "r".repeat(43),
+        wsUrl: "wss://mcp.tsumu.ebii.net/bridge/connect?session=" + sessionId,
+        expiresAt: Date.now() + 60_000, canEdit: false,
+      });
+    }
+    return Response.json({ ok: true });
+  }) as typeof fetch;
+  t.after(async () => {
+    await disconnectExternalEdit();
+    globalThis.fetch = oldFetch;
+    globalThis.WebSocket = oldSocket;
+    if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
+    else Reflect.deleteProperty(globalThis, "window");
+  });
+
+  await resumeExternalEdit();
+  assert.equal(restores, 1);
+  assert.equal(local.get("tsumu-mcp-reconnect-known-v1:" + siteId), "1");
+  await new Promise<void>(resolve => setTimeout(resolve, 1100));
+  assert.equal(restores, 2, "a conflicting rotation is retried automatically");
+  assert.equal(socketCount, 1);
+  assert.equal(useExternalEdit.getState().phase, "connecting");
+});
+
 test("site authorization uses fragment-only requests and does not expose connection tokens", async t => {
   const { hasMcpSiteApproval } = await import("../lib/external-edit/site-approval");
   const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
