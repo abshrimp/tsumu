@@ -443,8 +443,10 @@ test("site authorization uses fragment-only requests and does not expose connect
     else Reflect.deleteProperty(globalThis, "window");
   });
   assert.equal(hasMcpSiteApproval(), true);
-  location.hash = "#mcp-join=12345678-1234-4234-8234-123456789abc." + "a".repeat(43) + "&edit=0";
+  location.hash = "#mcp-join=12345678-1234-4234-8234-123456789abc." + "a".repeat(43) + "&edit=0&site=site-a";
   assert.equal(hasMcpSiteApproval(), true);
+  location.hash = "#mcp-join=12345678-1234-4234-8234-123456789abc." + "a".repeat(43) + "&edit=0";
+  assert.equal(hasMcpSiteApproval(), false, "site-bound invitation cannot omit the selected site");
   location.hash = "#mcp-join=malformed";
   assert.equal(hasMcpSiteApproval(), false);
   location.hash = "#mcp-select=1";
@@ -454,6 +456,34 @@ test("site authorization uses fragment-only requests and does not expose connect
   location.origin = "http://tsumu.ebii.net";
   assert.equal(hasMcpSiteApproval(), false, "insecure origin must not receive official-site approval");
 });
+});
+
+test("a changed invitation target never attempts to connect the unintended editor", async t => {
+  const { startMcpSiteApproval } = await import("../lib/external-edit/site-approval");
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const messages: Array<{ data: unknown; target: string }> = [];
+  const location = {
+    origin: "https://tsumu.ebii.net",
+    pathname: "/sites/site-b",
+    search: "",
+    hash: "#mcp-join=12345678-1234-4234-8234-123456789abc." + "a".repeat(43) +
+      "&edit=1&site=site-a",
+  };
+  Object.defineProperty(globalThis, "window", { configurable: true, value: {
+    location,
+    history: { state: null, replaceState() {} },
+    opener: { closed: false, postMessage(data: unknown, target: string) { messages.push({ data, target }); } },
+  } });
+  t.after(() => {
+    if (previous) Object.defineProperty(globalThis, "window", previous);
+    else Reflect.deleteProperty(globalThis, "window");
+  });
+  assert.equal(startMcpSiteApproval(false), true);
+  assert.deepEqual(messages, [{
+    data: { type: "tsumu-mcp-site-ready", siteId: "site-b", ok: false,
+      error: "Selected site mismatch" },
+    target: "https://tsumu.ebii.net",
+  }]);
 });
 
 describe("mcp-site-permissions", () => {
