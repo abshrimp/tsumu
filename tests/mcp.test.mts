@@ -261,9 +261,20 @@ test("MCP bridge aborts in-flight session fetches on disconnect and scopes idemp
   assert.equal(useExternalEdit.getState().phase, "connected");
   assert.equal(useExternalEdit.getState().code, "ABCDE-FGHJK-LMNPQ-RSTUV");
 
+  const waitForReply = async (requestId: string): Promise<{
+    requestId: string; ok: boolean; result: any;
+  }> => {
+    for (let attempt = 0; attempt < 500; attempt++) {
+      const reply = recovered.sent.map(message => JSON.parse(message))
+        .find(message => message.requestId === requestId);
+      if (reply) return reply;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    throw new Error(`MCP response not received: ${requestId}`);
+  };
+
   recovered.onmessage?.({ data: JSON.stringify({ type: "request", requestId: "req-list-1", action: "list_sites", args: {} }) });
-  await new Promise((resolve) => setTimeout(resolve, 10));
-  const listReply = JSON.parse(recovered.sent.at(-1)!);
+  const listReply = await waitForReply("req-list-1");
   assert.equal(listReply.ok, true);
   assert.equal(listReply.result[0].storage, "browser");
 
@@ -273,8 +284,7 @@ test("MCP bridge aborts in-flight session fetches on disconnect and scopes idemp
       args: { requestId: "shared_req_12345", name: "Pricing" },
     }),
   });
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  const pageReply = JSON.parse(recovered.sent.at(-1)!);
+  const pageReply = await waitForReply("msg-page-1");
   assert.equal(pageReply.ok, true);
   assert.equal(pageReply.result.savedToBrowser, true);
   assert.equal(pageReply.result.name, "Pricing");
@@ -286,8 +296,7 @@ test("MCP bridge aborts in-flight session fetches on disconnect and scopes idemp
       args: { requestId: "shared_req_12345", name: "Separate Site" },
     }),
   });
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  const siteReply = JSON.parse(recovered.sent.at(-1)!);
+  const siteReply = await waitForReply("msg-site-1");
   assert.equal(siteReply.ok, true);
   assert.equal(siteReply.result.name, "Separate Site");
   assert.equal(siteReply.result.requiresReconnect, true);
