@@ -311,6 +311,184 @@ test("MCP bridge aborts in-flight session fetches on disconnect and scopes idemp
 });
 });
 
+describe("mcp-browser-reconnect", () => {
+test("reload restores an unexpired grant using credentialed cookies, without re-pairing", async t => {
+  const { resumeExternalEdit, disconnectExternalEdit, useExternalEdit } =
+    await import("../lib/external-edit/bridge");
+  const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const oldDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+  const oldSocket = globalThis.WebSocket;
+  const oldFetch = globalThis.fetch;
+  const location = { pathname: "/sites/site-a", hostname: "localhost", origin: "http://localhost:3000" };
+  const values = new Map<string, string>([["tsumu-mcp-reconnect-known-v1:site-a", "1"]]);
+  const localStorage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value); },
+    removeItem: (key: string) => { values.delete(key); },
+  };
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { location, localStorage } });
+  Object.defineProperty(globalThis, "document", { configurable: true, value: { cookie: "" } });
+  const sockets: Array<{ url: string; protocols: string[]; onopen?: () => void }> = [];
+  class FakeWebSocket {
+    static OPEN = 1;
+    readyState = 1;
+    onopen?: () => void;
+    constructor(url: string, protocols: string[]) {
+      sockets.push({ url, protocols, onopen: () => this.onopen?.() });
+    }
+    close() { this.readyState = 3; }
+  }
+  globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
+  const requests: Array<{ url: string; method?: string; credentials?: RequestCredentials; body?: unknown }> = [];
+  const sessionId = "12345678-1234-4234-8234-123456789abc";
+  const wsUrl = "wss://mcp.tsumu.ebii.net/bridge/connect?session=" + sessionId;
+  globalThis.fetch = (async (input, init) => {
+    const path = String(input);
+    requests.push({ url: path, method: init?.method, credentials: init?.credentials,
+      body: init?.body && JSON.parse(String(init.body)) });
+    if (path.endsWith("/bridge/restore") && location.pathname.endsWith("site-a")) {
+      return Response.json({ sessionId, pairingCode: null, connectToken: "s".repeat(43),
+        wsUrl, canEdit: false, expiresAt: Date.now() + 60_000 });
+    }
+    if (path.endsWith("/bridge/restore")) return Response.json({ error: "Not found" }, { status: 404 });
+    return Response.json({ ok: true });
+  }) as typeof fetch;
+  t.after(async () => {
+    await disconnectExternalEdit();
+    globalThis.fetch = oldFetch;
+    globalThis.WebSocket = oldSocket;
+    if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
+    else Reflect.deleteProperty(globalThis, "window");
+    if (oldDocument) Object.defineProperty(globalThis, "document", oldDocument);
+    else Reflect.deleteProperty(globalThis, "document");
+  });
+
+  await resumeExternalEdit();
+  await resumeExternalEdit();
+  assert.equal(sockets.length, 1, "one editor tab must not resume the same grant twice");
+  assert.equal(requests[0]?.url, "https://mcp.tsumu.ebii.net/bridge/restore");
+  assert.equal(requests[0]?.credentials, "include");
+  assert.deepEqual(requests[0]?.body, { siteId: "site-a" });
+  assert.equal(useExternalEdit.getState().phase, "connecting");
+  sockets[0]!.onopen?.();
+  assert.equal(useExternalEdit.getState().phase, "connected");
+  assert.equal(useExternalEdit.getState().code, null, "no reusable pairing code is exposed");
+  assert.equal(useExternalEdit.getState().canEdit, false);
+
+  location.pathname = "/sites/site-b";
+  await resumeExternalEdit();
+  assert.equal(sockets.length, 1, "a cookie for site A must never authorize site B");
+  assert.equal(requests.filter(r => r.url.endsWith("/bridge/restore")).length, 1,
+    "an unpaired site must not attempt a credentialed network restore");
+  assert.equal(useExternalEdit.getState().phase, "disconnected");
+
+  await disconnectExternalEdit();
+  assert.equal(requests.at(-1)?.url, "https://mcp.tsumu.ebii.net/bridge/restore",
+    "an unpaired site must not revoke the prior site's separate grant");
+  assert.ok(requests.every(request => !request.url.endsWith("/bridge/sessions")),
+    "automatic restoration must never silently issue new pairing codes");
+});
+
+test("a concurrent cookie rotation retries restoration without discarding the site grant", async t => {
+  const { resumeExternalEdit, disconnectExternalEdit, useExternalEdit } =
+    await import("../lib/external-edit/bridge");
+  const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const oldSocket = globalThis.WebSocket;
+  const oldFetch = globalThis.fetch;
+  const siteId = "site-race";
+  const local = new Map([["tsumu-mcp-reconnect-known-v1:" + siteId, "1"]]);
+  Object.defineProperty(globalThis, "window", { configurable: true, value: {
+    location: { pathname: "/sites/" + siteId, hostname: "localhost" },
+    localStorage: {
+      getItem: (key: string) => local.get(key) ?? null,
+      setItem: (key: string, val: string) => { local.set(key, val); },
+      removeItem: (key: string) => { local.delete(key); },
+    },
+  } });
+  let socketCount = 0;
+  class FakeWebSocket {
+    readyState = 1;
+    constructor() { socketCount++; }
+    close() { this.readyState = 3; }
+  }
+  globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
+  const sessionId = "12345678-1234-4234-8234-123456789abc";
+  let restores = 0;
+  globalThis.fetch = (async input => {
+    if (String(input).endsWith("/bridge/restore")) {
+      restores++;
+      if (restores === 1) return Response.json({ error: "Rotated by another tab" }, { status: 409 });
+      return Response.json({
+        sessionId, pairingCode: null, connectToken: "r".repeat(43),
+        wsUrl: "wss://mcp.tsumu.ebii.net/bridge/connect?session=" + sessionId,
+        expiresAt: Date.now() + 60_000, canEdit: false,
+      });
+    }
+    return Response.json({ ok: true });
+  }) as typeof fetch;
+  t.after(async () => {
+    await disconnectExternalEdit();
+    globalThis.fetch = oldFetch;
+    globalThis.WebSocket = oldSocket;
+    if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
+    else Reflect.deleteProperty(globalThis, "window");
+  });
+
+  await resumeExternalEdit();
+  assert.equal(restores, 1);
+  assert.equal(local.get("tsumu-mcp-reconnect-known-v1:" + siteId), "1");
+  await new Promise<void>(resolve => setTimeout(resolve, 1100));
+  assert.equal(restores, 2, "a conflicting rotation is retried automatically");
+  assert.equal(socketCount, 1);
+  assert.equal(useExternalEdit.getState().phase, "connecting");
+});
+
+test("site authorization uses fragment-only requests and does not expose connection tokens", async t => {
+  const { hasMcpSiteApproval } = await import("../lib/external-edit/site-approval");
+  const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const location = { hash: "#mcp-select=1" };
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { location } });
+  t.after(() => {
+    if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
+    else Reflect.deleteProperty(globalThis, "window");
+  });
+  assert.equal(hasMcpSiteApproval(), true);
+  location.hash = "#mcp-join=12345678-1234-4234-8234-123456789abc." + "a".repeat(43) + "&edit=0";
+  assert.equal(hasMcpSiteApproval(), true);
+  location.hash = "#mcp-join=malformed";
+  assert.equal(hasMcpSiteApproval(), false);
+});
+});
+
+describe("mcp-site-permissions", () => {
+test("viewer access cannot silently become editing access through a stored MCP grant", async () => {
+  const { externalEditSiteRole } = await import("../lib/external-edit/site-permission");
+  const requests: Array<{ url: string; init: RequestInit }> = [];
+  const getRole = (role: string, status = 200) => (async (url: RequestInfo | URL, init?: RequestInit) => {
+    requests.push({ url: String(url), init: init ?? {} });
+    return Response.json({ site: { accessRole: role } }, { status });
+  }) as typeof fetch;
+  assert.equal(await externalEditSiteRole("site-a", { db: true }, getRole("viewer")), "viewer");
+  assert.deepEqual(requests[0], {
+    url: "/api/sites/site-a",
+    init: { method: "GET", cache: "no-store", credentials: "same-origin" },
+  });
+  assert.equal(await externalEditSiteRole("site-a", { db: true }, getRole("editor")), "editor");
+  assert.equal(await externalEditSiteRole("site-a", { db: true }, getRole("owner")), "owner");
+  await assert.rejects(
+    externalEditSiteRole("site-a", { db: true }, getRole("viewer", 403)),
+    /no longer authorized/,
+  );
+  await assert.rejects(
+    externalEditSiteRole("site-a", { db: true }, getRole("unknown")),
+    /no longer authorized/,
+  );
+  assert.equal(await externalEditSiteRole("local-site", { db: false }, (() => {
+    throw new Error("browser-only permissions should not call a server");
+  }) as typeof fetch), null);
+});
+});
+
 describe("mcp-plugin-catalog", () => {
 test("plugin links come from the relay and only published https listings are kept", async () => {
   const { parsePluginCatalog } = await import("../lib/external-edit/plugins");

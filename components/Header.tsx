@@ -151,7 +151,7 @@ function SettingsModal({ onClose, onOpenMembers, canManageMembers, permissionsAv
 }
 
 /** MCP接続はエディタ設定とは独立したメニューから開く。 */
-function McpConnectionModal({ onClose }: { onClose: () => void }) {
+function McpConnectionModal({ onClose, siteCanEdit }: { onClose: () => void; siteCanEdit: boolean }) {
   useEscapeToClose(onClose);
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -161,7 +161,7 @@ function McpConnectionModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="modal-refined-body">
           <Suspense fallback={<p className="hint" role="status">{tr("Loading…")}</p>}>
-            <ExternalEditConnection />
+            <ExternalEditConnection siteCanEdit={siteCanEdit} />
           </Suspense>
         </div>
         <div className="modal-actions modal-refined-actions">
@@ -662,7 +662,10 @@ export default function Header({
       )}
       {mcpOpen && (
         <SafeBoundary label={tr("MCP connection")} onClose={() => setMcpOpen(false)}>
-          <McpConnectionModal onClose={() => setMcpOpen(false)} />
+          <McpConnectionModal onClose={() => setMcpOpen(false)} siteCanEdit={
+            status?.db === false ||
+            (status?.db === true && (siteRole === "owner" || siteRole === "editor"))
+          } />
         </SafeBoundary>
       )}
     </header>

@@ -40,8 +40,9 @@ function PluginLinks() {
   );
 }
 
-export default function ExternalEditConnection() {
+export default function ExternalEditConnection({ siteCanEdit = true }: { siteCanEdit?: boolean } = {}) {
   const [allowEdit, setAllowEdit] = useState(true);
+  const effectiveAllowEdit = siteCanEdit && allowEdit;
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [copyErrorCode, setCopyErrorCode] = useState<string | null>(null);
   const state = useExternalEdit();
@@ -75,10 +76,11 @@ export default function ExternalEditConnection() {
         {state.phase === "disconnected" && (
           <>
             <label className="mcp-edit-option">
-              <input type="checkbox" checked={allowEdit} onChange={(e) => setAllowEdit(e.target.checked)} />
+              <input type="checkbox" checked={effectiveAllowEdit} disabled={!siteCanEdit}
+                onChange={(e) => setAllowEdit(e.target.checked)} />
               <span>{tr("Allow editing (not publishing or deleting assets)")}</span>
             </label>
-            <button type="button" className="btn btn-primary mcp-main-action" onClick={() => { void connectExternalEdit(allowEdit); }}>
+            <button type="button" className="btn btn-primary mcp-main-action" onClick={() => { void connectExternalEdit(effectiveAllowEdit); }}>
               <Cable size={15} aria-hidden />
               {tr("Start connection")}
             </button>

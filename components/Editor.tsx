@@ -47,6 +47,7 @@ import { useServerStatus } from "../lib/status";
 import { currentSiteId, siteApi, siteKey } from "../lib/site";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { connectEditorPageHistory } from "../lib/editor-page-history";
+import { knownReconnectSite } from "../lib/external-edit/reconnect-hint";
 import { storageKey } from "../lib/storage-keys";
 import { trackPanelResize } from "../lib/panel-resize";
 
@@ -171,6 +172,33 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
   // D1 が未設定の場合と、一時的な 503 を区別する。判定できない間は、安全側に倒してページを離れるときの保護を有効にする。
   const status = useServerStatus();
   const readOnly = status?.role === "viewer" || (status?.db === true && siteRole !== "owner" && siteRole !== "editor");
+  // MCP is optional. Do not evaluate its bridge (and endpoint configuration)
+  // while loading an unrelated editor; only import it after an authorized
+  // site-picker action or when this site has a saved non-secret reconnect hint.
+  useEffect(() => {
+    if (!initialLoadComplete || !status) return;
+    const siteId = currentSiteId();
+    if (/^#mcp-(?:select|join)=/.test(window.location.hash)) {
+      void import("../lib/external-edit/site-approval").then(
+        ({ hasMcpSiteApproval, startMcpSiteApproval }) => {
+          if (currentSiteId() === siteId && hasMcpSiteApproval()) startMcpSiteApproval(readOnly);
+        },
+      );
+      return;
+    }
+    if (!knownReconnectSite(siteId)) return;
+    if (readOnly) {
+      // A viewer must not restore an earlier editing grant.
+      void import("../lib/external-edit/bridge").then(({ disconnectExternalEdit }) => {
+        if (currentSiteId() === siteId) void disconnectExternalEdit();
+      });
+    } else {
+      void import("../lib/external-edit/bridge").then(({ resumeExternalEdit }) => {
+        if (currentSiteId() === siteId) void resumeExternalEdit();
+      });
+    }
+  }, [initialLoadComplete, readOnly, status?.db]);
+
   const browserOnly = status?.db === false;
   const collabTransport = status?.collabTransport;
   useLayoutEffect(() => {

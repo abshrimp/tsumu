@@ -21,8 +21,18 @@ const nextConfig = {
         ],
       },
       {
+        // The inert site-list bridge may be framed only by our official OAuth UI.
+        // No other editor page is embeddable.
+        source: "/mcp/sites-bridge",
+        headers: [
+          { key: "Content-Security-Policy", value: "frame-ancestors https://mcp.tsumu.ebii.net" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Cache-Control", value: "private, no-store" },
+        ],
+      },
+      {
         // 他のサイトの iframe や埋め込みからの遷移でエディタを重ねて押させること（クリックジャッキング）を防ぐ
-        source: "/((?!api/assets/file).*)",
+        source: "/((?!api/assets/file|mcp/sites-bridge).*)",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
