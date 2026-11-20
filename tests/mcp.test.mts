@@ -311,6 +311,157 @@ test("MCP bridge aborts in-flight session fetches on disconnect and scopes idemp
 });
 });
 
+describe("mcp-connection-resume", () => {
+test("session storage retains only unexpired tab-scoped credentials", async (t) => {
+  const { forgetMcpConnection, readMcpConnection, rememberMcpConnection } =
+    await import("../lib/external-edit/session-persistence");
+  const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const entries = new Map<string, string>();
+  const sessionStorage = {
+    getItem: (key: string) => entries.get(key) ?? null,
+    setItem: (key: string, value: string) => { entries.set(key, value); },
+    removeItem: (key: string) => { entries.delete(key); },
+  };
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { sessionStorage } });
+  t.after(() => {
+    if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
+    else Reflect.deleteProperty(globalThis, "window");
+  });
+
+  const session = {
+    sessionId: "12345678-1234-4234-8234-123456789abc",
+    pairingCode: "ABCDE-FGHJK-LMNPQ-RSTUV", connectToken: "a".repeat(43),
+    wsUrl: "wss://mcp.tsumu.ebii.net/bridge/connect?session=12345678-1234-4234-8234-123456789abc",
+    expiresAt: Date.now() + 60_000,
+  };
+  const saved = { siteId: "site-a", canEdit: true, session };
+  rememberMcpConnection(saved);
+  assert.deepEqual(readMcpConnection(), saved);
+  assert.equal(entries.size, 1, "only a single tab-scoped session should be stored");
+
+  session.expiresAt = Date.now() - 1;
+  rememberMcpConnection(saved);
+  assert.equal(readMcpConnection(), null, "expired connection cannot be resumed");
+  assert.equal(entries.size, 0);
+
+  entries.set("tsumu-mcp-reconnect-v1", "{bad json");
+  assert.equal(readMcpConnection(), null);
+  assert.equal(entries.size, 0);
+  rememberMcpConnection(saved);
+  forgetMcpConnection();
+  assert.equal(entries.size, 0);
+});
+
+test("reload resumes the same site without a new pairing or OAuth request", async (t) => {
+  const { forgetMcpConnection, readMcpConnection, rememberMcpConnection } =
+    await import("../lib/external-edit/session-persistence");
+  const { resumeExternalEdit, disconnectExternalEdit, useExternalEdit } =
+    await import("../lib/external-edit/bridge");
+  const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const oldDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+  const oldSocket = globalThis.WebSocket;
+  const oldFetch = globalThis.fetch;
+  const entries = new Map<string, string>();
+  const sessionStorage = {
+    getItem: (key: string) => entries.get(key) ?? null,
+    setItem: (key: string, value: string) => { entries.set(key, value); },
+    removeItem: (key: string) => { entries.delete(key); },
+  };
+  const location = { pathname: "/sites/site-a", hostname: "localhost" };
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { location, sessionStorage } });
+  Object.defineProperty(globalThis, "document", { configurable: true, value: { cookie: "" } });
+  const sockets: Array<{ url: string; protocols: string[]; onopen?: () => void; close: () => void }> = [];
+  class FakeWebSocket {
+    static OPEN = 1;
+    readyState = 1;
+    onopen?: () => void;
+    constructor(url: string, protocols: string[]) {
+      sockets.push({ url, protocols, onopen: () => this.onopen?.(), close: () => this.close() });
+    }
+    close() { this.readyState = 3; }
+  }
+  globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
+  const requests: string[] = [];
+  globalThis.fetch = (async (input) => {
+    requests.push(String(input));
+    return Response.json({ ok: true });
+  }) as typeof fetch;
+  t.after(async () => {
+    await disconnectExternalEdit();
+    forgetMcpConnection();
+    globalThis.fetch = oldFetch;
+    globalThis.WebSocket = oldSocket;
+    if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
+    else Reflect.deleteProperty(globalThis, "window");
+    if (oldDocument) Object.defineProperty(globalThis, "document", oldDocument);
+    else Reflect.deleteProperty(globalThis, "document");
+  });
+  const session = {
+    sessionId: "abcdef01-1234-4234-8234-abcdef012345",
+    pairingCode: "ABCDE-FGHJK-LMNPQ-RSTUV", connectToken: "b".repeat(43),
+    wsUrl: "wss://mcp.tsumu.ebii.net/bridge/connect?session=abcdef01-1234-4234-8234-abcdef012345",
+    expiresAt: Date.now() + 60_000,
+  };
+  rememberMcpConnection({ siteId: "site-a", canEdit: false, session });
+  resumeExternalEdit();
+  resumeExternalEdit();
+  assert.equal(sockets.length, 1, "initialization must be idempotent");
+  assert.equal(useExternalEdit.getState().phase, "connecting");
+  assert.equal(sockets[0]!.url, session.wsUrl);
+  assert.deepEqual(sockets[0]!.protocols, ["tsumu-editor", session.connectToken]);
+  sockets[0]!.onopen?.();
+  assert.equal(useExternalEdit.getState().phase, "connected");
+  assert.equal(useExternalEdit.getState().canEdit, false);
+  assert.deepEqual(readMcpConnection()?.session, session);
+  assert.deepEqual(requests, [], "resuming must not fetch a new pairing code");
+  await disconnectExternalEdit();
+  assert.equal(readMcpConnection(), null);
+  assert.deepEqual(requests, ["https://mcp.tsumu.ebii.net/bridge/revoke"]);
+});
+
+test("a saved session for another site is discarded and revoked, never reused", async (t) => {
+  const { rememberMcpConnection, readMcpConnection } =
+    await import("../lib/external-edit/session-persistence");
+  const { resumeExternalEdit, disconnectExternalEdit } =
+    await import("../lib/external-edit/bridge");
+  const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const oldFetch = globalThis.fetch;
+  const entries = new Map<string, string>();
+  const sessionStorage = {
+    getItem: (key: string) => entries.get(key) ?? null,
+    setItem: (key: string, value: string) => { entries.set(key, value); },
+    removeItem: (key: string) => { entries.delete(key); },
+  };
+  Object.defineProperty(globalThis, "window", {
+    configurable: true, value: { sessionStorage, location: { pathname: "/sites/other-site" } },
+  });
+  const requests: Array<{ input: string; body: unknown }> = [];
+  globalThis.fetch = (async (input, init) => {
+    requests.push({ input: String(input), body: JSON.parse(String(init?.body)) });
+    return Response.json({ ok: true });
+  }) as typeof fetch;
+  t.after(async () => {
+    await disconnectExternalEdit();
+    globalThis.fetch = oldFetch;
+    if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
+    else Reflect.deleteProperty(globalThis, "window");
+  });
+  rememberMcpConnection({
+    siteId: "site-a", canEdit: true, session: {
+      sessionId: "abcdef01-1234-4234-8234-abcdef012345",
+      pairingCode: "ABCDE-FGHJK-LMNPQ-RSTUV", connectToken: "c".repeat(43),
+      wsUrl: "wss://mcp.tsumu.ebii.net/bridge/connect?session=abcdef01-1234-4234-8234-abcdef012345",
+      expiresAt: Date.now() + 60_000,
+    },
+  });
+  resumeExternalEdit();
+  assert.equal(readMcpConnection(), null);
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0]!.input, "https://mcp.tsumu.ebii.net/bridge/revoke");
+});
+});
+
 describe("mcp-plugin-catalog", () => {
 test("plugin links come from the relay and only published https listings are kept", async () => {
   const { parsePluginCatalog } = await import("../lib/external-edit/plugins");
