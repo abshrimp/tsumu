@@ -159,6 +159,11 @@ test("Next.js editor routes apply the baseline response security headers", async
     item.key === "X-Frame-Options" && item.value === "DENY"));
   assert.ok(selfHosted.headers.some((item: { key: string; value: string }) =>
     item.key === "Content-Security-Policy" && item.value === "frame-ancestors 'none'"));
+  for (const page of ["app/mcp/choose/page.tsx", "app/mcp/sites-bridge/page.tsx"]) {
+    const source = read(page);
+    assert.match(source, /if \(!isOfficialEditorHost\(\(await headers\(\)\)\.get\("host"\)\)\) notFound\(\)/,
+      `${page} must return 404 before serving hosted-only MCP UI on self-hosted sites`);
+  }
 
 });
 
