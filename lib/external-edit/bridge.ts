@@ -417,6 +417,7 @@ export async function disconnectExternalEdit(): Promise<void> {
   if (siteId) forgetReconnectSite(siteId);
   const session = active?.session;
   if (active) abandonLocalBridge(active);
+  else useExternalEdit.setState({ phase: "disconnected", code: null, expiresAt: null, error: null });
   if (!wasConnected) return;
   try {
     await fetch(ENDPOINT + "/bridge/revoke", {
