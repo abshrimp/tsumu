@@ -82,11 +82,6 @@ export default function McpSiteChooser() {
     return () => window.removeEventListener("message", receive);
   }, [invite]);
 
-  // Only the editor popup opened by an explicit click can report a successful pairing.
-  letNote: {
-    // No cross-site window data is stored persistently.
-  }
-
   const select = (site: SelectableSite) => {
     if (pending) return;
     if (!invite && !window.opener) {
