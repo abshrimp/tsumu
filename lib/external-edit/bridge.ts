@@ -16,6 +16,7 @@ import { tr } from "../i18n";
 import { resolveMcpEndpoint } from "./config";
 import { rememberMcpPairingCodeIssued } from "./pairing-history";
 import { rememberReconnectSite, knownReconnectSite, forgetReconnectSite } from "./reconnect-hint";
+import { externalEditSiteRole } from "./site-permission";
 
 const ENDPOINT = resolveMcpEndpoint(process.env.NEXT_PUBLIC_TSUMU_MCP_URL);
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
@@ -86,8 +87,11 @@ async function execute(action: string, rawArgs: unknown, siteId: string, canEdit
   if (currentSiteId() !== siteId) throw new Error(tr("The active Tsumu site changed"));
   const args = asObject(rawArgs);
   const status = serverStatusSnapshot() ?? await loadServerStatus();
-  // Server capability discovery is asynchronous. Navigation may have changed
-  // the current document while we were waiting for it.
+  if (!status) throw new Error(tr("Connection failed"));
+  // Current site membership must be checked for every MCP command, not just
+  // when the long-lived browser pairing was first approved. This also prevents
+  // local data disclosure after a user's server-side site access is revoked.
+  const siteRole = await externalEditSiteRole(siteId, status);
   if (currentSiteId() !== siteId) throw new Error(tr("The active Tsumu site changed"));
   const s = useEditor.getState();
   const isServerBacked = Boolean(status?.db);
@@ -113,7 +117,7 @@ async function execute(action: string, rawArgs: unknown, siteId: string, canEdit
     return { siteId, pageId, revision: await revision(context.doc), document: context.doc };
   }
   if (!MUTATING_ACTIONS.has(action)) throw new Error(tr("Unknown external editing operation"));
-  if (!canEdit) throw new Error(tr("This connection is read-only"));
+  if (!canEdit || siteRole === "viewer") throw new Error(tr("This connection is read-only"));
   const requestId = args.requestId;
   if (typeof requestId !== "string" || !/^[\w-]{8,80}$/.test(requestId)) {
     throw new Error(tr("A unique requestId is required"));
