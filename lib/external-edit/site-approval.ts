@@ -10,7 +10,7 @@ import { OFFICIAL_MCP_ORIGIN, isOfficialEditorOrigin } from "./official.mjs";
  * that opened this tab, never placed in a URL or persistent storage.
  */
 const SELECT = /^#mcp-select=([01])$/;
-const JOIN = /^#mcp-join=([0-9a-f-]{36})\.([A-Za-z0-9_-]{43})&edit=([01])$/;
+const JOIN = /^#mcp-join=([0-9a-f-]{36})\.([A-Za-z0-9_-]{43})&edit=([01])&site=([a-z0-9][a-z0-9-]{0,63})$/;
 
 export function hasMcpSiteApproval(): boolean {
   if (typeof window === "undefined" || !isOfficialEditorOrigin(window.location.origin)) return false;
@@ -28,6 +28,14 @@ export function startMcpSiteApproval(readOnly: boolean): boolean {
   if (!window.opener || window.opener.closed) return true;
   const origin = select ? OFFICIAL_MCP_ORIGIN : window.location.origin;
   const siteId = currentSiteId();
+  // A navigation between opening the editor tab and hydration must never
+  // attach the invitation to a different site than the one explicitly chosen.
+  if (join && join[4] !== siteId) {
+    window.opener.postMessage({
+      type: "tsumu-mcp-site-ready", siteId, ok: false, error: "Selected site mismatch",
+    }, window.location.origin);
+    return true;
+  }
   const requestedEdit = (select?.[1] ?? join?.[3]) === "1";
   const canEdit = requestedEdit && !readOnly;
   let finished = false;
