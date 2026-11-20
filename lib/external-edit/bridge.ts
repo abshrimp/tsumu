@@ -15,10 +15,24 @@ import { loadServerStatus, serverStatusSnapshot } from "../status";
 import { tr } from "../i18n";
 import { resolveMcpEndpoint } from "./config";
 import { rememberMcpPairingCodeIssued } from "./pairing-history";
+import { storageKey } from "../storage-keys";
 
 const ENDPOINT = resolveMcpEndpoint(process.env.NEXT_PUBLIC_TSUMU_MCP_URL);
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 const MAX_REPLY_BYTES = 4 * 1024 * 1024;
+// Only a non-secret, per-site hint is persisted. The actual reconnect grant
+// is an HttpOnly cookie on the MCP origin, never stored in browser JavaScript.
+const RECONNECT_HINT = storageKey("mcp-reconnect-known-v1");
+function rememberReconnectSite(siteId: string): void {
+  try { window.localStorage.setItem(RECONNECT_HINT + ":" + siteId, "1"); } catch { /* Storage disabled. */ }
+}
+function knownReconnectSite(siteId: string): boolean {
+  try { return window.localStorage.getItem(RECONNECT_HINT + ":" + siteId) === "1"; }
+  catch { return false; }
+}
+function forgetReconnectSite(siteId: string): void {
+  try { window.localStorage.removeItem(RECONNECT_HINT + ":" + siteId); } catch { /* Storage disabled. */ }
+}
 
 type Phase = "disconnected" | "connecting" | "connected";
 interface ExternalEditState {
@@ -278,6 +292,7 @@ function openSocket(bridge: ActiveBridge): void {
       return;
     }
     bridge.reconnects = 0;
+    rememberReconnectSite(bridge.siteId);
     if (bridge.session.pairingCode) {
       rememberMcpPairingCodeIssued(window.location.hostname, (cookie) => { document.cookie = cookie; });
     }
@@ -302,6 +317,7 @@ function openSocket(bridge: ActiveBridge): void {
     // grant. Reconnecting then would repeatedly evict the replacement socket.
     if (event?.code === 1000 && ["Disconnected", "Session expired", "Replaced"].includes(event.reason)) {
       abandonLocalBridge(bridge);
+      if (event.reason === "Disconnected") forgetReconnectSite(bridge.siteId);
       if (event.reason === "Session expired") void resumeExternalEdit();
       return;
     }
@@ -349,6 +365,7 @@ async function renewBridgeSession(bridge: ActiveBridge): Promise<void> {
 export async function resumeExternalEdit(): Promise<void> {
   const siteId = currentSiteId();
   if (!siteId) return;
+  if (!knownReconnectSite(siteId)) return;
   if (active) {
     if (active.siteId !== siteId) abandonLocalBridge(active);
     else return;
@@ -363,7 +380,10 @@ export async function resumeExternalEdit(): Promise<void> {
       body: JSON.stringify({ siteId }), credentials: "include", cache: "no-store", signal: abort.signal,
     });
     if (attempt !== connectAttempt || abort.signal.aborted || currentSiteId() !== siteId) return;
-    if (response.status === 403 || response.status === 404) return;
+    if (response.status === 403 || response.status === 404) {
+      forgetReconnectSite(siteId);
+      return;
+    }
     if (!response.ok) throw new Error(tr("MCP connection failed ({status})", { status: response.status }));
     const session = await response.json() as BridgeSession & { canEdit: boolean };
     if (attempt !== connectAttempt || abort.signal.aborted || currentSiteId() !== siteId) return;
@@ -394,6 +414,7 @@ export async function disconnectExternalEdit(): Promise<void> {
   pendingAbort?.abort();
   pendingAbort = null;
   const siteId = active?.siteId || currentSiteId();
+  if (siteId) forgetReconnectSite(siteId);
   const session = active?.session;
   if (active) abandonLocalBridge(active);
   try {
