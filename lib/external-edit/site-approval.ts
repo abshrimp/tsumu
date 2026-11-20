@@ -25,7 +25,7 @@ export function startMcpSiteApproval(readOnly: boolean): boolean {
     window.location.pathname + window.location.search);
   // This must be an editor tab created by Tsumu's trusted chooser.
   if (!window.opener || window.opener.closed) return true;
-  const origin = window.location.origin;
+  const origin = select ? "https://mcp.tsumu.ebii.net" : window.location.origin;
   const siteId = currentSiteId();
   const requestedEdit = (select?.[1] ?? join?.[3]) === "1";
   const canEdit = requestedEdit && !readOnly;
