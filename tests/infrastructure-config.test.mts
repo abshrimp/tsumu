@@ -141,6 +141,14 @@ test("Next.js editor routes apply the baseline response security headers", async
     item.key === "X-Frame-Options" && item.value === "DENY"));
   assert.ok(frames.headers.some((item: { key: string; value: string }) =>
     item.key === "Content-Security-Policy" && item.value.includes("frame-ancestors 'none'")));
+  // Exactly one inert, read-only listing page may be embedded by the official MCP host.
+  assert.ok(frames.source.includes("mcp/sites-bridge"));
+  const directory = headers.find((entry: { source: string }) => entry.source === "/mcp/sites-bridge");
+  assert.ok(directory, "The official MCP directory has an explicit, narrow frame policy");
+  assert.ok(directory.headers.some((item: { key: string; value: string }) =>
+    item.key === "Content-Security-Policy" && item.value === "frame-ancestors https://mcp.tsumu.ebii.net"));
+  assert.ok(directory.headers.every((item: { key: string }) => item.key !== "X-Frame-Options"));
+
 });
 
 test("the lockfile stays registry-only and install script permissions match resolved versions", () => {
