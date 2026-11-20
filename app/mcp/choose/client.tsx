@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { loadLocalSites, sitePath } from "../../../lib/site";
 import type { SiteRecord } from "../../../lib/site-model";
 import { isOfficialEditorOrigin } from "../../../lib/external-edit/official.mjs";
@@ -18,6 +18,7 @@ export default function McpSiteChooser() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [pending, setPending] = useState<string | null>(null);
+  const pendingSiteId = useRef<string | null>(null);
   const [allowEdit, setAllowEdit] = useState(true);
   const [invite, setInvite] = useState<string | null>(null);
   const [added, setAdded] = useState(false);
@@ -64,7 +65,8 @@ export default function McpSiteChooser() {
       const data = event.data;
       if (!data || typeof data !== "object" || data.type !== "tsumu-mcp-site-ready") return;
       selectedWindow = null;
-      if (data.siteId !== pending) {
+      pendingSiteId.current = data.siteId === pendingSiteId.current ? null : pendingSiteId.current;
+      if (data.siteId !== pendingSiteId.current) {
         setPending(null);
         setError("選択したサイトと接続先が一致しません。");
         return;
@@ -92,6 +94,7 @@ export default function McpSiteChooser() {
       "#mcp-join=" + encodeURIComponent(invite) + "&edit=" + permission +
       "&site=" + encodeURIComponent(site.id);
     selectedWindow = window.open(url, "_blank");
+    pendingSiteId.current = selectedWindow ? site.id : null;
     if (!selectedWindow) {
       setError("ポップアップを許可してから、もう一度お試しください。");
       return;
