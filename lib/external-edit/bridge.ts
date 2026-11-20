@@ -413,9 +413,11 @@ export async function disconnectExternalEdit(): Promise<void> {
   pendingAbort?.abort();
   pendingAbort = null;
   const siteId = active?.siteId || currentSiteId();
+  const wasConnected = !!active || (siteId && knownReconnectSite(siteId));
   if (siteId) forgetReconnectSite(siteId);
   const session = active?.session;
   if (active) abandonLocalBridge(active);
+  if (!wasConnected) return;
   try {
     await fetch(ENDPOINT + "/bridge/revoke", {
       method: "POST", headers: { "Content-Type": "application/json" },
