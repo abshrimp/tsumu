@@ -320,7 +320,13 @@ test("reload restores an unexpired grant using credentialed cookies, without re-
   const oldSocket = globalThis.WebSocket;
   const oldFetch = globalThis.fetch;
   const location = { pathname: "/sites/site-a", hostname: "localhost", origin: "http://localhost:3000" };
-  Object.defineProperty(globalThis, "window", { configurable: true, value: { location } });
+  const values = new Map<string, string>([["tsumu-mcp-reconnect-known-v1:site-a", "1"]]);
+  const localStorage = {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => { values.set(key, value); },
+    removeItem: (key: string) => { values.delete(key); },
+  };
+  Object.defineProperty(globalThis, "window", { configurable: true, value: { location, localStorage } });
   Object.defineProperty(globalThis, "document", { configurable: true, value: { cookie: "" } });
   const sockets: Array<{ url: string; protocols: string[]; onopen?: () => void }> = [];
   class FakeWebSocket {
@@ -372,8 +378,8 @@ test("reload restores an unexpired grant using credentialed cookies, without re-
   location.pathname = "/sites/site-b";
   await resumeExternalEdit();
   assert.equal(sockets.length, 1, "a cookie for site A must never authorize site B");
-  assert.equal(requests.at(-1)?.url, "https://mcp.tsumu.ebii.net/bridge/restore");
-  assert.deepEqual(requests.at(-1)?.body, { siteId: "site-b" });
+  assert.equal(requests.filter(r => r.url.endsWith("/bridge/restore")).length, 1,
+    "an unpaired site must not attempt a credentialed network restore");
   assert.equal(useExternalEdit.getState().phase, "disconnected");
 
   await disconnectExternalEdit();
