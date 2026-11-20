@@ -64,7 +64,7 @@ test("the site Skill designs freely before converting to native editable SiteDoc
   const references = skill.indexOf("## Read first and handle unavailable resources");
   assert.ok(phase1 >= 0 && phase2 > phase1 && references > phase2);
   assert.match(skill, /standalone HTML\/CSS prototype/);
-  assert.match(skill, /not a website template/);
+  assert.match(skill, /sample is \*not\* a website template/);
   assert.match(skill, /Do not reproduce its Studio Notes concept/);
   assert.match(skill, /If the user explicitly requests a particular template/);
   assert.match(skill, /stage_site_doc.*requires a complete SiteDoc object/);
