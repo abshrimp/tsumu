@@ -2,7 +2,7 @@ import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { clearDraftLink, draftFromLocation, hasDraftResumeMarker, prepareDraftSignIn, resumeDraftAfterSignIn } from "../lib/external-edit/draft-link";
 import { DEFAULT_MCP_ENDPOINT, resolveMcpEndpoint } from "../lib/external-edit/config";
-import { MCP_PAIRING_HISTORY_COOKIE, rememberMcpPairingCodeIssued } from "../lib/external-edit/pairing-history";
+import { OFFICIAL_EDITOR_HOST, OFFICIAL_EDITOR_ORIGIN, OFFICIAL_MCP_ORIGIN, isOfficialEditorHost, isOfficialEditorOrigin } from "../lib/external-edit/official.mjs";
 import { fakeIndexedDB } from "./helpers/fake-indexeddb";
 import { createLocalBrowserSite } from "../lib/browser-site-create";
 import { readBrowserDoc } from "../lib/browser-doc-storage";
@@ -78,6 +78,24 @@ test("Google OAuth resumes drafts without storing their secrets in Web Storage o
   }
 });
 
+describe("hosted-mcp-integration", () => {
+test("official OAuth features are enabled only for the exact hosted editor", () => {
+  assert.equal(OFFICIAL_EDITOR_HOST, "tsumu.ebii.net");
+  assert.equal(OFFICIAL_EDITOR_ORIGIN, "https://tsumu.ebii.net");
+  assert.equal(OFFICIAL_MCP_ORIGIN, DEFAULT_MCP_ENDPOINT);
+  for (const host of ["tsumu.ebii.net", "TSUMU.EBII.NET", "tsumu.ebii.net:443"]) {
+    assert.equal(isOfficialEditorHost(host), true, host);
+  }
+  for (const host of ["", "localhost:3000", "editor.example.org", "mcp.tsumu.ebii.net",
+    "tsumu.ebii.net.evil.example", "fake-tsumu.ebii.net"]) {
+    assert.equal(isOfficialEditorHost(host), false, host);
+  }
+  assert.equal(isOfficialEditorOrigin("https://tsumu.ebii.net"), true);
+  assert.equal(isOfficialEditorOrigin("http://tsumu.ebii.net"), false);
+  assert.equal(isOfficialEditorOrigin("https://editor.example.org"), false);
+});
+});
+
 describe("mcp-config", () => {
 test("MCP relay defaults to the official endpoint", () => {
   assert.equal(DEFAULT_MCP_ENDPOINT, "https://mcp.tsumu.ebii.net");
@@ -90,34 +108,6 @@ test("MCP relay uses the configured base URL without trailing slashes", () => {
   assert.equal(resolveMcpEndpoint("https://mcp.example.com"), "https://mcp.example.com");
   assert.equal(resolveMcpEndpoint(" https://mcp.example.com/// "), "https://mcp.example.com");
   assert.equal(resolveMcpEndpoint("http://localhost:8787/"), "http://localhost:8787");
-});
-});
-
-describe("mcp-pairing-history", () => {
-test("remember a successful pairing code on official Tsumu domains", () => {
-  const written: string[] = [];
-  assert.equal(rememberMcpPairingCodeIssued("tsumu.ebii.net", (cookie) => written.push(cookie)), true);
-  assert.equal(rememberMcpPairingCodeIssued("EDITOR.TSUMU.EBII.NET", (cookie) => written.push(cookie)), true);
-  assert.equal(rememberMcpPairingCodeIssued("tsumu.ebii.net.", (cookie) => written.push(cookie)), true);
-  assert.equal(rememberMcpPairingCodeIssued("mcp.tsumu.ebii.net", (cookie) => written.push(cookie)), true);
-  assert.equal(written.length, 4);
-  for (const cookie of written) {
-    assert.match(cookie, new RegExp(`^${MCP_PAIRING_HISTORY_COOKIE}=1;`));
-    assert.match(cookie, /Domain=tsumu\.ebii\.net; Path=\/; Max-Age=31536000; SameSite=Lax; Secure/);
-    assert.doesNotMatch(cookie, /pairingCode|sessionId|connectToken/);
-  }
-});
-
-test("do not set a parent-domain cookie on self-hosted or unrelated origins", () => {
-  let written = false;
-  for (const hostname of ["localhost", "example.org", "tsumu.ebii.net.evil.test", "nottsumu.ebii.net", "ebii.net"]) {
-    assert.equal(rememberMcpPairingCodeIssued(hostname, () => { written = true; }), false, hostname);
-  }
-  assert.equal(written, false);
-});
-
-test("a rejected cookie write must not block connecting", () => {
-  assert.equal(rememberMcpPairingCodeIssued("tsumu.ebii.net", () => { throw new Error("Cookies disabled"); }), false);
 });
 });
 
@@ -271,9 +261,20 @@ test("MCP bridge aborts in-flight session fetches on disconnect and scopes idemp
   assert.equal(useExternalEdit.getState().phase, "connected");
   assert.equal(useExternalEdit.getState().code, "ABCDE-FGHJK-LMNPQ-RSTUV");
 
+  const waitForReply = async (requestId: string): Promise<{
+    requestId: string; ok: boolean; result: any;
+  }> => {
+    for (let attempt = 0; attempt < 500; attempt++) {
+      const reply = recovered.sent.map(message => JSON.parse(message))
+        .find(message => message.requestId === requestId);
+      if (reply) return reply;
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    throw new Error(`MCP response not received: ${requestId}`);
+  };
+
   recovered.onmessage?.({ data: JSON.stringify({ type: "request", requestId: "req-list-1", action: "list_sites", args: {} }) });
-  await new Promise((resolve) => setTimeout(resolve, 10));
-  const listReply = JSON.parse(recovered.sent.at(-1)!);
+  const listReply = await waitForReply("req-list-1");
   assert.equal(listReply.ok, true);
   assert.equal(listReply.result[0].storage, "browser");
 
@@ -283,8 +284,7 @@ test("MCP bridge aborts in-flight session fetches on disconnect and scopes idemp
       args: { requestId: "shared_req_12345", name: "Pricing" },
     }),
   });
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  const pageReply = JSON.parse(recovered.sent.at(-1)!);
+  const pageReply = await waitForReply("msg-page-1");
   assert.equal(pageReply.ok, true);
   assert.equal(pageReply.result.savedToBrowser, true);
   assert.equal(pageReply.result.name, "Pricing");
@@ -296,8 +296,7 @@ test("MCP bridge aborts in-flight session fetches on disconnect and scopes idemp
       args: { requestId: "shared_req_12345", name: "Separate Site" },
     }),
   });
-  await new Promise((resolve) => setTimeout(resolve, 30));
-  const siteReply = JSON.parse(recovered.sent.at(-1)!);
+  const siteReply = await waitForReply("msg-site-1");
   assert.equal(siteReply.ok, true);
   assert.equal(siteReply.result.name, "Separate Site");
   assert.equal(siteReply.result.requiresReconnect, true);
@@ -444,20 +443,56 @@ test("a concurrent cookie rotation retries restoration without discarding the si
 });
 
 test("site authorization uses fragment-only requests and does not expose connection tokens", async t => {
-  const { hasMcpSiteApproval } = await import("../lib/external-edit/site-approval");
+  const { hasMcpSiteApproval, startMcpSiteApproval } = await import("../lib/external-edit/site-approval");
   const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
-  const location = { hash: "#mcp-select=1" };
+  const location = { origin: "https://tsumu.ebii.net", hash: "#mcp-select=1" };
   Object.defineProperty(globalThis, "window", { configurable: true, value: { location } });
   t.after(() => {
     if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
     else Reflect.deleteProperty(globalThis, "window");
   });
   assert.equal(hasMcpSiteApproval(), true);
-  location.hash = "#mcp-join=12345678-1234-4234-8234-123456789abc." + "a".repeat(43) + "&edit=0";
+  location.hash = "#mcp-join=12345678-1234-4234-8234-123456789abc." + "a".repeat(43) + "&edit=0&site=site-a";
   assert.equal(hasMcpSiteApproval(), true);
+  location.hash = "#mcp-join=12345678-1234-4234-8234-123456789abc." + "a".repeat(43) + "&edit=0";
+  assert.equal(hasMcpSiteApproval(), false, "site-bound invitation cannot omit the selected site");
   location.hash = "#mcp-join=malformed";
   assert.equal(hasMcpSiteApproval(), false);
+  location.hash = "#mcp-select=1";
+  location.origin = "https://selfhost.example.org";
+  assert.equal(hasMcpSiteApproval(), false, "self-hosted editors must not accept the hosted OAuth fragment");
+  assert.equal(startMcpSiteApproval(true), false, "no connection attempt is started on self-hosted domains");
+  location.origin = "http://tsumu.ebii.net";
+  assert.equal(hasMcpSiteApproval(), false, "insecure origin must not receive official-site approval");
 });
+});
+
+test("a changed invitation target never attempts to connect the unintended editor", async t => {
+  const { startMcpSiteApproval } = await import("../lib/external-edit/site-approval");
+  const previous = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const messages: Array<{ data: unknown; target: string }> = [];
+  const location = {
+    origin: "https://tsumu.ebii.net",
+    pathname: "/sites/site-b",
+    search: "",
+    hash: "#mcp-join=12345678-1234-4234-8234-123456789abc." + "a".repeat(43) +
+      "&edit=1&site=site-a",
+  };
+  Object.defineProperty(globalThis, "window", { configurable: true, value: {
+    location,
+    history: { state: null, replaceState() {} },
+    opener: { closed: false, postMessage(data: unknown, target: string) { messages.push({ data, target }); } },
+  } });
+  t.after(() => {
+    if (previous) Object.defineProperty(globalThis, "window", previous);
+    else Reflect.deleteProperty(globalThis, "window");
+  });
+  assert.equal(startMcpSiteApproval(false), true);
+  assert.deepEqual(messages, [{
+    data: { type: "tsumu-mcp-site-ready", siteId: "site-b", ok: false,
+      error: "Selected site mismatch" },
+    target: "https://tsumu.ebii.net",
+  }]);
 });
 
 describe("mcp-site-permissions", () => {

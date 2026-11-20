@@ -14,7 +14,6 @@ import { createLocalBrowserSite } from "../browser-site-create";
 import { loadServerStatus, serverStatusSnapshot } from "../status";
 import { tr } from "../i18n";
 import { resolveMcpEndpoint } from "./config";
-import { rememberMcpPairingCodeIssued } from "./pairing-history";
 import { rememberReconnectSite, knownReconnectSite, forgetReconnectSite } from "./reconnect-hint";
 import { externalEditSiteRole } from "./site-permission";
 
@@ -291,9 +290,6 @@ function openSocket(bridge: ActiveBridge): void {
     }
     bridge.reconnects = 0;
     rememberReconnectSite(bridge.siteId);
-    if (bridge.session.pairingCode) {
-      rememberMcpPairingCodeIssued(window.location.hostname, (cookie) => { document.cookie = cookie; });
-    }
     if (bridge.renewTimer !== null) clearInterval(bridge.renewTimer);
     bridge.renewTimer = setInterval(() => { void renewBridgeSession(bridge); }, 15 * 60_000);
     useExternalEdit.setState({

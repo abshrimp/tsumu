@@ -143,11 +143,27 @@ test("Next.js editor routes apply the baseline response security headers", async
     item.key === "Content-Security-Policy" && item.value.includes("frame-ancestors 'none'")));
   // Exactly one inert, read-only listing page may be embedded by the official MCP host.
   assert.ok(frames.source.includes("mcp/sites-bridge"));
-  const directory = headers.find((entry: { source: string }) => entry.source === "/mcp/sites-bridge");
-  assert.ok(directory, "The official MCP directory has an explicit, narrow frame policy");
+  const directory = headers.find((entry: { source: string; has?: Array<{ type: string; value: string }> }) =>
+    entry.source === "/mcp/sites-bridge" && entry.has?.some(item =>
+      item.type === "host" && item.value === "tsumu.ebii.net"));
+  assert.ok(directory, "The hosted directory frame exception must match the exact official host");
   assert.ok(directory.headers.some((item: { key: string; value: string }) =>
     item.key === "Content-Security-Policy" && item.value === "frame-ancestors https://mcp.tsumu.ebii.net"));
   assert.ok(directory.headers.every((item: { key: string }) => item.key !== "X-Frame-Options"));
+
+  const selfHosted = headers.find((entry: { source: string; missing?: Array<{ type: string; value: string }> }) =>
+    entry.source === "/mcp/sites-bridge" && entry.missing?.some(item =>
+      item.type === "host" && item.value === "tsumu.ebii.net"));
+  assert.ok(selfHosted, "Every non-official host must retain clickjacking protection");
+  assert.ok(selfHosted.headers.some((item: { key: string; value: string }) =>
+    item.key === "X-Frame-Options" && item.value === "DENY"));
+  assert.ok(selfHosted.headers.some((item: { key: string; value: string }) =>
+    item.key === "Content-Security-Policy" && item.value === "frame-ancestors 'none'"));
+  for (const page of ["app/mcp/choose/page.tsx", "app/mcp/sites-bridge/page.tsx"]) {
+    const source = read(page);
+    assert.match(source, /if \(!isOfficialEditorHost\(\(await headers\(\)\)\.get\("host"\)\)\) notFound\(\)/,
+      `${page} must return 404 before serving hosted-only MCP UI on self-hosted sites`);
+  }
 
 });
 
