@@ -663,7 +663,8 @@ export default function Header({
       {mcpOpen && (
         <SafeBoundary label={tr("MCP connection")} onClose={() => setMcpOpen(false)}>
           <McpConnectionModal onClose={() => setMcpOpen(false)} siteCanEdit={
-            status?.db !== true || siteRole === "owner" || siteRole === "editor"
+            status?.db === false ||
+            (status?.db === true && (siteRole === "owner" || siteRole === "editor"))
           } />
         </SafeBoundary>
       )}
