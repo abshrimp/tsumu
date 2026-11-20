@@ -48,6 +48,7 @@ import { currentSiteId, siteApi, siteKey } from "../lib/site";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { connectEditorPageHistory } from "../lib/editor-page-history";
 import { disconnectExternalEdit, resumeExternalEdit } from "../lib/external-edit/bridge";
+import { hasMcpSiteApproval, startMcpSiteApproval } from "../lib/external-edit/site-approval";
 import { storageKey } from "../lib/storage-keys";
 import { trackPanelResize } from "../lib/panel-resize";
 
@@ -176,10 +177,13 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
   // A viewer must never regain an earlier editing grant by reloading the page.
   useEffect(() => {
     if (!initialLoadComplete || !status) return;
-    if (readOnly) {
+    if (hasMcpSiteApproval()) {
+      // The user explicitly selected this site in the official OAuth chooser.
+      startMcpSiteApproval(readOnly);
+    } else if (readOnly) {
       void disconnectExternalEdit();
     } else {
-      resumeExternalEdit();
+      void resumeExternalEdit();
     }
   }, [initialLoadComplete, readOnly, status?.db]);
 
