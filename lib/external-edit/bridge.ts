@@ -60,7 +60,15 @@ interface ActiveBridge {
 let active: ActiveBridge | null = null;
 let connectAttempt = 0;
 let pendingAbort: AbortController | null = null;
+let restoreRetryTimer: ReturnType<typeof setTimeout> | null = null;
+let restoreConflicts = 0;
 const completed = new Map<string, unknown>();
+
+function cancelRestoreRetry(): void {
+  if (restoreRetryTimer !== null) clearTimeout(restoreRetryTimer);
+  restoreRetryTimer = null;
+  restoreConflicts = 0;
+}
 
 const asObject = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -365,7 +373,23 @@ export async function resumeExternalEdit(): Promise<void> {
       body: JSON.stringify({ siteId }), credentials: "include", cache: "no-store", signal: abort.signal,
     });
     if (attempt !== connectAttempt || abort.signal.aborted || currentSiteId() !== siteId) return;
+    if (response.status === 409) {
+      // Another tab has just rotated the shared HttpOnly cookie. Retry only
+      // after its response can update the browser's cookie jar; never discard
+      // the saved reconnect hint for a transient rotation conflict.
+      if (restoreRetryTimer === null && restoreConflicts < 3) {
+        const delay = 750 * 2 ** restoreConflicts++;
+        restoreRetryTimer = setTimeout(() => {
+          restoreRetryTimer = null;
+          if (!active && currentSiteId() === siteId && knownReconnectSite(siteId)) {
+            void resumeExternalEdit();
+          }
+        }, delay);
+      }
+      return;
+    }
     if (response.status === 403 || response.status === 404) {
+      cancelRestoreRetry();
       forgetReconnectSite(siteId);
       return;
     }
@@ -373,6 +397,7 @@ export async function resumeExternalEdit(): Promise<void> {
     const session = await response.json() as BridgeSession & { canEdit: boolean };
     if (attempt !== connectAttempt || abort.signal.aborted || currentSiteId() !== siteId) return;
     if (!validSession(session) || typeof session.canEdit !== "boolean") throw new Error(tr("Invalid MCP session"));
+    cancelRestoreRetry();
     const bridge: ActiveBridge = {
       ws: null, session, siteId, canEdit: session.canEdit,
       retryTimer: null, renewTimer: null, reconnects: 0,
@@ -396,6 +421,7 @@ export async function resumeExternalEdit(): Promise<void> {
 /** Revoke both the active transport and its server-side persistent grant. */
 export async function disconnectExternalEdit(): Promise<void> {
   connectAttempt++;
+  cancelRestoreRetry();
   pendingAbort?.abort();
   pendingAbort = null;
   const siteId = active?.siteId || currentSiteId();
@@ -434,6 +460,7 @@ export async function attachMcpSiteInvite(invite: string): Promise<void> {
 export async function connectExternalEdit(canEdit: boolean): Promise<void> {
   // Disconnect updates the browser state synchronously. Do not delay a fresh
   // connection while an unavailable relay is still processing old revocation.
+  cancelRestoreRetry();
   if (active) abandonLocalBridge(active);
   pendingAbort?.abort();
   const attempt = ++connectAttempt;
