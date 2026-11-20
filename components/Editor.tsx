@@ -47,6 +47,7 @@ import { useServerStatus } from "../lib/status";
 import { currentSiteId, siteApi, siteKey } from "../lib/site";
 import { installNoDblClickSelect } from "../lib/no-dblclick-select";
 import { connectEditorPageHistory } from "../lib/editor-page-history";
+import { disconnectExternalEdit, resumeExternalEdit } from "../lib/external-edit/bridge";
 import { storageKey } from "../lib/storage-keys";
 import { trackPanelResize } from "../lib/panel-resize";
 
@@ -171,6 +172,17 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
   // D1 が未設定の場合と、一時的な 503 を区別する。判定できない間は、安全側に倒してページを離れるときの保護を有効にする。
   const status = useServerStatus();
   const readOnly = status?.role === "viewer" || (status?.db === true && siteRole !== "owner" && siteRole !== "editor");
+  // Restore only the same site's unexpired, tab-scoped MCP session after hydration.
+  // A viewer must never regain an earlier editing grant by reloading the page.
+  useEffect(() => {
+    if (!initialLoadComplete || !status) return;
+    if (readOnly) {
+      void disconnectExternalEdit();
+    } else {
+      resumeExternalEdit();
+    }
+  }, [initialLoadComplete, readOnly, status?.db]);
+
   const browserOnly = status?.db === false;
   const collabTransport = status?.collabTransport;
   useLayoutEffect(() => {
