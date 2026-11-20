@@ -15,25 +15,11 @@ import { loadServerStatus, serverStatusSnapshot } from "../status";
 import { tr } from "../i18n";
 import { resolveMcpEndpoint } from "./config";
 import { rememberMcpPairingCodeIssued } from "./pairing-history";
-import { storageKey } from "../storage-keys";
+import { rememberReconnectSite, knownReconnectSite, forgetReconnectSite } from "./reconnect-hint";
 
 const ENDPOINT = resolveMcpEndpoint(process.env.NEXT_PUBLIC_TSUMU_MCP_URL);
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 const MAX_REPLY_BYTES = 4 * 1024 * 1024;
-// Only a non-secret, per-site hint is persisted. The actual reconnect grant
-// is an HttpOnly cookie on the MCP origin, never stored in browser JavaScript.
-const RECONNECT_HINT = storageKey("mcp-reconnect-known-v1");
-function rememberReconnectSite(siteId: string): void {
-  try { window.localStorage.setItem(RECONNECT_HINT + ":" + siteId, "1"); } catch { /* Storage disabled. */ }
-}
-function knownReconnectSite(siteId: string): boolean {
-  try { return window.localStorage.getItem(RECONNECT_HINT + ":" + siteId) === "1"; }
-  catch { return false; }
-}
-function forgetReconnectSite(siteId: string): void {
-  try { window.localStorage.removeItem(RECONNECT_HINT + ":" + siteId); } catch { /* Storage disabled. */ }
-}
-
 type Phase = "disconnected" | "connecting" | "connected";
 interface ExternalEditState {
   phase: Phase;
