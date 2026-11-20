@@ -460,6 +460,35 @@ test("site authorization uses fragment-only requests and does not expose connect
 });
 });
 
+describe("mcp-site-permissions", () => {
+test("viewer access cannot silently become editing access through a stored MCP grant", async () => {
+  const { externalEditSiteRole } = await import("../lib/external-edit/site-permission");
+  const requests: Array<{ url: string; init: RequestInit }> = [];
+  const getRole = (role: string, status = 200) => (async (url: RequestInfo | URL, init?: RequestInit) => {
+    requests.push({ url: String(url), init: init ?? {} });
+    return Response.json({ site: { accessRole: role } }, { status });
+  }) as typeof fetch;
+  assert.equal(await externalEditSiteRole("site-a", { db: true }, getRole("viewer")), "viewer");
+  assert.deepEqual(requests[0], {
+    url: "/api/sites/site-a",
+    init: { method: "GET", cache: "no-store", credentials: "same-origin" },
+  });
+  assert.equal(await externalEditSiteRole("site-a", { db: true }, getRole("editor")), "editor");
+  assert.equal(await externalEditSiteRole("site-a", { db: true }, getRole("owner")), "owner");
+  await assert.rejects(
+    externalEditSiteRole("site-a", { db: true }, getRole("viewer", 403)),
+    /no longer authorized/,
+  );
+  await assert.rejects(
+    externalEditSiteRole("site-a", { db: true }, getRole("unknown")),
+    /no longer authorized/,
+  );
+  assert.equal(await externalEditSiteRole("local-site", { db: false }, (() => {
+    throw new Error("browser-only permissions should not call a server");
+  }) as typeof fetch), null);
+});
+});
+
 describe("mcp-plugin-catalog", () => {
 test("plugin links come from the relay and only published https listings are kept", async () => {
   const { parsePluginCatalog } = await import("../lib/external-edit/plugins");
