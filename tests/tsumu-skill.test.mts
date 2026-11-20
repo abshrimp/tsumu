@@ -57,6 +57,23 @@ test("the English AI Skill type reference matches the current SiteDoc model", ()
     "The AI Skill TypeScript documentation should be in English.");
 });
 
+test("the site Skill designs freely before converting to native editable SiteDoc", () => {
+  const skill = read("skills/tsumu/SKILL.md");
+  const phase1 = skill.indexOf("Phase 1 — design a genuinely original site");
+  const phase2 = skill.indexOf("Phase 2 — convert the original design");
+  const references = skill.indexOf("## Read first and handle unavailable resources");
+  assert.ok(phase1 >= 0 && phase2 > phase1 && references > phase2);
+  assert.match(skill, /standalone HTML\/CSS prototype/);
+  assert.match(skill, /not a website template/);
+  assert.match(skill, /Do not reproduce its Studio Notes concept/);
+  assert.match(skill, /If the user explicitly requests a particular template/);
+  assert.match(skill, /stage_site_doc.*requires a complete SiteDoc object/);
+  assert.doesNotMatch(skill, /by cloning and editing nodes/);
+  const notes = read("skills/tsumu/references/site-doc.md");
+  assert.match(notes, /not a design template/);
+  assert.match(notes, /translate that independent design/);
+});
+
 test("the AI skill example imports as a valid editable site with resolved references", () => {
   const doc = JSON.parse(read("skills/tsumu/references/minimal-site.json"));
   assert.equal(validateImportedDoc(doc), doc);
