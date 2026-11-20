@@ -154,8 +154,10 @@ export function buildAdditionalFramework(
       scripts: { dev: "nuxt dev", build: "nuxt build", generate: "nuxt generate",
         preview: "nuxt preview", postinstall: "nuxt prepare" },
       dependencies: { nuxt: "^4.6.4", vue: "^3.5.25" },
-      // Nuxt のツールが使う、脆弱性のある古い glob / minimatch の間接的な依存を避ける。
-      overrides: { glob: "^14.0.2", minimatch: "^11.0.1" },
+      // Keep generated Nuxt installs reproducible when an upstream package
+      // requests an unpublished @babel/parser patch version.
+      // Also avoid vulnerable old glob/minimatch transitive dependencies.
+      overrides: { glob: "^14.0.2", minimatch: "^11.0.1", "@babel/parser": "7.29.14" },
       devDependencies: ts ? { typescript: "^5.9.3" } : {},
     });
   } else {
