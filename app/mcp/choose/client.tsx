@@ -64,6 +64,11 @@ export default function McpSiteChooser() {
       const data = event.data;
       if (!data || typeof data !== "object" || data.type !== "tsumu-mcp-site-ready") return;
       selectedWindow = null;
+      if (data.siteId !== pending) {
+        setPending(null);
+        setError("選択したサイトと接続先が一致しません。");
+        return;
+      }
       if (data.ok !== true) {
         setPending(null);
         setError(typeof data.error === "string" ? data.error : "接続できませんでした。");
@@ -84,7 +89,8 @@ export default function McpSiteChooser() {
     }
     const permission = allowEdit && site.accessRole !== "viewer" ? "1" : "0";
     const url = sitePath(site.id) +
-      "#mcp-join=" + encodeURIComponent(invite) + "&edit=" + permission;
+      "#mcp-join=" + encodeURIComponent(invite) + "&edit=" + permission +
+      "&site=" + encodeURIComponent(site.id);
     selectedWindow = window.open(url, "_blank");
     if (!selectedWindow) {
       setError("ポップアップを許可してから、もう一度お試しください。");
