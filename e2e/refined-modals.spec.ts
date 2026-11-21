@@ -31,14 +31,8 @@ test("home settings and site creation keep actions visible on narrow screens", a
     const box = element.getBoundingClientRect();
     return box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight;
   })).toBe(true);
-});
 
-test("dialog scroll regions do not overflow horizontally on narrow screens", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 480 });
-  await page.goto("/");
-  await page.locator(".home-head-actions .btn-primary").click();
-  const form = page.locator("form.home-dialog");
-  await expect(form).toBeVisible();
   expect(await form.evaluate(element => {
     const body = element.querySelector<HTMLElement>(".modal-refined-body")!;
     return body.scrollWidth <= body.clientWidth + 1;

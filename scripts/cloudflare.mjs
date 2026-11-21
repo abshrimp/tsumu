@@ -14,6 +14,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { findPackageJSON } from "node:module";
 import { dirname, join } from "node:path";
 
 const GENERATED = "wrangler.generated.jsonc";
@@ -90,10 +91,15 @@ export function assertNoStorageDowngrade(currentBindings, nextConfig) {
   );
 }
 
+/** Resolve the installed JavaScript entry point so each argument reaches the CLI unchanged on every OS. */
+export function cloudflareCli(packageName, binaryName) {
+  const manifest = findPackageJSON(packageName, import.meta.url);
+  return join(dirname(manifest), JSON.parse(readFileSync(manifest, "utf8")).bin[binaryName]);
+}
+
 function wranglerJson(args) {
-  const proc = spawnSync("npx", ["--no-install", "wrangler", ...args, "--json"], {
-    encoding: "utf8", shell: process.platform === "win32",
-  });
+  const cli = cloudflareCli("wrangler", "wrangler");
+  const proc = spawnSync(process.execPath, [cli, ...args, "--json"], { encoding: "utf8" });
   if (proc.status !== 0) {
     const message = [proc.stdout, proc.stderr].filter(Boolean).join("\n");
     // Worker が存在しないとはっきり分かる場合は、新しいインストールで、保存先を減らすことにはならない。
@@ -168,6 +174,17 @@ export function wranglerConfigPath() {
   return generated;
 }
 
+/** Pass public Wrangler settings to the OpenNext browser build. */
+export function publicBuildEnvironment(config, env = process.env) {
+  const merged = { ...env };
+  for (const name of ["NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN", "NEXT_PUBLIC_TSUMU_MCP_URL"]) {
+    if (merged[name] === undefined && typeof config.vars?.[name] === "string") {
+      merged[name] = config.vars[name];
+    }
+  }
+  return merged;
+}
+
 /** コマンドラインでの上書きで、本番のバインディングの検査を迂回させない。 */
 export function assertSafeDeployArgs(args) {
   for (const arg of args) {
@@ -186,8 +203,12 @@ if (command && import.meta.main) {
     const finalConfig = parseJsonc(readFileSync(config, "utf8"));
     assertRemoteStorageContinuity(finalConfig, config);
   }
-  const args = [command, ...(config ? ["--config", config] : []), ...rest];
-  console.log(`Using ${config ?? "wrangler.jsonc"}`);
-  const r = spawnSync("npx", ["--no-install", "opennextjs-cloudflare", ...args], { stdio: "inherit", shell: process.platform === "win32" });
+  const cli = cloudflareCli("@opennextjs/cloudflare", "opennextjs-cloudflare");
+  console.log(`Using ${config}`);
+  const buildEnv = command === "build" ?
+    publicBuildEnvironment(parseJsonc(readFileSync(config, "utf8"))) : process.env;
+  const r = spawnSync(process.execPath, [cli, command, "--config", config, ...rest], {
+    stdio: "inherit", env: buildEnv,
+  });
   process.exit(r.status ?? 1);
 }

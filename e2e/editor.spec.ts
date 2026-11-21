@@ -40,6 +40,10 @@ test("Create a site from Home and open it in the editor", { tag: "@core-editing"
   await page.getByRole("button", { name: "作成して開く" }).click();
   await page.waitForURL(/\/sites\//);
   await expect(canvas(page).getByText(HEADING).first()).toBeVisible();
+  const siteName = page.locator(".hdr-page");
+  await expect(siteName.getByRole("button", { name: "サイト名: はじめてのサイト" })).toBeVisible();
+  // Page selection is only available in the Pages tab.
+  await expect(siteName.locator(".dd")).toHaveCount(0);
   await saved(page);
   expect(errors).toEqual([]);
 });
@@ -50,8 +54,39 @@ test("Tsumu page title and save preferences survive a reload", { tag: "@core-edi
   await expect(page).toHaveTitle("Tsumu smoke | Tsumu");
   await expect.poll(() => browserDoc(page, id)).not.toBeNull();
   expect((await context.cookies()).find((c) => c.name === "tsumu-lang")?.value).toBe("ja");
+
+  // Reuse this smoke test's site and reload for the header's inline editing
+  // regression. This avoids creating and reloading a second site in all three browsers.
+  const header = page.locator(".hdr-page");
+  const edit = header.locator(".hdr-site-name");
+  await expect(edit).toHaveText("Tsumu smoke");
+  const originalDocSiteName = (await (await page.request.get(`/api/doc?site=${id}`)).json()).doc.siteName;
+  await edit.click();
+  const field = header.getByRole("textbox", { name: "サイト名" });
+  await expect(field).toBeFocused();
+  await field.fill("  Renamed Tsumu smoke  ");
+  await field.press("Enter");
+  await expect(header.locator(".hdr-site-name-text")).toHaveText("Renamed Tsumu smoke");
+  await expect.poll(async () => {
+    const response = await page.request.get(`/api/sites/${id}`);
+    return (await response.json()).site.name;
+  }).toBe("Renamed Tsumu smoke");
+  expect((await (await page.request.get(`/api/doc?site=${id}`)).json()).doc.siteName).toBe(originalDocSiteName);
+
+  await edit.click();
+  await field.fill("Discard this change");
+  await field.press("Escape");
+  await expect(header.locator(".hdr-site-name-text")).toHaveText("Renamed Tsumu smoke");
+
+  await edit.click();
+  await field.fill("  ");
+  await field.press("Enter");
+  await expect(header.locator(".hdr-site-name-text")).toHaveText("Renamed Tsumu smoke");
+
   await page.reload();
   await expect(canvas(page).getByText(HEADING).first()).toBeVisible();
+  await expect(header.locator(".hdr-site-name-text")).toHaveText("Renamed Tsumu smoke");
+  await expect(page).toHaveTitle("Renamed Tsumu smoke | Tsumu");
   await expect(page.getByRole("button", { name: "始める" })).toHaveCount(0);
 });
 

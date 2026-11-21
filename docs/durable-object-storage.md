@@ -6,10 +6,11 @@ Cloudflare persists each site's editor data in a separate SQLite-backed Durable 
 
 | Store | Responsibility |
 |---|---|
-| D1 `sites`, `site_members`, `allowed_users` | Site listing, deployment destinations, per-site memberships, sign-in allowlist and timestamps |
+| D1 `sites`, `site_members`, `allowed_emails` | Site listing, deployment destinations, per-site memberships, sign-in allowlist and timestamps |
 | D1 `site_document_rooms` | Public site ID to random, per-creation `room_key`, and `saved_at` |
 | D1 `document_room_cleanup` | Pending deletion of retired document rooms |
-| D1 `asset_objects`, `site_assets`, `asset_gc_*` | Per-site asset ownership, storage usage ledger and deferred KV garbage collection |
+| D1 `site_asset_uploads` | Asset paths granted to a site when it uploads or copies files |
+| D1 `asset_objects`, `asset_ledger_state`, `asset_gc_*` | Inventory of stored KV objects, inventory status and deferred garbage collection |
 | `DocumentRoom` SQLite `document_meta` | Single `rev`, timestamp and top-level properties |
 | `DocumentRoom` SQLite `document_entries` | One JSON row per page, node, asset or component |
 | `DocumentRoom` SQLite backup tables | Seven rotating UTC weekday snapshots in small text chunks |
@@ -37,7 +38,9 @@ The D1 deletion and DO sealing are not a distributed transaction. A failed clean
 
 ## Files and garbage collection
 
-A file path may be referenced by more than one site's editor document, including newly imported or copied documents. Removing a reference from one site therefore does **not** immediately remove the Workers KV object. In particular, Cloudflare's asset DELETE endpoint returns `kept: true` and does not issue `KV.delete()`: a reference scan and a delete across DO and KV cannot be one atomic transaction. This intentionally favors avoiding permanent data loss over immediate storage reclamation.
+A site can use a stored asset if it has a grant in `site_asset_uploads` or its current saved document already references the path. A document save checks these references. Uploads and cross-site copies create grants for the receiving site.
+
+Several sites can reference the same file path. Removing a reference from one site therefore does **not** immediately remove the Workers KV object. In particular, Cloudflare's asset DELETE endpoint returns `kept: true` and does not issue `KV.delete()`: a reference scan and a delete across DO and KV cannot be one atomic transaction. This intentionally favors avoiding permanent data loss over immediate storage reclamation.
 
 The opt-in [seven-day asset garbage collector](asset-gc.md) registers D1 candidates when an asset is removed from the editor. The nightly task inspects **only expired candidates** and rereads all current site documents before attempting a KV delete. A separate, paginated **weekly** KV inventory catches orphaned uploads and entire-site deletions. Deletion is disabled by default (`ASSET_GC_ENABLED=false`). Restorable backups and old GitHub `doc.json` revisions are deliberately excluded from the seven-day retention roots. A small concurrent-save race remains because DO writes and KV deletes are not atomic.
 

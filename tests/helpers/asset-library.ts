@@ -21,7 +21,11 @@ export function assetLibraryDoc(): SiteDoc {
 }
 
 /** 実際のアセットのタブとストアを使い、通信の完了の順序・再描画・終了だけを制御する。 */
-export function assetLibraryCallbacks(upload = assets.uploadAsset, migrate = assets.uploadEmbeddedAsset) {
+export function assetLibraryCallbacks(
+  upload = assets.uploadAsset,
+  migrate = assets.uploadEmbeddedAsset,
+  configuredDatabase?: boolean | null,
+) {
   const require = createRequire(resolve("package.json"));
   let cursor = 0;
   let effects: (() => void)[] = [];
@@ -49,6 +53,10 @@ export function assetLibraryCallbacks(upload = assets.uploadAsset, migrate = ass
     if (name === "react") return hooks;
     if (name.endsWith("/store")) return { ...require(resolve("lib/store")), useEditor: Object.assign((select: (s: ReturnType<typeof useEditor.getState>) => unknown) => select(useEditor.getState()), { getState: useEditor.getState, subscribe: useEditor.subscribe }) };
     if (name.endsWith("/assets")) return { ...assets, uploadAsset: upload, uploadEmbeddedAsset: migrate };
+    if (name.endsWith("/status") && configuredDatabase !== undefined) {
+      const status = require(resolve("lib/status"));
+      return { ...status, serverStatusSnapshot: () => configuredDatabase === null ? null : { db: configuredDatabase } };
+    }
     if (name.startsWith("@/")) return require(resolve(name.slice(2)));
     return name.startsWith(".") ? require(resolve(path, "..", name)) : require(name);
   }, module, module.exports);

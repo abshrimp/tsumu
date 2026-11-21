@@ -1,8 +1,11 @@
 import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
+import { buildSync } from "./helpers/bundle";
 import { clearDraftLink, draftFromLocation, hasDraftResumeMarker, prepareDraftSignIn, resumeDraftAfterSignIn } from "../lib/external-edit/draft-link";
 import { DEFAULT_MCP_ENDPOINT, resolveMcpEndpoint } from "../lib/external-edit/config";
-import { OFFICIAL_EDITOR_HOST, OFFICIAL_EDITOR_ORIGIN, OFFICIAL_MCP_ORIGIN, isOfficialEditorHost, isOfficialEditorOrigin } from "../lib/external-edit/official.mjs";
+import { configuredHostedEditorOrigin, trustedMcpOrigin, OFFICIAL_MCP_ORIGIN, isOfficialEditorHost, isOfficialEditorOrigin } from "../lib/external-edit/official.mjs";
 import { fakeIndexedDB } from "./helpers/fake-indexeddb";
 import { createLocalBrowserSite } from "../lib/browser-site-create";
 import { readBrowserDoc } from "../lib/browser-doc-storage";
@@ -79,20 +82,131 @@ test("Google OAuth resumes drafts without storing their secrets in Web Storage o
 });
 
 describe("hosted-mcp-integration", () => {
-test("official OAuth features are enabled only for the exact hosted editor", () => {
-  assert.equal(OFFICIAL_EDITOR_HOST, "tsumu.ebii.net");
-  assert.equal(OFFICIAL_EDITOR_ORIGIN, "https://tsumu.ebii.net");
-  assert.equal(OFFICIAL_MCP_ORIGIN, DEFAULT_MCP_ENDPOINT);
-  for (const host of ["tsumu.ebii.net", "TSUMU.EBII.NET", "tsumu.ebii.net:443"]) {
-    assert.equal(isOfficialEditorHost(host), true, host);
+test("hosted integration is safe in direct browser bundles without a process global", () => {
+  // Browser fixture bundles do not use Next.js environment replacement.
+  // They still render the editor even when hosted OAuth is not enabled.
+  const source = readFileSync(new URL("../lib/external-edit/official.mjs", import.meta.url), "utf8")
+    .replace(/^export /gm, "");
+  const result = runInNewContext(source + `
+JSON.stringify([
+  configuredHostedEditorOrigin(),
+  isOfficialEditorHost("studio.example.test"),
+  isOfficialEditorOrigin("https://studio.example.test"),
+  trustedMcpOrigin()
+]);`, { URL });
+  assert.deepEqual(JSON.parse(result), [null, false, false, "https://mcp.tsumu.ebii.net"]);
+});
+
+test("browser build preserves injected hosted origins with no process object", () => {
+  const origin = "https://studio.example.test";
+  const relay = "https://relay.example.test";
+  const bundle = buildSync({
+    stdin: {
+      contents: `
+        import { configuredHostedEditorOrigin, isOfficialEditorHost,
+          isOfficialEditorOrigin, trustedMcpOrigin } from "./lib/external-edit/official.mjs";
+        globalThis.result = JSON.stringify({
+          configured: configuredHostedEditorOrigin(),
+          host: isOfficialEditorHost("studio.example.test"),
+          editor: isOfficialEditorOrigin("https://studio.example.test"),
+          relay: trustedMcpOrigin()
+        });
+      `,
+      resolveDir: process.cwd(),
+      sourcefile: "browser-hosted-check.mjs",
+    },
+    bundle: true, write: false, format: "iife", platform: "browser",
+    define: {
+      "process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN": JSON.stringify(origin),
+      "process.env.NEXT_PUBLIC_TSUMU_MCP_URL": JSON.stringify(relay),
+    },
+  }).outputFiles[0].text;
+  const context: { URL: typeof URL; result?: string } = { URL };
+  runInNewContext(bundle, context);
+  assert.deepEqual(JSON.parse(context.result ?? "{}"), {
+    configured: origin, host: true, editor: true, relay,
+  });
+});
+
+test("hosted MCP integration is explicitly configured and checks exact origins", () => {
+  const editor = "https://studio.example.test";
+  assert.equal(configuredHostedEditorOrigin(""), null);
+  assert.equal(configuredHostedEditorOrigin(editor + "/"), editor);
+  assert.equal(configuredHostedEditorOrigin("https://user:secret@studio.example.test"), null);
+  assert.equal(configuredHostedEditorOrigin("https://studio.example.test/other"), null);
+  assert.equal(configuredHostedEditorOrigin("http://studio.example.test"), null);
+  assert.equal(configuredHostedEditorOrigin("http://localhost:3000"), "http://localhost:3000");
+  assert.equal(trustedMcpOrigin(""), OFFICIAL_MCP_ORIGIN);
+  assert.equal(trustedMcpOrigin("https://relay.example.test/"), "https://relay.example.test");
+  assert.equal(trustedMcpOrigin("http://relay.example.test"), null);
+  assert.equal(trustedMcpOrigin("javascript:alert(1)"), null);
+  for (const host of ["studio.example.test", "STUDIO.EXAMPLE.TEST", "studio.example.test:443"]) {
+    assert.equal(isOfficialEditorHost(host, editor), true, host);
   }
-  for (const host of ["", "localhost:3000", "editor.example.org", "mcp.tsumu.ebii.net",
-    "tsumu.ebii.net.evil.example", "fake-tsumu.ebii.net"]) {
-    assert.equal(isOfficialEditorHost(host), false, host);
+  for (const host of ["", "localhost:3000", "studio.example.test.evil.example",
+    "fake-studio.example.test", "relay.example.test"]) {
+    assert.equal(isOfficialEditorHost(host, editor), false, host);
   }
-  assert.equal(isOfficialEditorOrigin("https://tsumu.ebii.net"), true);
-  assert.equal(isOfficialEditorOrigin("http://tsumu.ebii.net"), false);
-  assert.equal(isOfficialEditorOrigin("https://editor.example.org"), false);
+  assert.equal(isOfficialEditorHost("studio.example.test", ""), false);
+  assert.equal(isOfficialEditorOrigin(editor, editor), true);
+  assert.equal(isOfficialEditorOrigin("http://studio.example.test", editor), false);
+  assert.equal(isOfficialEditorOrigin("https://studio.example.test.evil", editor), false);
+});
+
+test("the hosted connection dialog shows session status while self-hosted editors also offer pairing", async t => {
+  const { createElement } = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { default: Connection } = await import("../components/ExternalEditConnection");
+  const { useExternalEdit } = await import("../lib/external-edit/bridge");
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const priorHosted = process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+  process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = "https://studio.example.test";
+  const location = new URL("/sites/example", "https://studio.example.test");
+  const storage = new Map<string, string>();
+  Object.defineProperty(globalThis, "window", { configurable: true, value: {
+    location, localStorage: { getItem: (key: string) => storage.get(key) ?? null },
+  } });
+  const initial = useExternalEdit.getInitialState();
+  const originalState = { ...initial };
+  t.after(() => {
+    Object.assign(initial, originalState);
+    if (priorHosted === undefined) delete process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+    else process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = priorHosted;
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
+    else Reflect.deleteProperty(globalThis, "window");
+  });
+  const code = "ABCDE-FGHJK-LMNPQ-RSTUV";
+  const render = (phase: typeof initial.phase) => {
+    Object.assign(initial, { phase, code: phase === "connected" ? code : null });
+    return renderToStaticMarkup(createElement(Connection));
+  };
+  for (const [phase, label] of [
+    ["disconnected", "Not connected"], ["connecting", "Connecting…"], ["connected", "Connected"],
+  ] as const) {
+    const html = render(phase);
+    assert.match(html, /Connection status/);
+    assert.match(html, new RegExp(label + "<"));
+    assert.doesNotMatch(html, /Connect an AI app|type="checkbox"|Start connection|Connection code|ABCDE-FGHJK/);
+    assert.match(html, /Add Tsumu to your AI app/);
+    assert.match(html, /See the connection guide/);
+    assert.match(html, /Disconnect and revoke<\/button>/);
+    assert.equal(/<button[^>]* disabled=""[^>]*>Disconnect and revoke/.test(html), phase === "disconnected");
+  }
+  storage.set("tsumu-mcp-reconnect-known-v1:example", "revoke");
+  const retry = render("disconnected");
+  assert.match(retry, /Could not confirm revocation/);
+  assert.match(retry, /<button type="button" class="btn">Disconnect and revoke/);
+  storage.clear();
+
+  location.host = "self-host.example";
+  const idle = render("disconnected");
+  assert.match(idle, /Connect an AI app/);
+  assert.match(idle, /type="checkbox"/);
+  assert.match(idle, /Start connection/);
+  const connected = render("connected");
+  assert.match(connected, /Connection code/);
+  assert.ok(connected.includes(code));
+  assert.match(connected, /Disconnect and revoke/);
 });
 });
 
@@ -311,8 +425,8 @@ test("MCP bridge aborts in-flight session fetches on disconnect and scopes idemp
 });
 
 describe("mcp-browser-reconnect", () => {
-test("reload restores an unexpired grant using credentialed cookies, without re-pairing", async t => {
-  const { resumeExternalEdit, disconnectExternalEdit, useExternalEdit } =
+test("reload restores an authorized grant and keeps an unconfirmed disconnect closed", async t => {
+  const { resumeExternalEdit, disconnectExternalEdit, hasPendingRevocation, useExternalEdit } =
     await import("../lib/external-edit/bridge");
   const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   const oldDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
@@ -327,14 +441,12 @@ test("reload restores an unexpired grant using credentialed cookies, without re-
   };
   Object.defineProperty(globalThis, "window", { configurable: true, value: { location, localStorage } });
   Object.defineProperty(globalThis, "document", { configurable: true, value: { cookie: "" } });
-  const sockets: Array<{ url: string; protocols: string[]; onopen?: () => void }> = [];
+  const sockets: FakeWebSocket[] = [];
   class FakeWebSocket {
     static OPEN = 1;
     readyState = 1;
     onopen?: () => void;
-    constructor(url: string, protocols: string[]) {
-      sockets.push({ url, protocols, onopen: () => this.onopen?.() });
-    }
+    constructor() { sockets.push(this); }
     close() { this.readyState = 3; }
   }
   globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
@@ -374,6 +486,25 @@ test("reload restores an unexpired grant using credentialed cookies, without re-
   assert.equal(useExternalEdit.getState().code, null, "no reusable pairing code is exposed");
   assert.equal(useExternalEdit.getState().canEdit, false);
 
+  const successfulFetch = globalThis.fetch;
+  let finishRevoke!: (response: Response) => void;
+  globalThis.fetch = () => new Promise(resolve => { finishRevoke = resolve; });
+  const revoking = disconnectExternalEdit();
+  assert.equal(sockets[0]!.readyState, 3, "the tab stops serving before it receives a relay response");
+  assert.equal(useExternalEdit.getState().phase, "disconnected");
+  assert.equal(useExternalEdit.getState().expiresAt, null);
+  finishRevoke(new Response(null, { status: 503 }));
+  await revoking;
+  assert.ok(useExternalEdit.getState().error);
+  assert.equal(useExternalEdit.getState().revoking, false);
+  assert.equal(useExternalEdit.getState().phase, "disconnected");
+  assert.equal(hasPendingRevocation("site-a"), true);
+  assert.equal(values.get("tsumu-mcp-reconnect-known-v1:site-a"), "revoke",
+    "only a non-secret retry marker survives reload");
+  globalThis.fetch = successfulFetch;
+  await resumeExternalEdit();
+  assert.equal(requests.length, 1, "failed revocation must not restore the old grant");
+
   location.pathname = "/sites/site-b";
   await resumeExternalEdit();
   assert.equal(sockets.length, 1, "a cookie for site A must never authorize site B");
@@ -384,6 +515,24 @@ test("reload restores an unexpired grant using credentialed cookies, without re-
   await disconnectExternalEdit();
   assert.equal(requests.at(-1)?.url, "https://mcp.tsumu.ebii.net/bridge/restore",
     "an unpaired site must not revoke the prior site's separate grant");
+  location.pathname = "/sites/site-a";
+  await disconnectExternalEdit();
+  assert.deepEqual(requests.at(-1)?.body, { siteId: "site-a", sessionId, connectToken: "s".repeat(43) },
+    "the retry can revoke the same session even when relay cookies are blocked");
+  assert.equal(hasPendingRevocation("site-a"), false);
+  assert.equal(values.has("tsumu-mcp-reconnect-known-v1:site-a"), false);
+
+  // After a full reload, only the pending marker and the relay's HttpOnly
+  // cookie survive. Opening the editor must not initiate a new socket.
+  location.pathname = "/sites/site-c";
+  values.set("tsumu-mcp-reconnect-known-v1:site-c", "revoke");
+  await resumeExternalEdit();
+  assert.equal(requests.filter(r => r.url.endsWith("/bridge/restore")).length, 1);
+  assert.equal(hasPendingRevocation("site-c"), true);
+  await disconnectExternalEdit();
+  assert.deepEqual(requests.at(-1)?.body, { siteId: "site-c" });
+  assert.equal(requests.at(-1)?.credentials, "include");
+  assert.equal(hasPendingRevocation("site-c"), false);
   assert.ok(requests.every(request => !request.url.endsWith("/bridge/sessions")),
     "automatic restoration must never silently issue new pairing codes");
 });
@@ -443,11 +592,15 @@ test("a concurrent cookie rotation retries restoration without discarding the si
 });
 
 test("site authorization uses fragment-only requests and does not expose connection tokens", async t => {
+  const priorHosted = process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+  process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = "https://studio.example.test";
   const { hasMcpSiteApproval, startMcpSiteApproval } = await import("../lib/external-edit/site-approval");
   const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
-  const location = { origin: "https://tsumu.ebii.net", hash: "#mcp-select=1" };
+  const location = { origin: "https://studio.example.test", hash: "#mcp-select=1" };
   Object.defineProperty(globalThis, "window", { configurable: true, value: { location } });
   t.after(() => {
+    if (priorHosted === undefined) delete process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+    else process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = priorHosted;
     if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
     else Reflect.deleteProperty(globalThis, "window");
   });
@@ -462,17 +615,19 @@ test("site authorization uses fragment-only requests and does not expose connect
   location.origin = "https://selfhost.example.org";
   assert.equal(hasMcpSiteApproval(), false, "self-hosted editors must not accept the hosted OAuth fragment");
   assert.equal(startMcpSiteApproval(true), false, "no connection attempt is started on self-hosted domains");
-  location.origin = "http://tsumu.ebii.net";
+  location.origin = "http://studio.example.test";
   assert.equal(hasMcpSiteApproval(), false, "insecure origin must not receive official-site approval");
 });
 });
 
 test("a changed invitation target never attempts to connect the unintended editor", async t => {
+  const priorHosted = process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+  process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = "https://studio.example.test";
   const { startMcpSiteApproval } = await import("../lib/external-edit/site-approval");
   const previous = Object.getOwnPropertyDescriptor(globalThis, "window");
   const messages: Array<{ data: unknown; target: string }> = [];
   const location = {
-    origin: "https://tsumu.ebii.net",
+    origin: "https://studio.example.test",
     pathname: "/sites/site-b",
     search: "",
     hash: "#mcp-join=12345678-1234-4234-8234-123456789abc." + "a".repeat(43) +
@@ -484,6 +639,8 @@ test("a changed invitation target never attempts to connect the unintended edito
     opener: { closed: false, postMessage(data: unknown, target: string) { messages.push({ data, target }); } },
   } });
   t.after(() => {
+    if (priorHosted === undefined) delete process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+    else process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = priorHosted;
     if (previous) Object.defineProperty(globalThis, "window", previous);
     else Reflect.deleteProperty(globalThis, "window");
   });
@@ -491,7 +648,7 @@ test("a changed invitation target never attempts to connect the unintended edito
   assert.deepEqual(messages, [{
     data: { type: "tsumu-mcp-site-ready", siteId: "site-b", ok: false,
       error: "Selected site mismatch" },
-    target: "https://tsumu.ebii.net",
+    target: "https://studio.example.test",
   }]);
 });
 
@@ -503,22 +660,29 @@ test("viewer access cannot silently become editing access through a stored MCP g
     requests.push({ url: String(url), init: init ?? {} });
     return Response.json({ site: { accessRole: role } }, { status });
   }) as typeof fetch;
-  assert.equal(await externalEditSiteRole("site-a", { db: true }, getRole("viewer")), "viewer");
+  assert.equal(await externalEditSiteRole("site-a", { db: true, auth: false }, getRole("viewer")), "viewer");
   assert.deepEqual(requests[0], {
     url: "/api/sites/site-a",
     init: { method: "GET", cache: "no-store", credentials: "same-origin" },
   });
-  assert.equal(await externalEditSiteRole("site-a", { db: true }, getRole("editor")), "editor");
-  assert.equal(await externalEditSiteRole("site-a", { db: true }, getRole("owner")), "owner");
+  assert.equal(await externalEditSiteRole("site-a", { db: true, auth: false }, getRole("editor")), "editor");
+  assert.equal(await externalEditSiteRole("site-a", { db: true, auth: false }, getRole("owner")), "owner");
   await assert.rejects(
-    externalEditSiteRole("site-a", { db: true }, getRole("viewer", 403)),
+    externalEditSiteRole("site-a", { db: true, auth: false }, getRole("viewer", 403)),
     /no longer authorized/,
   );
   await assert.rejects(
-    externalEditSiteRole("site-a", { db: true }, getRole("unknown")),
+    externalEditSiteRole("site-a", { db: true, auth: false }, getRole("unknown")),
     /no longer authorized/,
   );
-  assert.equal(await externalEditSiteRole("local-site", { db: false }, (() => {
+  const user = { email: "member@example.test", name: null, image: null };
+  for (const db of [true, false]) {
+    const currentPermissions: typeof fetch = async url => String(url) === "/api/status"
+      ? Response.json({ auth: true, db, role: "viewer", user })
+      : Response.json({ site: { accessRole: "owner" } });
+    assert.equal(await externalEditSiteRole("site-a", { auth: true, db, user }, currentPermissions), "viewer");
+  }
+  assert.equal(await externalEditSiteRole("local-site", { db: false, auth: false }, (() => {
     throw new Error("browser-only permissions should not call a server");
   }) as typeof fetch), null);
 });

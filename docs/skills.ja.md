@@ -6,7 +6,7 @@
 
 **[Tsumu Skill ZIPをダウンロード](https://github.com/abshrimp/tsumu/raw/refs/heads/main/dist/tsumu-skill.zip)**
 
-ZIPの直下に `tsumu/` があり、`SKILL.md` と**参照ファイル一式**が含まれています。ZIPはリポジトリに事前収録され、CIで内容を検証します。[Skillのソース](../skills/tsumu/SKILL.md)も確認できます。
+ZIPを開くと、直下の `tsumu/` ディレクトリに `SKILL.md` と参照ファイル一式があります。リポジトリには配布用のZIPを収録しています。CIで内容を検証します。[Skillのソース](../skills/tsumu/SKILL.md)も確認できます。
 
 ## AIアプリ別の導入手順
 
@@ -50,7 +50,7 @@ Cursorが `tsumu/SKILL.md` と参照ファイルを読み込みます。詳し�
 
 ### Codex（CLI・IDE・アプリ）
 
-ユーザー全体なら `~/.agents/skills`、現在のプロジェクトだけなら `.agents/skills` に展開します。
+同じユーザーの全プロジェクトで使う場合は `~/.agents/skills` に展開します。現在のプロジェクトに限定する場合は、そのプロジェクトの `.agents/skills` に展開します。
 
 ```sh
 mkdir -p ~/.agents/skills
@@ -85,15 +85,15 @@ unzip -o ~/Downloads/tsumu-skill.zip -d ~/.gemini/config/skills
 
 **Skillの導入だけでは、Tsumu MCPへの接続は行われません。**
 
-- **Tsumu MCP接続・認可済み**：`get_site_doc_spec` と `stage_site_doc` で新規サイトを一時保存し、実際に返された非公開インポートリンクを提示できます。リンクだけでは公開・デプロイされません。
+- **Tsumu MCP接続・認可済み**：`get_site_doc_spec` で仕様を取得し、`stage_site_doc` で新規サイトを一時保存します。AIはこのときに返された非公開のインポートリンクを提示できます。リンクの発行だけでサイトが公開・デプロイされることはありません。
 - **MCP未接続**：Tsumuで読み込める `doc.json` を生成します。参照ファイルを取得できない場合も、Skill本文に含まれるSiteDocのひな形を利用します。
 
 MCP対応アプリでは `https://mcp.tsumu.ebii.net/mcp` を接続し、新規サイト作成だけの認可を選ぶと、既存サイトの接続コードなしで新規作成できます。詳しくは[Tsumu MCPの接続ガイド](https://mcp.tsumu.ebii.net/)をご覧ください。MCP対応状況はアプリによって異なります。
 
 ## 動作確認とトラブル対応
 
-「tsumu Skillを使って、洗練されたランディングページを作って」と依頼します。正常に動けば、MCP利用時はインポートリンク、MCP未接続時は `doc.json` が得られます。デザイン説明だけで終了してはいけません。
+「tsumu Skillを使って、洗練されたランディングページを作って」と依頼します。MCPを利用する場合はインポートリンクを、未接続の場合は `doc.json` を受け取れることを確認してください。デザインの説明だけでは、動作確認は完了しません。
 
 AIが `references/site-doc.md` を見つけられない場合、`SKILL.md` だけでなく**ZIP全体**を再導入してください。MCP未接続の通知が出ても、ファイル生成は可能です。
 
-ZIPは [`dist/tsumu-skill.zip`](../dist/tsumu-skill.zip) に事前配置しています。メンテナー向け：Skill更新後のみ `npm run skill:package` で再生成してください。CIでリポジトリ内のZIPと生成結果の一致を検証します。
+配布用のZIPは [`dist/tsumu-skill.zip`](../dist/tsumu-skill.zip) にあります。メンテナーはSkillを更新した場合に限り、`npm run skill:package` でZIPを再生成してください。CIでリポジトリ内のZIPと生成結果の一致を検証します。

@@ -59,9 +59,10 @@ export function usedGoogleFonts(doc: SiteDoc) {
 }
 
 /** Only referenced uploaded fonts are emitted into generated stylesheets. */
-function usedUploadedFonts(doc: SiteDoc) {
+export function usedUploadedFonts(doc: SiteDoc) {
+  if (!doc.uploadedFonts?.length) return [];
   const families = usedFontFamilies(doc);
-  return (doc.uploadedFonts ?? []).filter(font => families.has(font.family) &&
+  return doc.uploadedFonts.filter(font => families.has(font.family) &&
     Object.hasOwn(doc.assets, font.assetId));
 }
 

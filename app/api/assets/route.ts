@@ -118,16 +118,14 @@ export async function POST(req: Request) {
     await store.put(path, bytes, {
       metadata: { contentType, bytes: file.size },
     });
-    if (dbConfigured()) {
-      const db = await getDb();
-      // A successful upload must have a site association before its path is returned.
-      await db.execute({ sql: "INSERT INTO site_asset_uploads(site_id,path) VALUES(?,?)", args: [site, path] });
-      try {
-        await recordUploadedAsset(db, path, file.size);
-      } catch {
-        // The optional accounting ledger can be repaired by the weekly inventory.
-        console.warn("Uploaded asset was not recorded in the storage ledger");
-      }
+    const db = await getDb();
+    // A successful upload must have a site association before its path is returned.
+    await db.execute({ sql: "INSERT INTO site_asset_uploads(site_id,path) VALUES(?,?)", args: [site, path] });
+    try {
+      await recordUploadedAsset(db, path, file.size);
+    } catch {
+      // The optional accounting ledger can be repaired by the weekly inventory.
+      console.warn("Uploaded asset was not recorded in the storage ledger");
     }
     return NextResponse.json({ ok: true, name: safeName, path });
   } catch (e) {
@@ -154,17 +152,10 @@ export async function PATCH(req: Request) {
   if (!isSiteId(fromSite) || !isSiteId(toSite) || !Array.isArray(paths) || !paths.length || paths.length > 500) {
     return NextResponse.json({ error: tr("Invalid parameters") }, { status: 400 });
   }
-  const uniquePaths: string[] = [];
-  const seen = new Set<string>();
-  for (const path of paths) {
-    if (typeof path !== "string" || !path.startsWith("assets/") || path.length > 512) {
-      return NextResponse.json({ error: tr("Invalid parameters") }, { status: 400 });
-    }
-    if (!seen.has(path)) {
-      seen.add(path);
-      uniquePaths.push(path);
-    }
+  if (!paths.every(path => typeof path === "string" && path.startsWith("assets/") && path.length <= 512)) {
+    return NextResponse.json({ error: tr("Invalid parameters") }, { status: 400 });
   }
+  const uniquePaths = [...new Set<string>(paths)];
   if (fromSite === toSite) return NextResponse.json({ ok: true });
   const deniedFrom = await requireSiteAccess(fromSite, "view");
   if (deniedFrom) return deniedFrom;
@@ -179,19 +170,17 @@ export async function PATCH(req: Request) {
     if (!(await siteOwnsAssets(db, fromSite, uniquePaths))) {
       return NextResponse.json({ error: tr("Not found") }, { status: 404 });
     }
-    for (let offset = 0; offset < uniquePaths.length; offset += 45) {
-      const chunk = uniquePaths.slice(offset, offset + 45);
-      await db.execute({
-        sql: `INSERT OR IGNORE INTO site_asset_uploads(site_id,path) VALUES ${chunk.map(() => "(?,?)").join(",")}`,
-        args: chunk.flatMap((path) => [toSite, path]),
-      });
-    }
-    if (db.backend === "d1") {
-      await db.execute({
+    const pathList = JSON.stringify(uniquePaths);
+    await db.batch([
+      {
+        sql: "INSERT OR IGNORE INTO site_asset_uploads(site_id,path) SELECT ?,value FROM json_each(?)",
+        args: [toSite, pathList],
+      },
+      ...(db.backend === "d1" ? [{
         sql: "DELETE FROM asset_gc_candidates WHERE path IN (SELECT value FROM json_each(?))",
-        args: [JSON.stringify(uniquePaths)],
-      });
-    }
+        args: [pathList],
+      }] : []),
+    ]);
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: tr(userMessage(e, "Couldn't save")) }, { status: 502 });
@@ -264,11 +253,11 @@ export async function DELETE(req: Request) {
   const deniedSite = await requireSiteAccess(siteId, "edit");
   if (deniedSite) return deniedSite;
   try {
-    const db = dbConfigured() ? await getDb() : null;
-    if (db && !await siteHasAsset(db, siteId, path)) {
+    const db = await getDb();
+    if (!await siteHasAsset(db, siteId, path)) {
       return NextResponse.json({ error: tr("Not found") }, { status: 404 });
     }
-    if (db?.backend === "d1") {
+    if (db.backend === "d1") {
       // エディタは、手元の文書からすでにアセットを外している。毎晩 KV の全件を列挙する代わりに、
       // ここで削除の候補として登録する。他のサイトの参照と保存待ちの変更は、
       // 猶予期間（既定7日）の後に改めて確認する。
@@ -277,23 +266,29 @@ export async function DELETE(req: Request) {
       const scheduled = await recordAssetGcCandidates(db, [path]);
       return NextResponse.json({ ok: true, kept: true, scheduled: scheduled > 0 });
     }
-    // ブラウザ内に保存したサイトは、サーバーのデータベースの有無にかかわらずアセットを参照し得る。
-    // その場で削除する経路では、必ずそれらのサイトと共有しているファイルを残す。
+    const release = { sql: "DELETE FROM site_asset_uploads WHERE site_id=? AND path=?", args: [siteId, path] };
     if (params.get("browserReferenced") === "1") {
+      await db.execute(release);
       return NextResponse.json({ ok: true, kept: true });
     }
-    if (db) {
-      // SQLite の同じスナップショットで、HTML・CSS に直接書かれた参照も調べる。
-      // 文書を1件ずつ読み、最初の一致で止める。
-      const refs = await db.execute({
-        sql: "SELECT 1 FROM docs WHERE id != ? AND document_references_asset(body, ?) LIMIT 1",
-        args: [siteId, path],
-      });
-      if (refs.rows.length) return NextResponse.json({ ok: true, kept: true });
-    }
-    await store.delete(path);
-    if (db) {
-      await db.execute({ sql: "DELETE FROM site_asset_uploads WHERE path=?", args: [path] });
+    // コピー先がまだ文書を保存していない場合も、そのサイトの利用権があればファイルを残す。
+    const [released, refs] = await db.batch([release, {
+      sql: `SELECT 1 FROM site_asset_uploads WHERE path=?
+        UNION ALL SELECT 1 FROM docs WHERE id != ? AND document_references_asset(body, ?) LIMIT 1`,
+      args: [path, siteId, path],
+    }]);
+    if (refs.rows.length) return NextResponse.json({ ok: true, kept: true });
+    try {
+      await store.delete(path);
+    } catch (error) {
+      // 保存前のアップロードでも、ファイルの削除に失敗したら元のサイトから再試行できるようにする。
+      if (released.rowsAffected) {
+        await db.execute({
+          sql: "INSERT OR IGNORE INTO site_asset_uploads(site_id,path) SELECT id,? FROM sites WHERE id=?",
+          args: [path, siteId],
+        });
+      }
+      throw error;
     }
     return NextResponse.json({ ok: true });
   } catch (e) {

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { loadLocalSites } from "../../../lib/site";
 import { isSiteId, type SiteRecord } from "../../../lib/site-model";
-import { OFFICIAL_MCP_ORIGIN, isOfficialEditorOrigin } from "../../../lib/external-edit/official.mjs";
+import { trustedMcpOrigin, isOfficialEditorOrigin } from "../../../lib/external-edit/official.mjs";
 
 const NONCE_RE = /^#nonce=([A-Za-z0-9_-]{22,64})$/;
 type DirectorySite = { id: string; name: string; canEdit: boolean };
@@ -15,11 +15,17 @@ type DirectorySite = { id: string; name: string; canEdit: boolean };
  * All actual access still requires user selection and an OAuth pairing code.
  */
 export default function McpSitesBridge() {
+  const receivedNonce = useRef<string | null>(null);
   useEffect(() => {
-    if (window.parent === window || !isOfficialEditorOrigin(window.location.origin)) return;
-    const nonce = NONCE_RE.exec(window.location.hash)?.[1];
+    const relayOrigin = trustedMcpOrigin();
+    if (window.parent === window || !isOfficialEditorOrigin(window.location.origin) || !relayOrigin) return;
+    const match = NONCE_RE.exec(window.location.hash);
+    if (match) {
+      receivedNonce.current = match[1];
+      window.history.replaceState(window.history.state, "", window.location.pathname);
+    }
+    const nonce = receivedNonce.current;
     if (!nonce) return;
-    window.history.replaceState(window.history.state, "", window.location.pathname);
     let cancelled = false;
 
     void (async () => {
@@ -51,7 +57,7 @@ export default function McpSitesBridge() {
       if (!cancelled) {
         window.parent.postMessage({
           type: "tsumu-mcp-sites", nonce, sites, unavailable,
-        }, OFFICIAL_MCP_ORIGIN);
+        }, relayOrigin);
       }
     })();
 

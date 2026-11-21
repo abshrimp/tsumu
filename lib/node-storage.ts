@@ -122,6 +122,9 @@ export function nodeDatabase(): D1LikeDatabase | null {
 // ---------------------------------------------------------------- ファイル（KV の代わり）
 
 interface FsPromises {
+  open(path: string, flags: "r"): Promise<{
+    readableWebStream(opts: { autoClose: true }): ReadableStream<Uint8Array>;
+  }>;
   mkdir(path: string, opts: { recursive: true }): Promise<unknown>;
   readFile(path: string): Promise<Uint8Array>;
   readFile(path: string, encoding: "utf8"): Promise<string>;
@@ -211,9 +214,14 @@ function fileStore(dir: string, fs: FsPromises): KVLikeNamespace {
       return bytes ? toArrayBuffer(bytes) : null;
     },
     async getWithMetadata(key) {
-      const bytes = await readData(key);
-      if (!bytes) return { value: null, metadata: null };
-      return { value: new Blob([toArrayBuffer(bytes)]).stream(), metadata: await readMeta(key) };
+      const path = `${dataDir}/${assetFileName(key)}`;
+      try {
+        const file = await fs.open(path, "r");
+        return { value: file.readableWebStream({ autoClose: true }), metadata: await readMeta(key) };
+      } catch (error) {
+        if (isMissing(error)) return { value: null, metadata: null };
+        throw error;
+      }
     },
     async delete(key) {
       const name = assetFileName(key);

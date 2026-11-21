@@ -7,6 +7,7 @@ test.beforeAll(async () => { bundle = await imageDropBundle(); });
 test.beforeEach(async ({ page }) => {
   errors.set(page, []);
   page.on("pageerror", (error) => errors.get(page)!.push(error.message));
+  await page.route("http://image-drop.test/api/status", route => route.fulfill({ json: { assets: true } }));
   await page.route("http://image-drop.test/", (route) => route.fulfill({ contentType: "text/html", body: '<html><body><div id="app"></div></body></html>' }));
   await page.route("http://image-drop.test/api/assets/file?**", (route) => route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>' }));
   await page.goto("http://image-drop.test/");

@@ -6,6 +6,7 @@
 
 import { NAVIGATION_RUNTIME, RESOURCE_URL_RUNTIME } from "./url-policy";
 import { tr } from "./i18n";
+import { queryPage } from "./page-query";
 import { formatValueText } from "./value-text";
 import { systemTimeValues, systemVariable } from "./system-time";
 
@@ -301,47 +302,38 @@ export function pageQueryVars(query: string | undefined): Record<string, string>
 
 type PageUrlTarget = { id: string; slug: string; query?: string };
 
-/**
- * ページの URL の変更に合わせて、直接入力した URL（"/blog" や "/blog/{id}"）を書き換える。
- * 対象でなければ null を返す。others は他のページ（[slug] のページへの誤った一致を避けるため）
- */
-export function retargetPageUrl(
-  url: string,
-  before: PageUrlTarget,
-  after: PageUrlTarget,
-  others: PageUrlTarget[]
-): string | null {
-  const raw = url.trim();
-  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+/** ページの変更前の並びで、直接入力した URL がどのページを指していたかを確かめる。 */
+export function createPageUrlRetargeter(before: PageUrlTarget, after: PageUrlTarget, pages: PageUrlTarget[]) {
   const clean = (s: string) => s.replace(/^\/+|\/+$/g, "");
-  const cut = raw.search(/[?#]/);
-  const path = clean(cut < 0 ? raw : raw.slice(0, cut));
-  const rest = cut < 0 ? "" : raw.slice(cut);
-  const hashAt = rest.indexOf("#");
-  const query = rest.startsWith("?") ? (hashAt < 0 ? rest.slice(1) : rest.slice(1, hashAt)) : "";
-  const hash = hashAt < 0 ? "" : rest.slice(hashAt);
-
   const oldSlug = clean(before.slug);
   const newSlug = clean(after.slug);
-  let newPath: string | null = null;
-  if (!isSlugPage(oldSlug)) {
-    if (path === oldSlug) newPath = newSlug;
-  } else if (isSlugPage(newSlug)) {
-    const at = oldSlug.indexOf("[slug]");
-    const pre = oldSlug.slice(0, at);
-    const post = oldSlug.slice(at + "[slug]".length);
-    const seg =
-      path.length > pre.length + post.length && path.startsWith(pre) && path.endsWith(post)
-        ? path.slice(pre.length, path.length - post.length)
-        : "";
-    const taken = others.some((p) => p.id !== before.id && clean(p.slug) === path);
-    if (seg && !seg.includes("/") && !taken) newPath = newSlug.replace("[slug]", seg);
-  }
-  if (newPath === null) return null;
-  // 以前のクエリのまま（またはクエリが無い）なら新しいクエリにし、独自のクエリは残す
-  const newQuery = query === (before.query ?? "") ? (after.query ?? "") : query;
-  const next = `/${newPath}${newQuery ? `?${newQuery}` : ""}${hash}`;
-  return next === raw ? null : next;
+  const variants = pages.map(page => page.id === before.id ? before : page)
+    .filter(page => clean(page.slug) === oldSlug);
+  const exactRoutes = new Set(pages.filter(page => page.id !== before.id).map(page => clean(page.slug)));
+  const [prefix, suffix] = oldSlug.split("[slug]");
+
+  return (url: string): string => {
+    const raw = url.trim();
+    if (!raw.startsWith("/") || raw.startsWith("//")) return url;
+    const cut = raw.search(/[?#]/);
+    const path = clean(cut < 0 ? raw : raw.slice(0, cut));
+    let newPath = newSlug;
+    if (suffix !== undefined) {
+      if (!isSlugPage(newSlug) || exactRoutes.has(path) || !path.startsWith(prefix) || !path.endsWith(suffix)) return url;
+      const segment = path.slice(prefix.length, path.length - suffix.length);
+      if (!segment || segment.includes("/")) return url;
+      newPath = newSlug.replace("[slug]", () => segment);
+    } else if (path !== oldSlug) return url;
+
+    const rest = cut < 0 ? "" : raw.slice(cut);
+    const hashAt = rest.indexOf("#");
+    const query = rest.startsWith("?") ? (hashAt < 0 ? rest.slice(1) : rest.slice(1, hashAt)) : "";
+    const hash = hashAt < 0 ? "" : rest.slice(hashAt);
+    if (variants.length > 1 && queryPage(variants, new URLSearchParams(query))?.id !== before.id) return url;
+    const newQuery = query === (before.query ?? "") ? (after.query ?? "") : query;
+    const next = `/${newPath}${newQuery ? `?${newQuery}` : ""}${hash}`;
+    return next === raw ? url : next;
+  };
 }
 
 /** データソースの URL が {slug} を含むか */

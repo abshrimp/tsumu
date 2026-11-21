@@ -2,6 +2,7 @@ import { insertIntoHtmlHead } from "./generator/head";
 import type { SiteDoc } from "./types";
 import { pagePlan } from "./data";
 import { generateProject, type GeneratedProject, type PublishTarget } from "./generator";
+import { usedUploadedFonts } from "./generator/css";
 import { buildReactProject, needsReactPageRuntime } from "./generator/react-export";
 import { buildAssetNames } from "./generator/names";
 import { generateStandaloneHtml } from "./generator/html-export";
@@ -43,11 +44,16 @@ function prunePartialDoc(doc: SiteDoc): SiteDoc {
   for (const page of Object.values(doc.pages)) {
     for (const id of page.children ?? []) collectNode(id);
   }
+  const folders = new Set(Object.values(doc.pages).map(page => page.folderId));
   const scoped: SiteDoc = {
     ...doc, nodes, components,
     assets: {},
-    pageFolders: doc.pageFolders?.filter((folder) =>
-      Object.values(doc.pages).some((page) => page.folderId === folder.id)),
+    uploadedFonts: doc.uploadedFonts && usedUploadedFonts({ ...doc, nodes }),
+    loadingScreen: doc.loadingScreen?.pageId && Object.hasOwn(doc.pages, doc.loadingScreen.pageId)
+      ? doc.loadingScreen : undefined,
+    pageFolders: doc.pageFolders?.filter(folder => folders.has(folder.id)).map(folder =>
+      folder.beforePageId && !Object.hasOwn(doc.pages, folder.beforePageId)
+        ? { id: folder.id, name: folder.name } : folder),
   };
   const assetIds = scopedAssetIds(scoped, doc.assets);
   const assets: SiteDoc["assets"] = Object.create(null);

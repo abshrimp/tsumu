@@ -15,13 +15,13 @@ export function allowedEmails(): string[] {
 export async function isEmailAllowed(
   email: unknown,
   fixed = allowedEmails(),
-  readExtra: () => Promise<string[]> = readAllowlist
+  includesDynamic: (email: string) => Promise<boolean> = async email => isAccountRole(await readAccountRole(email))
 ): Promise<boolean> {
   if (!isValidEmail(email)) return false;
   const normalized = email.toLowerCase();
   if (fixed.includes(normalized)) return true;
   try {
-    return (await readExtra()).some((e) => e.toLowerCase() === normalized);
+    return await includesDynamic(normalized);
   } catch {
     // A database outage must never become an open enrollment bypass.
     return false;
@@ -45,11 +45,6 @@ export function isAccountRole(value: unknown): value is AccountRole {
 export async function listAllowedAccounts(): Promise<AllowedAccount[]> {
   const rs = await (await getDb()).execute("SELECT email, role FROM allowed_emails ORDER BY added_at");
   return rs.rows.map((row) => ({ email: String(row.email), role: row.role as AccountRole }));
-}
-
-/** The login allowlist only needs email addresses. */
-async function listAllowedEmails(): Promise<string[]> {
-  return (await listAllowedAccounts()).map((account) => account.email);
 }
 
 export async function addAllowedEmail(email: string, role: AccountRole): Promise<void> {
@@ -110,14 +105,4 @@ export async function removeAllowedEmail(email: string): Promise<boolean | "sole
   if (results[0].rowsAffected > 0) return true;
   const exists = await db.execute({ sql: "SELECT 1 FROM allowed_emails WHERE email = ? LIMIT 1", args: [email] });
   return exists.rows.length > 0 ? "sole-owner" : false;
-}
-
-/** ログインの判定に使う（未設定や失敗のときは空で、環境変数の固定のリストだけが有効） */
-async function readAllowlist(): Promise<string[]> {
-  if (!dbConfigured()) return [];
-  try {
-    return await listAllowedEmails();
-  } catch {
-    return [];
-  }
 }

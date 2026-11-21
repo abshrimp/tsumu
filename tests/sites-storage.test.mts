@@ -19,6 +19,8 @@ import { assetFileName, nodeAssetStore, nodeDatabase } from "../lib/node-storage
 import { readCurrentDoc, saveCurrentDoc } from "../lib/doc-storage";
 import * as siteModel from "../lib/site-model";
 import { isSiteId, isSiteRole, normalizeSiteInput } from "../lib/site-model";
+import { renameSiteRecord, loadLocalSites } from "../lib/site";
+import { storageKey } from "../lib/storage-keys";
 import * as sites from "../lib/sites";
 import { deleteSite, insertSite, listSites, getSite, getSiteRoomKey, updateSite } from "../lib/sites";
 import { permits } from "../lib/site-access";
@@ -34,6 +36,35 @@ import { buildAssetNames } from "../lib/generator/names";
 import { createSiteFromFile, importFileKind } from "../lib/import-site-file";
 import { siteThumbnailImages } from "../lib/site-thumbnail";
 import { type SiteDoc } from "../lib/types";
+
+test("renaming a browser-only site updates its Home record without touching the edit document", async (t) => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const storage = new Map<string, string>();
+  const localStorage = {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => { storage.set(key, value); },
+    removeItem: (key: string) => { storage.delete(key); },
+  };
+  const saved = {
+    id: "site1", name: "Original home name", createdAt: 1, updatedAt: 1,
+    repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,
+  };
+  storage.set(storageKey("sites-v1"), JSON.stringify([saved]));
+  Object.defineProperty(globalThis, "window", {
+    configurable: true, value: { localStorage, navigator: null },
+  });
+  t.after(() => {
+    if (original) Object.defineProperty(globalThis, "window", original);
+    else Reflect.deleteProperty(globalThis, "window");
+  });
+  assert.equal(await renameSiteRecord("site1", "  Updated home name  ", false), "Updated home name");
+  assert.equal(loadLocalSites({ strict: true })[0].name, "Updated home name");
+  assert.equal(loadLocalSites({ strict: true })[0].repo, null);
+  await assert.rejects(renameSiteRecord("absent", "Test", false), /Site not found/);
+  await assert.rejects(renameSiteRecord("site1", " ", false), /Enter a site name/);
+  await assert.rejects(renameSiteRecord("site1", "x".repeat(101), false), /100 characters/);
+  assert.equal(loadLocalSites({ strict: true })[0].name, "Updated home name");
+});
 
 describe("backup-day-input", () => {
 function handler(options: { siteExists?: boolean; body?: string } = {}) {
@@ -395,6 +426,8 @@ test("アセットをファイルに保存・配信・削除できる", withData
   const { value, metadata } = await store.getWithMetadata("assets/a/b.svg", { type: "stream" });
   assert.equal(await new Response(value).text(), "<svg/>");
   assert.deepEqual(metadata, { contentType: "image/svg+xml" });
+  const preview = await store.getWithMetadata("assets/a/b.svg", { type: "stream" });
+  await preview.value!.cancel();
   await store.delete("assets/a/b.svg");
   assert.equal(await store.get("assets/a/b.svg", { type: "arrayBuffer" }), null);
   assert.deepEqual(await store.getWithMetadata("missing", { type: "stream" }), { value: null, metadata: null });
@@ -915,6 +948,7 @@ test("an import timeout reconciles the reserved site before uploading assets", a
   let saved: typeof doc | null = null;
   const actions: string[] = [];
   t.mock.method(globalThis, "fetch", async (url, init) => {
+    if (url === "/api/status") return Response.json({ assets: true });
     if (String(url).startsWith("data:")) return nativeFetch(url, init);
     actions.push(init?.method ?? "GET");
     if (url === "/api/sites" && init?.method === "POST") {
@@ -1149,7 +1183,7 @@ test("restored URLs follow the newly stored asset without copying a signature in
     '<img data-src="' + old + '" src="' + old + '&amp;sig=private#icon"><style>i{background:url(' + old + ')}</style>';
   page.bodyStyles = { base: { default: { backgroundImage: 'url("' + old + '#icon")' } } };
   const original = globalThis.fetch;
-  globalThis.fetch = async () => Response.json({ path: "assets/new" });
+  globalThis.fetch = async (url) => Response.json(url === "/api/status" ? { assets: true } : { path: "assets/new" });
   try {
     const { doc: restored, createdPaths } = await restoreImportAssets({
       doc, assets: new Map([[asset.id, enc.encode("contents")]]), warnings: [],
@@ -1173,7 +1207,8 @@ test("an upload without a registered destination is never accepted as a restored
   const original = globalThis.fetch;
   try {
     for (const path of [undefined, {}, "assets/", "https://other.test/file"]) {
-      globalThis.fetch = async (_input, init) => {
+      globalThis.fetch = async (url, init) => {
+        if (url === "/api/status") return Response.json({ assets: true });
         assert.equal(init?.credentials, "same-origin");
         assert.equal(init?.redirect, "error");
         return Response.json({ path });
@@ -1378,9 +1413,11 @@ test("repositories cannot be shared across sites on the same Git provider", asyn
   await assert.rejects(
     insertSite(db, "other", {
       name: "Other", repo: "Owner/Original", branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,
-    }),
+    }, "creator@example.test"),
     /This repository is already used by another site/,
   );
+
+  assert.deepEqual((await db.execute("SELECT email FROM site_members WHERE site_id='other'")).rows, []);
 
   const gitlabAllowed = await insertSite(db, "gitlab-site", {
     name: "GitLab", gitProvider: "gitlab", repo: "Owner/Original", branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,

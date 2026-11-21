@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { localMode } from "./helpers/local-site";
 import { ZipBuilder } from "../lib/zip";
 import { readFile } from "node:fs/promises";
 import { createInitialDoc } from "../lib/presets";
@@ -11,15 +12,6 @@ import { storageKey } from "../lib/storage-keys";
 
 const listKey = storageKey("sites-v1");
 
-async function localMode(page: Page) {
-  await page.addInitScript(() => {
-    localStorage.setItem("tsumu-lang", "ja");
-    localStorage.setItem("tsumu-help-seen-v1", "1");
-  });
-  await page.route("**/api/sites**", (route) => route.fulfill({ status: 503, json: {} }));
-  await page.route("**/api/doc**", (route) => route.fulfill({ status: 503, json: {} }));
-  await page.route("**/api/assets", (route) => route.fulfill({ status: 503, json: {} }));
-}
 async function importedDoc(page: Page) {
   const sites = await page.evaluate(key => JSON.parse(localStorage.getItem(key) || "[]") as { id: string }[], listKey);
   return sites[0] ? JSON.parse((await browserDoc(page, sites[0].id)) || "null") : null;

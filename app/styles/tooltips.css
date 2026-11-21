@@ -1715,6 +1715,65 @@ button.vx-chev:hover {
 
 .hdr-page {
   width: 168px;
+  min-width: 0;
+}
+
+/* Site name replaces the page dropdown. Click to edit in place. */
+.hdr-site-name,
+.hdr-site-name-input {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: var(--radius-s);
+  font-weight: 600;
+}
+
+.hdr-site-name {
+  gap: 6px;
+  border: 1px solid transparent;
+  text-align: left;
+}
+
+.hdr-site-name:hover:not(:disabled) {
+  background: var(--field);
+}
+
+.hdr-site-name:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.hdr-site-name:disabled {
+  cursor: default;
+}
+
+.hdr-site-name-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.hdr-site-name-pencil {
+  flex: none;
+  color: var(--text-3);
+  opacity: 0;
+}
+
+.hdr-site-name:hover .hdr-site-name-pencil,
+.hdr-site-name:focus-visible .hdr-site-name-pencil {
+  opacity: 1;
+}
+
+.hdr-site-name-input {
+  border: 1px solid var(--accent);
+  background: var(--panel);
+  color: var(--text);
+  outline: none;
 }
 
 .hdr-zoom {

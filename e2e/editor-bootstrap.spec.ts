@@ -207,7 +207,24 @@ for (const mode of ["offline", "error", "network", "invalid"] as const) {
 for (const choice of ["remote", "local"] as const) {
   test(`unsynced local work still prompts for ${choice} conflict resolution after loading`, async ({ page }) => {
     const id = await createSite(page, fixture("Remote conflict heading"));
-    await prepare(page, id, fixture("Local conflict heading"), true);
+    const local = fixture("Local conflict heading");
+    await prepare(page, id, local);
+    const key = `tsumu-unsynced-v1:${id}`;
+    await page.evaluate(key => localStorage.setItem(key, "1"), key);
+    if (choice === "local") {
+      const siteRoute = `**/api/sites/${id}`;
+      await page.route(siteRoute, async route => {
+        const response = await route.fetch();
+        const data = await response.json();
+        await route.fulfill({ response, json: { ...data, site: { ...data.site, accessRole: "viewer" } } });
+      });
+      await page.goto(`/sites/${id}`);
+      await expect(page.locator(".viewer-header")).toBeVisible();
+      await expect(canvas(page).getByText("Remote conflict heading", { exact: true })).toBeVisible();
+      expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe("1");
+      expect(await browserDoc(page, id)).toBe(JSON.stringify(local));
+      await page.unroute(siteRoute);
+    }
     const pending = await holdInitialRead(page, id);
     try {
       await page.goto(`/sites/${id}`);

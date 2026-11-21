@@ -11,6 +11,7 @@ import type { Asset, SiteDoc } from "./types";
 import { genId } from "./presets";
 import { tr } from "./i18n";
 import { currentSiteId } from "./site";
+import { loadServerStatus } from "./status";
 import { extractAssetReferences } from "./asset-gc-plan";
 import { otherBrowserDocs } from "./browser-doc-storage";
 
@@ -72,35 +73,38 @@ export async function uploadStaticAsset(file: File, siteId: string = currentSite
     if (!size.width || !size.height) size = { ...size, width: svgAnalysis.width ?? size.width, height: svgAnalysis.height ?? size.height };
   }
 
-  const form = new FormData();
-  form.append("file", file);
-  form.append("site", siteId);
-  try {
-    const res = await fetch("/api/assets", { method: "POST", body: form, credentials: "same-origin", redirect: "error" });
-    if (res.ok) {
-      const data = await res.json();
-      if (typeof data?.path !== "string" || !data.path.startsWith("assets/") || data.path.length === "assets/".length) {
-        throw new Error(tr("Could not confirm the uploaded file location."));
+  // Check storage capabilities before transmitting the file, including on the first import.
+  if ((await loadServerStatus())?.assets === true) {
+    const form = new FormData();
+    form.append("file", file);
+    form.append("site", siteId);
+    try {
+      const res = await fetch("/api/assets", { method: "POST", body: form, credentials: "same-origin", redirect: "error" });
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof data?.path !== "string" || !data.path.startsWith("assets/") || data.path.length === "assets/".length) {
+          throw new Error(tr("Could not confirm the uploaded file location."));
+        }
+        if (svgAnalysis) cacheSvgEffect(data.path, svgAnalysis);
+        return {
+          id: genId("asset"),
+          // 表示名は元のファイル名のまま（日本語も使える）。保存先のパスと書き出すファイル名には、別に安全な名前を使う
+          name: displayName(file.name),
+          path: data.path,
+          bytes: file.size,
+          mimeType: file.type,
+          ...size,
+        };
       }
-      if (svgAnalysis) cacheSvgEffect(data.path, svgAnalysis);
-      return {
-        id: genId("asset"),
-        // 表示名は元のファイル名のまま（日本語も使える）。保存先のパスと書き出すファイル名には、別に安全な名前を使う
-        name: displayName(file.name),
-        path: data.path,
-        bytes: file.size,
-        mimeType: file.type,
-        ...size,
-      };
+      // 503 = サーバーの保存先が未設定 → data URL で持つ。それ以外はエラーを表示する
+      if (res.status !== 503) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? tr("Couldn't upload ({status})", { status: res.status }));
+      }
+    } catch (e) {
+      if (!(e instanceof TypeError)) throw e;
+      // ネットワークのエラーのときも、data URL で持つ
     }
-    // 503 = サーバーの保存先が未設定 → data URL で持つ。それ以外はエラーを表示する
-    if (res.status !== 503) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error ?? tr("Couldn't upload ({status})", { status: res.status }));
-    }
-  } catch (e) {
-    if (!(e instanceof TypeError)) throw e;
-    // ネットワークのエラーのときも、data URL で持つ
   }
 
   if (file.size > MAX_LOCAL_ASSET_BYTES) {
@@ -363,8 +367,9 @@ export function replaceEmbeddedAsset(doc: SiteDoc, assetId: string, path: string
 /** 埋め込んだアセットをサーバーへアップロードする（サーバーに保存できなければ null を返す） */
 export async function uploadEmbeddedAsset(asset: Asset): Promise<string | null> {
   if (!isEmbeddedAssetUrl(asset.dataUrl)) return asset.path ?? null;
+  const siteId = currentSiteId();
   const blob = await (await fetch(asset.dataUrl)).blob();
-  const fresh = await uploadStaticAsset(new File([blob], asset.name, { type: blob.type || asset.mimeType || "" }));
+  const fresh = await uploadStaticAsset(new File([blob], asset.name, { type: blob.type || asset.mimeType || "" }), siteId);
   return fresh.path ?? null;
 }
 

@@ -647,7 +647,7 @@ describe("clipboard-destination-safety", () => {
 
   function deepPayload(depth: number): ClipPayload {
     return { v: 1, site: "other", breakpoints: [{ id: "lg", label: "タブレット", maxWidth: 1024 }], nodes: Array.from({ length: depth }, (_, i) => node(`n${i}`, i < depth - 1 ? [`n${i + 1}`] : [])),
-      rootIds: ["n0"], assets: {}, components: {}, componentNodes: [], customFonts: [], adobeFonts: [] };
+      rootIds: ["n0"], assets: {}, components: {}, componentNodes: [], customFonts: [], adobeFonts: [], uploadedFonts: [] };
   }
   for (const [depth, allowed] of [[MAX_NODE_DEPTH, false], [MAX_NODE_DEPTH - 1, true]] as const) {
     test(`paste ${depth}-deep tree into a parent ${allowed ? "preserves" : "rejects exceeding"} the depth limit`, () => {
@@ -679,7 +679,7 @@ describe("clipboard-tree-validation", () => {
     pages: { p: { id: "p", name: "Home", slug: "", children: [] } }, nodes: {},
   });
   function payload(): ClipPayload {
-    return { v: 1, site: "other", breakpoints: [{ id: "lg", label: "タブレット", maxWidth: 1024 }], nodes: [node("a")], rootIds: ["a"], assets: {}, components: {}, componentNodes: [], customFonts: [], adobeFonts: [] };
+    return { v: 1, site: "other", breakpoints: [{ id: "lg", label: "タブレット", maxWidth: 1024 }], nodes: [node("a")], rootIds: ["a"], assets: {}, components: {}, componentNodes: [], customFonts: [], adobeFonts: [], uploadedFonts: [] };
   }
 
   for (const kind of ["self-cycle", "indirect-cycle", "shared-child", "duplicate-child", "duplicate-root", "nested-root", "too-deep", "component-cycle", "shared-master", "nested-master", "missing-master"] as const) {
@@ -733,8 +733,8 @@ describe("clipboard-tree-validation", () => {
   });
 
 
-  test("clipboard requires explicit root IDs and a string source site", () => {
-    for (const field of ["rootIds", "site", "breakpoints"] as const) {
+  test("clipboard requires its source, root IDs, breakpoints and font collections", () => {
+    for (const field of ["rootIds", "site", "breakpoints", "customFonts", "adobeFonts", "uploadedFonts"] as const) {
       const p = payload() as Partial<ClipPayload>;
       delete p[field];
       assert.equal(parseClipPayload(JSON.stringify(p)), null);

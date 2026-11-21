@@ -2,17 +2,17 @@
 
 [English](ARCHITECTURE.md) · 日本語
 
-本書では、コードを変更する開発者に向けて、コードベースの全体像を説明します。セットアップとデプロイについては [README](../README.ja.md) を参照してください。
+本書は Tsumu のコードを変更する開発者向けに、各機能の構成とサイトの編集データの流れを説明します。セットアップとデプロイの手順は [README](../README.ja.md) を参照してください。
 
 ## 基本となるデータ
 
-エディタが扱うサイトの情報は、すべて `SiteDoc`（`lib/types.ts`）という1つの JSON 値にまとまっています。
+エディタが扱うサイトの情報は、すべて `SiteDoc`（`lib/types.ts`）という1つの JSON 値にまとまっています。各機能はこの文書を次のように扱います。
 
-- エディタの画面は、これを読み取り、変更します。
-- 同時編集は、これを同期します。
-- AI は、これに対する編集を提案します。
-- 生成処理は、これを Next.js プロジェクトに変換します。その他の出力形式は、この結果から作ります。
-- インポートは、Tsumu の zip・`doc.json`・一般的な HTML から、これを生成します。
+- エディタの画面は文書を読み取り、編集操作に応じて更新します。
+- 同時編集では編集者間で文書を同期します。
+- AI は文書に対する編集操作を提案します。
+- 生成処理は文書を Next.js プロジェクトに変換します。その他の出力形式も、この変換結果を使って生成します。
+- インポート処理は Tsumu の zip、`doc.json`、一般的な HTML から文書を生成します。
 
 そのため、`SiteDoc` を理解すれば、他の部分も把握しやすくなります。
 
@@ -50,7 +50,7 @@
 | 領域 | ファイル |
 |---|---|
 | エディタの状態、元に戻す・やり直す | `lib/store.ts`（zustand）と `lib/editor-theme.ts`（制作サイトの配色とは独立したエディタ外観のライト／ダーク設定）。文書へのすべての変更がストアを経由するため、どの変更も元に戻す履歴と同期の両方に反映されます。 |
-| キャンバスとパネル | `components/Canvas.tsx` と `canvas/`（CSS、ノードの描画、`NodeView`、`useCanvasData`、`useCanvasDrag`、必要時に `lib/html-zip-source.ts` を読み込む `useHtmlPreview`、およびサンドボックス埋め込み URL を検証する `lib/embed.ts`）、`app/styles/`（エディタ専用のスタイルシートは `app/sites/[id]/layout.tsx` に限定）<br>`LeftPanel.tsx` と `left-panel/`（タブごとに1ファイル。`AssetTrash.tsx` を含む `AssetsTab.tsx` と `CopyToSite.tsx` は必要時に遅延読み込み）、`PagePanel.tsx`<br>`RightPanel.tsx`、`StylePanel.tsx` と `style-panel/`（セクションごとに1ファイルと `FontPicker.tsx`）、`SettingsPanel.tsx`、`ScriptSummary.tsx`、`MotionEditors.tsx`<br>`ScriptEditor.tsx`、`Comments.tsx`、`AiChat.tsx`、`ExternalEditConnection.tsx`、`AllowedAccounts.tsx`、`SiteMembers.tsx`（いずれも必要時に遅延読み込み）、`script-editor/`（パレット、ブロック、手順の本体、入力欄、`useStepDrag`、`useEditorKeys`）<br>`SitePanel.tsx`、`ViewerHeader.tsx` |
+| キャンバスとパネル | `components/Canvas.tsx` と `canvas/`（CSS、ノードの描画、`NodeView`、`useCanvasData`、`useCanvasDrag`、必要時に `lib/html-zip-source.ts` を読み込む `useHtmlPreview`、およびサンドボックス埋め込み URL を検証する `lib/embed.ts`）、`app/styles/`（ホーム画面とエディタで使うスタイルシートを `app/layout.tsx` で読み込み）<br>`LeftPanel.tsx` と `left-panel/`（タブごとに1ファイル。`AssetTrash.tsx` を含む `AssetsTab.tsx` と `CopyToSite.tsx` は必要時に遅延読み込み）、`PagePanel.tsx`<br>`RightPanel.tsx`、`StylePanel.tsx` と `style-panel/`（セクションごとに1ファイルと `FontPicker.tsx`）、`SettingsPanel.tsx`、`ScriptSummary.tsx`、`MotionEditors.tsx`<br>`ScriptEditor.tsx`、`Comments.tsx`、`AiChat.tsx`、`ExternalEditConnection.tsx`、`AllowedAccounts.tsx`、`SiteMembers.tsx`（いずれも必要時に遅延読み込み）、`script-editor/`（パレット、ブロック、手順の本体、入力欄、`useStepDrag`、`useEditorKeys`）<br>`SitePanel.tsx`、`ViewerHeader.tsx` |
 | スタイルから CSS への変換 | `lib/style.ts`、`lib/breakpoints.ts`、`lib/motion.ts`、`lib/keyframes.ts`、`lib/google-font-catalog.ts`（必要時に遅延読み込み。既定の Google Fonts も `Editor.tsx` の起動時に読み込み）、`lib/adobe-fonts-*.ts`（[Adobe Fonts](adobe-fonts.md)）、`lib/uploaded-fonts.ts`（アップロードした WOFF2・WOFF・TTF・OTF フォント） |
 | 生成処理 | `lib/generator.ts`。`generateProject(doc, target)` が Next.js プロジェクトを `{ files, binaries, remoteAssets }` として返します。部品は `lib/generator/` にあります（`names.ts`、`css.ts`、`render.ts` と `render-helpers.ts`、`page.ts`、`head.ts`、`templates.ts`）。 |
 | 出力形式 | `lib/export-formats.ts` と、`lib/generator/` のその他のファイル。詳細は [出力形式](#出力形式) を参照してください。 |
@@ -58,7 +58,8 @@
 | インポート | `lib/import-site-file.ts`（ファイルからのサイト作成）、`lib/site-import.ts` と `lib/site-import-format.ts`（Tsumu の zip と `doc.json`）、`lib/site-backup.ts`（アセット一式を含むバックアップ zip）、`lib/html-to-site.ts` と `html-file-import.ts`（必要時に遅延読み込み）・`html-zip.ts`（HTML）。詳細は [インポート](#インポート) を参照してください。 |
 | 公開前チェック | `lib/generator/checks.ts` の `runChecks`。リンク切れ、代替テキスト、見出しの順序、小さすぎる文字、レイアウトのはみ出しを検査します。 |
 | 保存 | `lib/site-model.ts`（クライアントからも参照できる純粋なサイトの型と入力検証）と `lib/sites.ts`（D1 へのサイト保存）<br>`workers/document-room.ts`・`lib/structured-document-store.ts`：サイトの作成世代ごとに1つの SQLite 対応 Durable Object を使い、ページ・要素などを個別の行とトランザクション付きの `rev` で保存<br>`lib/site-document-service.ts`：Cloudflare と Node.js の保存先の振り分け<br>`lib/doc-storage.ts`・`lib/node-storage.ts`：Node.js・Docker 用の SQLite<br>`lib/kv.ts`：アセットの本体<br>`lib/browser-doc-storage.ts`：ブラウザのみに保存するサイトの文書・アセット用 IndexedDB（`tsumu-documents`）<br>`lib/local-storage.ts`：`tsumu-*` のブラウザ設定とローカルサイト一覧 |
-| KVアセットのGC | `DELETE /api/assets` が削除の候補をD1に登録し、`lib/asset-gc.ts` が期限切れの候補を毎日処理します。`workers/custom-worker.ts` から週1回呼ばれる処理では、孤立したKVのファイルも確認し、`lib/asset-ledger.ts` が物理オブジェクト（`asset_objects`）とサイト別の所有関係（`site_assets`。アップロード・保存・サイト間のページ／要素コピー時に更新）を記録します。既定では、実際には削除しない試行（dry-run）だけを行います（[詳細](asset-gc.md)（英語））。<br>ゴミ箱：`components/AssetTrash.tsx` から `app/api/assets/trash` を呼び、そのサイトの削除待ち候補の一覧、復元（候補の行を取り除く）、すぐに行う完全な削除（`lib/asset-trash-delete.ts`。定期処理と同じリースと参照の確認を通す）を扱います。 |
+| アセットの利用権限 | アセットをアップロードしたり、別のサイトにコピーしたりすると、受け取り側のサイトが利用できるパスを `site_asset_uploads` に記録します。文書の保存時には、`lib/site-asset-access.ts` が、受信したパスをこのテーブルと現在の保存済み文書の参照先に照らして確認します。 |
+| KV アセットの GC | `DELETE /api/assets` が削除候補を D1 に登録します。`lib/asset-gc.ts` は毎日、猶予期間を過ぎた候補が現在の文書から参照されているかを確認します。`workers/custom-worker.ts` は週に1回、KV を棚卸しします。`lib/asset-ledger.ts` は `asset_objects` を使って、全サイトで共有する保存先の使用量を集計します。既定の定期処理では削除対象を報告するだけです。[削除の方針と制限](asset-gc.md)（英語）を参照してください。<br>ゴミ箱では、`components/AssetTrash.tsx` が `app/api/assets/trash` を通じて閲覧可能な候補を表示します。復元時には候補の行を取り除きます。すぐに完全削除する場合は、`lib/asset-trash-delete.ts` が定期処理と共通のリースを取得し、文書からの参照を再確認します。 |
 | 同時編集 | `workers/custom-worker.ts`：サイトの作成世代ごとに独立した、WebSocket 用の Durable Object<br>`lib/collab-events.ts` と `app/api/collab/events`：Node.js と Docker における Server-Sent Events<br>`lib/collab.ts`：送受信するメッセージ<br>`lib/merge.ts`：3方向マージ。ノードの ID で照合し、次に項目の単位で照合します。配列は全体を1つの値として扱います。 |
 | AI | `lib/ai/`（プロバイダ、プロンプト、ストリーミング）と `lib/ai-store.ts`（`AiChat.tsx` を遅延読み込みするための軽量チャット状態ストア）、`lib/aiOps.ts`（編集操作の定義と、サーバーとブラウザで共通の適用関数）、`lib/external-edit/`（`bridge.ts`、`config.ts`：開いているエディタを `NEXT_PUBLIC_TSUMU_MCP_URL` 経由で外部の `tsumu-mcp` に WebSocket 接続する任意のブリッジ。`reconnect-hint.ts`：再読み込み後に、そのサイトの認可済みの接続を再開。`draft-link.ts`・`draft-handoff.ts` と `app/api/external-edit/draft-handoff`：MCP の取り込みリンクと、ログインをはさんだ引き継ぎ。`official.mjs`・`site-approval.ts` と `app/mcp/`：`tsumu.ebii.net` の公式エディタだけで使うサイト選択画面。セルフホストのエディタでは 404 を返す） |
 | コメント、編集の記録 | `lib/comments.ts`、`lib/comment-store.ts`、`lib/activity.ts` |
@@ -72,7 +73,7 @@
 
 **削除マーカーが必要な理由**
 
-サイトの記録がないことは、サイトが削除された証拠になりません。サーバーに保存しているサイトでも、サーバーが 503 を返した後はコメントをブラウザ内に保存することがあり、サイトの記録がないままコメントだけが残る場合があるためです。そのため、サイトの記録やコメントのキーが見つからない場合や、通信エラーが起きた場合も、それだけでは「削除済み」と判断しません。
+サーバーに保存するサイトでも、サーバーが 503 を返すと、コメントだけをブラウザ内に保存する場合があります。この場合、ブラウザにサイトの記録がなくてもサイトは存在します。サイトの記録やコメントのキーが見つからないこと、あるいは通信エラーが起きたことだけを理由に「削除済み」とは判断しません。
 
 **削除の手順**
 
@@ -80,7 +81,7 @@
 
 1. ローカルのメタデータを検証します。
 2. 対象のサイトに永続的な削除マーカー `tsumu-site-deleted-v1:<id>` を書き込みます。**削除はこの書き込みの時点で成立します。** 書き込みに失敗した場合、サイトの一覧と内容はそのまま残ります。
-3. 一覧からサイトを除外し、内容を削除します。この処理はできる範囲で行うもので、一覧の書き込みに失敗しても削除は成功として扱います。
+3. マーカーを書き込んだ後、一覧からの除外と内容の削除を可能な範囲で行います。ここで一覧の書き込みに失敗しても、サイトの削除は成功として扱います。
 
 **削除したサイトが復活しない理由**
 
@@ -99,7 +100,7 @@
 
 **保証の範囲**
 
-利用者から見える範囲では、常に削除が優先されます。ただし、保存データがすぐにすべて消えることは保証しません。古いタブが書き込みと確認の間で止まったり、後処理が失敗したりする場合があるためです。タブ間のロック（`lib/local-site-lock.ts`）で守っているのはサイト一覧の読み書きだけで、コメントの書き込みと文書の自動保存はロックの外で行います。
+画面上では常に削除が優先されます。古いタブが書き込みと確認の間で停止した場合や、削除後の処理に失敗した場合は、保存データの一部が残ることがあります。タブ間のロック（`lib/local-site-lock.ts`）の対象はサイト一覧の読み書きだけです。コメントの書き込みと文書の自動保存は、このロックを取得せずに行います。
 
 ## 公開の仕組み
 
@@ -122,7 +123,7 @@ Git への公開では、エディタが生成したファイルのパスと blo
 
 ### ロールバック
 
-Git のロールバック（`app/api/publish/history/route.ts`・`app/api/publish/gitlab/history/route.ts`）は、過去の時点のファイル一式を新しいコミットとしてブランチの先頭に積みます。履歴は書き換えません。静的ホスティングでは、公開画面から各プロバイダのデプロイ履歴を表示・復元します。
+Git のロールバック（`app/api/publish/history/route.ts`・`app/api/publish/gitlab/history/route.ts`）では、過去の時点のファイル一式を復元するコミットをブランチの先頭に追加します。既存の履歴は保持します。静的ホスティングでは、公開画面に各プロバイダのデプロイ履歴を表示し、そこから復元できます。
 
 ## 出力形式
 
@@ -148,12 +149,12 @@ Git のロールバック（`app/api/publish/history/route.ts`・`app/api/publis
 
 `lib/import-site-file.ts` の `createSiteFromFile` は、入力を検証したうえでサイトをサーバーまたはブラウザに保存します。
 
-- **サーバーに保存する場合**：アセットのアップロードごとにサイト単位の認可を通せるよう、先に `POST /api/sites`（`importId`）で空のサイトを確保してからアセットをアップロードし、続けて文書を保存（`PUT /api/doc`）してサイト名を更新します（`PATCH /api/sites/[id]`）。`POST /api/sites` の応答が途切れた場合は `GET /api/sites/[id]` で作成済みかを確認します。文書の保存を始める前に失敗した場合は確保した空のサイトを削除しますが、文書の保存が始まった後は、保存済みかもしれないサイトを決して削除しません。
+- **サーバーに保存する場合**：アセットのアップロードごとに保存先サイトへの書き込み権限を確認できるよう、まず `POST /api/sites`（`importId`）で空のサイトを確保します。`POST /api/sites` の応答が途切れた場合は `GET /api/sites/[id]` でサイトが作成されたかを確認します。その後、アセットのアップロード、文書の保存（`PUT /api/doc`）、サイト名の更新（`PATCH /api/sites/[id]`）の順に処理します。文書の保存を開始する前に処理が失敗した場合は、確保した空のサイトを削除します。保存開始後は、応答を受け取れなくても文書が保存されている可能性があるため、サイトを削除しません。
 - **ブラウザに保存する場合**：インポート・作成・複製・設定の更新・削除・編集時刻の更新は、いずれもタブ間で共有するロックを取ってからサイト一覧に書き込みます。そのため、同時に開いた別のタブの変更も失われません。
 
 ファイルの種類ごとの処理は次のとおりです。
 
-- **Tsumu の zip・`doc.json`**（`lib/site-import.ts`）：zip には `_tsumu/doc.json` が1つのみ含まれている必要があります。`_tsumu/assets.json` は、元のアセットの ID とアーカイブ内のファイルを対応付けます。読み込む際は文書を検証し、アセットを元の ID のまま再アップロードします。パスは推測しないため、対応表になく data URL もないアセットは復元せず、注意事項として表示します。ルートの外を指すパスは受け付けません。
+- **Tsumu の zip・`doc.json`**（`lib/site-import.ts`）：zip には `_tsumu/doc.json` が1つだけ必要です。`_tsumu/assets.json` は各アセットの ID とアーカイブ内のファイルパスを対応付けます。対応表に必要な ID が欠けていれば読み込みを中止します。読み込み時には文書を検証し、アセットを元の ID のまま再アップロードします。対応表が指定するファイルが見つからず、文書に data URL もない場合、そのアセットは復元せずに警告を表示します。ルートの外を指すパスは受け付けません。
 - **HTML ファイル・ウェブサイトの zip**（`lib/html-to-site.ts`）：すべてのページを編集可能なノードに変換します（取り込んだ JS モジュール内の相対 `import` 指定子は `lib/generator/imported-assets.ts` で生成アセットの URL に対応付けます）。クラスと安全な一部の属性は保持し（`lib/imported-html-attrs.ts`）、イベント属性、URL を含む属性、Tsumu 内部の `data-*` 属性は引き継ぎません。
 - **上限**（`IMPORT_LIMITS`）：zip は100MB、`doc.json` と HTML ファイルは12MB、展開後は1,500ファイル・300MBまでです。
 
@@ -163,7 +164,7 @@ Git のロールバック（`app/api/publish/history/route.ts`・`app/api/publis
 
 `lib/html-zip.ts` は、ZIP にまとめたサイト（200ファイルまで）を読み込みます。元のファイルはそのまま保存し、それとは別に、`lib/zip-css.ts` が CSS ファイルごとに、依存するファイルのアーカイブ内のパスを記録します。記録の対象は相対パスの `url()`、`image-set()` の画像、`@import` で、いずれもスタイルシートのあるディレクトリを基準に解決します（`lib/zip-references.ts`）。
 
-- **プレビュー**：スタイルシートを個別に扱うため、読み込みの順序・条件・レイヤーが保たれます。依存ファイルは、サーバーの保存先にある場合は署名付き URL で、ブラウザ内の保存先にある場合は data URL で渡します。空のシートに置き換えるのは、自身の祖先を参照する `@import` だけです。署名付き URL の期限が近づくと、自動では再読み込みせず、更新を促す表示を出します。再読み込みすると、フォームやスクリプトの状態が失われるためです。
+- **プレビュー**：スタイルシートを個別に扱い、読み込みの順序・条件・レイヤーを保ちます。依存ファイルの参照には、保存先がサーバーなら署名付き URL、ブラウザなら data URL を使います。読み込み元をたどって同じスタイルシートに戻る `@import` だけを空のシートに置き換えます。再読み込みするとフォームやスクリプトの状態が失われるため、署名付き URL の期限が近づいたときは利用者に更新を促し、自動では再読み込みしません。
 - **書き出し**：CSS ファイルはそれぞれ UTF-8 の個別ファイルとして出力し、参照先を生成したアセットのファイル名に書き換えます。integrity のハッシュを削除するのは、読み込んだローカルの CSS のうち、書き換えで内容が変わるものへのリンクだけです。
 - **コピーと不要ファイルの削除**：ページをコピーするときは、スタイルシートの依存ファイルも一緒にコピーします。未使用のアセットを削除するときも、使用中のスタイルシートが依存するファイルは残します。
 - **スクリプトと書き換えの対象外**：外部の `<base>` タグが無い場合、インラインの実行対象 `<script>` 内でアーカイブ内のファイルに一致する文字列リテラルは `lib/html-zip-script-assets.ts` がプレビュー・書き出し用の URL に書き換えます。外部 `<script src>` のモジュール本体、コメント、正規表現、式を含むテンプレート文字列、存在しないファイルへの参照、外部の URL は変更しません。アーカイブの外を指すルート相対・プロトコル相対の URL は、プレビュー時に限り絶対 URL に変換します。
@@ -174,8 +175,8 @@ Git のロールバック（`app/api/publish/history/route.ts`・`app/api/publis
 AI が文書を直接変更することはありません。処理の流れは次のとおりです。
 
 1. AI は、編集操作の一覧（`lib/aiOps.ts` の `AiOp`）を返します。
-2. サーバーがそれらをページの複製に試しに適用します。存在しないノードの参照などで失敗した操作があれば、エラーを AI に返して修正させます。
-3. 正常に適用できた操作だけをブラウザに送ります。ブラウザは同じ関数で、1回で元に戻せる変更として適用します。
+2. サーバーはページを複製し、その複製に編集操作を適用します。存在しないノードを参照するなど、適用できない操作があれば、エラーを AI に返して修正を求めます。
+3. サーバーは正常に適用できた操作だけをブラウザに送ります。ブラウザはサーバーと同じ関数で操作を適用し、一連の変更を1回で元に戻せるようにします。
 
 AI の処理中に利用者が同じページを編集した場合、AI の変更は破棄します。
 

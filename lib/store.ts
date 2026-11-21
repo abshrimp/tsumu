@@ -24,7 +24,7 @@ import {
   isHiddenAt,
   nextHiddenOn,
 } from "./style";
-import { retargetPageUrl } from "./vars";
+import { createPageUrlRetargeter } from "./vars";
 import { mergeDocs, rebaseNodePatch } from "./merge";
 import type { DocPatch } from "./doc-patch";
 import { showAlert, showConfirm } from "./dialog";
@@ -44,7 +44,7 @@ import {
   type ClipPayload,
 } from "./clip-transfer";
 import { storageKey } from "./storage-keys";
-import { cloneScripts, remapPageLinks, stripDeletedPageScripts, withPageScripts, type PageScript } from "./script";
+import { cloneScripts, remapPageLinks, stripDeletedPageScripts, walkSteps, withPageScripts, type PageScript } from "./script";
 import { MAX_NODE_DEPTH, maxSubtreeDepth, validSiteDoc } from "./doc-tree";
 import { sameDocContent, shareUnchangedDoc } from "./doc-share";
 import { extractAssetReferences } from "./asset-gc-plan";
@@ -599,23 +599,15 @@ function retargetPageUrls(
   before: { id: string; slug: string; query?: string },
   page: Page
 ) {
-  const others = Object.values(doc.pages);
-  const fix = (url: string) => retargetPageUrl(url, before, page, others) ?? url;
-  const fixSteps = (steps: ScriptStep[]) => {
-    for (const st of steps) {
-      if (st.kind === "open-url") st.url = fix(st.url);
-      else if (st.kind === "if") {
-        fixSteps(st.then);
-        if (st.else) fixSteps(st.else);
-      }
-      else if (st.kind === "repeat" || st.kind === "for-each") fixSteps(st.then);
-    }
-  };
+  const fix = createPageUrlRetargeter(before, page, doc.pageOrder.map(id => doc.pages[id]));
+  const fixSteps = (steps: ScriptStep[]) => walkSteps(steps, step => {
+    if (step.kind === "open-url") step.url = fix(step.url);
+  });
   for (const node of Object.values(doc.nodes)) {
     if (node.link?.kind === "url" && node.link.url) node.link.url = fix(node.link.url);
     for (const sc of node.scripts ?? []) fixSteps(sc.steps);
   }
-  for (const p of others) {
+  for (const p of Object.values(doc.pages)) {
     for (const sc of p.pageScripts ?? []) fixSteps(sc.steps);
     if (p.id === page.id) continue;
     if (p.redirectTo) p.redirectTo = fix(p.redirectTo);

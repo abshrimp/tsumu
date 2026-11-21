@@ -5,6 +5,8 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "tsumu",
 	"main": "workers/custom-worker.ts",
+	// Public hosted-editor identity, used in the browser build; customize for another host.
+	"vars": { "NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN": "https://tsumu.ebii.net" },
 	// 03:00 JST daily: expired D1 candidates only. Monday 04:00 JST:
 	// reconcile one KV page to find upload/site-delete orphans (no daily full scan).
 	// Physical deletion is opt-in (ASSET_GC_ENABLED=true).

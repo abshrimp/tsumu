@@ -23,6 +23,16 @@ export function knownReconnectSite(siteId: string): boolean {
   catch { return false; }
 }
 
+export function markRevocationPending(siteId: string): void {
+  try { window.localStorage.setItem(siteHintKey(siteId), "revoke"); }
+  catch { forgetReconnectSite(siteId); }
+}
+
+export function hasRevocationMarker(siteId: string): boolean {
+  try { return window.localStorage.getItem(siteHintKey(siteId)) === "revoke"; }
+  catch { return false; }
+}
+
 export function forgetReconnectSite(siteId: string): void {
   try { window.localStorage.removeItem(siteHintKey(siteId)); }
   catch { /* Server-side revocation still applies. */ }

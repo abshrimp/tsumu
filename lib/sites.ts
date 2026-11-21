@@ -75,53 +75,31 @@ export async function getSiteRoomKey(db: Db, siteId: string): Promise<string | n
 
 const DUPLICATE_REPO_ERROR = "This repository is already used by another site";
 
-async function hasDuplicateSiteRepo(db: Db, id: string, provider: string, repo: string | null): Promise<boolean> {
-  if (!repo) return false;
-  const conflict = await db.execute({
-    sql: "SELECT 1 FROM sites WHERE id <> ? AND git_provider = ? AND lower(repo) = lower(?) LIMIT 1",
-    args: [id, provider, repo],
-  });
-  return conflict.rows.length > 0;
+/** Keep the public error stable while leaving unrelated database failures intact. */
+function rethrowSiteWriteError(error: unknown): never {
+  if (error instanceof Error && error.message.includes("UNIQUE constraint failed: sites.git_provider, sites.repo")) {
+    throw new Error(DUPLICATE_REPO_ERROR);
+  }
+  throw error;
 }
 
 export async function insertSite(db: Db, id: string, v: Pick<SiteRecord, "name" | keyof SiteDest>, ownerEmail: string | null = null): Promise<string | null> {
-  const provider = v.gitProvider ?? "github";
-  if (await hasDuplicateSiteRepo(db, id, provider, v.repo)) throw new Error(DUPLICATE_REPO_ERROR);
   const now = Date.now();
-  const site = {
+  const roomKey = db.backend === "d1" ? crypto.randomUUID() : null;
+  const statements = [{
     sql: `INSERT INTO sites (id, name, repo, git_provider, branch, preview_branch, site_url, preview_url, created_at, updated_at)
-      SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-      WHERE ? IS NULL OR NOT EXISTS (
-        SELECT 1 FROM sites other WHERE other.id <> ? AND other.git_provider = ? AND lower(other.repo) = lower(?)
-      )`,
-    args: [id, v.name, v.repo, provider, v.branch, v.previewBranch, v.siteUrl, v.previewUrl, now, now,
-      v.repo, id, provider, v.repo],
-  };
-  const createdGate = "EXISTS (SELECT 1 FROM sites WHERE id = ?)";
-  const membership = ownerEmail ? [{
-    sql: `INSERT INTO site_members(site_id,email,role) SELECT ?,?,'owner' WHERE ${createdGate}`,
-    args: [id, ownerEmail.toLowerCase(), id],
-  }] : [];
-  if (db.backend === "d1") {
-    const roomKey = crypto.randomUUID();
-    const results = await db.batch([
-      site,
-      { sql: `INSERT INTO site_document_rooms(site_id, room_key) SELECT ?, ? WHERE ${createdGate}`, args: [id, roomKey, id] },
-      ...membership,
-    ]);
-    if (!results[0]?.rowsAffected) {
-      if (await hasDuplicateSiteRepo(db, id, provider, v.repo)) throw new Error(DUPLICATE_REPO_ERROR);
-      throw new Error("サイトを作成できませんでした。");
-    }
-    // 呼び出し元の初期保存と取り消しには、作成した世代のキーだけを使う。
-    return roomKey;
-  }
-  const inserted = membership.length ? (await db.batch([site, ...membership]))[0] : await db.execute(site);
-  if (!inserted?.rowsAffected) {
-    if (await hasDuplicateSiteRepo(db, id, provider, v.repo)) throw new Error(DUPLICATE_REPO_ERROR);
-    throw new Error("サイトを作成できませんでした。");
-  }
-  return null;
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    args: [id, v.name, v.repo, v.gitProvider ?? "github", v.branch, v.previewBranch, v.siteUrl, v.previewUrl, now, now],
+  }];
+  if (roomKey) statements.push({
+    sql: "INSERT INTO site_document_rooms(site_id,room_key) VALUES(?,?)", args: [id, roomKey],
+  });
+  if (ownerEmail) statements.push({
+    sql: "INSERT INTO site_members(site_id,email,role) VALUES(?,?,'owner')", args: [id, ownerEmail.toLowerCase()],
+  });
+  // A conflicting site ID or destination aborts the transaction before any ownership is granted.
+  await db.batch(statements).catch(rethrowSiteWriteError);
+  return roomKey;
 }
 
 /** 検証した設定に対してだけ保存する。競合する更新は、呼び出し元が再試行する。 */
@@ -132,15 +110,12 @@ export async function updateSite(
   const provider = v.gitProvider ?? "github";
   const result = await db.execute({
     sql: `UPDATE sites SET name = ?, repo = ?, git_provider = ?, branch = ?, preview_branch = ?, site_url = ?, preview_url = ?, updated_at = ?
-      WHERE id = ? AND name IS ? AND repo IS ? AND git_provider IS ? AND branch IS ? AND preview_branch IS ? AND site_url IS ? AND preview_url IS ?
-      AND (? IS NULL OR NOT EXISTS (SELECT 1 FROM sites other WHERE other.id <> ? AND other.git_provider = ? AND lower(other.repo) = lower(?)))`,
+      WHERE id = ? AND name IS ? AND repo IS ? AND git_provider IS ? AND branch IS ? AND preview_branch IS ? AND site_url IS ? AND preview_url IS ?`,
     args: [v.name, v.repo, provider, v.branch, v.previewBranch, v.siteUrl, v.previewUrl, Date.now(), id,
       expected.name, expected.repo, expected.gitProvider ?? "github", expected.branch, expected.previewBranch, expected.siteUrl, expected.previewUrl,
-      v.repo, id, provider, v.repo],
-  });
-  if (result.rowsAffected > 0) return true;
-  if (await hasDuplicateSiteRepo(db, id, provider, v.repo)) throw new Error(DUPLICATE_REPO_ERROR);
-  return false;
+    ],
+  }).catch(rethrowSiteWriteError);
+  return result.rowsAffected > 0;
 }
 
 /** 呼び出し元が見た世代だけを削除する。Cloudflare での後始末は

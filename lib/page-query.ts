@@ -10,6 +10,20 @@ export function pageQueryConditions(query: string | undefined): [string, string]
   return [...conditions];
 }
 
+/** 公開サイトと同じく、クエリの条件が最も多く一致するページを選ぶ。 */
+export function queryPage<T extends { query?: string }>(pages: T[], query: URLSearchParams): T | undefined {
+  let best = pages[0];
+  let score = -1;
+  for (const page of pages) {
+    const conditions = pageQueryConditions(page.query);
+    if (conditions.length > score && conditions.every(([key, value]) => query.get(key) === value)) {
+      best = page;
+      score = conditions.length;
+    }
+  }
+  return best;
+}
+
 /**
  * ページの URL から、app/ の下のフォルダ名を作る。「_」で始まるフォルダは Next.js では
  * 非公開のフォルダ（URL にならない）になるため、URL の「_」を表す %5F で始める

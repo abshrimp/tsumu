@@ -1,12 +1,11 @@
 "use client";
 
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { signOut } from "next-auth/react";
 import {
   CircleHelp,
   Cable,
   Download,
-  FileText,
   Globe,
   History,
   LayoutGrid,
@@ -21,6 +20,7 @@ import {
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
+  Pencil,
   PenTool,
   Play,
   Redo2,
@@ -44,13 +44,13 @@ import { toggleAi, useAi, useAiAvailability } from "../lib/ai-store";
 import { toggleCommentMode, useComments } from "../lib/comment-store";
 import { useEscapeToClose } from "../lib/use-escape-to-close";
 import SafeBoundary from "./SafeBoundary";
-import { showPrompt } from "../lib/dialog";
+import { showAlert, showPrompt } from "../lib/dialog";
 import { BP_INFO, BP_ORDER, breakpointForWidth, DEVICE_WIDTHS, parseNumeric } from "../lib/style";
 import { BpIcon, Dropdown, NumField } from "./controls";
 import { tr } from "../lib/i18n";
 import LanguageSelector from "./LanguageSelector";
 import ModalHeading from "./ModalHeading";
-import { currentSiteId } from "../lib/site";
+import { currentSiteId, renameSiteRecord } from "../lib/site";
 import type { SiteRole } from "../lib/site-model";
 
 const ExternalEditConnection = lazy(() => import("./ExternalEditConnection"));
@@ -220,44 +220,81 @@ function LogoutModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** The header shows the site identity, not an alternative page selector. */
+function HeaderSiteName({ name, editable, onRename }: {
+  name: string;
+  editable: boolean;
+  onRename: (name: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const cancelled = useRef(false);
+  const finish = (value: string) => {
+    setEditing(false);
+    if (cancelled.current) {
+      cancelled.current = false;
+      return;
+    }
+    const renamed = value.trim();
+    if (editable && renamed && renamed !== name) {
+      setSaving(true);
+      void Promise.resolve(onRename(renamed)).finally(() => setSaving(false));
+    }
+  };
+
+  return (
+    <div className="hdr-page">
+      {editing && editable ? (
+        <input
+          autoFocus
+          className="hdr-site-name-input"
+          aria-label={tr("Site name")}
+          defaultValue={name}
+          maxLength={100}
+          onFocus={(event) => event.currentTarget.select()}
+          onBlur={(event) => finish(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              cancelled.current = true;
+              event.currentTarget.blur();
+            } else if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              event.currentTarget.blur();
+            }
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          className="hdr-site-name"
+          aria-label={tr("Site name") + ": " + name}
+          title={editable ? tr("Rename") : name}
+          disabled={!editable || saving}
+          onClick={() => setEditing(true)}
+        >
+          <span className="hdr-site-name-text">{name}</span>
+          {saving ? <LoaderCircle size={12} className="spin" aria-hidden />
+            : editable && <Pencil size={12} className="hdr-site-name-pencil" aria-hidden />}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function Header({
   panels,
   onTogglePanel,
   siteRole,
+  siteName,
 }: {
   /** 左右のパネルが開いているか */
   panels: { l: boolean; r: boolean };
   onTogglePanel: (side: "l" | "r") => void;
   siteRole: SiteRole | null;
+  siteName: string | null;
 }) {
-  const pages = useEditor((s) => s.doc.pages);
-  const pageOrder = useEditor((s) => s.doc.pageOrder);
-  const folders = useEditor((s) => s.doc.pageFolders);
-  const loadingScreen = useEditor((s) => s.doc.loadingScreen);
-  const pageOptions = useMemo(() => {
-    const folderNames = new Map(folders?.map((folder) => [folder.id, folder.name]));
-    const options = pageOrder.map((id) => {
-      const page = pages[id];
-      const folder = page.folderId && folderNames.get(page.folderId);
-      return {
-        value: id,
-        label: page.unpublished ? tr("{name} (unpublished)", { name: page.name }) : page.name,
-        desc: `${folder ? folder + " · " : ""}/${page.slug}`,
-        icon: <FileText size={13} />,
-      };
-    });
-    if (loadingScreen?.enabled && loadingScreen.pageId && pages[loadingScreen.pageId]) {
-      options.unshift({
-        value: loadingScreen.pageId,
-        label: tr("Loading screen"),
-        desc: tr("Site-wide"),
-        icon: <LoaderCircle size={13} />,
-      });
-    }
-    return options;
-  }, [pages, pageOrder, folders, loadingScreen]);
-  const activePageId = useEditor((s) => s.activePageId);
-  const setActivePage = useEditor((s) => s.setActivePage);
   const breakpoint = useEditor((s) => s.breakpoint);
   const setBreakpoint = useEditor((s) => s.setBreakpoint);
   const customWidth = useEditor((s) => s.customWidth);
@@ -289,7 +326,23 @@ export default function Header({
   const [mcpOpen, setMcpOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const status = useServerStatus();
-  const siteName = useEditor((s) => s.doc.siteName);
+  // SiteRecord.name is shown on Home. SiteDoc.siteName is a separate
+  // published-page field and must not be changed by renaming the site card.
+  const [recordName, setRecordName] = useState<string | null>(siteName);
+  useEffect(() => setRecordName(siteName), [siteName]);
+  const canRenameSite = !!recordName && status?.role !== "viewer" &&
+    (status?.db === false || (status?.db === true && (siteRole === "owner" || siteRole === "editor")));
+  const renameRecord = async (name: string) => {
+    try {
+      if (status?.db === undefined || !recordName) return;
+      const savedName = await renameSiteRecord(currentSiteId(), name, status.db);
+      setRecordName(savedName);
+      document.title = `${savedName} | Tsumu`;
+    } catch (error) {
+      void showAlert(tr(error instanceof Error ? error.message : "Couldn't save"),
+        { title: tr("Couldn't save") });
+    }
+  };
   const permissionsAvailable = status?.auth === true && status.db === true;
   const canManageMembers = permissionsAvailable && status?.role === "editor" && siteRole === "owner";
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -348,14 +401,11 @@ export default function Header({
             {panels.l ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
           </button>
         )}
-        <div className="hdr-page" data-tutorial="pages">
-          <Dropdown
-            value={activePageId}
-            options={pageOptions}
-            onChange={setActivePage}
-            menuWidth={200}
-          />
-        </div>
+        <HeaderSiteName
+          name={recordName ?? tr("Site name")}
+          editable={canRenameSite}
+          onRename={renameRecord}
+        />
         <div className="hdr-sep" />
         <button
           className="icon-btn"
@@ -656,7 +706,7 @@ export default function Header({
       {membersOpen && (
         <SafeBoundary label={tr("Members and permissions")} onClose={() => setMembersOpen(false)}>
           <Suspense fallback={<ModalLoading onClose={() => setMembersOpen(false)} />}>
-            <SiteMembers siteId={currentSiteId()} siteName={siteName} onClose={() => setMembersOpen(false)} />
+            <SiteMembers siteId={currentSiteId()} siteName={recordName ?? tr("Site name")} onClose={() => setMembersOpen(false)} />
           </Suspense>
         </SafeBoundary>
       )}

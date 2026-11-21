@@ -43,6 +43,7 @@ export const SITE_SCOPED_KEYS = [
   storageKey("unsynced-v1"),
   storageKey("comments-v1"),
   storageKey("netlify-publish-v1"),
+  storageKey("mcp-reconnect-known-v1"),
   storageKey("scroll-v1"),
   storageKey("collapsed-v1"),
   storageKey("page-folders-closed-v1"),
@@ -113,6 +114,39 @@ export function saveLocalSites(list: SiteRecord[]): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Rename the site card shown on Home without modifying SiteDoc.siteName.
+ * Server-backed sites use the same PATCH endpoint as Home settings; browser-
+ * only sites update the locked site-list record and retain the existing doc.
+ */
+export async function renameSiteRecord(id: string, name: string, serverBacked: boolean): Promise<string> {
+  if (!isSiteId(id)) throw new Error("Invalid site");
+  const cleaned = name.trim();
+  if (!cleaned) throw new Error("Enter a site name");
+  if (cleaned.length > 100) throw new Error("Site names can be up to 100 characters");
+
+  if (serverBacked) {
+    const response = await fetch(`/api/sites/${encodeURIComponent(id)}`, {
+      method: "PATCH", credentials: "same-origin", redirect: "error",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: cleaned }),
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok || typeof data?.site?.name !== "string" || !data.site.name.trim()) {
+      throw new Error(typeof data?.error === "string" ? data.error : "Couldn't save");
+    }
+    return data.site.name;
+  }
+  return withLocalSiteListLock(() => {
+    const sites = loadLocalSites({ strict: true });
+    if (!sites.some((site) => site.id === id)) throw new Error("Site not found");
+    const updated = sites.map((site) =>
+      site.id === id ? { ...site, name: cleaned, updatedAt: Date.now() } : site);
+    if (!saveLocalSites(updated)) throw new Error("Couldn't save");
+    return cleaned;
+  });
 }
 
 /** いま開いているサイトの最終編集時刻を、ブラウザの中のサイトの一覧に記録する */

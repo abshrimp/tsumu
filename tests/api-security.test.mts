@@ -883,7 +883,7 @@ describe("api-json-limits", () => {
   }
   const tr = async () => (s: string) => s;
 
-  function signingFixture({ authorized = true, serverBacked = false, token = "exp=123&sig=example" }: {
+  function signingFixture({ authorized = true, serverBacked = true, token = "exp=123&sig=example" }: {
     authorized?: boolean; serverBacked?: boolean; token?: string | null;
   } = {}) {
     const signed: string[] = [];
@@ -892,6 +892,7 @@ describe("api-json-limits", () => {
       "next/server": { NextResponse },
       "../../../../lib/i18n-server": { serverTr: tr },
       "../../../../lib/server": { requireAuth: async () => authorized ? null : NextResponse.json({ error: "Unauthorized" }, { status: 401 }) },
+      "../../../../lib/unavailable": { dbUnavailable: async () => new NextResponse(null, { status: 503 }) },
       "../../../../lib/db": { dbConfigured: () => serverBacked, getDb: async () => ({}) },
       "../../../../lib/site-server": { siteIdOf: async (site: string) => site },
       "../../../../lib/site-access": { requireSiteAccess: async () => null },
@@ -914,7 +915,7 @@ describe("api-json-limits", () => {
 
   test("asset signing accepts a valid request and enforces authorization", async () => {
     const { POST, signed } = signingFixture();
-    const good = await POST(jsonRequest('{"paths":["assets/a.png","assets/a.png"]}'));
+    const good = await POST(jsonRequest('{"site":"site-a","paths":["assets/a.png","assets/a.png"]}'));
     assert.equal(good.status, 200);
     assert.deepEqual((await good.json()).urls, {
       "assets/a.png": "/api/assets/file?path=assets%2Fa.png&exp=123&sig=example",
@@ -923,6 +924,9 @@ describe("api-json-limits", () => {
     const denied = signingFixture({ authorized: false });
     assert.equal((await denied.POST(jsonRequest('{"paths":["assets/a.png"]}'))).status, 401);
     assert.deepEqual(denied.signed, []);
+    const local = signingFixture({ serverBacked: false });
+    assert.equal((await local.POST(jsonRequest('{"site":"site-a","paths":["assets/a.png"]}'))).status, 503);
+    assert.deepEqual(local.signed, []);
   });
 
   test("unsigned preview URLs carry their verified site and ownership is checked per batch", async () => {
@@ -1100,10 +1104,10 @@ test("Google sign-in requires a verified profile email and checks live sessions 
 });
 
 test("connection permission checks fail closed when the allowlist is unavailable", async () => {
-  const unavailable = async (): Promise<string[]> => { throw new Error("offline"); };
+  const unavailable = async (): Promise<boolean> => { throw new Error("offline"); };
   assert.equal(await isEmailAllowed("editor@example.com", [], unavailable), false);
   assert.equal(await isEmailAllowed("owner@example.com", ["owner@example.com"], unavailable), true);
-  assert.equal(await isEmailAllowed(undefined, [], async () => []), false);
+  assert.equal(await isEmailAllowed(undefined, [], unavailable), false);
 });
 });
 
@@ -1877,7 +1881,7 @@ describe("security", () => {
     };
     try {
       const code = { ...makeBox(), id: "c", name: "Widget", type: "code" as const, code: { html: "<img src=x onerror=alert(1)>" } };
-      const raw = JSON.stringify({ v: 1, site: "evil", breakpoints: [{ id: "lg", label: "タブレット", maxWidth: 1024 }], nodes: [code], rootIds: ["c"], assets: {}, components: {}, componentNodes: [], customFonts: [], adobeFonts: [] });
+      const raw = JSON.stringify({ v: 1, site: "evil", breakpoints: [{ id: "lg", label: "タブレット", maxWidth: 1024 }], nodes: [code], rootIds: ["c"], assets: {}, components: {}, componentNodes: [], customFonts: [], adobeFonts: [], uploadedFonts: [] });
       const payload = parseClipPayload(raw)!;
       assert.ok(payload);
       assert.equal(isOwnClip(raw), false);
@@ -2141,7 +2145,7 @@ describe("security", () => {
       },
       components: {},
       componentNodes: [],
-      customFonts: [], adobeFonts: [],
+      customFonts: [], adobeFonts: [], uploadedFonts: [],
     });
     assert.deepEqual(Object.keys(doc.assets), ["goodPng"]);
 

@@ -4,6 +4,7 @@ import { pendingImportBundle } from "../tests/helpers/pending-import";
 let bundle: string;
 test.beforeAll(async () => { bundle = await pendingImportBundle(); });
 test.beforeEach(async ({ page }) => {
+  await page.route("http://pending-import.test/api/status", route => route.fulfill({ json: { assets: true } }));
   await page.route("http://pending-import.test/", (route) => route.fulfill({ contentType: "text/html", body: '<html><body><div id="app"></div></body></html>' }));
   await page.goto("http://pending-import.test/");
   await page.addScriptTag({ content: bundle });

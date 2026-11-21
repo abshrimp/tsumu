@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { PHASE_DEVELOPMENT_SERVER } from "next/constants.js";
-import { OFFICIAL_EDITOR_HOST, OFFICIAL_MCP_ORIGIN, OFFICIAL_SITE_DIRECTORY_PATH } from "./lib/external-edit/official.mjs";
+import { configuredHostedEditorOrigin, trustedMcpOrigin, OFFICIAL_SITE_DIRECTORY_PATH } from "./lib/external-edit/official.mjs";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -8,6 +8,12 @@ const nextConfig = {
   // Docker では、必要なファイルだけを .next/standalone にまとめる（Dockerfile）
   output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
   async headers() {
+    const origin = configuredHostedEditorOrigin();
+    const relay = trustedMcpOrigin();
+    const trusted = origin && relay ? new URL(origin) : null;
+    const hostPattern = trusted ?
+      "^" + RegExp.escape(trusted.host) +
+      (trusted.protocol === "https:" && !trusted.port ? "(?::443)?" : "") + "$" : null;
     return [
       {
         // エディタは、検索エンジンに一切載せない
@@ -21,22 +27,21 @@ const nextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
         ],
       },
-      {
-        // Only the official editor may expose its inert site directory to the
-        // trusted OAuth relay. Self-hosted installations never get this exception.
+      ...(hostPattern ? [{
+        // Only the configured host may frame its directory for the relay.
         source: OFFICIAL_SITE_DIRECTORY_PATH,
-        has: [{ type: "host", value: OFFICIAL_EDITOR_HOST }],
+        has: [{ type: "host", value: hostPattern }],
         headers: [
-          { key: "Content-Security-Policy", value: `frame-ancestors ${OFFICIAL_MCP_ORIGIN}` },
+          { key: "Content-Security-Policy", value: `frame-ancestors ${relay}` },
           { key: "Referrer-Policy", value: "no-referrer" },
           { key: "Cache-Control", value: "private, no-store" },
         ],
-      },
+      }] : []),
       {
         // On all other hosts, the directory remains subject to the same
         // clickjacking protection as normal editor pages.
         source: OFFICIAL_SITE_DIRECTORY_PATH,
-        missing: [{ type: "host", value: OFFICIAL_EDITOR_HOST }],
+        ...(hostPattern ? { missing: [{ type: "host", value: hostPattern }] } : {}),
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
@@ -45,7 +50,7 @@ const nextConfig = {
       },
       {
         // 他のサイトの iframe や埋め込みからの遷移でエディタを重ねて押させること（クリックジャッキング）を防ぐ
-        source: "/((?!api/assets/file|mcp/sites-bridge).*)",
+        source: "/((?!(?:api/assets/file|mcp/sites-bridge)/?$).*)",
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },

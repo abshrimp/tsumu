@@ -1,6 +1,7 @@
 import { describe, before, test, afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { ZipArchive } from "../lib/zip";
+import { tr } from "../lib/i18n";
 import { exportProjectZip } from "../lib/exportZip";
 import { generateExportProject } from "../lib/export-formats";
 import { parseSiteImport, restoreImportAssets } from "../lib/site-import";
@@ -23,7 +24,8 @@ import { type KVLikeNamespace } from "../lib/kv";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { nodeDatabase } from "../lib/node-storage";
+import { nodeAssetStore, nodeDatabase } from "../lib/node-storage";
+import { siteHasAsset, siteOwnsAssets } from "../lib/site-asset-access";
 import { transformSync } from "./helpers/bundle";
 import { readAssetLedger, recordUploadedAsset } from "../lib/asset-ledger";
 import { computeStorageUsage } from "../lib/storage-usage";
@@ -130,6 +132,7 @@ test("4000 nested nodes, 160 scripts and binary assets survive JSON, ZIP, restor
   Object.assign(globalThis, {
     document: { createElement: () => ({ href: "", download: "", click() {} }) },
     fetch: async (input: string, init?: RequestInit) => {
+      if (input === "/api/status") return Response.json({ assets: true });
       if (input.startsWith("/api/assets/file?")) {
         const path = new URL(input, "https://editor.test").searchParams.get("path")!;
         assert.ok(stored.has(path));
@@ -1224,8 +1227,9 @@ class NextResponse extends Response {
   }
 }
 
-function assetDeleteRoute({ backend = "d1", configured = true, siteExists = true, browserReferenced = false, sqliteDb }:
-  { backend?: "d1" | "sqlite"; configured?: boolean; siteExists?: boolean; browserReferenced?: boolean; sqliteDb?: Db } = {}) {
+function assetDeleteRoute({ backend = "d1", configured = true, siteExists = true, browserReferenced = false, sqliteDb, deleteFile }:
+  { backend?: "d1" | "sqlite"; configured?: boolean; siteExists?: boolean; browserReferenced?: boolean; sqliteDb?: Db;
+    deleteFile?: (path: string) => Promise<void> } = {}) {
   const source = readFileSync(new URL("../app/api/assets/route.ts", import.meta.url), "utf8");
   const { code } = transformSync(source, { loader: "ts", format: "cjs", target: "es2022" });
   let registered = 0, deleted = 0, otherSiteReads = 0;
@@ -1238,6 +1242,7 @@ function assetDeleteRoute({ backend = "d1", configured = true, siteExists = true
       if (typeof stmt === "object" && stmt.sql.includes("FROM docs")) otherSiteReads++;
       return { rows: [], rowsAffected: 0 };
     },
+    batch(stmts: { sql: string; args: unknown[] }[]) { return Promise.all(stmts.map(stmt => this.execute(stmt))); },
   };
   const stubs: Record<string, unknown> = {
     "next/server": { NextResponse },
@@ -1248,14 +1253,14 @@ function assetDeleteRoute({ backend = "d1", configured = true, siteExists = true
     "../../../lib/i18n-server": { serverTr: async () => (message: string) => message },
     "../../../lib/server": { requireAuth: async () => null, sessionUser: async () => null },
     "../../../lib/site-access": { requireSiteAccess: async () => null },
-    "../../../lib/site-asset-access": {
+    "../../../lib/site-asset-access": sqliteDb?.backend === "sqlite" ? { siteHasAsset, siteOwnsAssets } : {
       siteHasAsset: async () => true,
       siteOwnsAssets: async (_db: unknown, _site: string, paths: string[]) => !paths.includes("assets/unowned.png"),
     },
     "../../../lib/site-model": { isSiteId: () => true },
     "../../../lib/auth": { authConfigured: () => false },
     "../../../lib/allowlist": { allowedEmails: () => [] },
-    "../../../lib/kv": { assetStore: () => ({ async delete() { deleted++; } }), MAX_ASSET_BYTES: 25 * 1024 * 1024 },
+    "../../../lib/kv": { assetStore: () => configured ? { async delete(path: string) { await deleteFile?.(path); deleted++; } } : null, MAX_ASSET_BYTES: 25 * 1024 * 1024 },
     "../../../lib/errors": { userMessage: (_e: unknown, fallback: string) => fallback },
     "../../../lib/db": { dbConfigured: () => configured, getDb: async () => sqliteDb ?? db },
     "../../../lib/asset-upload": { readAssetForm: async () => null },
@@ -1288,10 +1293,12 @@ function assetDeleteRoute({ backend = "d1", configured = true, siteExists = true
     },
     mod, mod.exports,
   );
-  const endpoint = "https://example.com/api/assets?site=s1&path=assets%2Fmuhmi2o0abcdef-photo.png"
-    + (browserReferenced ? "&browserReferenced=1" : "");
   return {
-    call: () => mod.exports.DELETE(new Request(endpoint, { method: "DELETE" })),
+    call: (site = "s1", path = "assets/muhmi2o0abcdef-photo.png") => {
+      const params = new URLSearchParams({ site, path });
+      if (browserReferenced) params.set("browserReferenced", "1");
+      return mod.exports.DELETE(new Request(`https://example.com/api/assets?${params}`, { method: "DELETE" }));
+    },
     patch: (body: unknown) => mod.exports.PATCH(new Request("https://example.com/api/assets", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -1349,19 +1356,13 @@ test("Node/Docker continue their cross-site reference check on direct deletion",
   assert.equal(f.registered(), 0);
 });
 
-for (const browserReferenced of [true, false]) {
-  test(`KV-only deletion ${browserReferenced ? "retains a file referenced by another browser site" : "deletes an unreferenced file"}`, async () => {
-    const f = assetDeleteRoute({ configured: false, browserReferenced });
-    const response = await f.call();
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), browserReferenced ? { ok: true, kept: true } : { ok: true });
-    assert.equal(f.deleted(), browserReferenced ? 0 : 1);
-    assert.equal(f.registered(), 0);
-    assert.equal(f.otherSiteReads(), 0);
-  });
-}
+test("browser-only storage cannot delete shared files", async () => {
+  const f = assetDeleteRoute({ configured: false });
+  assert.equal((await f.call()).status, 503);
+  assert.equal(f.deleted(), 0);
+});
 
-test("Node/Docker retain files referenced only by another site's HTML or CSS, with exact path matching", async () => {
+test("Node/Docker preserve pending transfers and other sites' exact saved asset references until released", async () => {
   const previous = process.env.TSUMU_DATA_DIR;
   const dir = mkdtempSync(join(tmpdir(), "tsumu-shared-asset-"));
   process.env.TSUMU_DATA_DIR = dir;
@@ -1369,7 +1370,7 @@ test("Node/Docker retain files referenced only by another site's HTML or CSS, wi
     const db = await getDbFromBinding(nodeDatabase()!);
     const path = "assets/muhmi2o0abcdef-photo.png";
     const url = "/api/assets/file?path=" + encodeURIComponent(path);
-    await db.execute("INSERT INTO sites(id, name, branch, preview_branch, created_at, updated_at) VALUES ('other', 'Other', 'main', 'preview', 0, 0)");
+    await db.execute("INSERT INTO sites(id, name, branch, preview_branch, created_at, updated_at) VALUES ('s1', 'Source', 'main', 'preview', 0, 0), ('other', 'Other', 'main', 'preview', 0, 0)");
     const original = createInitialDoc();
     original.assets.photo = { id: "photo", name: "photo.png", path, width: 4, height: 4 };
     await db.execute({ sql: "INSERT INTO docs VALUES ('s1', 1, 0, ?)", args: [JSON.stringify(original)] });
@@ -1386,6 +1387,22 @@ test("Node/Docker retain files referenced only by another site's HTML or CSS, wi
       assert.equal(response.status, 200);
       assert.equal(f.deleted(), reference === "similar" ? 1 : 0);
     }
+    const store = nodeAssetStore()!;
+    const pending = "assets/pending.txt";
+    await store.put(pending, "transferred");
+    await db.execute({ sql: "INSERT INTO site_asset_uploads(site_id,path) VALUES(?,?)", args: ["s1", pending] });
+    const route = assetDeleteRoute({ sqliteDb: db, deleteFile: path => store.delete(path) });
+    assert.equal((await route.patch({ fromSite: "s1", toSite: "other", paths: [pending] })).status, 200);
+    assert.deepEqual(await (await route.call("s1", pending)).json(), { ok: true, kept: true });
+    assert.equal(await siteHasAsset(db, "s1", pending), false);
+    assert.equal(await siteHasAsset(db, "other", pending), true);
+    assert.equal(new TextDecoder().decode((await store.get(pending, { type: "arrayBuffer" }))!), "transferred");
+    const failing = assetDeleteRoute({ sqliteDb: db, deleteFile: async () => { throw new Error("File unavailable"); } });
+    assert.equal((await failing.call("other", pending)).status, 502);
+    assert.equal(await siteHasAsset(db, "other", pending), true);
+    assert.deepEqual(await (await route.call("other", pending)).json(), { ok: true });
+    assert.equal(await store.get(pending, { type: "arrayBuffer" }), null);
+    assert.equal(await siteHasAsset(db, "other", pending), false);
   } finally {
     if (previous === undefined) delete process.env.TSUMU_DATA_DIR;
     else process.env.TSUMU_DATA_DIR = previous;
@@ -1411,16 +1428,32 @@ test("PATCH /api/assets transfers ownership, clears Trash candidates on D1, and 
     if (stmt.columns().length) return { rows: stmt.all(...args) as Record<string, unknown>[], rowsAffected: 0 };
     return { rows: [], rowsAffected: Number(stmt.run(...args).changes) };
   };
-  const db: Db = { backend: "d1", execute, batch: async (stmts) => Promise.all(stmts.map(execute)) };
+  const db: Db = { backend: "d1", execute, batch: async (stmts) => {
+    sql.exec("BEGIN");
+    try {
+      const results = [];
+      for (const stmt of stmts) results.push(await execute(stmt));
+      sql.exec("COMMIT");
+      return results;
+    } catch (error) {
+      sql.exec("ROLLBACK");
+      throw error;
+    }
+  } };
   try {
     const f = assetDeleteRoute({ sqliteDb: db });
     const rejected = await f.patch({ fromSite: "source0001", toSite: "dest000001", paths: ["assets/unowned.png"] });
     assert.equal(rejected.status, 404);
-    const ok = await f.patch({
+    const transfer = {
       fromSite: "source0001",
       toSite: "dest000001",
       paths: ["assets/muhmi2o0abcdef-photo.png"],
-    });
+    };
+    sql.exec("CREATE TRIGGER unavailable BEFORE DELETE ON asset_gc_candidates BEGIN SELECT RAISE(ABORT, 'unavailable'); END");
+    assert.equal((await f.patch(transfer)).status, 502);
+    assert.equal(sql.prepare("SELECT count(*) AS n FROM site_asset_uploads WHERE site_id='dest000001'").get()?.n, 0);
+    sql.exec("DROP TRIGGER unavailable");
+    const ok = await f.patch(transfer);
     assert.equal(ok.status, 200);
     assert.deepEqual(
       sql.prepare("SELECT site_id FROM site_asset_uploads WHERE path=? ORDER BY site_id").all("assets/muhmi2o0abcdef-photo.png").map((r) => r.site_id),
@@ -1588,9 +1621,13 @@ function deferred<T>() {
   const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
   return { promise, resolve, reject };
 }
-function setup(upload?: (file: File) => Promise<Asset>, migrate?: (asset: Asset) => Promise<string | null>) {
+function setup(
+  upload?: (file: File) => Promise<Asset>,
+  migrate?: (asset: Asset) => Promise<string | null>,
+  configuredDatabase?: boolean | null,
+) {
   state().endGesture(); state().replaceDoc(assetLibraryDoc()); state().setActivePage("p"); state().select("a");
-  const ui = assetLibraryCallbacks(upload, migrate);
+  const ui = assetLibraryCallbacks(upload, migrate, configuredDatabase);
   const render = () => elements(ui.render());
   const add = (count = 1) => render().find((e) => e.type === "input" && e.props.type === "file").props.onChange({ target: { files: Array.from({ length: count }, () => new File(["audio"], "new.wav", { type: "audio/wav" })), value: "new.wav" } });
   const move = () => render().find((e) => e.props?.["data-tip"] === "Upload to server").props.onClick();
@@ -1660,6 +1697,32 @@ test("overlapping drops remain busy until all complete and old errors cannot ove
       await tick(); assert.equal(f.busy(), false);
       assert.ok(!JSON.stringify(f.render()).includes("stale error"));
       assert.deepEqual(state().doc.assets.uploaded, uploaded);
+    } finally { f.ui.unmount(); }
+  }
+});
+
+test("a fallback is informational only when server database storage is disabled", async () => {
+  for (const configuredDatabase of [false, true, null] as const) {
+    const work = deferred<Asset>();
+    const f = setup(() => work.promise, undefined, configuredDatabase);
+    try {
+      f.add();
+      work.resolve({ ...uploaded, path: undefined, dataUrl: "data:audio/wav;base64,bG9jYWw=" });
+      await tick();
+      const nodes = f.render();
+      const message = tr("Couldn't save to the server, so it was saved in this browser.");
+      const isError = configuredDatabase !== false;
+      const expectedRole = isError ? "alert" : "status";
+      const shown = nodes.find((e) => e.props?.role === expectedRole && e.type === "p" &&
+        e.props?.children === message);
+      assert.ok(shown, `db=${configuredDatabase}: fallback must be shown with role ${expectedRole}`);
+      assert.equal(shown.props.style?.color, isError ? "var(--danger)" : undefined,
+        `db=${configuredDatabase}: severity must match server storage availability`);
+      const otherRole = isError ? "status" : "alert";
+      assert.equal(nodes.some((e) => e.props?.role === otherRole && e.type === "p" &&
+        e.props?.children === message), false, `db=${configuredDatabase}: no conflicting status`);
+      assert.deepEqual(state().doc.assets.uploaded.dataUrl, "data:audio/wav;base64,bG9jYWw=",
+        "the fallback asset must still be retained in browser storage");
     } finally { f.ui.unmount(); }
   }
 });
@@ -2188,6 +2251,9 @@ describe("asset-font-cors", () => {
     const { GET } = load("../app/api/assets/file/route.ts", {
       "next/server": { NextResponse }, "../../../../lib/auth": auth,
       "../../../../lib/server": { requireAuth }, "../../../../lib/i18n-server": { serverTr },
+      "../../../../lib/db": { getDb: async () => ({}) },
+      "../../../../lib/site-access": { requireSiteAccess: async () => null },
+      "../../../../lib/site-asset-access": { siteHasAsset: async () => true },
       "../../../../lib/asset-token": { verifyAssetToken },
       "../../../../lib/kv": { assetStore: () => ({
         getWithMetadata: async (path: string) => {
@@ -2197,7 +2263,7 @@ describe("asset-font-cors", () => {
       }) },
     });
     return {
-      get: (query = "path=assets%2Ffont.woff2") => GET(new Request(`https://editor.example.test/api/assets/file?${query}`, { headers: { Origin: "null" } })) as Promise<Response>,
+      get: (query = "path=assets%2Ffont.woff2") => GET(new Request(`https://editor.example.test/api/assets/file?site=site-a&${query}`, { headers: { Origin: "null" } })) as Promise<Response>,
       reads, authCalls: () => authCalls,
     };
   }

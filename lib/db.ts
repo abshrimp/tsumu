@@ -107,6 +107,8 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
           )`,
+          `CREATE UNIQUE INDEX IF NOT EXISTS sites_publish_repository
+            ON sites(git_provider, repo COLLATE NOCASE) WHERE repo IS NOT NULL`,
           // サイトの作成ごとに作る、予測できない部屋の識別子。同じ ID でインポートし直しても、
           // 古いサイト ID が削除したサイトの Durable Object を使い回すことはない。
           ...(binding.__tsumuBackend === "sqlite" ? [] : [
@@ -182,6 +184,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
             path TEXT NOT NULL,
             PRIMARY KEY(site_id,path)
           )`,
+          `CREATE INDEX IF NOT EXISTS site_asset_uploads_path ON site_asset_uploads(path)`,
           // サイトごとに、最後に GitHub へ公開した出力形式。D1 と Node.js の SQLite で共通。
           `CREATE TABLE IF NOT EXISTS site_publish_options (
             site_id TEXT PRIMARY KEY,

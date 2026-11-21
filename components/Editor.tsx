@@ -128,9 +128,9 @@ function PanelResizer({
   );
 }
 
-export type EditorProps = { onReady?: () => void; siteRole?: "owner" | "editor" | "viewer" | null };
+export type EditorProps = { onReady?: () => void; siteRole?: "owner" | "editor" | "viewer" | null; siteName?: string | null };
 
-export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
+export default function Editor({ onReady, siteRole = null, siteName = null }: EditorProps = {}) {
   useApplyEditorTheme();
   // モジュール内の仮の初期データは見せず、最初の読み込み結果が決まるまで準備画面を表示し続ける。
   // 再接続や保存の途中では準備画面に戻さない（入力欄やキャンバスをアンマウントしないため）。
@@ -700,7 +700,7 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
 
   // 起動時: サーバーの文書を取得する（あれば、そちらを正とする）
   const runSyncFromServer = useCallback(async () => {
-    await hydrateBrowserDoc();
+    if (!readOnly) await hydrateBrowserDoc();
     const s = useEditor.getState();
     const localBeforeLoad = s.doc;
     if (readOnly) {
@@ -715,7 +715,6 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
         lastSyncedDoc.current = data.doc;
         observedDoc.current = data.doc;
         cloudDirty.current = false;
-        setUnsyncedFlag(false);
         s.replaceDoc(data.doc);
         s.setCloud("synced", data.savedAt);
         cloudReady.current = true;
@@ -931,24 +930,17 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
   // 要素の src に複製した分を外し、保存先が使えるならアップロードしてパスに置き換える。
   // 読み込みが済んで同期したとき（またはブラウザ内に保存すると決まったとき）に確かめる
   useEffect(() => {
-    if (readOnly) return;
+    if (readOnly || !status?.assets) return;
+    let active = true;
     let running = false;
-    /** 画像の保存先（KV など）があるか。分からなければ null（次の機会に確かめ直す） */
-    let assetStorage: boolean | null = null;
     const tidy = async () => {
       if (running) return;
       running = true;
       try {
         const embedded = Object.values(useEditor.getState().doc.assets).filter((a) => a.dataUrl && !a.path);
-        if (!embedded.length) return;
-        assetStorage ??= await fetch("/api/status")
-          .then((res) => (res.ok ? res.json() : null))
-          .then((data) => (data ? data.assets === true : null))
-          .catch(() => null);
-        if (!assetStorage) return;
         for (const asset of embedded) {
           const path = await uploadEmbeddedAsset(asset).catch(() => null);
-          if (!path) return;
+          if (!active || !path) return;
           useEditor.getState().updateDoc((d) => {
             // アップロードの間に差し替えや削除があった場合は、手を付けない
             if (d.assets[asset.id]?.dataUrl === asset.dataUrl) replaceEmbeddedAsset(d, asset.id, path);
@@ -958,10 +950,13 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
         running = false;
       }
     };
-    return useEditor.subscribe((s, prev) => {
+    const state = useEditor.getState().cloudState;
+    if (state === "synced" || state === "local") void tidy();
+    const unsubscribe = useEditor.subscribe((s, prev) => {
       if (s.cloudState !== prev.cloudState && (s.cloudState === "synced" || s.cloudState === "local")) void tidy();
     });
-  }, [readOnly]);
+    return () => { active = false; unsubscribe(); };
+  }, [readOnly, status?.assets]);
 
   // 読み込み・保存・更新の受信は WebSocket で行い、切断中だけ HTTP に切り替える。
   // WebSocket が使えない環境（Node.js・Docker）では、更新を Server-Sent Events で受け取る
@@ -1359,6 +1354,14 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
 
   if (!initialLoadComplete || !status) return onReady ? null : <EditorLoading />;
 
+  if (readOnly && !lastSyncedDoc.current) {
+    return cloudState === "checking" ? <EditorLoading /> : (
+      <div className="safe-page">
+        <p role="alert">{tr("Couldn't load")}</p>
+        <button className="btn" onClick={() => void syncFromServer()}>{tr("Retry")}</button>
+      </div>
+    );
+  }
   if (readOnly) return (
     <div className="app">
       <ViewerHeader />
@@ -1373,6 +1376,7 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
         panels={{ l: !closedL, r: !closedR }}
         onTogglePanel={togglePanel}
         siteRole={siteRole}
+        siteName={siteName}
       />
       {browserSaveState === "deleted" && cloudState !== "synced" && (
         <div className="local-save-notice" role="alert">

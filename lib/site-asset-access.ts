@@ -4,17 +4,8 @@ import { documentAssetReferences, readSiteDocument } from "./site-document-servi
 
 /** Asset paths are immutable but shared between sites. Access must be proved by
  * either a pending upload in the requested site or a saved document reference. */
-export async function siteHasAsset(db: Db, siteId: string, path: string): Promise<boolean> {
-  if (!path.startsWith("assets/")) return false;
-  const pending = await db.execute({
-    sql: "SELECT 1 FROM site_asset_uploads WHERE site_id=? AND path=? LIMIT 1",
-    args: [siteId, path],
-  });
-  if (pending.rows.length) return true;
-  const refs = await documentAssetReferences(db, siteId);
-  if (refs.some(ref => ref.path === path)) return true;
-  const current = await readSiteDocument(db, siteId);
-  return current ? extractAssetReferences(current.body).has(path) : false;
+export function siteHasAsset(db: Db, siteId: string, path: string): Promise<boolean> {
+  return siteOwnsAssets(db, siteId, [path]);
 }
 
 /** Verify that every referenced asset path already belongs to the target site. */

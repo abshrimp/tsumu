@@ -87,21 +87,26 @@ type AttachableSocket = WebSocket & {
 
 /** 1サイト分の接続をまとめ、保存の完了を通知する（部屋の名前 = サイト ID）。 */
 export class CollaborationRoom extends DurableObject<WorkerEnv> {
-  private async readAllowedEmails(): Promise<string[]> {
-    if (!this.env.DB) return [];
+  private async readAllowedEmails(): Promise<Set<string>> {
+    if (!this.env.DB) return new Set();
     const db = await getDbFromBinding(this.env.DB);
     const rs = await db.execute("SELECT email FROM allowed_emails");
-    return rs.rows.map((r) => String(r.email));
+    return new Set(rs.rows.map(r => String(r.email).toLowerCase()));
   }
 
   private async authorized(
     socket: WebSocket,
-    readExtra = () => this.readAllowedEmails()
+    includesDynamic = async (email: string) => {
+      if (!this.env.DB) return false;
+      const db = await getDbFromBinding(this.env.DB);
+      const result = await db.execute({ sql: "SELECT 1 FROM allowed_emails WHERE email = ?", args: [email] });
+      return result.rows.length > 0;
+    }
   ): Promise<boolean> {
     const attachment = (socket as AttachableSocket).deserializeAttachment();
     const user = attachment?.user;
     const allowed = collaborationIdentityAllowed(!!user, signInConfigured(this.env), this.env) &&
-      (!user || await isEmailAllowed(user.email, parseAllowedEmails(this.env.ALLOWED_EMAILS), readExtra)) &&
+      (!user || await isEmailAllowed(user.email, parseAllowedEmails(this.env.ALLOWED_EMAILS), includesDynamic)) &&
       (!this.env.DB || (!!attachment?.siteId &&
         await siteRoleForSocket(await getDbFromBinding(this.env.DB), attachment.siteId, user?.email ?? null, this.env) !== null));
     if (!allowed) socket.close(1008, "Access revoked");
@@ -110,14 +115,14 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
 
   private async broadcast(raw: string, except?: WebSocket, senderId?: string): Promise<void> {
     // 同じ配信の中だけで共有する。次の配信では取得し直し、許可の削除を反映する。
-    let allowedEmails: Promise<string[]> | undefined;
-    const readExtra = () => allowedEmails ??= this.readAllowedEmails();
+    let allowedEmails: Promise<Set<string>> | undefined;
+    const includesDynamic = async (email: string) => (await (allowedEmails ??= this.readAllowedEmails())).has(email);
     for (const socket of this.ctx.getWebSockets()) {
       if (socket === except) continue;
       try {
         const attachment = (socket as AttachableSocket).deserializeAttachment();
         if (senderId && attachment?.clientId === senderId) continue;
-        if (!await this.authorized(socket, readExtra)) continue;
+        if (!await this.authorized(socket, includesDynamic)) continue;
         socket.send(raw);
       } catch {
         // 切断済みのソケットは、ランタイムが一覧から除く
@@ -369,7 +374,7 @@ export class CollaborationRoom extends DurableObject<WorkerEnv> {
       if (result.kind === "saved") {
         // ホーム画面の「〜に編集」は D1 の saved_at / updated_at を読むため、ここでも反映する
         try {
-          await recordSiteSavedAt(db, siteId, remote ? roomKey : null, result.savedAt);
+          await recordSiteSavedAt(db, siteId, roomKey, result.savedAt);
         } catch (error) {
           // 本体の保存は成功しているため、時刻の反映に失敗しても保存の失敗とはしない
           console.error("Failed to record site savedAt", error);

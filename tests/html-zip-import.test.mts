@@ -792,6 +792,7 @@ for (const local of [false, true]) test(`HTML ZIP preserves media URL suffixes w
       }); }
     },
     fetch: async (input: string, init?: RequestInit) => {
+      if (input === "/api/status") return Response.json({ assets: true });
       if (input === "/api/sites") {
         const { importId } = JSON.parse(String(init?.body));
         assert.ok(importId);
@@ -1087,6 +1088,7 @@ test("failure after an upload removes exactly the new archive asset", async () =
   let posts = 0;
   try {
     globalThis.fetch = async (url, init) => {
+      if (url === "/api/status") return Response.json({ assets: true });
       if (init?.method === "DELETE") {
         const parsed = new URL(String(url), "https://editor.test");
         deleted.push({ site: parsed.searchParams.get("site"), path: parsed.searchParams.get("path") });
@@ -1763,7 +1765,7 @@ test("import and clipboard validation block unsafe inline SVG across browser and
     assert.throws(() => validateImportedDoc(doc), /invalid element settings/i);
     assert.equal(parseClipPayload(JSON.stringify({
       v: 1, site: "s", breakpoints: doc.breakpoints ?? [], rootIds: [icon.id],
-      nodes: [icon], assets: {}, components: {}, componentNodes: [],
+      nodes: [icon], assets: {}, components: {}, componentNodes: [], customFonts: [], adobeFonts: [], uploadedFonts: [],
     })), null);
   }
   assert.equal(

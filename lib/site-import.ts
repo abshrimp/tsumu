@@ -1,6 +1,7 @@
 import { tr } from "./i18n";
 import { rebindImportedAssetUrls } from "./imported-asset-urls";
 import { sanitizeImportedInlineIcons } from "./imported-svg";
+import { normalizeImportedScriptTargets } from "./imported-script-targets";
 import { IMPORT_LIMITS, isEmbeddedAssetUrl, isImportObject, validateImportedDoc } from "./site-import-format";
 import type { ZipArchive, ZipEntry } from "./zip";
 import { isSafeArchivePath, openImportZip, zipEntrySize } from "./zip-directory";
@@ -46,7 +47,7 @@ export async function parseSiteImport(
   if (bytes.byteLength > IMPORT_LIMITS.docBytes) {
     throw new Error(tr("The import file is too large."));
   }
-  return { doc: validateImportedDoc(sanitizeImportedInlineIcons(jsonText(bytes))),
+  return { doc: normalizeImportedScriptTargets(validateImportedDoc(sanitizeImportedInlineIcons(jsonText(bytes)))),
     assets: new Map(), warnings: [] };
 }
 
@@ -78,7 +79,7 @@ export async function parseEditableZip(zip: ZipArchive): Promise<SiteImport> {
   }
   const docBytes = await readZipEntryLimited(documentEntry, IMPORT_LIMITS.docBytes);
   if (docBytes.length > IMPORT_LIMITS.docBytes) throw new Error(tr("doc.json exceeds the size limit."));
-  const doc = validateImportedDoc(sanitizeImportedInlineIcons(jsonText(docBytes)));
+  const doc = normalizeImportedScriptTargets(validateImportedDoc(sanitizeImportedInlineIcons(jsonText(docBytes))));
   const root = documentEntry.name.replace(/_tsumu\/doc\.json$/i, "");
   const parent = documentEntry.name.slice(0, documentEntry.name.lastIndexOf("/") + 1);
   // アセットのパスは、アーカイブの中の明示的な対応表のファイルから読む。

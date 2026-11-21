@@ -44,7 +44,7 @@ export interface ClipPayload {
   /** 要素が使っている追加フォント */
   customFonts: CustomFont[];
   adobeFonts: AdobeFont[];
-  uploadedFonts?: UploadedFont[];
+  uploadedFonts: UploadedFont[];
 }
 
 function descendants(doc: SiteDoc, id: string, out: DocNode[] = []): DocNode[] {
@@ -190,7 +190,7 @@ function isPayload(v: unknown): v is ClipPayload {
     validNodes(p.componentNodes, Object.keys(p.components).length
       ? Object.values(p.components).map(c => c.rootId) : undefined) &&
     validNodeForest({}, Object.fromEntries(p.componentNodes.map(n => [n.id, n])), p.components) &&
-    Array.isArray(p.customFonts) && Array.isArray(p.adobeFonts) &&
+    Array.isArray(p.customFonts) && Array.isArray(p.adobeFonts) && Array.isArray(p.uploadedFonts) &&
     validSiteAdditionalFields({ customFonts: p.customFonts, adobeFonts: p.adobeFonts, uploadedFonts: p.uploadedFonts }) &&
     validClipDependencies(p)
   );
@@ -200,7 +200,7 @@ function isPayload(v: unknown): v is ClipPayload {
 function validClipDependencies(p: ClipPayload): boolean {
   const assetRef = (value: { assetId?: string } | null | undefined): boolean =>
     value?.assetId === undefined || (Object.hasOwn(p.assets, value.assetId) && isSafeClipAsset(p.assets[value.assetId]));
-  return (p.uploadedFonts ?? []).every(font => assetRef(font)) &&
+  return p.uploadedFonts.every(font => assetRef(font)) &&
     [...p.nodes, ...p.componentNodes].every(node =>
     (node.type !== "instance" || (typeof node.componentId === "string" && Object.hasOwn(p.components, node.componentId))) &&
     assetRef(node.image) && assetRef(node.media) && (node.media?.sources ?? []).every(assetRef));
@@ -463,7 +463,7 @@ export function mergeClipDeps(
         (d.adobeFonts ?? []).some(x => x.kitId === f.kitId && x.loading !== f.loading)) continue;
     d.adobeFonts = [...(d.adobeFonts ?? []), structuredClone(f)];
   }
-  for (const font of p.uploadedFonts ?? []) {
+  for (const font of p.uploadedFonts) {
     const id = remap.get(font.assetId) ?? font.assetId;
     if (!Object.hasOwn(d.assets, id) ||
         (d.uploadedFonts ?? []).some(existing => existing.family === font.family) ||

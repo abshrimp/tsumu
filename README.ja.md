@@ -44,7 +44,7 @@ Tsumu を使うと、ドラッグなどの直感的な操作だけで Web サイ
 
 ## AI と連携
 
-- MCP 接続：設定手順は[こちら](https://mcp.tsumu.ebii.net/)。
+- MCP 接続：各種 AI から Tsumu を操作できます。接続ガイドは[こちら](https://mcp.tsumu.ebii.net/)。
 - Skills：導入ガイドは[こちら](docs/skills.ja.md)。
 
 ## スクリーンショット
@@ -101,6 +101,7 @@ npm run dev
 - [詳細ガイド](docs/user-guide.ja.md) · [English](docs/user-guide.md)
 - [設計](docs/ARCHITECTURE.ja.md) · [環境変数](.env.example)
 - [コントリビュート](.github/CONTRIBUTING.ja.md) · [セキュリティ](.github/SECURITY.ja.md) · [行動規範](.github/CODE_OF_CONDUCT.md)（英語）
+- 公式エディタ · [プライバシーポリシー（英語）](docs/PRIVACY.md) · [利用規約（英語）](docs/TERMS.md)
 
 ## ライセンス
 

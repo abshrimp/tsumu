@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,9 +12,10 @@ const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL("../", import.meta.url));
 
 test("all three engines discover the same core editing smoke tests", () => {
-  const report = JSON.parse(execFileSync(process.execPath, [
+  const json = execFileSync(process.execPath, [
     require.resolve("@playwright/test/cli"), "test", "--list", "--reporter=json",
-  ], { cwd: root, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }));
+  ], { cwd: root, encoding: "utf8", maxBuffer: 50 * 1024 * 1024 });
+  const report = JSON.parse(json);
   assert.deepEqual(report.errors, []);
   assert.deepEqual(report.config.projects.map((p: { name: string }) => p.name).sort(),
     ["chromium", "firefox", "webkit"]);
@@ -56,4 +57,7 @@ test("all three engines discover the same core editing smoke tests", () => {
   const durations = JSON.parse(readFileSync(resolve(root, "scripts/e2e-shard-durations.json"), "utf8")).files as Record<string, [number, number]>;
   const stale = Object.keys(durations).filter((file) => !discoveredFiles.has(file));
   assert.deepEqual(stale, [], "scripts/e2e-shard-durations.json must not reference deleted E2E specs");
+
+  // The build job ships this verified test list with the matching application.
+  if (process.env.E2E_DISCOVERY_OUTPUT) writeFileSync(process.env.E2E_DISCOVERY_OUTPUT, json);
 });

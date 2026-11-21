@@ -60,12 +60,12 @@ function ciJob(workflow: string, name: string): string {
 
 test("CI runs the browser discovery regression and shares one production build across locked Playwright shards", () => {
   const workflow = read(".github/workflows/ci.yml");
-  assert.match(ciJob(workflow, "check"),
-    /^      - run: node --import tsx --test e2e\/browser-projects\.check\.mts$/m);
   const producer = ciJob(workflow, "e2e-build");
   const shards = ciJob(workflow, "e2e-shard");
   assert.match(producer, /^      - run: npm run build$/m);
-  assert.match(producer, /tar --exclude=\.next\/cache -cf e2e-build\.tar \.next/);
+  assert.match(producer, /^      - run: node --import tsx --test e2e\/browser-projects\.check\.mts\n        env:\n          E2E_DISCOVERY_OUTPUT: e2e-discovery\.json$/m);
+  assert.match(shards, /^          E2E_DISCOVERY_INPUT: e2e-discovery\.json$/m);
+  assert.match(producer, /tar --exclude=\.next\/cache -cf e2e-build\.tar \.next e2e-discovery\.json/);
   assert.match(producer, /actions\/upload-artifact@[^\n]+\n +with:\n +name: e2e-build\n +path: e2e-build\.tar/);
   assert.match(shards, /^    needs: e2e-build$/m);
   assert.match(shards, /actions\/download-artifact@[^\n]+\n +with:\n +name: e2e-build/);
@@ -125,40 +125,72 @@ test("runtime requirements match between package metadata and CI", () => {
   assert.match(ci, /node-version-file: \.nvmrc/);
 });
 
-test("Next.js editor routes apply the baseline response security headers", async () => {
+test("Cloudflare builds receive hosted public settings from Wrangler vars", async () => {
+  const { parseJsonc, publicBuildEnvironment } = await import("../scripts/cloudflare.mjs");
+  const config = parseJsonc(read("wrangler.jsonc"));
+  const value = config.vars.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+  assert.equal(value, "https://tsumu.ebii.net");
+  assert.equal(publicBuildEnvironment(config, {}).NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN, value);
+  assert.equal(publicBuildEnvironment(config, {
+    NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN: "https://custom.example.test",
+  }).NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN, "https://custom.example.test");
+});
+
+test("Next.js editor routes apply the baseline response security headers", async (t) => {
+  const priorHosted = process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+  const priorRelay = process.env.NEXT_PUBLIC_TSUMU_MCP_URL;
+  process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = "https://studio.example.test";
+  process.env.NEXT_PUBLIC_TSUMU_MCP_URL = "https://relay.example.test";
+  t.after(() => {
+    if (priorHosted === undefined) delete process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+    else process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = priorHosted;
+    if (priorRelay === undefined) delete process.env.NEXT_PUBLIC_TSUMU_MCP_URL;
+    else process.env.NEXT_PUBLIC_TSUMU_MCP_URL = priorRelay;
+  });
   const { default: configForPhase } = await import("../next.config.mjs");
   const { PHASE_PRODUCTION_BUILD } = await import("next/constants.js");
   const nextConfig = await configForPhase(PHASE_PRODUCTION_BUILD);
-  const headers = await nextConfig.headers();
-  const global = headers.find((entry: { source: string }) => entry.source === "/:path*");
-  assert.ok(global, "Expected headers for every path, including API routes");
-  const globalHeaders = new Map(global.headers.map((item: { key: string; value: string }) => [item.key, item.value]));
-  assert.equal(globalHeaders.get("X-Content-Type-Options"), "nosniff");
-  assert.equal(globalHeaders.get("Referrer-Policy"), "strict-origin-when-cross-origin");
-  const frames = headers.find((entry: { source: string }) => entry.source.startsWith("/((?!api/"));
-  assert.ok(frames, "Expected clickjacking protection for the editor UI");
-  assert.ok(frames.headers.some((item: { key: string; value: string }) =>
-    item.key === "X-Frame-Options" && item.value === "DENY"));
-  assert.ok(frames.headers.some((item: { key: string; value: string }) =>
-    item.key === "Content-Security-Policy" && item.value.includes("frame-ancestors 'none'")));
-  // Exactly one inert, read-only listing page may be embedded by the official MCP host.
-  assert.ok(frames.source.includes("mcp/sites-bridge"));
-  const directory = headers.find((entry: { source: string; has?: Array<{ type: string; value: string }> }) =>
-    entry.source === "/mcp/sites-bridge" && entry.has?.some(item =>
-      item.type === "host" && item.value === "tsumu.ebii.net"));
-  assert.ok(directory, "The hosted directory frame exception must match the exact official host");
-  assert.ok(directory.headers.some((item: { key: string; value: string }) =>
-    item.key === "Content-Security-Policy" && item.value === "frame-ancestors https://mcp.tsumu.ebii.net"));
-  assert.ok(directory.headers.every((item: { key: string }) => item.key !== "X-Frame-Options"));
+  const { unstable_getResponseFromNextConfig } = await import("next/experimental/testing/server.js");
+  async function headersFor(host: string, path: string) {
+    return (await unstable_getResponseFromNextConfig({ url: `https://${host}${path}`, nextConfig })).headers;
+  }
 
-  const selfHosted = headers.find((entry: { source: string; missing?: Array<{ type: string; value: string }> }) =>
-    entry.source === "/mcp/sites-bridge" && entry.missing?.some(item =>
-      item.type === "host" && item.value === "tsumu.ebii.net"));
-  assert.ok(selfHosted, "Every non-official host must retain clickjacking protection");
-  assert.ok(selfHosted.headers.some((item: { key: string; value: string }) =>
-    item.key === "X-Frame-Options" && item.value === "DENY"));
-  assert.ok(selfHosted.headers.some((item: { key: string; value: string }) =>
-    item.key === "Content-Security-Policy" && item.value === "frame-ancestors 'none'"));
+  for (const suffix of ["", "/"]) {
+    const directory = "/mcp/sites-bridge" + suffix;
+    const hosted = await headersFor("studio.example.test", directory);
+    assert.equal(hosted.get("Content-Security-Policy"), "frame-ancestors https://relay.example.test");
+    assert.equal(hosted.get("X-Frame-Options"), null);
+    assert.equal(hosted.get("Referrer-Policy"), "no-referrer");
+    assert.equal(hosted.get("Cache-Control"), "private, no-store");
+
+    for (const host of ["editor.example.org", "studio-example.test"]) {
+      const selfHosted = await headersFor(host, directory);
+      assert.equal(selfHosted.get("X-Frame-Options"), "DENY", host);
+      assert.equal(selfHosted.get("Content-Security-Policy"), "frame-ancestors 'none'", host);
+      assert.equal(selfHosted.get("Cache-Control"), "private, no-store", host);
+    }
+
+    const asset = await headersFor("studio.example.test", "/api/assets/file" + suffix);
+    assert.equal(asset.get("X-Frame-Options"), null);
+    assert.equal(asset.get("Content-Security-Policy"), null);
+    assert.equal(asset.get("X-Content-Type-Options"), "nosniff");
+  }
+
+  for (const path of ["/", "/mcp/choose", "/mcp/sites-bridge-extra", "/mcp/sites-bridge/child",
+    "/api/assets/file-info", "/api/assets/file/child"]) {
+    const headers = await headersFor("studio.example.test", path);
+    assert.equal(headers.get("X-Content-Type-Options"), "nosniff", path);
+    assert.equal(headers.get("Referrer-Policy"), "strict-origin-when-cross-origin", path);
+    assert.equal(headers.get("X-Frame-Options"), "DENY", path);
+    assert.equal(headers.get("Content-Security-Policy"), "frame-ancestors 'none'", path);
+  }
+  delete process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+  const disabled = await headersFor("studio.example.test", "/mcp/sites-bridge");
+  assert.equal(disabled.get("X-Frame-Options"), "DENY");
+  assert.equal(disabled.get("Content-Security-Policy"), "frame-ancestors 'none'");
+  process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = "https://studio.example.test";
+  const spoof = await headersFor("studio.example.test.evil.example", "/mcp/sites-bridge");
+  assert.equal(spoof.get("X-Frame-Options"), "DENY");
   for (const page of ["app/mcp/choose/page.tsx", "app/mcp/sites-bridge/page.tsx"]) {
     const source = read(page);
     assert.match(source, /if \(!isOfficialEditorHost\(\(await headers\(\)\)\.get\("host"\)\)\) notFound\(\)/,

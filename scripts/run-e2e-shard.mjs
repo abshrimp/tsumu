@@ -17,15 +17,21 @@ if (!Number.isSafeInteger(shard) || !Number.isSafeInteger(shardCount) || shard <
 
 const env = { ...process.env };
 for (const name of ["PLAYWRIGHT_JSON_OUTPUT_NAME", "PLAYWRIGHT_JSON_OUTPUT_FILE", "PLAYWRIGHT_JSON_OUTPUT_DIR"]) delete env[name];
-const discovery = spawnSync(process.execPath, [playwrightCli, "test", "--list", "--reporter=json"], {
-  cwd: root, encoding: "utf8", maxBuffer: 50 * 1024 * 1024, env,
-});
-if (discovery.error || discovery.status !== 0) {
-  process.stderr.write(discovery.stderr || discovery.stdout || String(discovery.error) || "Unable to list E2E tests\n");
-  process.exit(discovery.status || 1);
+function discover() {
+  const discovery = spawnSync(process.execPath, [playwrightCli, "test", "--list", "--reporter=json"], {
+    cwd: root, encoding: "utf8", maxBuffer: 50 * 1024 * 1024, env,
+  });
+  if (discovery.error) throw discovery.error;
+  if (discovery.status !== 0) {
+    process.stderr.write(discovery.stderr || discovery.stdout || "Unable to list E2E tests\n");
+    process.exit(discovery.status || 1);
+  }
+  return discovery.stdout;
 }
 
-const report = JSON.parse(discovery.stdout);
+const report = JSON.parse(process.env.E2E_DISCOVERY_INPUT
+  ? readFileSync(process.env.E2E_DISCOVERY_INPUT, "utf8")
+  : discover());
 const counts = new Map();
 const normalizePath = (file) => {
   // Playwright の JSON のレポーターは、パスを、設定した testDir からの相対にすることがある。
