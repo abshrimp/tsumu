@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { generateExportProject } from "../lib/export-formats";
 import { runChecks } from "../lib/generator/checks";
+import { splitCssModule } from "../lib/generator/style-export";
 import type { SiteDoc } from "../lib/types";
 
 function site(): SiteDoc {
@@ -45,4 +46,24 @@ test("a deleted page left in pageOrder does not crash checks or generated format
     assert.ok(Object.keys(generated.files).length > 0, framework);
   }
   assert.deepEqual(doc, before, "generation must not mutate the original document");
+});
+
+test("CSS Modules still scopes class rules preceded by authored comments", () => {
+  const source = [
+    "/* exported node style */",
+    ".card { color: red; }",
+    "/* second selector */",
+    "@media (max-width: 600px) {",
+    "  /* mobile node rule */",
+    "  .card { color: blue; }",
+    "  /* global body rule */",
+    "  body { color: black; }",
+    "}",
+  ].join("\n");
+  const result = splitCssModule(source);
+  assert.match(result.module, /\.siteRoot :global\(\.card\) \{ color: red; \}/);
+  assert.match(result.module, /@media \(max-width: 600px\)/);
+  assert.match(result.module, /\.siteRoot :global\(\.card\) \{ color: blue; \}/);
+  assert.doesNotMatch(result.global, /\.card \{/);
+  assert.match(result.global, /body \{ color: black; \}/);
 });

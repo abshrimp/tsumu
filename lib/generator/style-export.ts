@@ -91,7 +91,9 @@ export function splitCssModule(source: string): { global: string; module: string
       continue;
     }
     const globalSelectors: string[] = [], moduleSelectors: string[] = [];
-    for (const selector of splitSelectors(prelude)) {
+    // A leading CSS comment belongs to the rule prelude, not to its selector.
+    // Classifying the untrimmed prelude would emit authored node styles as global CSS.
+    for (const selector of splitSelectors(outer)) {
       if (/^\.[\w-]|^\[data-instance-hidden/.test(selector)) {
         moduleSelectors.push(".siteRoot :global(" + selector + ")");
       } else globalSelectors.push(selector);
