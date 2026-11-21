@@ -685,6 +685,48 @@ test("single HTML executes page-load scripts and renders dynamic variables witho
   expect(errors).toEqual([]);
 });
 
+test("standalone HTML query variants preserve authored async and defer script timing", async ({ page }) => {
+  const doc: SiteDoc = {
+    schemaVersion: 1, siteName: "Async/defer variant", assets: {}, pageOrder: ["base", "special"],
+    pages: {
+      base: { id: "base", name: "Base", slug: "", title: "Base",
+        description: "", children: [] },
+      special: { id: "special", name: "Special", slug: "", query: "variant=timing",
+        title: "Special", description: "", children: [],
+        customTopHtml: '<script>window.__variantOrder = [];</script>' +
+          '<script defer src="/timing/defer.js"></script>' +
+          '<script>window.__variantOrder.push("inline-after-defer");</script>' +
+          '<script async src="/timing/async.js"></script>' +
+          '<script>window.__variantOrder.push("inline-after-async");</script>',
+      },
+    },
+    nodes: {},
+  };
+  const files = generateExportProject(doc, "html").files;
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.route("**/*", async route => {
+    const path = new URL(route.request().url()).pathname.replace(/^\/+/, "") || "index.html";
+    if (path === "timing/defer.js" || path === "timing/async.js") {
+      await new Promise(resolve => setTimeout(resolve, path === "timing/async.js" ? 100 : 40));
+      await route.fulfill({ contentType: "application/javascript",
+        body: 'window.__variantOrder.push("' + (path === "timing/defer.js" ? "defer" : "async") + '");' });
+      return;
+    }
+    const source = files[path];
+    await route.fulfill({ status: source === undefined ? 404 : 200,
+      contentType: path.endsWith(".html") ? "text/html" :
+        path.endsWith(".css") ? "text/css" : "application/javascript",
+      body: source ?? "" });
+  });
+  await page.goto("http://timing.export.test/?variant=timing", { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => Array.isArray((window as any).__variantOrder) &&
+    (window as any).__variantOrder.includes("async"));
+  const order = await page.evaluate(() => (window as any).__variantOrder as string[]);
+  expect(order).toEqual(["inline-after-defer", "inline-after-async", "defer", "async"]);
+  expect(errors).toEqual([]);
+});
+
 test("generated HTML query variants execute authored scripts and initialize page data in order", async ({ page }) => {
   const doc: SiteDoc = {
     schemaVersion: 1, siteName: "Static variant",
