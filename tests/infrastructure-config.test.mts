@@ -129,36 +129,40 @@ test("Next.js editor routes apply the baseline response security headers", async
   const { default: configForPhase } = await import("../next.config.mjs");
   const { PHASE_PRODUCTION_BUILD } = await import("next/constants.js");
   const nextConfig = await configForPhase(PHASE_PRODUCTION_BUILD);
-  const headers = await nextConfig.headers();
-  const global = headers.find((entry: { source: string }) => entry.source === "/:path*");
-  assert.ok(global, "Expected headers for every path, including API routes");
-  const globalHeaders = new Map(global.headers.map((item: { key: string; value: string }) => [item.key, item.value]));
-  assert.equal(globalHeaders.get("X-Content-Type-Options"), "nosniff");
-  assert.equal(globalHeaders.get("Referrer-Policy"), "strict-origin-when-cross-origin");
-  const frames = headers.find((entry: { source: string }) => entry.source.startsWith("/((?!api/"));
-  assert.ok(frames, "Expected clickjacking protection for the editor UI");
-  assert.ok(frames.headers.some((item: { key: string; value: string }) =>
-    item.key === "X-Frame-Options" && item.value === "DENY"));
-  assert.ok(frames.headers.some((item: { key: string; value: string }) =>
-    item.key === "Content-Security-Policy" && item.value.includes("frame-ancestors 'none'")));
-  // Exactly one inert, read-only listing page may be embedded by the official MCP host.
-  assert.ok(frames.source.includes("mcp/sites-bridge"));
-  const directory = headers.find((entry: { source: string; has?: Array<{ type: string; value: string }> }) =>
-    entry.source === "/mcp/sites-bridge" && entry.has?.some(item =>
-      item.type === "host" && item.value === "tsumu.ebii.net"));
-  assert.ok(directory, "The hosted directory frame exception must match the exact official host");
-  assert.ok(directory.headers.some((item: { key: string; value: string }) =>
-    item.key === "Content-Security-Policy" && item.value === "frame-ancestors https://mcp.tsumu.ebii.net"));
-  assert.ok(directory.headers.every((item: { key: string }) => item.key !== "X-Frame-Options"));
+  const { unstable_getResponseFromNextConfig } = await import("next/experimental/testing/server.js");
+  async function headersFor(host: string, path: string) {
+    return (await unstable_getResponseFromNextConfig({ url: `https://${host}${path}`, nextConfig })).headers;
+  }
 
-  const selfHosted = headers.find((entry: { source: string; missing?: Array<{ type: string; value: string }> }) =>
-    entry.source === "/mcp/sites-bridge" && entry.missing?.some(item =>
-      item.type === "host" && item.value === "tsumu.ebii.net"));
-  assert.ok(selfHosted, "Every non-official host must retain clickjacking protection");
-  assert.ok(selfHosted.headers.some((item: { key: string; value: string }) =>
-    item.key === "X-Frame-Options" && item.value === "DENY"));
-  assert.ok(selfHosted.headers.some((item: { key: string; value: string }) =>
-    item.key === "Content-Security-Policy" && item.value === "frame-ancestors 'none'"));
+  for (const suffix of ["", "/"]) {
+    const directory = "/mcp/sites-bridge" + suffix;
+    const hosted = await headersFor("tsumu.ebii.net", directory);
+    assert.equal(hosted.get("Content-Security-Policy"), "frame-ancestors https://mcp.tsumu.ebii.net");
+    assert.equal(hosted.get("X-Frame-Options"), null);
+    assert.equal(hosted.get("Referrer-Policy"), "no-referrer");
+    assert.equal(hosted.get("Cache-Control"), "private, no-store");
+
+    for (const host of ["editor.example.org", "tsumu-ebii.net"]) {
+      const selfHosted = await headersFor(host, directory);
+      assert.equal(selfHosted.get("X-Frame-Options"), "DENY", host);
+      assert.equal(selfHosted.get("Content-Security-Policy"), "frame-ancestors 'none'", host);
+      assert.equal(selfHosted.get("Cache-Control"), "private, no-store", host);
+    }
+
+    const asset = await headersFor("tsumu.ebii.net", "/api/assets/file" + suffix);
+    assert.equal(asset.get("X-Frame-Options"), null);
+    assert.equal(asset.get("Content-Security-Policy"), null);
+    assert.equal(asset.get("X-Content-Type-Options"), "nosniff");
+  }
+
+  for (const path of ["/", "/mcp/choose", "/mcp/sites-bridge-extra", "/mcp/sites-bridge/child",
+    "/api/assets/file-info", "/api/assets/file/child"]) {
+    const headers = await headersFor("tsumu.ebii.net", path);
+    assert.equal(headers.get("X-Content-Type-Options"), "nosniff", path);
+    assert.equal(headers.get("Referrer-Policy"), "strict-origin-when-cross-origin", path);
+    assert.equal(headers.get("X-Frame-Options"), "DENY", path);
+    assert.equal(headers.get("Content-Security-Policy"), "frame-ancestors 'none'", path);
+  }
   for (const page of ["app/mcp/choose/page.tsx", "app/mcp/sites-bridge/page.tsx"]) {
     const source = read(page);
     assert.match(source, /if \(!isOfficialEditorHost\(\(await headers\(\)\)\.get\("host"\)\)\) notFound\(\)/,
