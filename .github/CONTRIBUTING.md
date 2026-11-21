@@ -26,20 +26,28 @@ Local development needs no API keys. Keep your environment variables in `.env.lo
 - **Keep the types, the editor, the generated code and the tests in agreement** about Tsumu's data model and runtime behavior.
 - **Preserve user-authored files when publishing a site.** `_tsumu/` is reserved for Tsumu's document and publish manifests.
 
-Before opening a pull request, run:
+### Checking your changes
+
+For your first PR, **you do not need to run the entire test suite or install every browser locally**. Run checks relevant to your change; GitHub Actions performs the full checks on pull requests.
+
+- **Documentation-only changes:** Review the rendered Markdown and check links. A local build or browser test is not necessary.
+- **Translations:** Run `npm run i18n:check -- --all` (missing translations are non-blocking warnings).
+- **TypeScript or runtime changes:** Run `npm run typecheck` and relevant unit tests, for example `node --import tsx --test tests/scripts-engine.test.mts` for script-engine changes.
+- **UI or browser changes:** When practical, run the affected Playwright spec after `npm run build` and `npx playwright install chromium`, for example `npm run test:e2e -- e2e/page-kind-confirmation.spec.ts --project=chromium`. See [`e2e/README.md`](../e2e/README.md).
+- **Export or deployment changes:** Run the relevant build and smoke checks below. For Cloudflare changes, also run `npm run build:worker`.
+
+If you want to run the complete local suite, use:
 
 ```sh
 npm run typecheck
 npm test
-npm run i18n:check -- --all   # non-blocking warnings for incomplete translations
+npm run i18n:check -- --all
 npm run build
 npx playwright install chromium firefox webkit
 npm run test:e2e
 ```
 
-If you want to verify full Japanese translation coverage separately, run `npm run i18n:check -- --strict ja` (optional).
-
-If you change the Cloudflare integration, also run `npm run build:worker`. None of these checks deploy anything; deployment is a separate step.
+CI also verifies the worker build, generated project formats, and other integration checks. Please address CI failures related to your change before merging. To check full Japanese translation coverage separately, run `npm run i18n:check -- --strict ja` (optional). These commands do not deploy anything; deployment is a separate step.
 
 ### Checking a generated project
 
