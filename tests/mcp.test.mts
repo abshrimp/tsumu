@@ -1,5 +1,7 @@
 import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { runInNewContext } from "node:vm";
 import { clearDraftLink, draftFromLocation, hasDraftResumeMarker, prepareDraftSignIn, resumeDraftAfterSignIn } from "../lib/external-edit/draft-link";
 import { DEFAULT_MCP_ENDPOINT, resolveMcpEndpoint } from "../lib/external-edit/config";
 import { configuredHostedEditorOrigin, trustedMcpOrigin, OFFICIAL_MCP_ORIGIN, isOfficialEditorHost, isOfficialEditorOrigin } from "../lib/external-edit/official.mjs";
@@ -79,6 +81,21 @@ test("Google OAuth resumes drafts without storing their secrets in Web Storage o
 });
 
 describe("hosted-mcp-integration", () => {
+test("hosted integration is safe in direct browser bundles without a process global", () => {
+  // Browser fixture bundles do not use Next.js environment replacement.
+  // They still render the editor even when hosted OAuth is not enabled.
+  const source = readFileSync(new URL("../lib/external-edit/official.mjs", import.meta.url), "utf8")
+    .replace(/^export /gm, "");
+  const result = runInNewContext(source + `
+JSON.stringify([
+  configuredHostedEditorOrigin(),
+  isOfficialEditorHost("studio.example.test"),
+  isOfficialEditorOrigin("https://studio.example.test"),
+  trustedMcpOrigin()
+]);`, { URL });
+  assert.deepEqual(JSON.parse(result), [null, false, false, "https://mcp.tsumu.ebii.net"]);
+});
+
 test("hosted MCP integration is explicitly configured and checks exact origins", () => {
   const editor = "https://studio.example.test";
   assert.equal(configuredHostedEditorOrigin(""), null);
