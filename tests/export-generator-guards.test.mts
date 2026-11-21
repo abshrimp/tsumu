@@ -4,6 +4,7 @@ import { generateExportProject } from "../lib/export-formats";
 import { runChecks } from "../lib/generator/checks";
 import { splitCssModule } from "../lib/generator/style-export";
 import { socialImageSrc } from "../lib/generator/social-image";
+import { hasPublishCredentials } from "../lib/publish-security";
 import type { SiteDoc } from "../lib/types";
 
 function site(): SiteDoc {
@@ -29,7 +30,7 @@ test("Next.js metadata base validates URLs without rejecting uppercase HTTP sche
     assert.ok(layout.includes(JSON.stringify(value)), value);
   }
   for (const value of ["https://", "https://example.test:invalid/", "ftp://example.test/",
-    "https://user:secret@example.test/"]) {
+    ]) {
     const doc = site();
     doc.siteUrl = value;
     const layout = generateExportProject(doc, "nextjs").files["app/layout.tsx"];
@@ -77,4 +78,18 @@ test("public social-image URLs never inherit credentials from the deployment URL
   assert.equal(socialImageSrc(doc, undefined, assets), "/assets/picture.png");
   doc.siteUrl = "HTTPS://EXAMPLE.TEST/site/";
   assert.equal(socialImageSrc(doc, undefined, assets), "https://example.test/assets/picture.png");
+});
+
+test("export blocks site URLs containing public credentials or authentication tokens", () => {
+  for (const siteUrl of [
+    "https://user:secret@example.test/",
+    "https://example.test/?api_key=secret",
+    "HTTPS://EXAMPLE.TEST/?access_token=secret",
+    "https://user:secret@",
+  ]) {
+    const doc = site();
+    doc.siteUrl = siteUrl;
+    assert.equal(hasPublishCredentials(doc), true, siteUrl);
+    assert.throws(() => generateExportProject(doc, "nextjs"), /credentials|secret API key/i, siteUrl);
+  }
 });
