@@ -101,6 +101,7 @@ See the [detailed guide](docs/user-guide.md) for deployment steps, per-target se
 - [Detailed guide](docs/user-guide.md) · [日本語](docs/user-guide.ja.md)
 - [Architecture](docs/ARCHITECTURE.md) · [Environment variables](.env.example)
 - [Contributing](.github/CONTRIBUTING.md) · [Security](.github/SECURITY.md) · [Code of conduct](.github/CODE_OF_CONDUCT.md)
+- Hosted editor · [Privacy Policy](docs/PRIVACY.md) · [Terms of Service](docs/TERMS.md)
 
 ## License
 
