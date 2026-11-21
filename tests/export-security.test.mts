@@ -1625,23 +1625,29 @@ describe("generator-framework-boundaries", () => {
     });
   }
 
-  test("distinct static HTML routes preserve their content when Next.js filenames collide", () => {
+  test("distinct ASCII and Unicode routes retain their public paths and content in Next.js and HTML", () => {
     const doc = fixture("--");
     doc.pages.home.rawHtml = '<html><head></head><body>ASCII route</body></html>';
     doc.pages.other = { ...doc.pages.home, id: "other", slug: "日本",
       rawHtml: '<html><head></head><body>Japanese route</body></html>' };
     doc.pageOrder.push("other");
+    const next = generateExportProject(doc, "nextjs");
+    assert.match(next.files[`app/${encodeURIComponent("日本")}/route.ts`], /Japanese route/);
+    assert.match(next.files["app/--/route.ts"], /ASCII route/);
     const output = generateExportProject(doc, "html");
     assert.match(output.files["--/index.html"], /ASCII route/);
     assert.doesNotMatch(output.files["--/index.html"], /Japanese route/);
     assert.match(output.files["日本/index.html"], /Japanese route/);
   });
 
-  test("React keeps distinct public routes when Next.js groups their generated JSX", () => {
+  test("React and Next.js keep accented public routes distinct", () => {
     const doc = fixture("caf-");
     doc.nodes.other = { ...makeText("Accented route"), id: "other" };
     doc.pages.other = { ...doc.pages.home, id: "other", slug: "café", children: ["other"] };
     doc.pageOrder.push("other");
+    const next = generateExportProject(doc, "nextjs");
+    assert.match(next.files["app/caf%C3%A9/page.tsx"], /Accented route/);
+    assert.match(next.files["app/caf-/page.tsx"], /Ordinary page/);
     const output = generateExportProject(doc, "react");
     assert.match(output.files["src/pages/Page0.tsx"], /Ordinary page/);
     assert.doesNotMatch(output.files["src/pages/Page0.tsx"], /Accented route/);
@@ -2131,6 +2137,20 @@ describe("published-instance-anchor", () => {
     assert.match(preview(doc, "second"), /id="second-card"/);
     assert.deepEqual(generateProject(doc).files, files, "deterministic output");
     assert.deepEqual(doc, before, "source document is unchanged");
+  });
+
+  test("native framework instances forward anchors to the styled master root", () => {
+    const doc = anchorFixture();
+    doc.nodes.first.hiddenOn = ["sm"];
+    for (const target of ["vue", "nuxt", "sveltekit"] as const) {
+      const files = generateExportProject(doc, target).files;
+      const component = Object.entries(files).find(([path]) => /Widget0\.(vue|svelte)$/.test(path))![1];
+      const page = Object.entries(files).find(([path]) => /Page0\.(vue|svelte)$/.test(path))![1];
+      assert.match(component, /(?:id=\{instanceId\}|:id="instanceId")/, target);
+      assert.match(component, /data-toggle-show[^>]+flex/, target);
+      assert.match(page, /<Widget0[^>]+(?:instance-id|instanceId)="first-card"/, target);
+      assert.doesNotMatch(page, /<div[^>]+ id="first-card"/, target);
+    }
   });
 
   test("master IDs and authored references take priority over conflicting instance settings", () => {
@@ -3310,7 +3330,9 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     };
     const { files } = generateExportProject(doc, framework);
     const tree = parse(files[nativePagePath(framework)]);
-    const hidden = tree.querySelector("#hidden-use"), visible = tree.querySelector("#visible-use");
+    const idProp = framework === "sveltekit" ? "instanceId" : "instance-id";
+    const hidden = tree.querySelector(`[${idProp}="hidden-use"]`).parentNode;
+    const visible = tree.querySelector(`[${idProp}="visible-use"]`).parentNode;
     const marker = hidden.getAttribute("data-instance-hidden");
     assert.ok(marker, "instance wrapper needs the selector marker used by shared responsive CSS");
     const css = Object.entries(files).filter(([name]) => name.endsWith(".css")).map(([, content]) => content).join("\n");
@@ -3517,7 +3539,7 @@ test("native framework exports guard loading screens, scope list data-item field
   for (const fw of ["vue", "sveltekit"] as const) {
     const files = generateExportProject(listDoc, fw).files;
     const pageSource = files[nativePagePath(fw)];
-    assert.match(pageSource, /id="inst"[^>]*data-toggle-show="contents"/);
+    assert.match(pageSource, /<Widget0[^>]+(?:instance-id|instanceId)="inst"/);
     assert.equal((pageSource.match(/serializeListItem\(/g) ?? []).length, 1);
     assert.equal((pageSource.match(/data-item/g) ?? []).length, 1);
     const dataSource = files[(fw === "vue" ? "src/" : "src/lib/") + "site-data.js"];

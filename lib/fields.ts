@@ -18,6 +18,11 @@ export function fieldVarName(n: Pick<DocNode, "attrId" | "field">): string {
   return n.attrId || n.field?.name || "";
 }
 
+/** 送信ボタンは、明示的な name がある場合だけクエリやフォームデータに含める。 */
+export function fieldSubmissionName(n: Pick<DocNode, "attrId" | "field">): string {
+  return n.field?.name ?? (n.field?.kind === "submit" ? "" : fieldVarName(n));
+}
+
 /** 入力欄が提供する {変数} の名前（ラジオはグループ名と、グループのボタン1つの ID） */
 export function fieldVarNames(n: Pick<DocNode, "attrId" | "field">): string[] {
   const name = fieldVarName(n);

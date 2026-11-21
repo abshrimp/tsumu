@@ -303,6 +303,13 @@ function ruleFor(
   return `${indent}${selector} {\n${body}\n${indent}}`;
 }
 
+// A page with an authored dark body uses the same native form and scrollbar colors as its canvas.
+// Zero specificity lets explicit color-scheme declarations, including light, take precedence.
+function darkBodyRule(resolveValue: CssValueResolver, selector: string, map: StyleMap, indent: string): string {
+  return ruleFor(resolveValue, `:where(${selector})`, { colorScheme: "dark" }, indent) + "\n" +
+    ruleFor(resolveValue, selector, map, indent);
+}
+
 export function generateSiteCss(
   doc: SiteDoc,
   classNames: Map<string, string>,
@@ -344,7 +351,7 @@ export function generateSiteCss(
     for (const bp of BP_ORDER) {
       const map = { ...(page.bodyDarkStyles?.[bp]?.default ?? {}) };
       if (!Object.keys(map).length) continue;
-      darkMediaBlocks[bp].push(ruleFor(resolveValue, selector, map, bp === "base" ? "" : "  "));
+      darkMediaBlocks[bp].push(darkBodyRule(resolveValue, selector, map, bp === "base" ? "" : "  "));
     }
   }
 
@@ -448,7 +455,8 @@ export function generateSiteCss(
       // 監視スクリプトが動かない環境でも本文を読めるよう、交差後にだけ適用する。
       blocks.push(`.${cls}:where(.is-inview) {\n${mCss.inView.map((d) => `  ${d}`).join("\n")}\n}`);
     }
-    // ダーク時の差分。ライトの基本ルールとレスポンシブ指定を残したまま上書きする。
+    // ダークのルールはライトのすべての幅より後に適用される。大きい幅で出力した位置指定を追跡する。
+    let previousDarkPosition: string | undefined;
     for (const bp of BP_ORDER) {
       const lightPosition = resolveStyles(node, bp, "default").position;
       const darkPosition = resolveStyles(node, bp, "default", "dark").position;
@@ -462,7 +470,10 @@ export function generateSiteCss(
         (!hasCustomPosition && hasAbsoluteChild("light") ? "relative" : "static");
       const darkEffective = darkPosition ??
         (!hasCustomPosition && hasAbsoluteChild("dark") ? "relative" : "static");
-      const inferredDarkPosition = lightEffective === darkEffective ? undefined : darkEffective;
+      const authoredDarkPosition = node.darkStyles?.[bp]?.default?.position;
+      const cascadedPosition = authoredDarkPosition ?? previousDarkPosition ?? lightEffective;
+      const inferredDarkPosition = cascadedPosition === darkEffective ? undefined : darkEffective;
+      previousDarkPosition = authoredDarkPosition ?? inferredDarkPosition ?? previousDarkPosition;
       const bpStyles = node.darkStyles?.[bp] ?? (inferredDarkPosition ? {} : undefined);
       if (!bpStyles) continue;
       const customStates = Object.keys(bpStyles)
@@ -603,7 +614,7 @@ export function rawHtmlWithBodyStyles(
   for (const bp of BP_ORDER) {
     const map = { ...(page.bodyDarkStyles?.[bp]?.default ?? {}) };
     if (!Object.keys(map).length) continue;
-    const rule = ruleFor(resolveValue, "body", map, bp === "base" ? "" : "  ");
+    const rule = darkBodyRule(resolveValue, "body", map, bp === "base" ? "" : "  ");
     if (bp === "base") darkBase.push(rule);
     else darkResponsive.push(`@media (max-width: ${BP_INFO[bp].maxWidth}px) {\n${rule}\n}`);
   }

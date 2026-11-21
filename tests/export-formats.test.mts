@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import vm, { runInNewContext } from "node:vm";
 import { generateExportProject, exportLimitations, prepareExportProject } from "../lib/export-formats";
 import { listRuntimeDom } from "./helpers/list-runtime-dom";
-import { makeBox, makeText, createInitialDoc, makeImage } from "../lib/presets";
+import { makeBox, makeText, createInitialDoc, makeImage, makeMedia } from "../lib/presets";
 import { type ScriptStep, type SiteDoc, type Asset, type NodeStyles } from "../lib/types";
 import { filterPredicate } from "../lib/generator/render-helpers";
 import { matchesValueCondition, parseValueLiteral } from "../lib/value-semantics";
@@ -1640,6 +1640,30 @@ test("a URL link to the only exported page uses index.html without inheriting it
   assert.ok(html.includes('href="./index.html#section"'));
 });
 
+test("relative media sources keep their targets when static export moves a clean URL into a directory", () => {
+  const doc = fixture();
+  const image = makeImage();
+  image.image!.src = "./poster.svg?size=large#frame";
+  const video = makeMedia("video");
+  video.media!.src = "../clips/intro.mp4";
+  video.media!.sources = [{ src: "clips/intro.webm", type: "video/webm" }];
+  doc.nodes[image.id] = image;
+  doc.nodes[video.id] = video;
+  doc.pages.detail = { ...doc.pages.home, id: "detail", slug: "guide/detail", children: [image.id, video.id] };
+  doc.pageOrder.push("detail");
+  const path = "guide/detail/index.html";
+  const root = "https://example.test/portfolio/";
+  function sources() {
+    return [...generateExportProject(doc, "html").files[path].matchAll(/<(?:img|video|source)\b[^>]*? src="([^"]+)"/g)]
+      .map(match => match[1]);
+  }
+  assert.deepEqual(sources().map(src => new URL(src, root + path).href), [
+    root + "guide/poster.svg?size=large#frame", root + "clips/intro.mp4", root + "guide/clips/intro.webm",
+  ]);
+  doc.customHeadHtml = '<base href="https://cdn.example.test/media/">';
+  assert.deepEqual(sources(), ["./poster.svg?size=large#frame", "../clips/intro.mp4", "clips/intro.webm"]);
+});
+
 test("standalone HTML treats a favicon URL as a resource even if it matches a page slug", () => {
   const doc = fixture();
   doc.favicon = { url: "/icon.svg" };
@@ -1780,6 +1804,24 @@ test("React export includes native forms and PWA manifest", () => {
   assert.match(result.files["src/components/SearchForm.tsx"], /window\.location\.assign/);
   assert.ok(result.files["public/manifest.webmanifest"]);
   assert.match(result.files["index.html"], /manifest\.webmanifest/);
+});
+
+test("submit button IDs are independent of submission names across export formats", () => {
+  const doc = fixture();
+  doc.nodes.send = { ...makeBox(), id: "send", attrId: "send", type: "field", field: { kind: "submit", label: "Send" } };
+  doc.nodes.save = { ...doc.nodes.send, id: "save", attrId: "save", field: { kind: "submit", label: "Save", name: "intent", submitValue: "save" } };
+  doc.pages.home.children = ["send", "save"];
+  for (const [format, path] of [
+    ["html", "index.html"], ["nextjs", "app/page.tsx"], ["react", "src/pages/Page0.tsx"],
+    ["vue", "src/pages/Page0.vue"], ["nuxt", "app/generated/pages/Page0.vue"], ["sveltekit", "src/lib/pages/Page0.svelte"],
+  ] as const) {
+    const markup = generateExportProject(doc, format).files[path];
+    const buttons = markup.match(/<button\b[^>]*>/g) ?? [];
+    assert.equal(buttons.length, 2, format);
+    assert.doesNotMatch(buttons[0], /\bname=/, format);
+    assert.match(buttons[1], /\bname="intent"/, format);
+    assert.match(buttons[1], /\bvalue="save"/, format);
+  }
 });
 
 test("export scope isolates one page or the selected node", () => {

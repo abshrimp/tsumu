@@ -77,7 +77,8 @@ const TEST_BLOCKED_BOTS = [
 
 export function generateProject(
   doc: SiteDoc,
-  target: PublishTarget = "production"
+  target: PublishTarget = "production",
+  classNames = buildClassNames(doc),
 ): GeneratedProject {
   // 配信するコードに変数名を出さない（編集中のデータはそのまま）
   doc = obfuscateVarNames(doc);
@@ -89,7 +90,6 @@ export function generateProject(
   raiseOverCrispSvg(doc);
   const isTest = target === "test";
   const siteLang = siteLangOf(doc);
-  const classNames = buildClassNames(doc);
   const componentNames = buildComponentNames(doc);
   const assetNames = buildAssetNames(doc);
   const ctx: JsxContext = {

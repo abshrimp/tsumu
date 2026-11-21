@@ -8,7 +8,7 @@ import { safeMediaUrl, safeNavigationUrl, safeResourceUrl } from "../url-policy"
 import type { SiteDoc } from "../types";
 import { toggleShowDisplay } from "../style";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
-import { selectDefaultValue, fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
+import { selectDefaultValue, fieldSubmissionName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
 import { hasVars, KEEP_ESCAPES } from "../vars";
 import { type ListOp } from "../data";
 import { resolveTag } from "../tags";
@@ -416,7 +416,7 @@ ${indent}</div>`;
       return hasVars(v) ? ` ${name}={${textExpr(v)}}` + partsOf(name === "defaultValue" ? "value" : name, v) : ` ${name}=${jsxString(v)}`;
     };
     // 取り込んだフォームは、DOM の ID と別に送信用の name を保持する。
-    const fieldName = f.name ?? (f.kind === "submit" ? "" : fieldVarName(node));
+    const fieldName = fieldSubmissionName(node);
     const submission = submissionProps(fieldSubmissionAttributes(node));
     const formAttrs = Object.keys(submission).length ? ` {...${JSON.stringify(submission)}}` : "";
     const nameAttr = formAttrs + (fieldName ? ` name=${jsxString(fieldName)}` : "");
@@ -465,7 +465,8 @@ ${indent}</div>`;
     }
     const type = f.inputType ?? "text";
     const ranged = RANGED_INPUTS.has(type);
-    const rangeAttr = ranged ? attr("min", f.min) + attr("max", f.max) + attr("step", f.step) : "";
+    const rangeAttr = ranged ? (["min", "max", "step"] as const)
+      .map(key => attr(key, f[key]) + liveOf("data-live-" + key, f[key])).join("") : "";
     const textLen = TEXT_INPUTS.has(type) ? lenAttr : "";
     // 色と範囲は空の値を持てないため、案内文は出さない
     const ph = type === "color" || type === "range" ? "" : phAttr;

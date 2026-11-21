@@ -67,7 +67,7 @@ const jsonIndent = (value: unknown) => JSON.stringify(value, null, 2) + "\n";
 
 export function buildAdditionalFramework(
   doc: SiteDoc, next: GeneratedProject, framework: AdditionalFramework,
-  language: ExportLanguage, target: PublishTarget = "production",
+  language: ExportLanguage, target: PublishTarget = "production", classes?: Map<string, string>,
 ): GeneratedProject {
   const common = commonFiles(doc, next, framework);
   const files = common.files;
@@ -196,5 +196,5 @@ export function buildAdditionalFramework(
     });
   }
   files[".gitignore"] = "node_modules/\ndist/\n.nuxt/\n.output/\n.svelte-kit/\nbuild/\n";
-  return applyNativeFramework(doc, { files, binaries: common.binaries, remoteAssets: common.remoteAssets }, framework, language, target);
+  return applyNativeFramework(doc, { files, binaries: common.binaries, remoteAssets: common.remoteAssets }, framework, language, target, classes);
 }

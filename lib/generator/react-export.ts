@@ -6,7 +6,7 @@ import { createReactPageRenderer } from "./html-export";
 import type { GeneratedProject, PublishTarget } from "../generator";
 import { googleFontsCss } from "./css";
 import { adobeFontHead } from "./adobe-fonts";
-import { buildAssetNames } from "./names";
+import { buildAssetNames, buildClassNames } from "./names";
 import { imageRefSrc } from "./render-helpers";
 import { buildPwaManifest } from "./templates";
 import { REACT_SEARCH_FORM } from "./react-form";
@@ -47,7 +47,9 @@ export function needsReactPageRuntime(doc: SiteDoc, pageId: string): boolean {
 }
 
 /** Output a client-rendered Vite application with static client routes and assets. */
-export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: PublishTarget): GeneratedProject {
+export function buildReactProject(
+  doc: SiteDoc, next: GeneratedProject, target: PublishTarget, classes = buildClassNames(doc),
+): GeneratedProject {
   const files: Record<string, string> = {};
   for (const [path, source] of Object.entries(next.files)) {
     if (path.startsWith("public/")) files[path] = source;
@@ -74,7 +76,7 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
   // cannot reproduce those browser-side data dependencies.
   const variants = indexQueryVariants(pages);
   const clientPages = new Set(pages.filter((page) => needsReactPageRuntime(doc, page.id)).map((page) => page.id));
-  const clientRenderer = clientPages.size ? createReactPageRenderer(doc) : undefined;
+  const clientRenderer = clientPages.size ? createReactPageRenderer(doc, classes) : undefined;
   if (clientRenderer) {
     files["public/data-loader.js"] = PAGE_DATA_RUNTIME;
     files["public/scripts.js"] = scriptsFile(clientRenderer.doc, true);

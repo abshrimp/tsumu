@@ -4,7 +4,7 @@ import { pagePlan } from "./data";
 import { generateProject, type GeneratedProject, type PublishTarget } from "./generator";
 import { usedUploadedFonts } from "./generator/css";
 import { buildReactProject, needsReactPageRuntime } from "./generator/react-export";
-import { buildAssetNames } from "./generator/names";
+import { buildAssetNames, buildClassNames } from "./generator/names";
 import { generateStandaloneHtml } from "./generator/html-export";
 import { buildAdditionalFramework } from "./generator/framework-export";
 import { applyExportStyle } from "./generator/style-export";
@@ -246,13 +246,15 @@ export function generateExportProject(
   if (limitations.length) {
     throw new Error(tr("This export format does not yet support these features:") + "\n" + limitations.join("\n"));
   }
-  const next = generateProject(scoped, target);
+  // Tailwind scans generated markup too. Only author-supplied classes should activate its utilities.
+  const classes = buildClassNames(scoped, options.style === "tailwind" ? "tsumu-" : "");
+  const next = generateProject(scoped, target, classes);
   const generated = options.framework === "react"
-    ? buildReactProject(scoped, next, target)
+    ? buildReactProject(scoped, next, target, classes)
     : (options.framework === "html" || options.framework === "single-html")
-      ? generateStandaloneHtml(scoped, next, target)
+      ? generateStandaloneHtml(scoped, next, target, classes)
       : (options.framework === "vue" || options.framework === "nuxt" || options.framework === "sveltekit")
-        ? buildAdditionalFramework(scoped, next, options.framework, options.language, target)
+        ? buildAdditionalFramework(scoped, next, options.framework, options.language, target, classes)
         : next;
   const styled = options.style === "css" ? generated
     : applyExportStyle(generated, options.framework, options.style);

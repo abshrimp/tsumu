@@ -3,6 +3,7 @@
  */
 
 import type { SiteDoc } from "../types";
+import { importedClass } from "../imported-html-attrs";
 import { isWindowsDeviceName } from "./output-paths";
 
 /* ---------- クラス名 ---------- */
@@ -57,10 +58,17 @@ function nameAllocator(reserved: Iterable<string> = [], separator = "-", forbidd
   };
 }
 
-export function buildClassNames(doc: SiteDoc): Map<string, string> {
-  const allocate = nameAllocator();
+export function buildClassNames(doc: SiteDoc, prefix = ""): Map<string, string> {
+  const nodes = Object.values(doc.nodes);
+  // 保持した HTML クラスや書き出しランタイムのクラスには、別のノードの宣言を当てない。
+  const reserved = new Set(["crisp-svg", "is-inview"]);
+  for (const node of nodes) {
+    const source = importedClass(node.htmlClass);
+    if (source) for (const name of source.split(/\s+/)) reserved.add(name);
+  }
+  const allocate = nameAllocator(reserved);
   const map = new Map<string, string>();
-  for (const node of Object.values(doc.nodes)) {
+  for (const node of nodes) {
     let name0 = node.name;
     for (const [re, en] of NAME_DICT) {
       if (re.test(name0)) {
@@ -75,7 +83,7 @@ export function buildClassNames(doc: SiteDoc): Map<string, string> {
       .replace(/^-+|-+$/g, "")
       .replace(/-{2,}/g, "-");
     if (!base || /^\d/.test(base)) base = "el";
-    map.set(node.id, allocate(base));
+    map.set(node.id, allocate(prefix + base));
   }
   return map;
 }

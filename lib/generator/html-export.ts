@@ -19,7 +19,7 @@ import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "
 import { unnestLinks } from "./page";
 import { hasVars } from "../vars";
 import { pageQueryConditions } from "../page-query";
-import { selectDefaultValue, fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
+import { selectDefaultValue, fieldSubmissionName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
 import { resolveTag } from "../tags";
 import { compileScripts, hasRunnableScripts, scriptTargetIds } from "../script";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
@@ -132,13 +132,13 @@ function rewriteRootUrls(
 }
 
 /** Tsumu のブラウザのランタイムが各行を複製するまで、リストの項目の字句を残す。 */
-function templateParts(value: string, includeOffset = false): string {
-  const out: (string | { name: string; at?: number })[] = [];
+function templateParts(value: string, includeOffset = false, live = false): string {
+  const out: (string | { name: string; at?: number; live?: boolean })[] = [];
   let from = 0;
   for (const m of value.matchAll(/\\\{|\{([^{}\s"'<>]+)\}|\[slug\]/g)) {
     const at = m.index ?? 0;
     out.push(value.slice(from, at));
-    out.push(m[0] === "\\{" ? "{" : includeOffset ? { name: m[1] ?? "slug", at } : { name: m[1] ?? "slug" });
+    out.push(m[0] === "\\{" ? "{" : { name: m[1] ?? "slug", ...(includeOffset ? { at } : {}), ...(live ? { live } : {}) });
     from = at + m[0].length;
   }
   out.push(value.slice(from));
@@ -157,7 +157,7 @@ type Context = {
   seen: Set<string>;
   form: boolean;
   template: boolean;
-  instance?: { id?: string; hidden?: string };
+  instance?: { rootId: string; id?: string; hidden?: string };
   staticRoutes?: ReadonlyMap<string, Page[]>;
   authoredBase?: boolean;
 };
@@ -190,19 +190,21 @@ function href(ctx: Context, value: string, formAction = false): string {
   return formAction ? safe : ctx.prefix + path.replace(/^\/+/, "") + suffix;
 }
 
-/** メディアのソースは、インラインのデータか、サイト内のファイルに限る。動作するような URL のスキームは使わない。 */
+/** Preserve the resource's target when a clean page URL moves to <slug>/index.html. */
+function staticResourceUrl(ctx: Context, safe: string): string {
+  if (/^\/(?!\/)/.test(safe)) return ctx.prefix + safe.slice(1);
+  if (!ctx.staticRoutes || ctx.authoredBase || !safe || /^(?:[a-z][a-z0-9+.-]*:|[?#])/i.test(safe)) return safe;
+  const [, path, suffix] = /^([^?#]*)([\s\S]*)$/.exec(safe)!;
+  if (hasVars(path)) return safe;
+  return ctx.prefix + new URL(path, archiveFileUrl(ctx.page.slug)).pathname.slice(1) + suffix;
+}
+
 function sourceHref(ctx: Context, value: string): string {
-  const safe = safeResourceUrl(value);
-  // メディアのパスはファイルへの参照で、ページへのリンクではない。ソースが実際にアセットを
-  // 指しているときに、たまたま一致したページの slug を index.html に解決してはいけない。
-  return /^\/(?!\/)/.test(safe)
-    ? ctx.prefix + safe.replace(/^\/+/, "") : safe;
+  return staticResourceUrl(ctx, safeResourceUrl(value));
 }
 
 function mediaHref(ctx: Context, value: string): string {
-  const safe = safeMediaUrl(value);
-  return /^\/(?!\/)/.test(safe)
-    ? ctx.prefix + safe.replace(/^\/+/, "") : safe;
+  return staticResourceUrl(ctx, safeMediaUrl(value));
 }
 
 function pageHref(ctx: Context, id: string): string {
@@ -224,13 +226,14 @@ function compiledAttr(ctx: Context, node: Pick<DocNode, "scripts">, skip?: Set<s
 }
 
 function common(ctx: Context, n: DocNode, cls: string): string {
-  const id = n.attrId || ctx.instance?.id;
+  const instance = ctx.instance?.rootId === n.id ? ctx.instance : undefined;
+  const id = n.attrId || instance?.id;
   const toggle = (!!id && ctx.toggles.has(id)) || showsSelf(n);
   const retained = Object.entries(importedAttributes(n.htmlAttrs))
     .map(([key, value]) => attr(key === "htmlFor" ? "for" : key === "tabIndex" ? "tabindex" : key, value))
     .join("");
   return attr("class", cls) + attr("id", id) + retained +
-    attr("data-instance-hidden", ctx.instance?.hidden) +
+    attr("data-instance-hidden", instance?.hidden || undefined) +
     (toggle ? attr("data-toggle-show", toggleShowDisplay(n)) : "") +
     compiledAttr(ctx, n) +
     flag("data-inview", n.motions?.some((m) => m.trigger === "in-view"));
@@ -238,14 +241,14 @@ function common(ctx: Context, n: DocNode, cls: string): string {
 
 function field(ctx: Context, n: DocNode, attrs: string): string {
   const f = n.field!;
-  const name = f.name ?? fieldVarName(n);
+  const name = fieldSubmissionName(n);
   const formAttrs = Object.entries(fieldSubmissionAttributes(n, action => href(ctx, action, true)))
     .map(([key, value]) => attr(key, value)).join("");
   const shared = formAttrs + attr("name", name || undefined) + flag("required", f.required) + flag("disabled", f.disabled);
-  const dynamic = (key: string, value?: string) => !ctx.template && value && hasVars(value)
+  const dynamic = (key: string, value?: string, force = false) => !ctx.template && value !== undefined && (force || hasVars(value))
     ? attr("data-live-" + key, value) : "";
-  const fieldParts = (key: string, value?: string) => ctx.template && value && hasVars(value)
-    ? attr("data-field-" + key + "-parts", templateParts(value)) : "";
+  const fieldParts = (key: string, value?: string, force = false) => ctx.template && value !== undefined && (force || hasVars(value))
+    ? attr("data-field-" + key + "-parts", templateParts(value, false, true)) : "";
   if (f.kind === "submit") {
     const label = f.label ?? "送信";
     return "<button" + attrs + ' type="submit"' + attr("value", f.submitValue) + shared +
@@ -262,7 +265,8 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
     const values = f.options || [];
     const initial = selectDefaultValue(f);
     const selected = Math.max(0, values.findIndex((o) => o.value === initial));
-    return "<select" + attrs + shared + ">" + values.map((o, index) =>
+    const dynamicOptions = values.some(option => hasVars(option.value));
+    return "<select" + attrs + shared + dynamic("value", initial, dynamicOptions) + fieldParts("value", initial, dynamicOptions) + ">" + values.map((o, index) =>
       "<option" + attr("value", o.value) + flag("selected", index === selected) +
       dynamic("value", o.value) + fieldParts("value", o.value) +
       (!ctx.template && hasVars(o.label) ? attr("data-live", o.label) : "") + fieldParts("text", o.label) +
@@ -272,7 +276,9 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
     const text = f.label || "";
     const bare = f.submitValue !== undefined && !f.label;
     const input = "<input" + (bare ? attrs : "") + attr("type", f.kind) + shared +
-      attr("value", f.submitValue ?? (f.kind === "checkbox" ? "true" : text)) + flag("checked", f.checked) + ">";
+      attr("value", f.submitValue ?? (f.kind === "checkbox" ? "true" : text)) +
+      (f.kind === "radio" && f.submitValue === undefined ? dynamic("value", text) + fieldParts("value", text) : "") +
+      flag("checked", f.checked) + ">";
     if (bare) return input;
     return "<label" + attrs + ">" + input + "<span" + (!ctx.template && hasVars(text) ? attr("data-live", text) : "") +
       fieldParts("text", text) + ">" +
@@ -283,12 +289,14 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
       flag("multiple", f.multiple) + ">";
   }
   const type = f.inputType || "text";
+  const dynamicBounds = RANGED_INPUTS.has(type) && [f.min, f.max, f.step].some(hasVars);
   const bounds = RANGED_INPUTS.has(type)
-    ? attr("min", f.min) + attr("max", f.max) + attr("step", f.step) : "";
+    ? (["min", "max", "step"] as const).map(key => attr(key, f[key]) + dynamic(key, f[key]) + fieldParts(key, f[key])).join("") : "";
   return "<input" + attrs + attr("type", type) + shared + bounds +
     (type === "color" || type === "range" ? "" :
       attr("placeholder", f.placeholder) + dynamic("placeholder", f.placeholder) + fieldParts("placeholder", f.placeholder)) +
-    attr("value", f.defaultValue) + dynamic("value", f.defaultValue) + fieldParts("value", f.defaultValue) +
+    attr("value", f.defaultValue) + dynamic("value", f.defaultValue, dynamicBounds) +
+    fieldParts("value", f.defaultValue, dynamicBounds) +
     (TEXT_INPUTS.has(type) ? attr("maxlength", f.maxLength) : "") + ">";
 }
 
@@ -305,8 +313,9 @@ function render(ctx: Context, id: string, top: boolean): string {
       const old = ctx.instance;
       const hidden = n.hiddenOn?.length ? ctx.classes.get(n.id) : "";
       ctx.instance = {
-        id: master.attrId ? undefined : n.attrId,
-        hidden: [old?.hidden, hidden].filter(Boolean).join(" "),
+        rootId: master.id,
+        id: !old && master.type !== "instance" && !master.attrId ? n.attrId : undefined,
+        hidden: [hidden, old?.rootId === n.id ? old.hidden : undefined].filter(Boolean).join(" "),
       };
       try { return render(ctx, comp.rootId, false); }
       finally { ctx.instance = old; }
@@ -386,7 +395,7 @@ function render(ctx: Context, id: string, top: boolean): string {
       ? attr("data-text-parts", templateParts(text)) : attr("data-live", text);
     const submission = submissionAttributes(n.htmlAttrs, tag, action => href(ctx, action, true));
     for (const [key, value] of Object.entries(submission)) extra += attr(key, value);
-    if (tag === "form" && !submission.method) extra += ' method="get"';
+    if (tag === "form" && !submission.method) extra += ' method="get" data-search-form';
     if (tag === "button" && !submission.type) extra += attr("type",
       ctx.form && !n.scripts?.some((s) => s.trigger === "click") ? "submit" : "button");
     if (n.link) {
@@ -436,7 +445,7 @@ function staticPageFragment(ctx: Context, page: Page): string {
   return !ctx.authoredBase && hasBaseHref(html) ? pageFragment({ ...ctx, authoredBase: true }, page) : html;
 }
 
-function prepareHtmlExport(doc: SiteDoc) {
+function prepareHtmlExport(doc: SiteDoc, classes: Map<string, string>) {
   const normalized = obfuscateVarNames(doc);
   unnestLinks(normalized);
   applyBreakpoints(normalized);
@@ -444,7 +453,7 @@ function prepareHtmlExport(doc: SiteDoc) {
   const assets = buildAssetNames(normalized);
   return {
     doc: normalized,
-    classes: buildClassNames(normalized),
+    classes,
     assets,
     assetSources: exportedAssetSources(normalized, assets),
     toggles: new Set([
@@ -455,8 +464,8 @@ function prepareHtmlExport(doc: SiteDoc) {
   };
 }
 
-export function createReactPageRenderer(doc: SiteDoc) {
-  const shared = prepareHtmlExport(doc);
+export function createReactPageRenderer(doc: SiteDoc, classes = buildClassNames(doc)) {
+  const shared = prepareHtmlExport(doc, classes);
   return {
     doc: shared.doc,
     renderPage: (pageId: string) => {
@@ -468,8 +477,10 @@ export function createReactPageRenderer(doc: SiteDoc) {
   };
 }
 
-export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, target: PublishTarget = "production"): GeneratedProject {
-  const shared = prepareHtmlExport(doc);
+export function generateStandaloneHtml(
+  doc: SiteDoc, next: GeneratedProject, target: PublishTarget = "production", classes = buildClassNames(doc),
+): GeneratedProject {
+  const shared = prepareHtmlExport(doc, classes);
   const { doc: normalized, assets, assetSources } = shared;
   const files: Record<string, string> = {};
   const binaries: Record<string, string> = {};
@@ -488,7 +499,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
   for (const [path, source] of Object.entries(next.remoteAssets)) {
     if (path.startsWith("public/")) remoteAssets[path.slice(7)] = source;
   }
-  const manifest = buildPwaManifest(normalized, assets);
+  const manifest = buildPwaManifest(normalized, assets, "./");
   if (manifest) {
     files["manifest.webmanifest"] = JSON.stringify(manifest, null, 2) + "\n";
   }

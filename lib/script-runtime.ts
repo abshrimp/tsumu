@@ -15,6 +15,7 @@ import { runtimeJsonBody } from "./fetch-request";
 import { formatValueText } from "./value-text";
 import { systemTimeValues, systemVariable } from "./system-time";
 import { preferredScrollBehavior } from "./scroll-behavior";
+import { NATIVE_SEARCH_FORM_QUERY } from "./generator/search-form";
 
 /* ---------- 実行ランタイム ---------- */
 
@@ -221,7 +222,8 @@ export const SCRIPT_RUNTIME = `function (env) {
       return;
     }
     if (url.charAt(0) === "#") {
-      location.hash = url;
+      // 同じフラグメントをもう一度選んでも、その位置にスクロールし直す。
+      location.href = new URL(url, location.href).href;
       return;
     }
     var r = window.next && window.next.router;
@@ -633,7 +635,8 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*/clist*/
         var source;
         try { source = String(s == null ? "" : s); } catch (e) { return ""; }
-        return source.replace(/\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}/g, function (m, k) {
+        return source.replace(/\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}|\\[slug\\]/g, function (m, k) {
+          if (m === "[slug]") k = "slug";
           if (k == null) return "{";
           return text(lookup(k.trim(), self, item));
         });
@@ -647,10 +650,11 @@ export const SCRIPT_RUNTIME = `function (env) {
         var source;
         try { source = String(s == null ? "" : s); } catch (e) { return ""; }
         return source.replace(
-          /\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}|%7B(.*?)%7D/gi,
+          /\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}|%7B(.*?)%7D|\\[slug\\]/gi,
           function (m, a, b, at) {
             if (m === "\\\\{") return "{";
-            var k = a;
+            if (m.charAt(0) === "[" && m !== "[slug]") return m;
+            var k = m === "[slug]" ? "slug" : a;
             if (k == null) {
               try {
                 k = decodeURIComponent(b);
@@ -681,8 +685,14 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (t.nodeValue !== next) t.nodeValue = next;
         });
         root.querySelectorAll("[data-live-placeholder]").forEach(function (el) {
-          if (inTpl(el)) return;
-          el.placeholder = resolve(el.getAttribute("data-live-placeholder"), el);
+          if (!inTpl(el)) el.placeholder = resolve(el.getAttribute("data-live-placeholder"), el);
+        });
+        ["min", "max", "step"].forEach(function (name) {
+          root.querySelectorAll("[data-live-" + name + "]").forEach(function (el) {
+            if (inTpl(el)) return;
+            var value = resolve(el.getAttribute("data-live-" + name), el);
+            if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+          });
         });
         // 初期値は、まだ自分で入力していない入力欄だけ書き直す
         // Update option values before their owning selects. A select's requested
@@ -695,6 +705,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (inTpl(el) || el.hasAttribute("data-edited")) return;
           var nv = resolve(el.getAttribute("data-live-value"), el);
           if (el.value !== nv) el.value = nv;
+          if (el.tagName === "SELECT" && el.selectedIndex < 0 && el.options.length) el.selectedIndex = 0;
         });
         root.querySelectorAll("[data-live-src]").forEach(function (el) {
           if (inTpl(el)) return;
@@ -710,7 +721,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         });
         /*#clist*/
         // 選択肢の文字を先に直してから select の値を選ぶ。同じスクリプトの次の行も新しい値を読む。
-        ["text", "placeholder", "value"].forEach(function (name) {
+        ["min", "max", "step", "text", "placeholder", "value"].forEach(function (name) {
           var fieldNodes = Array.prototype.slice.call(root.querySelectorAll("[data-field-" + name + "-parts]"));
           if (name === "value") fieldNodes.sort(function (a, b) {
             return Number(b.tagName === "OPTION") - Number(a.tagName === "OPTION");
@@ -1052,6 +1063,7 @@ export const SCRIPT_RUNTIME = `function (env) {
             } else {
               if (initial) n.defaultValue = value;
               if (n.value !== value) n.value = value;
+              if (n.tagName === "SELECT" && n.selectedIndex < 0 && n.options.length) n.selectedIndex = 0;
             }
           } else if (n.getAttribute(name) !== value) n.setAttribute(name, value);
         });
@@ -2249,6 +2261,7 @@ export function usesLiveFields(doc: SiteDoc): boolean {
         n?.link?.kind === "url" ? n.link.url : undefined,
         n?.field?.placeholder,
         n?.field?.defaultValue,
+        n?.field?.min, n?.field?.max, n?.field?.step,
         n?.field?.label,
         ...(n?.field?.options ?? []).flatMap((o) => [o.label, o.value]),
       ];
@@ -2329,7 +2342,9 @@ export function scriptsFile(doc: SiteDoc, clientData = false): string {
   const start = clientData
     ? `Promise.resolve(window.__pageDataReady).then(function (vars) { (${runtime})(${env}).install(document, vars, window.__pageListRows); });`
     : `(${runtime})(${env}).install(document);`;
-  return compactJs(start) + "\n";
+  const searchForms = clientData && Object.values(doc.nodes).some(node => node.semantic === "form")
+    ? NATIVE_SEARCH_FORM_QUERY + "\n" : "";
+  return compactJs(searchForms + start) + "\n";
 }
 
 /** 共有ストレージのクッキーのドメイン（公開 URL のホスト。先頭の www. は除く） */

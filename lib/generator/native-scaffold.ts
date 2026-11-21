@@ -344,9 +344,10 @@ function sveltePage(
 
 export function applyNativeFramework(
   doc: SiteDoc, project: GeneratedProject, framework: Framework, language: ExportLanguage, target: PublishTarget,
+  classes?: Map<string, string>,
 ): GeneratedProject {
   const mode = framework === "sveltekit" ? "sveltekit" : "vue";
-  const native = generateNativeFiles(doc, language, target, mode);
+  const native = generateNativeFiles(doc, language, target, mode, classes);
   const files = { ...project.files };
   const root = framework === "vue" ? "src/" : framework === "nuxt" ? "app/generated/" : "src/lib/";
   const ext = framework === "sveltekit" ? ".svelte" : ".vue";

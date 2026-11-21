@@ -956,7 +956,7 @@ function mount() {
     });
   }
   const events: Event[] = [];
-  const form = { elements: [field, textarea, checkbox, ...radios, select], dispatchEvent: (event: Event) => events.push(event) };
+  const form = { elements: [field, textarea, checkbox, ...radios, select], matches: () => false, dispatchEvent: (event: Event) => events.push(event) };
   const replacements: string[] = [];
   class FormData {
     constructor(private form: typeof form) {}
@@ -992,7 +992,7 @@ function mount() {
     effect?.();
   }
   return { render, field, textarea, checkbox, radios, select, events, replacements,
-    submit: () => element.props.onSubmit({ preventDefault() {}, currentTarget: form }),
+    submit: () => element.props.onSubmit({ preventDefault() {}, nativeEvent: { submitter: null }, currentTarget: form }),
   };
 }
 
@@ -1106,7 +1106,7 @@ describe("search-form-values", () => {
     }
     const select = new Select();
     const upload = { name: "upload", type: "file", get value() { return ""; }, set value(_: string) { throw new Error("File input must not be restored"); } };
-    const form = { elements: [field, ...checkboxes, ...radios, select, upload], dispatchEvent() {} };
+    const form = { elements: [field, ...checkboxes, ...radios, select, upload], matches: () => false, dispatchEvent() {} };
     class FormData {
       constructor(private form: typeof form) {}
       *entries() {
@@ -1148,7 +1148,7 @@ describe("search-form-values", () => {
       selected: () => select.options.filter((option) => option.selected).map((option) => option.value),
       checked: () => checkboxes.filter((input) => input.checked).map((input) => input.value),
       submit: () => {
-        element.props.onSubmit({ preventDefault() {}, currentTarget: form });
+        element.props.onSubmit({ preventDefault() {}, nativeEvent: { submitter: null }, currentTarget: form });
         return new URL(navigations.at(-1)!, "https://example.test/search").searchParams;
       },
     };

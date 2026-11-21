@@ -18,7 +18,8 @@ export const searchFormValuesHtml = `
   <fieldset disabled><input name="fieldset-disabled" value="excluded"></fieldset>
   <input id="upload" type="file" name="upload">
   <input value="unnamed">
-  <button id="submit" type="submit">Search</button>`;
+  <button id="submit" type="submit" name="intent" value="search">Search</button>
+  <button id="save" type="submit" name="intent" value="save" formaction="/saved" formmethod="post">Save</button>`;
 
 const searchFormBundleCache = new Map<"nextjs" | "react", Promise<string>>();
 

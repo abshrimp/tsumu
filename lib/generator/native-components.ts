@@ -7,7 +7,7 @@ import { buildClassNames, buildAssetNames } from "./names";
 import { unnestLinks } from "./page";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
-import { selectDefaultValue, fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
+import { selectDefaultValue, fieldSubmissionName, fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
 import { resolveTag } from "../tags";
 import { hasVars } from "../vars";
 import { pageQueryConditions } from "../page-query";
@@ -34,6 +34,7 @@ type Context = {
   seen: Set<string>;
   inForm: boolean;
   rows: string[];
+  componentRootId?: string;
   level: number;
 };
 
@@ -88,13 +89,15 @@ function compiled(ctx: Context, node: Pick<DocNode, "scripts">, skip?: Set<strin
 }
 
 function common(ctx: Context, node: DocNode, className: string): string {
+  const root = node.id === ctx.componentRootId && node.type !== "instance";
   const show = (node.attrId && ctx.toggles.has(node.attrId)) || showsSelf(node);
   const retained = Object.entries(importedAttributes(node.htmlAttrs))
     .map(([key, value]) => literal(key === "htmlFor" ? "for" : key === "tabIndex" ? "tabindex" : key, value))
     .join("");
   return literal("class", className) +
-    literal("id", node.attrId) + retained +
-    (show ? literal("data-toggle-show", node.type === "instance" ? "contents" : toggleShowDisplay(node)) : "") +
+    (root && !node.attrId ? dynamicAttr(ctx, "id", "instanceId") : literal("id", node.attrId)) + retained +
+    (show ? literal("data-toggle-show", node.type === "instance" ? "contents" : toggleShowDisplay(node)) : root && !node.attrId
+      ? dynamicAttr(ctx, "data-toggle-show", "instanceId ? " + q(toggleShowDisplay(node)) + " : undefined") : "") +
     (node.motions?.some((m) => m.trigger === "in-view") ? " data-inview" : "") +
     compiled(ctx, node);
 }
@@ -118,11 +121,16 @@ function node(ctx: Context, id: string, top = false): string {
       if (!comp) return "";
       ctx.imports.add(comp);
       const scope = ctx.rows.length ? "scopeOf(scope, " + ctx.rows.join(", ") + ")" : "scope";
-      const body = ctx.vue ? "<" + comp + ' :scope="' + esc(scope) + '" :list-ops="listOps" />'
-        : "<" + comp + " scope={" + scope + "} {listOps} />";
-      return '<div style="display:contents"' + common(ctx, n, [ctx.classes.get(id) || "el", importedClass(n.htmlClass)].filter(Boolean).join(" ")) +
-        (n.hiddenOn?.length ? literal("data-instance-hidden", ctx.classes.get(id) || "el") : "") +
-        ">" + body + "</div>";
+      const master = ctx.doc.components?.[n.componentId || ""];
+      const root = master && ctx.doc.nodes[master.rootId];
+      const anchor = !ctx.componentRootId && root && root.type !== "instance" && !root.attrId ? n.attrId : undefined;
+      const placement = literal(ctx.vue ? "instance-id" : "instanceId", anchor);
+      const body = ctx.vue ? "<" + comp + ' :scope="' + esc(scope) + '" :list-ops="listOps"' + placement + " />"
+        : "<" + comp + " scope={" + scope + "} {listOps}" + placement + " />";
+      // Instance-specific attributes and handlers retain their wrapper; the visible master owns the anchor.
+      const wrapper = common(ctx, { ...n, attrId: undefined }, [ctx.classes.get(id) || "el", importedClass(n.htmlClass)].filter(Boolean).join(" "));
+      const hidden = n.hiddenOn?.length ? literal("data-instance-hidden", ctx.classes.get(id) || "el") : "";
+      return '<div style="display:contents"' + wrapper + hidden + ">" + body + "</div>";
     }
 
     const cls = [ctx.classes.get(id) || "el", importedClass(n.htmlClass)].filter(Boolean).join(" ");
@@ -185,7 +193,7 @@ function node(ctx: Context, id: string, top = false): string {
       const f = n.field;
       const name = fieldVarName(n);
       const formAttrs = Object.entries(fieldSubmissionAttributes(n)).map(([key, value]) => literal(key, value)).join("");
-      const fields = formAttrs + literal("name", f.name ?? name) + truth("disabled", f.disabled) + truth("required", f.required);
+      const fields = formAttrs + literal("name", fieldSubmissionName(n) || undefined) + truth("disabled", f.disabled) + truth("required", f.required);
       const fieldEvent = (event: "input" | "change"): string => !name ? "" :
         ctx.vue
           ? " @" + event + '="setField(scope, ' + esc(q(name)) + ', $event)"'
@@ -285,7 +293,7 @@ function node(ctx: Context, id: string, top = false): string {
       : staticText(value);
     const submission = submissionAttributes(n.htmlAttrs, tag);
     let extra = Object.entries(submission).map(([key, value]) => literal(key, value)).join("");
-    if (tag === "form" && !submission.method) extra += ' method="get"';
+    if (tag === "form" && !submission.method) extra += ' method="get" data-search-form';
     if (paragraphWrapper) extra += ' data-p=""';
     if (tag === "button" && !submission.type) extra += literal("type", wasForm && !n.scripts?.some(script => script.trigger === "click") ? "submit" : "button");
     if (n.link) {
@@ -316,12 +324,12 @@ export function generateNativeFiles(
   lang: NativeLanguage,
   target: PublishTarget,
   mode: NativeView,
+  classes = buildClassNames(doc),
 ): NativeFiles {
   const normalized = obfuscateVarNames(doc);
   unnestLinks(normalized);
   applyBreakpoints(normalized);
   raiseOverCrispSvg(normalized);
-  const classes = buildClassNames(normalized);
   const assets = buildAssetNames(normalized);
   const components = new Map(Object.values(normalized.components ?? {})
     .map((component, index) => [component.id, "Widget" + index]));
@@ -343,6 +351,7 @@ export function generateNativeFiles(
   };
   const build = (ids: string[], page?: PageRenderPlan, id?: string) => {
     const ctx = makeCtx();
+    if (!page) ctx.componentRootId = ids[0];
     let tree = ids.map((nid) => node(ctx, nid, true)).join("\n");
     if (page) {
       const script = compiled(ctx, { scripts: page.pageScripts }, page.serverIds);
@@ -356,15 +365,15 @@ export function generateNativeFiles(
     if (page) {
       constants.push("const listOps = JSON.parse(" + q(JSON.stringify(page.listOps)) + ");");
     }
-    const props = page ? "scope: Record<string, unknown>" : "scope: Record<string, unknown>; listOps?: Record<string, unknown>";
-    const propNames = page ? "scope" : "scope, listOps";
+    const props = page ? "scope: Record<string, unknown>" : "scope: Record<string, unknown>; listOps?: Record<string, unknown>; instanceId?: string";
+    const propNames = page ? "scope" : "scope, listOps, instanceId";
 
     if (ctx.vue) return [
       '<script setup' + (lang === "typescript" ? ' lang="ts"' : "") + '>',
       helper, ...dependencyImports,
       lang === "typescript" ?
         "defineProps<{ " + props + " }>();" :
-        "defineProps({ scope: { type: Object, required: true }" + (page ? "" : ", listOps: Object") + " });",
+        "defineProps({ scope: { type: Object, required: true }" + (page ? "" : ", listOps: Object, instanceId: String") + " });",
       ...constants,
       "</script>",
       "<template>", tree, "</template>", "",

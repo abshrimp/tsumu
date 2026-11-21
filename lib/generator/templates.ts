@@ -3,9 +3,11 @@
  */
 
 import { getLang } from "../i18n";
+import { PWA_CACHE_NAME } from "../publish-pwa";
 import { siteLangOf } from "../site-lang";
 import type { SiteDoc } from "../types";
 import { imageRefSrc } from "./render-helpers";
+import { SEARCH_FORM_QUERY } from "./search-form";
 
 /** 画像の URL が空のときに使う、1×1 の透明な GIF */
 export const EMPTY_GIF = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
@@ -26,7 +28,7 @@ function pwaIconType(mimeType: string | undefined, src: string): string | undefi
 }
 
 /** PWA のマニフェスト（有効でなければ null） */
-export function buildPwaManifest(doc: SiteDoc, assetNames: Map<string, string>) {
+export function buildPwaManifest(doc: SiteDoc, assetNames: Map<string, string>, root: "/" | "./" = "/") {
   const pwa = doc.pwa?.enabled ? doc.pwa : null;
   if (!pwa) return null;
   const appName = pwa.name?.trim() || doc.siteName;
@@ -37,8 +39,8 @@ export function buildPwaManifest(doc: SiteDoc, assetNames: Map<string, string>) 
   return {
     name: appName,
     short_name: pwa.shortName?.trim() || appName,
-    start_url: "/",
-    scope: "/",
+    start_url: root,
+    scope: root,
     display: pwa.display ?? "standalone",
     lang: siteLangOf(doc),
     ...(pwa.themeColor?.trim() ? { theme_color: pwa.themeColor.trim() } : {}),
@@ -46,7 +48,7 @@ export function buildPwaManifest(doc: SiteDoc, assetNames: Map<string, string>) 
     icons: iconSrc
       ? [
           {
-            src: iconSrc,
+            src: /^\/(?!\/)/.test(iconSrc) ? root + iconSrc.slice(1) : iconSrc,
             sizes: iconAsset?.width && iconAsset?.height ? `${iconAsset.width}x${iconAsset.height}` : "any",
             ...(iconType ? { type: iconType } : {}),
             purpose: "any" as const,
@@ -58,8 +60,8 @@ export function buildPwaManifest(doc: SiteDoc, assetNames: Map<string, string>) 
 
 /** PWA の Service Worker を登録する */
 export const PWA_REGISTER_SCRIPT = `
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(function () {});
+if ("serviceWorker" in navigator && document.currentScript) {
+  navigator.serviceWorker.register(new URL("sw.js", document.currentScript.src)).catch(function () {});
 }
 `;
 
@@ -68,7 +70,7 @@ if ("serviceWorker" in navigator) {
  * オフラインのときだけ、最後に表示したページやファイルを返す。
  */
 export const PWA_SERVICE_WORKER = `
-var CACHE = "site-pwa-v1";
+var CACHE = ${PWA_CACHE_NAME};
 self.addEventListener("install", function () {
   self.skipWaiting();
 });
@@ -185,6 +187,8 @@ function fieldNames(form: HTMLFormElement): string[] {
     .filter(Boolean);
 }
 
+${SEARCH_FORM_QUERY}
+
 // URLを読む部分だけを Suspense に入れ、静的なページでもフォーム本体は配信時に描く。
 function RestoreFields({ formRef }: { formRef: RefObject<HTMLFormElement | null> }) {
   const pathname = usePathname();
@@ -200,7 +204,7 @@ function RestoreFields({ formRef }: { formRef: RefObject<HTMLFormElement | null>
     for (const el of Array.from(form.elements)) {
       const input = el as HTMLInputElement;
       // ファイルの欄は値を入れられない（空以外を入れると例外になる）
-      if (!input.name || input.type === "file") continue;
+      if (!input.name || ["file", "button", "submit", "reset", "image"].includes(input.type)) continue;
       const values = params.getAll(input.name);
       const v = values[0] ?? null;
       if (el instanceof HTMLSelectElement) {
@@ -221,7 +225,7 @@ function RestoreFields({ formRef }: { formRef: RefObject<HTMLFormElement | null>
         input.checked = hasQuery
           ? (input.type === "radio" ? input.value === v : values.includes(input.value))
           : input.defaultChecked;
-      } else {
+      } else if ("defaultValue" in input) {
         input.value = v ?? input.defaultValue;
       }
     }
@@ -244,14 +248,9 @@ export default function SearchForm({
       {...rest}
       method="get"
       onSubmit={(event) => {
+        const qs = searchQuery(event.currentTarget, (event.nativeEvent as SubmitEvent).submitter);
+        if (!qs) return;
         event.preventDefault();
-        const data = new FormData(event.currentTarget);
-        // フォームの項目は送る値に置き換え、ページ自身のクエリ（?tab=… で分けたページ）は残す
-        const qs = new URLSearchParams(window.location.search);
-        for (const name of fieldNames(event.currentTarget)) qs.delete(name);
-        for (const [k, v] of data.entries()) {
-          if (typeof v === "string") qs.append(k, v);
-        }
         // ソフトナビゲーション: サーバー再取得で一覧だけが更新される
         router.replace(
           qs.toString() ? \`?\${qs.toString()}\` : window.location.pathname,
