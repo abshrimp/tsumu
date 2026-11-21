@@ -3394,8 +3394,13 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) for (const priori
   if (!priority) assert.doesNotMatch(nativeImg, /fetchpriority=/);
 });
 
+function vueBoundValue(markup: string, attribute: string): string | undefined {
+  const element = parseFragment(markup).childNodes[0] as Html.Element;
+  return element.attrs.find(entry => entry.name === ":" + attribute)?.value;
+}
+
 for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
-  for (const label of ["Plan {choice}", "\\{choice}", "Static & safe"]) test(`${framework} radio submits the displayed resolved label: ${label}`, () => {
+  for (const label of ["Plan {choice}", "\\{choice}", "Static & safe", 'Plan for O\'Neil & "{choice}"']) test(`${framework} radio submits the displayed resolved label: ${label}`, () => {
     const doc: SiteDoc = {
       siteName: "Radio", assets: {}, pageOrder: ["p"],
       pages: { p: { id: "p", name: "Home", title: "Home", description: "", slug: "", children: ["radio"] } },
@@ -3406,7 +3411,7 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     assert.ok(input);
     const expression = framework === "sveltekit"
       ? /\bvalue=\{(resolveText\([^\n]*?\))\}/.exec(source)?.[1]
-      : (() => { const match = /:value="([^"]*)"/.exec(source); return match ? parse(`<div data-code="${match[1]}"></div>`).querySelector("div").getAttribute("data-code") : undefined; })();
+      : vueBoundValue(source.match(/<input\b[^>]*>/)![0], "value");
     const scope = { choice: 'A & "B"' };
     const actual = expression ? new Function("resolveText", "scope", `return ${expression}`)(native.resolveText, scope) : input.getAttribute("value");
     assert.equal(actual, native.resolveText(label, scope));
@@ -3443,7 +3448,7 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     const evaluate = (code: string) => runInNewContext(code, { ...native, scope: sample.scope, row0: sample.row });
     const selectedFlags = optionTags.map(attrs => {
       const dynamic = framework === "sveltekit" ? /selected=\{(.*)\}/.exec(attrs)?.[1]
-        : parse("<option " + attrs + "></option>").querySelector("option").getAttribute(":selected");
+        : vueBoundValue("<option " + attrs + "></option>", "selected");
       if (dynamic) return evaluate(dynamic);
       return /\bselected\b/.test(attrs);
     });
