@@ -27,8 +27,8 @@ export default defineConfig({
   // CDP を使う複数の指での操作のテストは、Chromium のテストにだけ含める。
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"], viewport } },
-    { name: "firefox", grep: /@(?:core-editing|form-values|export-navigation)\b/, use: { ...devices["Desktop Firefox"], viewport } },
-    { name: "webkit", grep: /@(?:core-editing|form-values|export-navigation)\b/, use: { ...devices["Desktop Safari"], viewport } },
+    { name: "firefox", grep: /@(?:core-editing|form-values|export-browser)\b/, use: { ...devices["Desktop Firefox"], viewport } },
+    { name: "webkit", grep: /@(?:core-editing|form-values|export-browser)\b/, use: { ...devices["Desktop Safari"], viewport } },
   ],
   webServer: {
     command: `rm -rf .e2e-data && npx --no-install next start -p ${PORT}`,

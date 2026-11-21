@@ -25,7 +25,7 @@ test("all three engines discover the same core editing smoke tests", () => {
   }[] };
   const smoke = new Map<string, Set<string>>();
   const forms = new Map<string, Set<string>>();
-  const navigation = new Map<string, Set<string>>();
+  const exportsInBrowser = new Map<string, Set<string>>();
   const discoveredFiles = new Set<string>();
   let chromiumOnly = 0;
   function visit(suite: Suite) {
@@ -34,7 +34,7 @@ test("all three engines discover the same core editing smoke tests", () => {
       discoveredFiles.add(normalized);
       const projects = spec.tests.map((t) => t.projectName).sort();
       const group = spec.tags.includes("core-editing") ? smoke : spec.tags.includes("form-values") ? forms :
-        spec.tags.includes("export-navigation") ? navigation : null;
+        spec.tags.includes("export-browser") ? exportsInBrowser : null;
       if (group) {
         assert.deepEqual(projects, ["chromium", "firefox", "webkit"], spec.title);
         const titles = group.get(spec.file) ?? new Set<string>();
@@ -54,8 +54,9 @@ test("all three engines discover the same core editing smoke tests", () => {
   assert.equal(smoke.size, 2);
   assert.equal(forms.get("search-form-values.spec.ts")?.size, 3);
   assert.equal(forms.size, 1);
-  assert.deepEqual([...navigation.keys()].sort(), [
-    "export-fragment-navigation.spec.ts", "export-query-fallback.spec.ts", "search-form-values.spec.ts",
+  assert.deepEqual([...exportsInBrowser.keys()].sort(), [
+    "export-fragment-navigation.spec.ts", "export-keyboard-controls.spec.ts", "export-query-fallback.spec.ts",
+    "export-responsive-images.spec.ts", "search-form-values.spec.ts",
   ]);
   assert.ok(chromiumOnly > 0, "keep the full existing Chromium suite");
 

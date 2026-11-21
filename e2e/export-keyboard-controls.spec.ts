@@ -24,7 +24,8 @@ const doc: SiteDoc = {
 };
 
 for (const format of ["preview", "html", "nextjs"] as const) {
-  test(format + " activates a scripted custom button with the keyboard and preserves native key behavior", async ({ page }) => {
+  const browserTag = format === "html" ? " @export-browser" : "";
+  test(format + " activates a scripted custom button with the keyboard and preserves native key behavior" + browserTag, async ({ page }) => {
     if (format === "preview") {
       await page.setContent('<div id="app"></div>');
       await page.addScriptTag({ content: await componentListBundle(doc, "custom") });

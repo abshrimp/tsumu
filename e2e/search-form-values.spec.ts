@@ -171,7 +171,7 @@ test.describe("Next.js search form navigation", () => {
     if (directory) await rm(directory, { recursive: true, force: true });
   });
 
-  test("Back and Forward revisit submitted searches, their fields, and the original fragment @export-navigation", async ({ page }) => {
+  test("Back and Forward revisit submitted searches, their fields, and the original fragment @export-browser", async ({ page }) => {
     await page.goto(`${origin}/search${firstSearch}#search-form`);
     await expect(page.locator("#q")).toHaveValue("first");
     const initialLength = await page.evaluate(() => history.length);

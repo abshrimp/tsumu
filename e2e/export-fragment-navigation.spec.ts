@@ -22,7 +22,7 @@ function fragmentSite(): SiteDoc {
 }
 
 for (const language of ["typescript", "javascript"] as const) {
-  const browserTag = language === "typescript" ? " @export-navigation" : "";
+  const browserTag = language === "typescript" ? " @export-browser" : "";
   test("React " + language + " deep links focus the query edition's fragment on the first render" + browserTag, async ({ page }) => {
     const { files } = await prepareExportProject(fragmentSite(), { framework: "react", scope: "project", language, style: "css" });
     const dir = await mkdtemp(join(tmpdir(), "fragment-export-"));

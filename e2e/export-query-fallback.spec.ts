@@ -3,7 +3,7 @@ import { generateExportProject } from "../lib/export-formats";
 import { makeText } from "../lib/presets";
 import type { SiteDoc } from "../lib/types";
 
-test("a shared static route shows its default document without JavaScript and runs only the selected variant with JavaScript @export-navigation", async ({ browser }) => {
+test("a shared static route shows its default document without JavaScript and runs only the selected variant with JavaScript @export-browser", async ({ browser }) => {
   const base = { slug: "catalog", title: "Catalog", description: "" };
   const doc: SiteDoc = {
     schemaVersion: 1, siteName: "Catalog", assets: {}, pageOrder: ["sale", "regular"],
