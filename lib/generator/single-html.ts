@@ -130,7 +130,8 @@ export async function toSingleHtmlProject(
       const rel = get("rel").toLowerCase().split(/\s+/);
       const preload = rel.includes("preload") ? get("as").toLowerCase() : "";
       const href = get("href");
-      if (rel.includes("manifest")) replacement = "";
+      // The original script files no longer exist after scripts are embedded.
+      if (rel.includes("manifest") || rel.includes("modulepreload") || preload === "script") replacement = "";
       else if (href && (rel.includes("stylesheet") || preload === "style") && !/^data:/i.test(href) &&
                (!get("type") || get("type").split(";", 1)[0].trim().toLowerCase() === "text/css")) {
         const css = await resources.stylesheet(new URL(href, base), new Set(), get("integrity"));
@@ -151,6 +152,24 @@ export async function toSingleHtmlProject(
       } else if (href && preload === "font") {
         set("href", await resources.embed(href, base, get("integrity")));
       } else if (href && (rel.includes("icon") || rel.includes("apple-touch-icon"))) set("href", await resources.embed(href, base));
+    } else if (htmlTag && name === "meta") {
+      // Bundle local social images; external HTTP(S) metadata URLs remain intact.
+      const property = get("property").trim().toLowerCase();
+      const metaName = get("name").trim().toLowerCase();
+      const imageMeta = ["og:image", "og:image:url", "og:image:secure_url"].includes(property) ||
+        ["twitter:image", "twitter:image:src"].includes(metaName) ||
+        get("itemprop").trim().toLowerCase() === "image";
+      if (imageMeta && get("content")) {
+        const value = get("content");
+        const url = new URL(value, base);
+        let path = "";
+        try { path = decodeURIComponent(url.pathname).slice(1); } catch {}
+        if (url.origin === EXPORT_BASE.origin && path &&
+            (Object.hasOwn(source.files, path) || Object.hasOwn(source.binaries, path) ||
+              Object.hasOwn(source.remoteAssets, path))) {
+          set("content", await resources.embed(value, base));
+        }
+      }
     } else if (htmlTag && name === "script" && get("src")) {
       const url = new URL(get("src"), base);
       if (url.origin === EXPORT_BASE.origin && url.pathname === "/pwa.js" && Object.hasOwn(source.files, "pwa.js")) {
