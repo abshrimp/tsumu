@@ -335,6 +335,7 @@ export function replaceEmbeddedAsset(doc: SiteDoc, assetId: string, path: string
   const sources = new Map(data ? [[data, src]] : []);
   for (const node of Object.values(doc.nodes)) {
     if (node.image?.assetId === assetId) node.image.src = src;
+    for (const candidate of node.image?.candidates ?? []) if (candidate.assetId === assetId) candidate.src = src;
     if (node.media?.assetId === assetId) node.media.src = src;
     for (const source of node.media?.sources ?? []) if (source.assetId === assetId) source.src = src;
     if (!data) continue;

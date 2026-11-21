@@ -203,7 +203,7 @@ function validClipDependencies(p: ClipPayload): boolean {
   return p.uploadedFonts.every(font => assetRef(font)) &&
     [...p.nodes, ...p.componentNodes].every(node =>
     (node.type !== "instance" || (typeof node.componentId === "string" && Object.hasOwn(p.components, node.componentId))) &&
-    assetRef(node.image) && assetRef(node.media) && (node.media?.sources ?? []).every(assetRef));
+    assetRef(node.image) && (node.image?.candidates ?? []).every(assetRef) && assetRef(node.media) && (node.media?.sources ?? []).every(assetRef));
 }
 
 /**

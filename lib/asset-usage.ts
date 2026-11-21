@@ -19,6 +19,7 @@ export function assetUsage(doc: SiteDoc): Map<string, number> {
   const findCssAssets = createCssAssetFinder(doc.assets);
   for (const node of Object.values(doc.nodes)) {
     add(node.image?.assetId);
+    node.image?.candidates?.forEach(source => add(source.assetId));
     add(node.media?.assetId);
     node.media?.sources?.forEach(source => add(source.assetId));
     findCssAssets(node.styles, node.customCss).forEach(add);

@@ -3,6 +3,7 @@
  */
 
 import { fieldSubmissionAttributes, submissionAttributes, submissionProps } from "../imported-form";
+import { imageSrcset } from "../srcset";
 import { assetMediaUrl } from "../media-url";
 import { safeMediaUrl, safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import type { SiteDoc } from "../types";
@@ -338,7 +339,11 @@ ${indent}</div>`;
   if (node.type === "image" && node.image) {
     const width = Number.isFinite(node.image.width) && node.image.width > 0 ? node.image.width : 800;
     const height = Number.isFinite(node.image.height) && node.image.height > 0 ? node.image.height : 500;
-    ctx.usesImage = true;
+    const candidates = imageSrcset(node.image.candidates, source => source.assetId
+      ? assetMediaUrl(assetPath(ctx, source.assetId), source.assetSuffix) : source.src);
+    // next/image manages its own srcSet. A supplied candidate list belongs to the native image.
+    const tag = candidates ? "img" : "Image";
+    if (!candidates) ctx.usesImage = true;
     const src = node.image.assetId
       ? assetMediaUrl(assetPath(ctx, node.image.assetId), node.image.assetSuffix)
       : node.image.src;
@@ -359,9 +364,15 @@ ${indent}</div>`;
         }
       }
     }
+    if (candidates) {
+      if (!src) srcAttr = "";
+      srcAttr = `srcSet=${jsxString(candidates)} ` + srcAttr;
+      if (node.image.loading) srcAttr = `loading=${jsxString(node.image.loading)} ` + srcAttr;
+    }
+    if (candidates && node.image.sizes) srcAttr = `sizes=${jsxString(node.image.sizes)} ` + srcAttr;
     // Next.js 16 では priority が非推奨のため、preload を使い、取得の優先度も上げる
     const priority = (pad: string) =>
-      node.image!.priority ? `\n${pad}preload\n${pad}fetchPriority="high"` : "";
+      node.image!.priority ? (candidates ? "" : `\n${pad}preload`) + `\n${pad}fetchPriority="high"` : "";
     const crisp = crispSvgSize(ctx.doc, node);
     if (crisp) {
       // iOS Safari の SVG フィルターを鮮明に描くため、画像だけを2倍で描画して縮小する。
@@ -370,10 +381,10 @@ ${indent}</div>`;
       // 画像は絶対配置なので、実寸を持つ透明な svg で中身の大きさを伝え、
       // 中身で幅の決まる親の中で width: 100% の枠が 0 に潰れないようにする
       const { width: w, height: h } = crisp;
-      return `${indent}<span${idAttr}\n${indent}  className=${jsxString("crisp-svg " + cls)}\n${indent}  style={{ ["--crisp-svg-width"]: "${w}px", ["--crisp-svg-ratio"]: "${w} / ${h}" } as import("react").CSSProperties}\n${indent}>\n${indent}  <svg aria-hidden="true" width={${w}} height={${h}} viewBox="0 0 ${w} ${h}" />\n${indent}  <Image\n${indent}    ${srcAttr}\n${indent}    alt=${jsxString(node.image.alt)}\n${indent}    width={${w * 2}}\n${indent}    height={${h * 2}}${priority(indent + "    ")}\n${indent}  />\n${indent}</span>`;
+      return `${indent}<span${idAttr}\n${indent}  className=${jsxString("crisp-svg " + cls)}\n${indent}  style={{ ["--crisp-svg-width"]: "${w}px", ["--crisp-svg-ratio"]: "${w} / ${h}" } as import("react").CSSProperties}\n${indent}>\n${indent}  <svg aria-hidden="true" width={${w}} height={${h}} viewBox="0 0 ${w} ${h}" />\n${indent}  <${tag}\n${indent}    ${srcAttr}\n${indent}    alt=${jsxString(node.image.alt)}\n${indent}    width={${w * 2}}\n${indent}    height={${h * 2}}${priority(indent + "    ")}\n${indent}  />\n${indent}</span>`;
     }
     // 実際の大きさが分からない画像（読み込む前など）でも、next/image の width と height は必須
-    return `${indent}<Image${idAttr}\n${indent}  ${srcAttr}\n${indent}  alt=${jsxString(node.image.alt)}\n${indent}  width={${width}}\n${indent}  height={${height}}\n${indent}  className=${jsxString(cls)}${priority(indent + "  ")}\n${indent}/>`;
+    return `${indent}<${tag}${idAttr}\n${indent}  ${srcAttr}\n${indent}  alt=${jsxString(node.image.alt)}\n${indent}  width={${width}}\n${indent}  height={${height}}\n${indent}  className=${jsxString(cls)}${priority(indent + "  ")}\n${indent}/>`;
   }
 
   if (node.type === "divider") {

@@ -1,4 +1,5 @@
 import { fieldSubmissionAttributes, submissionAttributes } from "../imported-form";
+import { imageSrcset } from "../srcset";
 import { assetMediaUrl } from "../media-url";
 import { socialImageSrc } from "./social-image";
 import type { PublishTarget } from "../generator";
@@ -144,9 +145,11 @@ function node(ctx: Context, id: string, top = false): string {
       const source = im.assetId && ctx.assets.get(im.assetId) ?
         assetMediaUrl("/assets/" + ctx.assets.get(im.assetId), im.assetSuffix) : im.src;
       const safeStatic = source ? safeResourceUrl(source) : "";
-      const imageSrc = hasVars(source)
+      const candidates = imageSrcset(im.candidates, item => item.assetId && ctx.assets.has(item.assetId)
+        ? assetMediaUrl("/assets/" + ctx.assets.get(item.assetId), item.assetSuffix) : item.src);
+      const imageSrc = literal("loading", im.loading) + literal("sizes", im.sizes) + literal("srcset", candidates) + (hasVars(source)
         ? srcAttr(ctx, "src", source, true)
-        : literal("src", !safeStatic || safeStatic === "#" ? EMPTY_GIF : safeStatic);
+        : literal("src", !safeStatic || safeStatic === "#" ? (candidates ? undefined : EMPTY_GIF) : safeStatic));
       const crisp = crispSvgSize(ctx.doc, n);
       if (crisp) {
         return "<span" + attrs.replace(literal("class", cls), literal("class", "crisp-svg " + cls)) +

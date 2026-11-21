@@ -1,5 +1,6 @@
 "use client";
 
+import { imageSrcset } from "../../lib/srcset";
 import { safeNavigationUrl, safeResourceUrl } from "../../lib/url-policy";
 import { canvasHtml } from "../../lib/canvas-html";
 
@@ -72,6 +73,9 @@ function GhostViewInner({
     const src = hasVars(raw) ? interpolate(raw, vars) : raw;
     return createElement("img", {
       ...common,
+      loading: node.image.loading,
+      sizes: node.image.sizes,
+      srcSet: imageSrcset(node.image.candidates, source => mediaSrc(doc, source)),
       src: src.trim() ? safeResourceUrl(src) : undefined,
       alt: node.image.alt,
       draggable: false,
@@ -355,6 +359,9 @@ export function NodeView({
     const src = hasVars(rawSrc) ? interpolate(rawSrc, vars) : rawSrc;
     return createElement("img", {
       ...common,
+      loading: node.image.loading,
+      sizes: node.image.sizes,
+      srcSet: imageSrcset(node.image.candidates, source => mediaSrc(doc, source)),
       src: src.trim() ? safeResourceUrl(src) : undefined,
       alt: node.image.alt,
       draggable: false,

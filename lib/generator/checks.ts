@@ -234,7 +234,7 @@ export function runChecks(
     }
   }
   for (const node of Object.values(doc.nodes)) {
-    for (const ref of [node.image, node.media, ...(node.media?.sources ?? [])]) {
+    for (const ref of [node.image, ...(node.image?.candidates ?? []), node.media, ...(node.media?.sources ?? [])]) {
       if (ref?.assetId) assetRefs.push({ id: ref.assetId, label: tr("\"{name}\"", { name: node.name }) });
     }
   }

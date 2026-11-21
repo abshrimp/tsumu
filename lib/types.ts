@@ -392,7 +392,14 @@ export interface TextContent {
   heading: number;
 }
 
+export interface ImageCandidate extends Pick<MediaSource, "src" | "assetId" | "assetSuffix"> {
+  descriptor: string;
+}
+
 export interface ImageContent {
+  loading?: "lazy" | "eager";
+  candidates?: ImageCandidate[];
+  sizes?: string;
   src: string;
   alt: string;
   width: number;

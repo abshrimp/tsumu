@@ -13,6 +13,7 @@ import { listFromOf, obfuscateVarNames, pagePlan } from "../data";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
 import { assetDocUrl } from "../assets";
+import { imageSrcset } from "../srcset";
 import { assetMediaUrl } from "../media-url";
 import { htmlZipExportSource, htmlZipExportUrl, importedAssetUrl, isZipJavascript } from "./imported-assets";
 import { googleFontsCss, rewriteHtmlAssetUrls, rawHtmlWithBodyStyles } from "./css";
@@ -366,8 +367,10 @@ function render(ctx: Context, id: string, top: boolean): string {
     if (n.type === "divider") return "<hr" + commonAttrs + ">";
     if (n.type === "image" && n.image) {
       const im = n.image;
-      const src = im.assetId ? assetMediaUrl(resource(ctx, im.assetId), im.assetSuffix) : sourceHref(ctx, im.src);
-      const imageAttrs = attr("src", hasVars(src) ? EMPTY_GIF : (src || EMPTY_GIF)) +
+      const src = im.assetId ? assetMediaUrl(resource(ctx, im.assetId), im.assetSuffix) : im.src ? sourceHref(ctx, im.src) : "";
+      const candidates = imageSrcset(im.candidates, source => source.assetId
+        ? assetMediaUrl(resource(ctx, source.assetId), source.assetSuffix) : sourceHref(ctx, source.src));
+      const imageAttrs = attr("loading", im.loading) + attr("sizes", im.sizes) + attr("srcset", candidates) + attr("src", hasVars(src) ? EMPTY_GIF : src || (candidates ? undefined : EMPTY_GIF)) +
         (!ctx.template && hasVars(src) ? attr("data-live-src", src) : "") +
         (hasVars(src) && ctx.template ? attr("data-image-src-parts", templateParts(src, false, true)) : "") +
         attr("alt", im.alt);

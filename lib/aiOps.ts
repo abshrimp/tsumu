@@ -582,7 +582,7 @@ function applyBatch(doc: SiteDoc, ops: AiOp[], target: ApplyTarget, refs: Map<st
             break;
           }
           const image = op.src
-            ? { ...node.image, src: op.src, assetId: undefined, assetSuffix: undefined, width: 0, height: 0 }
+            ? { ...node.image, src: op.src, assetId: undefined, assetSuffix: undefined, ...(node.image.candidates && { candidates: undefined, sizes: undefined, loading: undefined }), width: 0, height: 0 }
             : node.image;
           if (op.alt !== undefined) image.alt = String(op.alt);
           node.image = image;

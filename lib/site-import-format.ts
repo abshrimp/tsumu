@@ -81,6 +81,7 @@ export function validateImportedDoc(value: unknown): SiteDoc {
     (typeof ref.assetId === "string" && Object.hasOwn(doc.assets as Record<string, unknown>, ref.assetId));
   for (const node of Object.values(doc.nodes)) {
     if (!isImportObject(node) || !assetRefValid(node.image) || !assetRefValid(node.media) ||
+        (isImportObject(node.image) && Array.isArray(node.image.candidates) && !node.image.candidates.every(assetRefValid)) ||
         (isImportObject(node.media) && Array.isArray(node.media.sources) && !node.media.sources.every(assetRefValid))) {
       throw new Error(tr("Asset references are invalid."));
     }
