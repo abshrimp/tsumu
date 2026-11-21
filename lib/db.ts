@@ -107,6 +107,8 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
           )`,
+          `CREATE UNIQUE INDEX IF NOT EXISTS sites_publish_repository
+            ON sites(git_provider, repo COLLATE NOCASE) WHERE repo IS NOT NULL`,
           // サイトの作成ごとに作る、予測できない部屋の識別子。同じ ID でインポートし直しても、
           // 古いサイト ID が削除したサイトの Durable Object を使い回すことはない。
           ...(binding.__tsumuBackend === "sqlite" ? [] : [

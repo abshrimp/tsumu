@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { authConfigured } from "../../../../../lib/auth";
 import { requireAuth } from "../../../../../lib/server";
 import { dbConfigured, getDb } from "../../../../../lib/db";
-import { allowedEmails, getAccountRole, isEmailAllowed } from "../../../../../lib/allowlist";
+import { allowedEmails, getAccountRole } from "../../../../../lib/allowlist";
 import { isValidEmail } from "../../../../../lib/email";
 import { serverTr } from "../../../../../lib/i18n-server";
 import { isSiteId, isSiteRole } from "../../../../../lib/site-model";
@@ -53,10 +53,11 @@ export async function PUT(req: Request, ctx: Ctx) {
   }
   const email = rawEmail.trim().toLowerCase();
   if (!isValidEmail(email)) return NextResponse.json({ error: tr("Invalid email address") }, { status: 400 });
-  if (!await isEmailAllowed(email)) {
+  const accountRole = await getAccountRole(email);
+  if (!accountRole) {
     return NextResponse.json({ error: tr("Add this account under Settings before granting site access") }, { status: 400 });
   }
-  if (role !== "viewer" && await getAccountRole(email) !== "editor") {
+  if (role !== "viewer" && accountRole !== "editor") {
     return NextResponse.json({ error: tr("This account needs the Editor account role before it can edit sites") }, { status: 400 });
   }
   const db = await getDb();

@@ -106,6 +106,16 @@ async function save(req: Request, partial: boolean) {
   if (user instanceof NextResponse) return user;
   if (!dbConfigured()) return await dbUnavailable();
 
+  const params = new URL(req.url).searchParams;
+  const siteId = await siteIdOf(params.get("site"));
+  if (siteId instanceof NextResponse) return siteId;
+  const siteDenied = await requireSiteAccess(siteId, "edit", user?.email ?? null);
+  if (siteDenied) return siteDenied;
+  const base = params.get("base");
+  if ((partial && base === null) || (base !== null && (!/^[1-9]\d*$/.test(base) || !Number.isSafeInteger(Number(base))))) {
+    return NextResponse.json({ error: tr("Invalid request") }, { status: 400 });
+  }
+
   let input: unknown;
   try {
     input = await readJsonLimited(req, MAX_DOC_REQUEST_BYTES);
@@ -122,15 +132,6 @@ async function save(req: Request, partial: boolean) {
     ? isDocPatch(patch) ? null : "不正なリクエスト"
     : validateDocValue(input);
   if (validationError) {
-    return NextResponse.json({ error: tr("Invalid request") }, { status: 400 });
-  }
-  const params = new URL(req.url).searchParams;
-  const siteId = await siteIdOf(params.get("site"));
-  if (siteId instanceof NextResponse) return siteId;
-  const siteDenied = await requireSiteAccess(siteId, "edit");
-  if (siteDenied) return siteDenied;
-  const base = params.get("base");
-  if (partial && (!base || !/^[1-9]\d*$/.test(base) || !Number.isSafeInteger(Number(base)))) {
     return NextResponse.json({ error: tr("Invalid request") }, { status: 400 });
   }
   // キーが重複した JSON では、SQLite は最初の値を、JSON.parse は最後の値を読む。

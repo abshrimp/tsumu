@@ -118,16 +118,14 @@ export async function POST(req: Request) {
     await store.put(path, bytes, {
       metadata: { contentType, bytes: file.size },
     });
-    if (dbConfigured()) {
-      const db = await getDb();
-      // A successful upload must have a site association before its path is returned.
-      await db.execute({ sql: "INSERT INTO site_asset_uploads(site_id,path) VALUES(?,?)", args: [site, path] });
-      try {
-        await recordUploadedAsset(db, path, file.size);
-      } catch {
-        // The optional accounting ledger can be repaired by the weekly inventory.
-        console.warn("Uploaded asset was not recorded in the storage ledger");
-      }
+    const db = await getDb();
+    // A successful upload must have a site association before its path is returned.
+    await db.execute({ sql: "INSERT INTO site_asset_uploads(site_id,path) VALUES(?,?)", args: [site, path] });
+    try {
+      await recordUploadedAsset(db, path, file.size);
+    } catch {
+      // The optional accounting ledger can be repaired by the weekly inventory.
+      console.warn("Uploaded asset was not recorded in the storage ledger");
     }
     return NextResponse.json({ ok: true, name: safeName, path });
   } catch (e) {
@@ -264,11 +262,11 @@ export async function DELETE(req: Request) {
   const deniedSite = await requireSiteAccess(siteId, "edit");
   if (deniedSite) return deniedSite;
   try {
-    const db = dbConfigured() ? await getDb() : null;
-    if (db && !await siteHasAsset(db, siteId, path)) {
+    const db = await getDb();
+    if (!await siteHasAsset(db, siteId, path)) {
       return NextResponse.json({ error: tr("Not found") }, { status: 404 });
     }
-    if (db?.backend === "d1") {
+    if (db.backend === "d1") {
       // エディタは、手元の文書からすでにアセットを外している。毎晩 KV の全件を列挙する代わりに、
       // ここで削除の候補として登録する。他のサイトの参照と保存待ちの変更は、
       // 猶予期間（既定7日）の後に改めて確認する。
@@ -282,19 +280,13 @@ export async function DELETE(req: Request) {
     if (params.get("browserReferenced") === "1") {
       return NextResponse.json({ ok: true, kept: true });
     }
-    if (db) {
-      // SQLite の同じスナップショットで、HTML・CSS に直接書かれた参照も調べる。
-      // 文書を1件ずつ読み、最初の一致で止める。
-      const refs = await db.execute({
-        sql: "SELECT 1 FROM docs WHERE id != ? AND document_references_asset(body, ?) LIMIT 1",
-        args: [siteId, path],
-      });
-      if (refs.rows.length) return NextResponse.json({ ok: true, kept: true });
-    }
+    const refs = await db.execute({
+      sql: "SELECT 1 FROM docs WHERE id != ? AND document_references_asset(body, ?) LIMIT 1",
+      args: [siteId, path],
+    });
+    if (refs.rows.length) return NextResponse.json({ ok: true, kept: true });
     await store.delete(path);
-    if (db) {
-      await db.execute({ sql: "DELETE FROM site_asset_uploads WHERE path=?", args: [path] });
-    }
+    await db.execute({ sql: "DELETE FROM site_asset_uploads WHERE path=?", args: [path] });
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json(

@@ -62,7 +62,7 @@ export function planAssetGc(input: GcPlanInput) {
     eligible.push(prior!);
   }
   for (const path of candidates.keys()) {
-    if (!present.has(path) && !release.includes(path)) release.push(path);
+    if (!present.has(path)) release.push(path);
   }
   eligible.sort((a, b) => a.firstUnreferencedAt - b.firstUnreferencedAt || a.path.localeCompare(b.path));
   return { add, release, eligible: eligible.slice(0, maxDeletes),

@@ -1255,7 +1255,7 @@ function assetDeleteRoute({ backend = "d1", configured = true, siteExists = true
     "../../../lib/site-model": { isSiteId: () => true },
     "../../../lib/auth": { authConfigured: () => false },
     "../../../lib/allowlist": { allowedEmails: () => [] },
-    "../../../lib/kv": { assetStore: () => ({ async delete() { deleted++; } }), MAX_ASSET_BYTES: 25 * 1024 * 1024 },
+    "../../../lib/kv": { assetStore: () => configured ? { async delete() { deleted++; } } : null, MAX_ASSET_BYTES: 25 * 1024 * 1024 },
     "../../../lib/errors": { userMessage: (_e: unknown, fallback: string) => fallback },
     "../../../lib/db": { dbConfigured: () => configured, getDb: async () => sqliteDb ?? db },
     "../../../lib/asset-upload": { readAssetForm: async () => null },
@@ -1349,17 +1349,11 @@ test("Node/Docker continue their cross-site reference check on direct deletion",
   assert.equal(f.registered(), 0);
 });
 
-for (const browserReferenced of [true, false]) {
-  test(`KV-only deletion ${browserReferenced ? "retains a file referenced by another browser site" : "deletes an unreferenced file"}`, async () => {
-    const f = assetDeleteRoute({ configured: false, browserReferenced });
-    const response = await f.call();
-    assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), browserReferenced ? { ok: true, kept: true } : { ok: true });
-    assert.equal(f.deleted(), browserReferenced ? 0 : 1);
-    assert.equal(f.registered(), 0);
-    assert.equal(f.otherSiteReads(), 0);
-  });
-}
+test("browser-only storage cannot delete shared files", async () => {
+  const f = assetDeleteRoute({ configured: false });
+  assert.equal((await f.call()).status, 503);
+  assert.equal(f.deleted(), 0);
+});
 
 test("Node/Docker retain files referenced only by another site's HTML or CSS, with exact path matching", async () => {
   const previous = process.env.TSUMU_DATA_DIR;
@@ -2188,6 +2182,9 @@ describe("asset-font-cors", () => {
     const { GET } = load("../app/api/assets/file/route.ts", {
       "next/server": { NextResponse }, "../../../../lib/auth": auth,
       "../../../../lib/server": { requireAuth }, "../../../../lib/i18n-server": { serverTr },
+      "../../../../lib/db": { getDb: async () => ({}) },
+      "../../../../lib/site-access": { requireSiteAccess: async () => null },
+      "../../../../lib/site-asset-access": { siteHasAsset: async () => true },
       "../../../../lib/asset-token": { verifyAssetToken },
       "../../../../lib/kv": { assetStore: () => ({
         getWithMetadata: async (path: string) => {
@@ -2197,7 +2194,7 @@ describe("asset-font-cors", () => {
       }) },
     });
     return {
-      get: (query = "path=assets%2Ffont.woff2") => GET(new Request(`https://editor.example.test/api/assets/file?${query}`, { headers: { Origin: "null" } })) as Promise<Response>,
+      get: (query = "path=assets%2Ffont.woff2") => GET(new Request(`https://editor.example.test/api/assets/file?site=site-a&${query}`, { headers: { Origin: "null" } })) as Promise<Response>,
       reads, authCalls: () => authCalls,
     };
   }

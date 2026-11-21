@@ -395,6 +395,8 @@ test("アセットをファイルに保存・配信・削除できる", withData
   const { value, metadata } = await store.getWithMetadata("assets/a/b.svg", { type: "stream" });
   assert.equal(await new Response(value).text(), "<svg/>");
   assert.deepEqual(metadata, { contentType: "image/svg+xml" });
+  const preview = await store.getWithMetadata("assets/a/b.svg", { type: "stream" });
+  await preview.value!.cancel();
   await store.delete("assets/a/b.svg");
   assert.equal(await store.get("assets/a/b.svg", { type: "arrayBuffer" }), null);
   assert.deepEqual(await store.getWithMetadata("missing", { type: "stream" }), { value: null, metadata: null });
@@ -1378,9 +1380,11 @@ test("repositories cannot be shared across sites on the same Git provider", asyn
   await assert.rejects(
     insertSite(db, "other", {
       name: "Other", repo: "Owner/Original", branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,
-    }),
+    }, "creator@example.test"),
     /This repository is already used by another site/,
   );
+
+  assert.deepEqual((await db.execute("SELECT email FROM site_members WHERE site_id='other'")).rows, []);
 
   const gitlabAllowed = await insertSite(db, "gitlab-site", {
     name: "GitLab", gitProvider: "gitlab", repo: "Owner/Original", branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,

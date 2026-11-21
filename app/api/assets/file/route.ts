@@ -7,7 +7,7 @@ import { assetStore } from "../../../../lib/kv";
 import { userMessage } from "../../../../lib/errors";
 import { verifyAssetToken } from "../../../../lib/asset-token";
 import { assetCacheControl } from "../../../../lib/asset-cache";
-import { dbConfigured, getDb } from "../../../../lib/db";
+import { getDb } from "../../../../lib/db";
 import { isSiteId } from "../../../../lib/site-model";
 import { requireSiteAccess } from "../../../../lib/site-access";
 import { siteHasAsset } from "../../../../lib/site-asset-access";
@@ -29,7 +29,7 @@ export async function GET(req: Request) {
   if (!path?.startsWith("assets/")) {
     return NextResponse.json({ error: tr("Invalid path") }, { status: 400 });
   }
-  if (!signed && dbConfigured()) {
+  if (!signed) {
     // Same-origin CSS and imported HTML may refer to a path without an explicit
     // site query. The referrer only selects a site; the database verifies access.
     let siteId = params.get("site");
