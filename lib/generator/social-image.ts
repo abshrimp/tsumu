@@ -6,8 +6,13 @@ export function socialImageSrc(doc: SiteDoc, page: Page | undefined, assets: Map
   const src = imageRefSrc(assets, page?.ogImage) ?? imageRefSrc(assets, doc.ogImage);
   if (src?.startsWith("/") && doc.siteUrl) {
     try {
-      const resolved = new URL(src, doc.siteUrl);
-      if (resolved.protocol === "https:" || resolved.protocol === "http:") return resolved.href;
+      const base = new URL(doc.siteUrl);
+      // A deployment URL must not publish its userinfo in og:image or Twitter metadata.
+      // These attributes are visible to every visitor and are committed to public exports.
+      if ((base.protocol === "https:" || base.protocol === "http:") &&
+          !base.username && !base.password) {
+        return new URL(src, base).href;
+      }
     } catch { /* Keep the exported path when the deployment URL is incomplete. */ }
   }
   return src;

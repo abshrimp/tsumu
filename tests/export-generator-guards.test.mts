@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { generateExportProject } from "../lib/export-formats";
 import { runChecks } from "../lib/generator/checks";
 import { splitCssModule } from "../lib/generator/style-export";
+import { socialImageSrc } from "../lib/generator/social-image";
 import type { SiteDoc } from "../lib/types";
 
 function site(): SiteDoc {
@@ -66,4 +67,14 @@ test("CSS Modules still scopes class rules preceded by authored comments", () =>
   assert.match(result.module, /\.siteRoot :global\(\.card\) \{ color: blue; \}/);
   assert.doesNotMatch(result.global, /\.card \{/);
   assert.match(result.global, /body \{ color: black; \}/);
+});
+
+test("public social-image URLs never inherit credentials from the deployment URL", () => {
+  const doc = site();
+  doc.ogImage = { assetId: "picture" };
+  const assets = new Map([["picture", "picture.png"]]);
+  doc.siteUrl = "https://user:secret@example.test/site/";
+  assert.equal(socialImageSrc(doc, undefined, assets), "/assets/picture.png");
+  doc.siteUrl = "HTTPS://EXAMPLE.TEST/site/";
+  assert.equal(socialImageSrc(doc, undefined, assets), "https://example.test/assets/picture.png");
 });
