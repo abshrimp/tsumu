@@ -20,7 +20,7 @@ const ja: Dict = {
   "Creating a project in your Netlify team…": "Netlifyチームに公開プロジェクトを作成中…",
   "The Netlify team changed during publishing.": "公開中にNetlifyチームが変更されました。",
   "Choose the Netlify team that will pay for and host this site's publications.": "このサイトの公開先となるNetlifyチームを選択してください。利用枠や料金はそのチームが負担します。",
-  "Publish to your Netlify account. Only generated static files are uploaded, not the editing document.": "自分のNetlifyアカウントに公開します。編集データではなく生成した静的ファイルだけをアップロードします。",
+  "Publish to your Netlify account.": "自分のNetlifyアカウントに公開します。",
   "A new Netlify project will be created at first publish.": "初回公開時に新しいNetlifyプロジェクトを作成します。",
   "Switch Netlify account": "Netlifyアカウントを切り替える",
   "Netlify keeps deployment history. Editing data remains in your browser.": "Netlifyには公開履歴が保存されます。編集データはブラウザ内に残ります。",

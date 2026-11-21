@@ -367,7 +367,7 @@ export default function NetlifyPublishModal({
         {phase === "check" && (
           <>
             <p className="modal-desc">
-              {tr("Publish to your Netlify account. Only generated static files are uploaded, not the editing document.")}
+              {tr("Publish to your Netlify account.")}
             </p>
             <div className="netlify-account-row">
               <span className="hint netlify-account-identity">
