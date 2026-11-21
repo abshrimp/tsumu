@@ -48,6 +48,8 @@ test("single HTML removes script preload hints while preserving embedded scripts
 
 test("single HTML export embeds a configured local Open Graph image", async () => {
   const doc = createInitialDoc();
+  // A single-HTML export intentionally contains one page; exclude the preset 404 page.
+  doc.pageOrder = doc.pageOrder.filter(id => doc.pages[id].slug !== "404");
   doc.assets.social = { id: "social", name: "social.png", mimeType: "image/png",
     width: 1, height: 1, dataUrl: "data:image/png;base64,AQID" };
   doc.ogImage = { assetId: "social" };
