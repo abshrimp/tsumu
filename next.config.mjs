@@ -12,16 +12,8 @@ const nextConfig = {
     const relay = trustedMcpOrigin();
     const trusted = origin && relay ? new URL(origin) : null;
     const hostPattern = trusted ?
-      `^${RegExp.escape(trusted.host)}${trusted.protocol === "https:" && !trusted.port ? "(?::443)?" : ""}import { existsSync } from "node:fs";
-import { PHASE_DEVELOPMENT_SERVER } from "next/constants.js";
-import { configuredHostedEditorOrigin, trustedMcpOrigin, OFFICIAL_SITE_DIRECTORY_PATH } from "./lib/external-edit/official.mjs";
-
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  reactStrictMode: true,
-  // Docker では、必要なファイルだけを .next/standalone にまとめる（Dockerfile）
-  output: process.env.NEXT_OUTPUT === "standalone" ? "standalone" : undefined,
- : null;
+      "^" + RegExp.escape(trusted.host) +
+      (trusted.protocol === "https:" && !trusted.port ? "(?::443)?" : "") + "$" : null;
     return [
       {
         // エディタは、検索エンジンに一切載せない
