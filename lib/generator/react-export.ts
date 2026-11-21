@@ -15,6 +15,49 @@ import { REACT_SEARCH_FORM } from "./react-form";
 import { indexQueryVariants } from "./page";
 import { pageQueryConditions, routeDir } from "../page-query";
 
+const FRAGMENT_HISTORY = `// A fragment visit can be restored more than once, including two visits to the same URL.
+type FragmentPosition = { href: string; x: number; y: number };
+const entryNavigation = (window as Window & { navigation?: { currentEntry?: { key: string } } }).navigation;
+function positionKey() {
+  const key = entryNavigation?.currentEntry?.key;
+  return key ? "site-fragment-scroll:" + key : null;
+}
+window.addEventListener("pagehide", () => {
+  const key = positionKey();
+  if (!key || !location.hash || history.scrollRestoration === "manual") return;
+  try {
+    sessionStorage.setItem(key, JSON.stringify({ href: location.href, x: scrollX, y: scrollY }));
+  } catch { /* Storage may be unavailable. */ }
+});
+function savedFragmentPosition(): FragmentPosition | undefined {
+  const key = positionKey();
+  const visit = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+  if (!key || !location.hash || visit?.type !== "back_forward" || history.scrollRestoration === "manual") return;
+  try {
+    const position = JSON.parse(sessionStorage.getItem(key) || "null");
+    if (position?.href === location.href && Number.isFinite(position.x) && Number.isFinite(position.y)) return position;
+  } catch { /* Allow native navigation when this entry has no readable position. */ }
+}
+const saved = savedFragmentPosition();
+if (saved) {
+  // Mount after the browser finishes looking for the fragment. Restoring while a native
+  // anchor scroll is pending lets WebKit scroll back to the heading on a later paint.
+  window.addEventListener("pageshow", event => {
+    if (event.persisted) return;
+    requestAnimationFrame(() => {
+      flushSync(render);
+      if (location.href === saved.href && history.scrollRestoration !== "manual") {
+        window.scrollTo({ left: saved.x, top: saved.y, behavior: "instant" });
+      }
+    });
+  }, { once: true });
+} else if (location.hash) {
+  // On a direct visit, let the browser scroll to and focus the rendered fragment.
+  flushSync(render);
+} else {
+  render();
+}`;
+
 const esc = (value: string) =>
   value.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]!);
 
@@ -208,9 +251,7 @@ export function buildReactProject(
     'if (!root) throw new Error("Missing React root");',
     'const app = createRoot(root);',
     'const render = () => app.render(<App />);',
-    '// Mount the target before the browser performs its initial fragment navigation.',
-    'if (window.location.hash) flushSync(render);',
-    'else render();', '',
+    FRAGMENT_HISTORY, '',
   ].join("\n");
 
   files["src/globals.css"] = googleFontsCss(doc) + next.files["app/globals.css"];

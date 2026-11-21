@@ -3553,3 +3553,23 @@ describe("single-html-raw-content-security", () => {
   });
 });
 });
+
+test("generated JSX emits numeric tabIndex and retains native defaults for invalid or absent values", () => {
+  const doc = createInitialDoc();
+  const page = doc.pages[doc.pageOrder[0]];
+  const values = [ ["negative", "-1"], ["zero", "0"], ["prefix", " +2end"], ["blank", ""],
+    ["invalid", "none"], ["overflow", "2147483648"], ["missing", undefined] ] as const;
+  page.children = values.map(([id]) => id);
+  for (const [id, value] of values) {
+    doc.nodes[id] = { ...makeText(id), id, attrId: id, htmlAttrs: value === undefined ? undefined : { tabindex: value } };
+  }
+  const jsx = generateExportProject(doc, "react").files["src/pages/Page0.tsx"];
+  const tag = (id: string) => jsx.split("\n").find(line => line.includes('id="' + id + '"'))!;
+  assert.match(tag("negative"), /"tabIndex":-1/);
+  assert.match(tag("zero"), /"tabIndex":0/);
+  assert.match(tag("prefix"), /"tabIndex":2/);
+  for (const id of ["blank", "invalid", "overflow", "missing"]) {
+    assert.ok(tag(id));
+    assert.doesNotMatch(tag(id), /tabIndex/);
+  }
+});

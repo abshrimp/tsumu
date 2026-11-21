@@ -174,7 +174,14 @@ function renderNodeInner(
   }
 
   const cls = [ctx.classNames.get(id)!, importedClass(node.htmlClass)].filter(Boolean).join(" ");
-  const preserved = importedAttributes(node.htmlAttrs);
+  const preserved: Record<string, string | number> = importedAttributes(node.htmlAttrs);
+  if (typeof preserved.tabIndex === "string") {
+    // HTML parses a signed integer prefix. An invalid tabindex leaves native focus behavior in place.
+    const digits = /^[\t\n\f\r ]*[+-]?\d+/.exec(preserved.tabIndex);
+    const index = digits ? Number(digits[0]) : NaN;
+    if (index >= -2147483648 && index <= 2147483647) preserved.tabIndex = index;
+    else delete preserved.tabIndex;
+  }
   const importedAttrs = Object.keys(preserved).length ? ` {...${JSON.stringify(preserved)}}` : "";
   const anchorAttr = node.attrId ? ` id=${jsxString(node.attrId)}`
     : id === ctx.componentRootId

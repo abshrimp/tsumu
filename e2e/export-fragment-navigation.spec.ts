@@ -51,15 +51,29 @@ for (const language of ["typescript", "javascript"] as const) {
       await expect.poll(offsetError).toBeLessThan(2);
       await expect(heading).toBeFocused();
       const bookmark = page.url();
+      await page.evaluate(() => { history.replaceState({ reader: "first" }, ""); window.scrollTo(0, 675); });
+      await expect.poll(() => page.evaluate(() => scrollY)).toBe(675);
       await page.goto("about:blank");
       await page.goto(bookmark);
       await expect.poll(offsetError).toBeLessThan(2);
       // Browser history should restore the reader's position even when the URL contains a bookmark.
-      await page.evaluate(() => window.scrollTo(0, 430));
+      await page.evaluate(() => { history.replaceState("second", ""); window.scrollTo(0, 430); });
       await expect.poll(() => page.evaluate(() => scrollY)).toBe(430);
       await page.goto("https://fragments.test/");
       await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
       await page.goBack();
+      await expect(page).toHaveURL(bookmark);
+      await expect.poll(() => page.evaluate(() => scrollY)).toBe(430);
+      expect(await page.evaluate(() => history.state)).toBe("second");
+      // The two visits have an identical URL and independent history entries.
+      await page.goBack();
+      await expect(page).toHaveURL("about:blank");
+      await page.goBack();
+      await expect(page).toHaveURL(bookmark);
+      await expect.poll(() => page.evaluate(() => scrollY)).toBe(675);
+      expect(await page.evaluate(() => history.state.reader)).toBe("first");
+      await page.goForward();
+      await page.goForward();
       await expect(page).toHaveURL(bookmark);
       await expect.poll(() => page.evaluate(() => scrollY)).toBe(430);
     } finally {
