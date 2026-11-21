@@ -20,6 +20,7 @@ import {
   extractPartStyles,
   extractSelectionStyles,
   isHiddenAt,
+  hasAbsoluteChild,
   resolveStyles,
   STATE_INFO,
   STATE_ORDER,
@@ -376,10 +377,7 @@ export function generateSiteCss(
     let wasAutoPositioned = false;
     for (const bp of BP_ORDER) {
       const position = resolveStyles(node, bp, "default").position;
-      const autoPositioned = !position && !hasCustomPosition && node.children.some((cid) => {
-        const child = doc.nodes[cid];
-        return child && resolveStyles(child, bp, "default").position === "absolute";
-      });
+      const autoPositioned = !position && !hasCustomPosition && hasAbsoluteChild(doc, node, bp);
       const inferredPosition = autoPositioned && !wasAutoPositioned ? "relative"
         : !autoPositioned && wasAutoPositioned && !position ? "static" : undefined;
       wasAutoPositioned = autoPositioned;
@@ -460,16 +458,12 @@ export function generateSiteCss(
     for (const bp of BP_ORDER) {
       const lightPosition = resolveStyles(node, bp, "default").position;
       const darkPosition = resolveStyles(node, bp, "default", "dark").position;
-      const hasAbsoluteChild = (theme: "light" | "dark") => node.children.some((id) => {
-        const child = doc.nodes[id];
-        return child && resolveStyles(child, bp, "default", theme).position === "absolute";
-      });
       // ダーク側だけで子が絶対配置になる場合も、キャンバスと同じ配置基準にする。
       // ライト側の自動配置が不要になった場合は static へ明示的に戻す。
       const lightEffective = lightPosition ??
-        (!hasCustomPosition && hasAbsoluteChild("light") ? "relative" : "static");
+        (!hasCustomPosition && hasAbsoluteChild(doc, node, bp, "light") ? "relative" : "static");
       const darkEffective = darkPosition ??
-        (!hasCustomPosition && hasAbsoluteChild("dark") ? "relative" : "static");
+        (!hasCustomPosition && hasAbsoluteChild(doc, node, bp, "dark") ? "relative" : "static");
       const authoredDarkPosition = node.darkStyles?.[bp]?.default?.position;
       const cascadedPosition = authoredDarkPosition ?? previousDarkPosition ?? lightEffective;
       const inferredDarkPosition = cascadedPosition === darkEffective ? undefined : darkEffective;

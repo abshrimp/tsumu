@@ -14,6 +14,7 @@ import { cssQuotedAttributeValue } from "../../lib/css-selector";
 import {
   bpChain,
   isHiddenAt,
+  hasAbsoluteChild,
   extractPartStyles,
   extractSelectionStyles,
   resolveThemeStyleMap,
@@ -210,10 +211,7 @@ export function buildCanvasCss(
       return;
     }
     // 直下に絶対配置の子がある場合、このノードがその配置の基準になる。
-    const hasAbsChild = node.children.some((cid) => {
-      const child = doc.nodes[cid];
-      return child && resolveStyles(child, bp, "default", pageTheme).position === "absolute";
-    });
+    const hasAbsChild = hasAbsoluteChild(doc, node, bp, pageTheme);
     const state = mode === "design" && id === selection ? styleState : "default";
     const cached = cache?.get(id);
     let css: NodeCss;

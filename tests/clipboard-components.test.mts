@@ -1971,7 +1971,7 @@ function renderRoot(patch: Partial<DocNode>, preview = true) {
   const require = createRequire(filename);
   const { VarsCtx } = require("./render");
   const actions: string[] = [];
-  const ctx = { preview, pageVars: { destination: "https://example.org/path" }, clientVars: new Set(), refresh: () => actions.push("refresh"), navigate: (url: string) => actions.push(url) };
+  const ctx = { preview, pageVars: { destination: "https://example.org/path", rows: [{ name: "One" }, { name: "Two" }] }, listOps: new Map(), fieldValues: {}, clientVars: new Set(), refresh: () => actions.push("refresh"), navigate: (url: string) => actions.push(url) };
   const root = { ...makeBox(), id: "root", text: { content: "Click", heading: 0 }, ...patch };
   const state = {
     doc: { nodes: { root, inst: { ...makeBox(), id: "inst", type: "instance", componentId: "c" } }, components: { c: { id: "c", rootId: "root" } }, pages: {} },
@@ -1985,7 +1985,9 @@ function renderRoot(patch: Partial<DocNode>, preview = true) {
     if (id === "react") return { ...React, useContext: (context: unknown) => context === VarsCtx ? ctx : [] };
     return require(id);
   }, mod, mod.exports);
-  const element = mod.exports.NodeView({ id: "inst", isTop: true }).props.children;
+  const ghost = mod.exports.NodeView({ id: "inst", isTop: true }).props.children;
+  // Run the shared memoized component renderer with the same mocked hooks to inspect its DOM event handlers.
+  const element = ghost.type.type(ghost.props);
   const click = () => element.props.onClick({ preventDefault: () => actions.push("prevent"), currentTarget: { closest: () => ({}) } });
   return { element, actions, click };
 }
@@ -1996,6 +1998,20 @@ test("component preview retains root IDs and click scripts on the instance eleme
   assert.equal(element.props["data-node"], "inst");
   assert.equal(element.props["data-ghost"], "root");
   assert.equal(JSON.parse(element.props["data-scripts"])[0].steps[0].url, "https://example.org");
+});
+
+test("field and list component roots keep their actual control and repeated contents", () => {
+  const { element: field } = renderRoot({ type: "field", field: { kind: "select", defaultValue: "b", options: [
+    { label: "First", value: "a" }, { label: "Second", value: "b" },
+  ] } });
+  assert.equal(renderRoot({ semantic: "form" }).element.type, "form");
+  assert.equal(field.type, "select");
+  assert.equal(field.props.value, "b");
+  assert.deepEqual(field.props.children.map((option: any) => option.props.children), ["First", "Second"]);
+  const { element: list } = renderRoot({ type: "list", list: { from: "rows" } });
+  assert.equal(list.type, "div");
+  assert.equal(list.props["data-array"], "rows");
+  assert.deepEqual(list.props.children.map((row: any) => JSON.parse(row.props["data-item"])), [{ name: "One" }, { name: "Two" }]);
 });
 
 test("component root URL links navigate with interpolated and sanitized URLs", () => {

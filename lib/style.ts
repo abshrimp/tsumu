@@ -5,6 +5,7 @@ import type {
   AdobeFont,
   UploadedFont,
   DocNode,
+  SiteDoc,
   NodeStyles,
   StyleMap,
   StyleState,
@@ -228,6 +229,23 @@ export function resolveStyles(
   theme: PageTheme = "light"
 ): StyleMap {
   return resolveThemeStyleMap(node.styles, node.darkStyles, bp, state, theme);
+}
+
+/** The physical child of a component placement is its master's root, including nested aliases. */
+export function hasAbsoluteChild(doc: SiteDoc, parent: DocNode, bp: Breakpoint, theme: PageTheme = "light"): boolean {
+  return parent.children.some(id => {
+    let child: DocNode | undefined = doc.nodes[id];
+    if (child?.type === "instance") {
+      const seen = new Set<string>();
+      while (child?.type === "instance") {
+        if (seen.has(child.id)) return false;
+        seen.add(child.id);
+        const rootId: string | undefined = doc.components?.[child.componentId ?? ""]?.rootId;
+        child = rootId ? doc.nodes[rootId] : undefined;
+      }
+    }
+    return !!child && resolveStyles(child, bp, "default", theme).position === "absolute";
+  });
 }
 
 /** そのデバイスだけに当たる画面幅のメディアクエリ（例: (min-width: 479px) and (max-width: 767px)） */

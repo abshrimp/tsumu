@@ -2,6 +2,8 @@
  * ビルド不要の HTML / CSS / JavaScript の書き出し。フレームワークのソースは含めない。
  * Next.js の書き出しと同じ、正規化した文書と、生成した CSS・アセットを使う。
  */
+import { staticLoadingScript } from "./loading-screen";
+import { siteLangOf, siteText } from "../site-lang";
 import { codeLiteral } from "./code-literal";
 import type { ExportOptions } from "./export-options";
 import { fieldSubmissionAttributes, submissionAttributes } from "../imported-form";
@@ -256,7 +258,7 @@ function common(ctx: Context, n: DocNode, cls: string): string {
     .map(([key, value]) => attr(key === "htmlFor" ? "for" : key === "tabIndex" ? "tabindex" : key, value))
     .join("");
   return attr("class", cls) + attr("id", id) + retained +
-    attr("data-instance-hidden", instance?.hidden || undefined) +
+    (instance ? ' data-component-root=""' : "") + attr("data-instance-hidden", instance?.hidden || undefined) +
     (toggle ? attr("data-toggle-show", toggleShowDisplay(n)) : "") +
     compiledAttr(ctx, n) +
     flag("data-inview", n.motions?.some((m) => m.trigger === "in-view"));
@@ -282,7 +284,7 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
       dynamic("placeholder", f.placeholder) + fieldParts("placeholder", f.placeholder) +
       attr("rows", f.rows) + attr("maxlength", f.maxLength) +
       dynamic("value", f.defaultValue) + fieldParts("value", f.defaultValue) + ">" +
-      escapeHtml(f.defaultValue || "") + "</textarea>";
+      (/^[\r\n]/.test(f.defaultValue || "") ? "\n" : "") + escapeHtml(f.defaultValue || "") + "</textarea>";
   }
   if (f.kind === "select") {
     const values = f.options || [];
@@ -351,7 +353,7 @@ function render(ctx: Context, id: string, top: boolean): string {
       const src = im.assetId ? assetMediaUrl(resource(ctx, im.assetId), im.assetSuffix) : sourceHref(ctx, im.src);
       const imageAttrs = attr("src", hasVars(src) ? EMPTY_GIF : (src || EMPTY_GIF)) +
         (!ctx.template && hasVars(src) ? attr("data-live-src", src) : "") +
-        (hasVars(src) && ctx.template ? attr("data-image-src-parts", templateParts(src)) : "") +
+        (hasVars(src) && ctx.template ? attr("data-image-src-parts", templateParts(src, false, true)) : "") +
         attr("alt", im.alt);
       const crisp = crispSvgSize(ctx.doc, n);
       if (crisp) return "<span" + commonAttrs.replace(attr("class", cls), attr("class", "crisp-svg " + cls)) +
@@ -415,7 +417,7 @@ function render(ctx: Context, id: string, top: boolean): string {
     }
     const text = n.text?.content || "";
     if (hasVars(text)) extra += ctx.template
-      ? attr("data-text-parts", templateParts(text)) : attr("data-live", text);
+      ? attr("data-text-parts", templateParts(text, false, true)) : attr("data-live", text);
     const submission = submissionAttributes(n.htmlAttrs, tag, action => href(ctx, action, true));
     for (const [key, value] of Object.entries(submission)) extra += attr(key, value);
     if (tag === "form" && !submission.method) extra += ' method="get" data-search-form';
@@ -426,7 +428,7 @@ function render(ctx: Context, id: string, top: boolean): string {
       const destination = n.link.kind === "page" && n.link.pageId
         ? pageHref(ctx, n.link.pageId) : href(ctx, n.link.url || "#");
       extra += attr("href", destination) +
-        (hasVars(destination) ? (ctx.template ? attr("data-href-parts", templateParts(destination, true)) : attr("data-live-href", destination)) : "");
+        (hasVars(destination) ? (ctx.template ? attr("data-href-parts", templateParts(destination, true, true)) : attr("data-live-href", destination)) : "");
       if (n.link.newTab) extra += ' target="_blank" rel="noopener noreferrer"';
     }
     const wasForm = ctx.form;
@@ -586,6 +588,17 @@ export function generateStandaloneHtml(
       ...shared, page, prefix, single, staticRoutes: groups, authoredBase,
       seen: new Set(), form: false, template: false,
     };
+    let loadingScreen = "";
+    const loading = normalized.loadingScreen;
+    if (loading?.enabled) {
+      const loadingPage = loading.pageId && normalized.pages[loading.pageId];
+      const artwork = loadingPage ? loadingPage.children.map(id => render(ctx, id, true)).join("\n") : "";
+      files["site-loading.js"] ??= staticLoadingScript(loading);
+      loadingScreen = '<template><div data-site-loading role="status" aria-live="polite"' +
+        attr("aria-label", siteText(siteLangOf(normalized), "loading")) + '>' +
+        (artwork || '<div data-site-loading-spinner></div>') + '</div></template>' +
+        '<script defer' + attr("src", prefix + "site-loading.js") + '></script>';
+    }
     const imageFor = (variant: Page) => {
       const image = socialImageSrc(normalized, variant, assets);
       return image ? sourceHref(ctx, image) : "";
@@ -651,7 +664,7 @@ export function generateStandaloneHtml(
       '<html lang="' + escapeHtml(page.lang || normalized.lang || "ja") + '">',
       "<head>", rewriteRootUrls(head, prefix, assetSources), "</head>",
       "<body>",
-      body,
+      loadingScreen, body,
       normalized.customBodyEndHtml ? rewriteRootUrls(normalized.customBodyEndHtml, prefix, assetSources) : "",
       scripts, "</body>", "</html>", "",
     ].join("\n");

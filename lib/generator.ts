@@ -16,6 +16,7 @@ import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 import { setVarPath, withinScriptValueLimit } from "./value-semantics";
 import { PAGE_STEP_RUNNER_SOURCE } from "./page-load-steps";
 import { rewriteHtmlAssetUrls, generateSiteCss, rawHtmlWithBodyStyles, uploadedFontsCss, usedGoogleFonts } from "./generator/css";
+import { loadingScreenController, loadingScreenCss } from "./generator/loading-screen";
 import { headHtmlToJsx } from "./generator/head";
 import { adobeFontHead } from "./generator/adobe-fonts";
 import { deferRunnableScripts } from "./generator/defer-scripts";
@@ -448,86 +449,26 @@ export default function manifest(): MetadataRoute.Manifest {
         );
       }
     }
-    const fallbackBody = `<div style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
-        <span style={{ width: 32, height: 32, border: "3px solid currentColor", borderRightColor: "transparent", borderRadius: "50%", animation: "loading-spin 700ms linear infinite" }} />
-      </div>`;
     files["components/SiteLoadingScreen.tsx"] = `"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 ${loadingImports.length ? loadingImports.join("\n") + "\n" : ""}
-
-const MIN_DURATION = ${Math.max(0, loading.minDuration ?? 500)};
-const FADE_DURATION = ${Math.max(0, loading.fadeDuration ?? 300)};
-const SHOW_ONCE = ${!!loading.showOnce};
+${loadingScreenController(loading, true)}
 
 export default function SiteLoadingScreen() {
-  const [leaving, setLeaving] = useState(false);
-  const [hidden, setHidden] = useState(false);
-
+  const container = useRef<HTMLDivElement>(null);
+  const [finished, setFinished] = useState(false);
   useEffect(() => {
-    const wasShown = () => {
-      try {
-        return sessionStorage.getItem("site-loading-shown") === "1";
-      } catch {
-        return false;
-      }
-    };
-    const markShown = () => {
-      try {
-        sessionStorage.setItem("site-loading-shown", "1");
-      } catch {
-        // ストレージが無効でもローディング画面は閉じる
-      }
-    };
-    if (SHOW_ONCE && wasShown()) {
-      setHidden(true);
-      return;
-    }
-    const started = Date.now();
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    let fadeTimer: ReturnType<typeof setTimeout> | undefined;
-    let hideTimer: ReturnType<typeof setTimeout> | undefined;
-    const finish = () => {
-      fadeTimer = setTimeout(() => {
-        setLeaving(true);
-        if (SHOW_ONCE) markShown();
-        hideTimer = setTimeout(() => {
-          document.body.style.overflow = previousOverflow;
-          setHidden(true);
-        }, FADE_DURATION);
-      }, Math.max(0, MIN_DURATION - (Date.now() - started)));
-    };
-    if (document.readyState === "complete") finish();
-    else window.addEventListener("load", finish, { once: true });
-    return () => {
-      window.removeEventListener("load", finish);
-      if (fadeTimer) clearTimeout(fadeTimer);
-      if (hideTimer) clearTimeout(hideTimer);
-      document.body.style.overflow = previousOverflow;
-    };
+    const overlay = container.current;
+    if (!overlay) return;
+    return startLoadingScreen(overlay, () => { overlay.hidden = false; }, () => setFinished(true));
   }, []);
 
-  if (hidden) return null;
+  if (finished) return null;
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      aria-label=${jsxString(siteText(siteLang, "loading"))}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 2147483647,
-        overflow: "auto",
-        background: "#ffffff",
-        color: "#18181b",
-        opacity: leaving ? 0 : 1,
-        transition: \`opacity \${FADE_DURATION}ms ease\`,
-        pointerEvents: leaving ? "none" : "auto",
-      }}
-    >
-${loadingBody || `      ${fallbackBody}`}
-      ${loadingPage ? "" : "<style>{`@keyframes loading-spin { to { transform: rotate(360deg); } }`}</style>"}
+    <div ref={container}${loading.showOnce ? " hidden" : ""} data-site-loading="" role="status" aria-live="polite"
+      aria-label=${jsxString(siteText(siteLang, "loading"))}>
+${loadingBody || '      <div data-site-loading-spinner="" />'}
     </div>
   );
 }
@@ -684,6 +625,7 @@ a {
 `;
 
   files["app/globals.css"] = uploadedFontsCss(doc, assetNames) + files["app/globals.css"];
+  if (loading) files["app/globals.css"] += loadingScreenCss(loading);
 
   files["app/not-found.tsx"] ??= `export default function NotFound() {
   return (

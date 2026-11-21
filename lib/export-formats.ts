@@ -58,8 +58,6 @@ function prunePartialDoc(doc: SiteDoc): SiteDoc {
     ...doc, nodes, components,
     assets: {},
     uploadedFonts: doc.uploadedFonts && usedUploadedFonts({ ...doc, nodes }),
-    loadingScreen: doc.loadingScreen?.pageId && Object.hasOwn(doc.pages, doc.loadingScreen.pageId)
-      ? doc.loadingScreen : undefined,
     pageFolders: doc.pageFolders?.filter(folder => folders.has(folder.id)).map(folder =>
       folder.beforePageId && !Object.hasOwn(doc.pages, folder.beforePageId)
         ? { id: folder.id, name: folder.name } : folder),
@@ -107,8 +105,20 @@ export function exportScopeDoc(doc: SiteDoc, options: ExportOptions): SiteDoc {
   if (options.scope === "page") {
     // 明示的に選んだページは、プロジェクト全体の公開から除外されていても書き出せる。
     // そうしないと、選んだページが正しくても、ZIP にページのマークアップが入らない。
-    return prunePartialDoc({ ...doc, pages: { [page.id]: { ...page, unpublished: false } },
-      pageOrder: [page.id] });
+    const pages: SiteDoc["pages"] = { [page.id]: { ...page, unpublished: false } };
+    let loadingScreen = doc.loadingScreen;
+    const artwork = loadingScreen?.pageId;
+    // The editor keeps the loading artwork outside the public page order. It is a dependency
+    // of a visual page. A separate ordinary or unpublished page is outside this export.
+    if (!loadingScreen?.enabled || page.rawHtml?.trim() ||
+        !["nextjs", "react", "html", "single-html"].includes(options.framework)) {
+      loadingScreen = undefined;
+    } else if (artwork) {
+      if (artwork !== page.id && Object.hasOwn(doc.pages, artwork) &&
+          !doc.pageOrder.includes(artwork) && !doc.pages[artwork].unpublished) pages[artwork] = doc.pages[artwork];
+      else loadingScreen = undefined;
+    }
+    return prunePartialDoc({ ...doc, pages, loadingScreen, pageOrder: [page.id] });
   }
   const node = options.nodeId && Object.prototype.hasOwnProperty.call(doc.nodes, options.nodeId)
     ? doc.nodes[options.nodeId] : undefined;
@@ -135,7 +145,7 @@ export function exportScopeDoc(doc: SiteDoc, options: ExportOptions): SiteDoc {
     pageScripts: undefined,
     children: [node.id],
   };
-  return prunePartialDoc({ ...doc, pages: { [id]: scopedPage }, pageOrder: [id] });
+  return prunePartialDoc({ ...doc, pages: { [id]: scopedPage }, pageOrder: [id], loadingScreen: undefined });
 }
 
 function publishedPages(doc: SiteDoc) {

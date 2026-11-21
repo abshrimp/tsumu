@@ -182,9 +182,9 @@ function renderNodeInner(
         : " id={instanceId || undefined}"
       : "";
   const instanceVisibilityAttr = id === ctx.componentRootId
-    ? ctx.inlineInstance
+    ? ' data-component-root=""' + (ctx.inlineInstance
       ? ctx.inlineInstance.visibilityClass ? ` data-instance-hidden=${jsxString(ctx.inlineInstance.visibilityClass)}` : ""
-      : " data-instance-hidden={hiddenClassName || undefined}"
+      : " data-instance-hidden={hiddenClassName || undefined}")
     : "";
 
   // スクリプト: 実行する側には data-scripts を、表示される側には表示に戻すときの display の値を出力する
@@ -351,7 +351,7 @@ ${indent}</div>`;
       srcAttr = `src={safeImageSrc(interpolate(${JSON.stringify(src)}, ${base}))}`;
       if (ctx.inTemplate) {
         // 項目が届いてから一度だけ解決する。代替値に含まれる波括弧は、文字として残す。
-        srcAttr += ` data-image-src-parts={JSON.stringify(${textParts(src, base)})}`;
+        srcAttr += ` data-image-src-parts={JSON.stringify(${textParts(src, base, false, ctx.isLive)})}`;
       } else if (livesHere(ctx)) {
         const keep = keepTokens(src, ctx.isLive);
         if (Object.keys(keep).length) {
@@ -533,7 +533,7 @@ ${indent}</div>`;
       const base = ctx.varsExpr ?? "vars";
       if (ctx.inTemplate) {
         // 最初のテキストだけを埋める。子要素は壊さず、データの中の波括弧も解決し直さない。
-        liveAttr = ` data-text-parts={JSON.stringify(${textParts(node.text.content, base)})}`;
+        liveAttr = ` data-text-parts={JSON.stringify(${textParts(node.text.content, base, false, ctx.isLive)})}`;
       }
       inner.push(`${indent}  {interpolate(${JSON.stringify(node.text.content)}, ${base})}`);
       // 画面上で値が決まる {変数}（件数など）は、値が変わるたびにブラウザで書き直す
@@ -578,7 +578,7 @@ ${indent}</div>`;
     const hasLiveHref = Object.keys(keep).length > 0;
     if (ctx.inTemplate) {
       // URL の元の区切りと参照した値だけを残し、行の値で一度だけ解決する。
-      attrs += ` data-href-parts={JSON.stringify(${textParts(node.link.url!, base, true)})}`;
+      attrs += ` data-href-parts={JSON.stringify(${textParts(node.link.url!, base, true, ctx.isLive)})}`;
     } else if (hasLiveHref) {
       attrs += ` data-live-href={interpolate(${JSON.stringify(node.link.url)}, { ...${base}, ...${JSON.stringify({ ...keep, [KEEP_ESCAPES]: true })} })}`;
     }

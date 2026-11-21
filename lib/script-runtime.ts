@@ -413,10 +413,10 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*/wait|repeat*/
       // DOM の入れ替え直後（監視の走査前）に始まるスクリプトも、新しいページとして扱う。
-      function syncPage(checkSeeds) {
+      function syncPage(checkSeeds, newRoute) {
         var body = root.querySelector("[data-page-body]");
         var pid = body ? body.getAttribute("data-page-body") : null;
-        var changed = body !== pageBody || pid !== pageId;
+        var changed = newRoute || body !== pageBody || pid !== pageId;
         if (!changed && !checkSeeds) return pageGeneration;
         var seedData = body && body.getAttribute("data-list-seeds");
         var newData = seedData !== pageSeeds || (changed && !!seedData);
@@ -492,7 +492,20 @@ export const SCRIPT_RUNTIME = `function (env) {
         ? Object.assign(Object.create(null), initialVars) : Object.create(null);
       var setPageVars = null;
       if (typeof window !== "undefined" && initialVars !== undefined) {
+        // A framework may reuse its DOM for two query variants of the same page.
+        function routeAddress() {
+          return typeof location === "undefined" ? "" : location.pathname + location.search;
+        }
+        var address = routeAddress();
         setPageVars = function (next) {
+          var nextAddress = routeAddress();
+          if (nextAddress !== address) {
+            address = nextAddress;
+            syncPage(true, true);
+            /*#scan*/
+            Promise.resolve().then(scan);
+            /*/scan*/
+          }
           vars = next && typeof next === "object"
             ? Object.assign(Object.create(null), next) : Object.create(null);
         };
@@ -555,14 +568,14 @@ export const SCRIPT_RUNTIME = `function (env) {
         } catch (e) {
           return [];
         }
-        // 同じ ID が繰り返されるときは、内側の項目から外側の項目の順に対象を探す。
+        // Repeated IDs belong to the nearest component or list item containing a match.
         if (els.length > 1) {
-          var rowSelector = "[data-row],[data-item]";
-          var row = self && self.closest && self.closest(rowSelector);
-          while (row) {
-            var mine = els.filter(function (el) { return row.contains(el); });
+          var scopeSelector = "[data-row],[data-item],[data-component-root]";
+          var scope = self && self.closest && self.closest(scopeSelector);
+          while (scope) {
+            var mine = els.filter(function (el) { return scope.contains(el); });
             if (mine.length) return mine;
-            row = row.parentElement && row.parentElement.closest(rowSelector);
+            scope = scope.parentElement && scope.parentElement.closest(scopeSelector);
           }
         }
         return els;
@@ -607,8 +620,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           return has(item, name) ? item[name] : dig(item, name);
         }
         /*#clist*/
-        var row = self && self.closest && self.closest("[data-row]");
-        var scope = row && rowScopes.get(row);
+        var scope = rowScope(self);
         if (scope && (has(scope, name) || has(scope, head))) {
           return has(scope, name) ? scope[name] : dig(scope, name);
         }
@@ -673,17 +685,8 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       // 画面上で値が決まる {変数} を含む文字（data-live）・入力欄の案内文と初期値を書き直す
       /*#live|clist*/
+      var initializedValues = new WeakSet();
       function refreshLive() {
-        root.querySelectorAll("[data-live]").forEach(function (el) {
-          if (inTpl(el)) return;
-          var t = el.firstChild;
-          if (!t || t.nodeType !== 3) {
-            t = document.createTextNode("");
-            el.insertBefore(t, el.firstChild);
-          }
-          var next = resolve(el.getAttribute("data-live"), el);
-          if (t.nodeValue !== next) t.nodeValue = next;
-        });
         root.querySelectorAll("[data-live-placeholder]").forEach(function (el) {
           if (!inTpl(el)) el.placeholder = resolve(el.getAttribute("data-live-placeholder"), el);
         });
@@ -704,8 +707,19 @@ export const SCRIPT_RUNTIME = `function (env) {
         liveValues.forEach(function (el) {
           if (inTpl(el) || el.hasAttribute("data-edited")) return;
           var nv = resolve(el.getAttribute("data-live-value"), el);
+          var initial = !initializedValues.has(el);
+          if (initial) {
+            initializedValues.add(el);
+            if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") el.defaultValue = nv;
+          }
           if (el.value !== nv) el.value = nv;
-          if (el.tagName === "SELECT" && el.selectedIndex < 0 && el.options.length) el.selectedIndex = 0;
+          if (el.tagName === "SELECT") {
+            if (el.selectedIndex < 0 && el.options.length) el.selectedIndex = 0;
+            if (initial) {
+              var selected = el.selectedIndex;
+              Array.prototype.forEach.call(el.options, function (o, i) { o.defaultSelected = i === selected; });
+            }
+          }
         });
         root.querySelectorAll("[data-live-src]").forEach(function (el) {
           if (inTpl(el)) return;
@@ -720,6 +734,9 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (el.getAttribute("href") !== nextHref) el.setAttribute("href", nextHref);
         });
         /*#clist*/
+        root.querySelectorAll("[data-text-parts],[data-href-parts],[data-image-src-parts]").forEach(function (el) {
+          if (!inTpl(el)) fillRowBindings(el, rowScope(el) || {}, false);
+        });
         // 選択肢の文字を先に直してから select の値を選ぶ。同じスクリプトの次の行も新しい値を読む。
         ["min", "max", "step", "text", "placeholder", "value"].forEach(function (name) {
           var fieldNodes = Array.prototype.slice.call(root.querySelectorAll("[data-field-" + name + "-parts]"));
@@ -728,17 +745,36 @@ export const SCRIPT_RUNTIME = `function (env) {
           });
           fieldNodes.forEach(function (el) {
             if (inTpl(el)) return;
-            var row = el.closest("[data-row]");
-            fillFieldParts(el, row && rowScopes.get(row) || {}, false, name);
+            fillFieldParts(el, rowScope(el) || {}, false, name);
           });
         });
         /*/clist*/
+        root.querySelectorAll("[data-live]").forEach(function (el) {
+          if (inTpl(el)) return;
+          var t = el.firstChild;
+          if (!t || t.nodeType !== 3) {
+            t = document.createTextNode("");
+            el.insertBefore(t, el.firstChild);
+          }
+          var next = resolve(el.getAttribute("data-live"), el);
+          if (t.nodeValue !== next) t.nodeValue = next;
+        });
       }
       /*/live|clist*/
       /*#live*/
       function onLiveInput(e) {
         if (e.isTrusted && e.target && e.target.setAttribute) e.target.setAttribute("data-edited", "");
         refreshLive();
+      }
+      function onLiveReset(e) {
+        var form = e.target;
+        if (!form || form.tagName !== "FORM") return;
+        // The browser restores controls after all cancelable reset listeners return.
+        setTimeout(function () {
+          if (!alive || e.defaultPrevented) return;
+          Array.prototype.forEach.call(form.elements, function (el) { el.removeAttribute("data-edited"); });
+          refreshLive();
+        }, 0);
       }
       /*/live*/
       function setVar(name, v, editingList) {
@@ -1002,42 +1038,46 @@ export const SCRIPT_RUNTIME = `function (env) {
       function listJson(list, name, fallback) {
         try { return JSON.parse(list.getAttribute(name)) || fallback; } catch (e) { return fallback; }
       }
-      function fillScriptJson(v, item) {
-        function fillValue(value) {
-          if (typeof value === "string") return JSON.parse(fillJson(JSON.stringify(value), item));
-          if (!value || typeof value !== "object") return value;
-          if (Array.isArray(value.scriptParts)) return value;
-          if (Array.isArray(value)) return value.map(fillValue);
-          var out = Object.create(null);
-          Object.keys(value).forEach(function (key) {
-            out[key] = (key === "rawRef" || key === "transform" || key === "raw") ? value[key] : fillValue(value[key]);
-          });
-          return out;
-        }
-        try { return JSON.stringify(fillValue(JSON.parse(v))); } catch (e) { return v; }
+      function rowScope(el) {
+        var row = el && el.closest && el.closest("[data-row]");
+        if (!row) return undefined;
+        if (rowScopes.has(row)) return rowScopes.get(row);
+        // A native framework owns these rows. Read its current item at event time.
+        if (row.__siteRowItem) return merged(rowScope(row.parentElement), row.__siteRowItem);
       }
-      function fillJson(v, item) {
-        return v
-          // JSON の中の「\\{」（文字としての「{」）は「\\\\{」になっているので、そのまま残す
-          .replace(/\\\\\\\\\\{|\\{([^{}\\s"'<>\`]+)\\}/g, function (m, k) {
-            if (k == null) return m;
-            return JSON.stringify(text(lookup(k.trim(), null, item))).slice(1, -1);
-          })
-          .replace(/%7B(.*?)%7D/gi, function (m, b, at, all) {
-            try {
-              var k = decodeURIComponent(b).trim();
-              if (!/^[^{}\\s"'<>\`]+$/.test(k)) return m;
-              var v = text(lookup(k, null, item));
-              // URLの先頭（JSON の文字列の始まり）の変数がURLそのもの（https:// や / で始まる）なら、そのまま入れる
-              //（配信時の interpolateUrl・画面上の resolveUrl と同じ）
-              if (all.charAt(at - 1) === '"' && (/^(?:https?:|mailto:|tel:|data:image\\/(?:png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\\.microsoft\\.icon)[;,])/i.test(v) || (v.charAt(0) === "/" && v.charAt(1) !== "/") || v.charAt(0) === "#")) {
-                return JSON.stringify(v).slice(1, -1);
-              }
-              return encodeURIComponent(v);
-            } catch (e) {
-              return m;
+      function fillRowBindings(n, item, initial) {
+        var ownText = null;
+        ["data-href-parts", "data-image-src-parts", "data-text-parts"].forEach(function (attr) {
+          if (!n.hasAttribute(attr)) return;
+          var parts = listJson(n, attr, []);
+          if (!initial && !parts.some(function (part) { return part && part.live; })) return;
+          var value = parts.map(function (part) {
+            if (typeof part === "string") return part;
+            var local = has(item, part.name) || has(item, part.name.split(".")[0]);
+            var v = !local && !part.live && has(part, "fallback")
+              ? part.fallback : text(lookup(part.name, n, item));
+            if (attr !== "data-href-parts") return v;
+            if (part.at === 0 && (/^(?:https?:|mailto:|tel:|data:image\\/(?:png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\\.microsoft\\.icon)[;,])/i.test(v) || (v.charAt(0) === "/" && v.charAt(1) !== "/") || v.charAt(0) === "#")) return v;
+            return encodeURIComponent(v);
+          }).join("");
+          if (attr === "data-text-parts") {
+            ownText = n.firstChild;
+            if (!ownText || ownText.nodeType !== 3) {
+              ownText = document.createTextNode("");
+              if (n.firstChild) n.insertBefore(ownText, n.firstChild);
+              else n.appendChild(ownText);
             }
-          });
+            if (ownText.nodeValue !== value) ownText.nodeValue = value;
+          } else if (attr === "data-href-parts") {
+            var href = safeNavigationUrl(value);
+            if (n.getAttribute("href") !== href) n.setAttribute("href", href);
+          } else {
+            var safe = value && safeResourceUrl(value);
+            var src = !safe || safe === "#" ? "${EMPTY_GIF}" : safe;
+            if (n.getAttribute("src") !== src) n.setAttribute("src", src);
+          }
+        });
+        return ownText;
       }
       // 入力欄は属性だけでなく、ネイティブの値・初期値も同じ項目で初期化する。
       function fillFieldParts(n, item, initial, only) {
@@ -1079,7 +1119,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           if ((a.name === "alt" && n.tagName === "IMG") ||
               (a.name === "src" && (n.tagName === "AUDIO" || n.tagName === "VIDEO" || n.tagName === "IFRAME"))) return;
           // 操作の値は親項目を使い、並べるときに解決する。
-          if (a.name.indexOf("data-field-") === 0 || n.hasAttribute("data-field-" + a.name + "-parts") ||
+          if (a.name === "data-scripts" || a.name.indexOf("data-field-") === 0 || n.hasAttribute("data-field-" + a.name + "-parts") ||
               a.name === "data-list-ops" || a.name === "data-text-parts" || a.name === "data-href-parts" || a.name === "data-image-src-parts" ||
               (a.name === "href" && n.hasAttribute("data-href-parts")) ||
               (a.name === "src" && n.hasAttribute("data-image-src-parts"))) return;
@@ -1087,9 +1127,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           if (v.indexOf("{") < 0 && !/%7B/i.test(v)) return;
           n.setAttribute(
             a.name,
-            a.name === "data-scripts"
-              ? fillScriptJson(v, item)
-              : a.name === "href"
+            a.name === "href"
                 ? safeNavigationUrl(resolveUrl(v, null, item))
                 : a.name === "src"
                   ? (function (raw) {
@@ -1099,51 +1137,8 @@ export const SCRIPT_RUNTIME = `function (env) {
                   : resolve(v, null, item)
           );
         });
-        if (n.hasAttribute("data-href-parts")) {
-          var href = listJson(n, "data-href-parts", []).map(function (part) {
-            if (typeof part === "string") return part;
-            // 根があれば null・空文字・存在しない子も項目の値を優先する。
-            var v = has(item, part.name) || has(item, part.name.split(".")[0])
-              ? text(has(item, part.name) ? item[part.name] : dig(item, part.name))
-              : has(part, "fallback") ? part.fallback : text(lookup(part.name, null, item));
-            // interpolateUrl と同じく、元の先頭の変数だけは URL 全体を受け取れる。
-            if (part.at === 0 && (/^(?:https?:|mailto:|tel:|data:image\\/(?:png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\\.microsoft\\.icon)[;,])/i.test(v) || (v.charAt(0) === "/" && v.charAt(1) !== "/") || v.charAt(0) === "#")) return v;
-            return encodeURIComponent(v);
-          }).join("");
-          n.setAttribute("href", safeNavigationUrl(href));
-        }
-        if (n.hasAttribute("data-image-src-parts")) {
-          var src = listJson(n, "data-image-src-parts", []).map(function (part) {
-            if (typeof part === "string") return part;
-            // 文字と同じく、自分のキー・根は空でも代替値より優先する。
-            if (has(item, part.name) || has(item, part.name.split(".")[0])) {
-              return text(has(item, part.name) ? item[part.name] : dig(item, part.name));
-            }
-            return has(part, "fallback") ? part.fallback : text(lookup(part.name, null, item));
-          }).join("");
-          var safeSrc = src ? safeResourceUrl(src) : "";
-          n.setAttribute("src", !safeSrc || safeSrc === "#" ? "${EMPTY_GIF}" : safeSrc);
-        }
-        // カスタムコード・アイコン（data-raw）の中身は書いたまま（配信前に並べるリスト・エディタと同じ）
         if (n.hasAttribute("data-raw")) return;
-        var ownText = null;
-        if (n.hasAttribute("data-text-parts")) {
-          var value = listJson(n, "data-text-parts", []).map(function (part) {
-            if (typeof part === "string") return part;
-            // 根を持つ項目は null・空・存在しない子もページ値で補わない。
-            if (has(item, part.name) || has(item, part.name.split(".")[0])) {
-              return text(has(item, part.name) ? item[part.name] : dig(item, part.name));
-            }
-            return has(part, "fallback") ? part.fallback : text(lookup(part.name, null, item));
-          }).join("");
-          ownText = n.firstChild;
-          if (!ownText || ownText.nodeType !== 3) {
-            ownText = document.createTextNode("");
-            if (n.firstChild) n.insertBefore(ownText, n.firstChild);
-            else n.appendChild(ownText);
-          }
-          ownText.nodeValue = value;
-        }
+        var ownText = fillRowBindings(n, item, true);
         if (!n.hasAttribute("data-field-text-parts") && !(n.tagName === "TEXTAREA" && n.hasAttribute("data-field-value-parts"))) {
           for (var c = n.firstChild; c; c = c.nextSibling) if (c !== ownText) fill(c, item);
         }
@@ -1308,6 +1303,10 @@ export const SCRIPT_RUNTIME = `function (env) {
         if (!changed.length) refreshLive();
         /*/live|clist*/
         changed.forEach(function (input) {
+          /*#live|clist*/
+          // A scripted edit takes precedence over the bound default until the form resets.
+          if (input.setAttribute) input.setAttribute("data-edited", "");
+          /*/live|clist*/
           input.dispatchEvent(new Event("input", { bubbles: true }));
           input.dispatchEvent(new Event("change", { bubbles: true }));
         });
@@ -1316,6 +1315,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       // くり返し中の要素（cx: { array, index, item, up, run }）の項目を、外側から順に重ねた値
       function scopeOf(cx) {
         if (!cx) return undefined;
+        if (cx.row) return cx.row;
         var parent = scopeOf(cx.up);
         var o = Object.assign(Object.create(null), parent);
         if (cx.item) for (var k in cx.item) if (has(cx.item, k)) o[k] = cx.item[k];
@@ -1814,7 +1814,12 @@ export const SCRIPT_RUNTIME = `function (env) {
         for (var cause = parent; cause; cause = cause.parent) {
           if (cause.owner === owner && cause.trigger === trigger) return;
         }
-        runSteps(steps, owner, undefined, activeRun({ owner: owner, trigger: trigger, parent: parent }));
+        var scope;
+        /*#clist*/
+        var item = rowScope(owner);
+        if (item) scope = { row: item };
+        /*/clist*/
+        runSteps(steps, owner, scope, activeRun({ owner: owner, trigger: trigger, parent: parent }));
       }
       // keep: 省略 = すべて / true・false = 「表示した要素の上も含める」のもの・それ以外だけ
       function fire(el, trigger, keep, cause) {
@@ -2087,6 +2092,7 @@ export const SCRIPT_RUNTIME = `function (env) {
       /*#live*/
       // 入力欄の値を使う {ID} の文字を、入力するたびに書き直す
       root.addEventListener("input", onLiveInput);
+      root.addEventListener("reset", onLiveReset);
       /*/live*/
       /*#scan*/
       // 初回表示のスクリプトによる入力変更も受け取るため、イベント登録後に実行する。
@@ -2129,6 +2135,7 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*/change*/
         /*#live*/
         root.removeEventListener("input", onLiveInput);
+        root.removeEventListener("reset", onLiveReset);
         /*/live*/
         if (typeof window !== "undefined" && setPageVars && window.__siteSetPageVars === setPageVars) {
           delete window.__siteSetPageVars;
