@@ -42,7 +42,8 @@ test("Create a site from Home and open it in the editor", { tag: "@core-editing"
   await expect(canvas(page).getByText(HEADING).first()).toBeVisible();
   const siteName = page.locator(".hdr-page");
   await expect(siteName.getByRole("button", { name: "サイト名: はじめてのサイト" })).toBeVisible();
-  await expect(siteName.locator(".dd")).toHaveCount(0, "page navigation belongs in the Pages tab");
+  // Page selection is only available in the Pages tab.
+  await expect(siteName.locator(".dd")).toHaveCount(0);
   await saved(page);
   expect(errors).toEqual([]);
 });
