@@ -927,7 +927,7 @@ function mount() {
   let effect: (() => void) | undefined;
   let previousDeps: unknown[] | undefined;
   let element: any;
-  const window = { location: { pathname: "/search", search: "" }, addEventListener() {}, removeEventListener() {} };
+  const window = { location: { pathname: "/search", search: "", hash: "" }, addEventListener() {}, removeEventListener() {} };
   const hooks = {
     ...React,
     useRef: () => ref,
@@ -956,8 +956,8 @@ function mount() {
     });
   }
   const events: Event[] = [];
-  const form = { elements: [field, textarea, checkbox, ...radios, select], dispatchEvent: (event: Event) => events.push(event) };
-  const replacements: string[] = [];
+  const form = { elements: [field, textarea, checkbox, ...radios, select], matches: () => false, dispatchEvent: (event: Event) => events.push(event) };
+  const navigations: string[] = [];
   class FormData {
     constructor(private form: typeof form) {}
     *entries() {
@@ -971,7 +971,7 @@ function mount() {
   const Component = evaluate(source, {
     react: hooks,
     "next/navigation": {
-      useRouter: () => ({ replace: (url: string) => replacements.push(url) }),
+      useRouter: () => ({ push: (url: string) => navigations.push(url) }),
       usePathname: () => window.location.pathname,
       useSearchParams: () => new URLSearchParams(window.location.search),
     },
@@ -979,7 +979,7 @@ function mount() {
   }).default;
   function render(search: string, pathname = "/search") {
     effect = undefined;
-    window.location = { search, pathname };
+    window.location = { search, pathname, hash: "" };
     element = Component({ children: React.createElement("input", { name: "q" }) });
     element.props.ref.current = form;
     const visit = (node: any) => {
@@ -991,8 +991,8 @@ function mount() {
     visit(element.props.children);
     effect?.();
   }
-  return { render, field, textarea, checkbox, radios, select, events, replacements,
-    submit: () => element.props.onSubmit({ preventDefault() {}, currentTarget: form }),
+  return { render, field, textarea, checkbox, radios, select, events, navigations,
+    submit: () => element.props.onSubmit({ preventDefault() {}, nativeEvent: { submitter: null }, currentTarget: form }),
   };
 }
 
@@ -1040,7 +1040,7 @@ test("Back/Forward restores all field types and retains unrelated query paramete
   }
   mounted.field.value = "日本語 & +";
   mounted.submit();
-  const submitted = new URLSearchParams(mounted.replacements.at(-1));
+  const submitted = new URLSearchParams(mounted.navigations.at(-1));
   assert.equal(submitted.get("tab"), "products");
   assert.equal(submitted.get("q"), "日本語 & +");
   assert.equal(submitted.get("note"), "two");
@@ -1054,7 +1054,7 @@ test("same-query renders and submissions do not erase in-progress edits", () => 
   const query = "?q=first&note=initial+note&stock=true&size=M&sort=B";
   mounted.render(query);
   mounted.submit();
-  assert.equal(mounted.replacements[0], query);
+  assert.equal(mounted.navigations[0], query);
   mounted.field.value = "still typing";
   mounted.render(query);
   assert.equal(mounted.field.value, "still typing");
@@ -1106,7 +1106,7 @@ describe("search-form-values", () => {
     }
     const select = new Select();
     const upload = { name: "upload", type: "file", get value() { return ""; }, set value(_: string) { throw new Error("File input must not be restored"); } };
-    const form = { elements: [field, ...checkboxes, ...radios, select, upload], dispatchEvent() {} };
+    const form = { elements: [field, ...checkboxes, ...radios, select, upload], matches: () => false, dispatchEvent() {} };
     class FormData {
       constructor(private form: typeof form) {}
       *entries() {
@@ -1121,7 +1121,7 @@ describe("search-form-values", () => {
     const overrides: Record<string, unknown> = {
       react: { ...React, useRef: () => ref, useEffect: (fn: typeof effect) => { effect = fn; } },
       "next/navigation": {
-        useRouter: () => ({ replace: (url: string) => navigations.push(url) }),
+        useRouter: () => ({ push: (url: string) => navigations.push(url) }),
         usePathname: () => window.location.pathname,
         useSearchParams: () => new URLSearchParams(window.location.search),
       },
@@ -1148,7 +1148,7 @@ describe("search-form-values", () => {
       selected: () => select.options.filter((option) => option.selected).map((option) => option.value),
       checked: () => checkboxes.filter((input) => input.checked).map((input) => input.value),
       submit: () => {
-        element.props.onSubmit({ preventDefault() {}, currentTarget: form });
+        element.props.onSubmit({ preventDefault() {}, nativeEvent: { submitter: null }, currentTarget: form });
         return new URL(navigations.at(-1)!, "https://example.test/search").searchParams;
       },
     };

@@ -153,6 +153,37 @@ test("unmounting a FrameStage resets Canvas fit scale and global resize styles",
   await unchangedDocument(page);
 });
 
+test("canvas viewport lengths track device width and available height independently of zoom", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.evaluate(() => {
+    (window as any).frameResize.page("v");
+    (window as any).frameResize.width(390);
+  });
+  const artwork = page.locator('[data-node="artwork"]');
+  for (const mode of ["design", "preview"]) {
+    await page.evaluate(mode => (window as any).frameResize.mode(mode), mode);
+    await expect(artwork).toHaveCSS("font-size", "45px");
+    await expect(artwork).toHaveCSS("width", "448.5px");
+    await expect(artwork).toHaveCSS("height", "632px");
+    await expect(artwork).toHaveCSS("padding-left", "3.9px");
+    await expect(artwork).toHaveCSS("padding-top", "7px");
+  }
+  await page.evaluate(() => (window as any).frameResize.zoom(0.5));
+  await expect(artwork).toHaveCSS("font-size", "45px");
+  await expect(artwork).toHaveCSS("width", "448.5px");
+  expect((await artwork.boundingBox())!.width).toBeCloseTo(224.25);
+
+  await page.evaluate(() => {
+    (window as any).frameResize.width(480);
+    document.getElementById("app")!.style.height = "460px";
+  });
+  await expect(artwork).toHaveCSS("font-size", "54px");
+  await expect(artwork).toHaveCSS("width", "552px");
+  await expect(artwork).toHaveCSS("height", "392px");
+  await expect(artwork).toHaveCSS("padding-left", "4.6px");
+  await expect(artwork).toHaveCSS("padding-top", "4.8px");
+});
+
 test("HTML pages only execute their HTML, CSS and scripts in preview mode", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));

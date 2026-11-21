@@ -5,6 +5,8 @@ import { CSS_ASSET_ATTRIBUTES, iterateCssAssetReferences } from "../css-assets";
 import { rewriteSrcsetUrls } from "../srcset";
 import type { Asset, SiteDoc } from "../types";
 import { zipCssUrl } from "../zip-css";
+import { parseValueLiteral } from "../value-semantics";
+import { buildAssetNames } from "./names";
 import { importedAssetPath } from "./imported-assets";
 
 // 仮想のファイルのルートを使い、アーカイブのパスをどの HTTP のオリジンとも区別する。
@@ -13,7 +15,7 @@ const absolute = /^(?:[a-z][a-z0-9+.-]*:|[/\\]{2})/i;
 const urlFields = new Set(["src", "href", "url", "poster", "action", "formaction", "cite", "background"]);
 
 /** ローカルのアセットの ID は、実際にファイルを参照できる項目やマークアップの中だけで照合する。 */
-export function scopedAssetIds(doc: SiteDoc, assets: Record<string, Asset>): Set<string> {
+export function scopedAssetIds(doc: SiteDoc, assets: Record<string, Asset>, names = buildAssetNames({ assets })): Set<string> {
   const ids = new Set<string>();
   if (!Object.keys(assets).length) return ids;
   // ZIP の生の HTML は元の相対 URL を保っているため、ページの明示的な ZIP との対応が無いと、
@@ -50,13 +52,24 @@ export function scopedAssetIds(doc: SiteDoc, assets: Record<string, Asset>): Set
     } else if (urlFields.has(name)) record(value, base);
     else if (CSS_ASSET_ATTRIBUTES.includes(name)) css(value, base);
   }
+  // A script can supply an image or link indirectly through a JSON array or object.
+  function scriptValue(raw: string) {
+    const pending: unknown[] = [parseValueLiteral(raw)];
+    while (pending.length) {
+      const next = pending.pop();
+      if (typeof next === "string") record(next, base);
+      else if (next && typeof next === "object") {
+        for (const value of Object.values(next)) pending.push(value);
+      }
+    }
+  }
   function walk(value: unknown, depth = 0, mode: "normal" | "css" | "script" = "normal") {
     if (!value || typeof value !== "object" || depth > 50) return;
     for (const [key, child] of Object.entries(value)) {
       if (typeof child === "string") {
         if (key === "assetId" && Object.hasOwn(assets, child)) ids.add(child);
-        else if (mode === "css" || key === "customCss") css(child);
-        else if (mode === "script" && (key === "value" || key === "template")) record(child, base);
+        else if (mode === "css" || key === "customCss" || key === "customKeyframes") css(child);
+        else if (mode === "script" && (key === "value" || key === "template")) scriptValue(child);
         else attribute(key.toLowerCase(), child, base);
       } else if (key !== "assets" && key !== "preview") {
         const context = ["styles", "darkStyles", "bodyStyles", "bodyDarkStyles"].includes(key) ? "css" :
@@ -133,9 +146,13 @@ export function scopedAssetIds(doc: SiteDoc, assets: Record<string, Asset>): Set
       throw error;
     }
   }
+  const publicUrls = new Set([...names.values()].map(name => "/assets/" + name));
+  const legacyUrl = (path: string) => !publicUrls.has(path) && urls.has(path);
   for (const [id, asset] of Object.entries(assets)) {
-    if (urls.has(assetDocUrl(asset)) || urls.has(assetSrc(asset)) || urls.has("/assets/" + asset.name) ||
-        (asset.path && urls.has("/" + asset.path)) || urls.has(zipCssUrl(id)) ||
+    const publicName = names.get(id);
+    if ((publicName && urls.has("/assets/" + publicName)) || urls.has(assetDocUrl(asset)) || urls.has(assetSrc(asset)) ||
+        legacyUrl("/assets/" + asset.name) ||
+        (asset.path && legacyUrl("/" + asset.path)) || urls.has(zipCssUrl(id)) ||
         (asset.zip && urls.has(importedAssetPath(asset)?.slice("public".length) ?? ""))) ids.add(id);
   }
   return ids;

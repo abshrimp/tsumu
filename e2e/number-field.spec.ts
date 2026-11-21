@@ -401,6 +401,44 @@ test(`component literal attributes persist through editor save, preview and expo
 });
 
 test.describe("html-data-export", () => {
+test("standalone HTML query variants display the default page without JavaScript", async ({ browser }) => {
+  const fallback = { ...makeBox(), id: "nojs-default",
+    text: { content: "Default content without JavaScript", heading: 1 } };
+  const alternate = { ...makeBox(), id: "nojs-alternate",
+    text: { content: "JavaScript-only variant", heading: 1 } };
+  const doc: SiteDoc = {
+    schemaVersion: 1, siteName: "No-script fallback", assets: {},
+    pageOrder: ["alternate", "default"],
+    pages: {
+      alternate: { id: "alternate", name: "Alternate", title: "Alternate",
+        description: "", slug: "", query: "view=alternate", children: ["nojs-alternate"] },
+      default: { id: "default", name: "Default", title: "Default",
+        description: "", slug: "", children: ["nojs-default"] },
+    },
+    nodes: { "nojs-default": fallback, "nojs-alternate": alternate },
+  };
+  const { files } = generateExportProject(doc, "html");
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  try {
+    const noScriptPage = await context.newPage();
+    await noScriptPage.route("**/*", async (route) => {
+      const path = new URL(route.request().url()).pathname.replace(/^\/+/, "") || "index.html";
+      const source = files[path];
+      await route.fulfill({
+        status: source === undefined ? 404 : 200,
+        contentType: path.endsWith(".html") ? "text/html" :
+          path.endsWith(".css") ? "text/css" : "text/javascript",
+        body: source ?? "",
+      });
+    });
+    await noScriptPage.goto("http://nojs.export.test/?view=alternate");
+    await expect(noScriptPage.getByRole("heading", { name: "Default content without JavaScript" })).toBeVisible();
+    await expect(noScriptPage.getByText("JavaScript-only variant")).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
+});
+
 test("standalone HTML selects query-variant pages before loading their data", async ({ page }) => {
   const defaultNode = { ...makeBox(), id: "default-heading", text: { content: "Default page", heading: 1 } };
   const specialNode = { ...makeBox(), id: "special-heading", text: { content: "Query-specific page", heading: 1 } };
@@ -644,6 +682,48 @@ test("single HTML executes page-load scripts and renders dynamic variables witho
     typeof (await (window as any).__pageDataReady) === "object");
   expect(initialized).toBe(true);
   expect(unexpectedRequests).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
+test("standalone HTML query variants preserve authored async and defer script timing", async ({ page }) => {
+  const doc: SiteDoc = {
+    schemaVersion: 1, siteName: "Async/defer variant", assets: {}, pageOrder: ["base", "special"],
+    pages: {
+      base: { id: "base", name: "Base", slug: "", title: "Base",
+        description: "", children: [] },
+      special: { id: "special", name: "Special", slug: "", query: "variant=timing",
+        title: "Special", description: "", children: [],
+        customTopHtml: '<script>window.__variantOrder = [];</script>' +
+          '<script defer src="/timing/defer.js"></script>' +
+          '<script>window.__variantOrder.push("inline-after-defer");</script>' +
+          '<script async src="/timing/async.js"></script>' +
+          '<script>window.__variantOrder.push("inline-after-async");</script>',
+      },
+    },
+    nodes: {},
+  };
+  const files = generateExportProject(doc, "html").files;
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.route("**/*", async route => {
+    const path = new URL(route.request().url()).pathname.replace(/^\/+/, "") || "index.html";
+    if (path === "timing/defer.js" || path === "timing/async.js") {
+      await new Promise(resolve => setTimeout(resolve, path === "timing/async.js" ? 100 : 40));
+      await route.fulfill({ contentType: "application/javascript",
+        body: 'window.__variantOrder.push("' + (path === "timing/defer.js" ? "defer" : "async") + '");' });
+      return;
+    }
+    const source = files[path];
+    await route.fulfill({ status: source === undefined ? 404 : 200,
+      contentType: path.endsWith(".html") ? "text/html" :
+        path.endsWith(".css") ? "text/css" : "application/javascript",
+      body: source ?? "" });
+  });
+  await page.goto("http://timing.export.test/?variant=timing", { waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => Array.isArray((window as any).__variantOrder) &&
+    (window as any).__variantOrder.includes("async"));
+  const order = await page.evaluate(() => (window as any).__variantOrder as string[]);
+  expect(order).toEqual(["inline-after-defer", "inline-after-async", "defer", "async"]);
   expect(errors).toEqual([]);
 });
 

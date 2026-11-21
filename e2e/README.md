@@ -8,9 +8,9 @@ particular engine.
 The nine shared `@core-editing` cases cover site creation, reload and IndexedDB
 persistence, deletion and undo, inspector/script panels, canvas reorder, building
 a script from a trigger and an action, multiline text, variable suggestions, and pasted text with
-undo/redo. The two `@form-values` cases in `search-form-values.spec.ts`
-(Next.js and React exports) check that search forms keep empty and repeated
-fields.
+undo/redo. The three `@form-values` cases in `search-form-values.spec.ts`
+cover empty and repeated fields, submit button overrides, and static HTML
+searches that retain the current query-selected page.
 
 ```sh
 npx playwright install chromium firefox webkit

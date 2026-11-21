@@ -158,6 +158,26 @@ test.describe("History while page settings are focused", () => {
     const { doc, past, future } = (window as any).commitPageEditor.getState();
     return { doc, past, future };
   });
+  test("page URL retains Unicode routes on blur and when edited", async ({ page }) => {
+    const input = page.locator("#page-p-slug");
+    await page.evaluate(() => (window as any).commitPageEditor.getState().updatePage("p", {
+      slug: "日本語/作品/café", query: "lang=ja",
+    }));
+    await expect(input).toHaveValue("日本語/作品/café?lang=ja");
+    const before = await snapshot(page);
+    await input.focus();
+    await input.press("Tab");
+    expect(await snapshot(page)).toEqual(before);
+
+    const accent = "cafe\u0301";
+    await input.fill("/新作//" + accent + "/[slug]/?種類=展示");
+    await input.press("Enter");
+    await expect(input).toHaveValue("新作/" + accent + "/[slug]?種類=展示");
+    expect((await snapshot(page)).doc.pages.p).toMatchObject({ slug: "新作/" + accent + "/[slug]", query: "種類=展示" });
+    await input.fill("/日本語/../a:b#c/");
+    await input.press("Tab");
+    expect((await snapshot(page)).doc.pages.p.slug).toBe("日本語/--/a-b-c");
+  });
   for (const field of ["title", "description"] as const) {
     for (const operation of ["undo", "redo", "remote"] as const) {
       if (!((field === "title" && (operation === "undo" || operation === "remote")) ||

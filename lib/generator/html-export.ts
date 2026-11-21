@@ -2,6 +2,10 @@
  * ビルド不要の HTML / CSS / JavaScript の書き出し。フレームワークのソースは含めない。
  * Next.js の書き出しと同じ、正規化した文書と、生成した CSS・アセットを使う。
  */
+import { staticLoadingScript } from "./loading-screen";
+import { siteLangOf, siteText } from "../site-lang";
+import { codeLiteral } from "./code-literal";
+import type { ExportOptions } from "./export-options";
 import { fieldSubmissionAttributes, submissionAttributes } from "../imported-form";
 import type { DocNode, Page, SiteDoc } from "../types";
 import type { GeneratedProject, PublishTarget } from "../generator";
@@ -9,6 +13,7 @@ import { listFromOf, obfuscateVarNames, pagePlan } from "../data";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { buildAssetNames, buildClassNames } from "./names";
 import { assetDocUrl } from "../assets";
+import { imageSrcset } from "../srcset";
 import { assetMediaUrl } from "../media-url";
 import { htmlZipExportSource, htmlZipExportUrl, importedAssetUrl, isZipJavascript } from "./imported-assets";
 import { googleFontsCss, rewriteHtmlAssetUrls, rawHtmlWithBodyStyles } from "./css";
@@ -19,14 +24,15 @@ import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "
 import { unnestLinks } from "./page";
 import { hasVars } from "../vars";
 import { pageQueryConditions } from "../page-query";
-import { selectDefaultValue, fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
+import { selectDefaultValue, fieldSubmissionName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
 import { resolveTag } from "../tags";
 import { compileScripts, hasRunnableScripts, scriptTargetIds } from "../script";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
 import { EMPTY_GIF, buildPwaManifest } from "./templates";
 import { scriptsFile } from "../script-runtime";
 import { PAGE_DATA_RUNTIME, serializePageDataPlan } from "./browser-data";
-import { QUERY_VARIANT_RUNTIME } from "./query-route";
+import { socialImageSrc } from "./social-image";
+import { noScriptQueryFallback, QUERY_VARIANT_RUNTIME } from "./query-route";
 import { safeMediaUrl, safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
 import { rewriteCssAssetUrls } from "../css-assets";
@@ -70,6 +76,26 @@ function standaloneZipBase(html: string, path: string) {
     href: pagePrefix(path) + base.pathname.slice(1) + base.search + base.hash,
     location,
   };
+}
+
+/** A host serves 404.html at the missing request URL, which may be several directories deep. */
+function hostedNotFoundHtml(html: string): string {
+  const { baseElement, elements } = htmlResourceElements(html);
+  const href = baseElement?.attrs.find(attribute => attribute.name === "href")?.value;
+  const location = baseElement?.sourceCodeLocation?.attrs?.href;
+  if (href !== undefined && location) {
+    const base = archiveBaseUrl("404.html", href || "404.html");
+    if (base?.protocol !== "file:") return html;
+    return html.slice(0, location.startOffset) + attr("href", base.pathname + base.search + base.hash).trimStart() +
+      html.slice(location.endOffset);
+  }
+  // A synthetic <base> would make same-document fragment links navigate away from the missing URL.
+  return rewriteHtmlResourceUrls(html, elements, (value) => {
+    const url = value.trim();
+    if (!url || /^(?:[a-z][a-z0-9+.-]*:|[/?#])/i.test(url)) return value;
+    const base = archiveBaseUrl("404.html", url);
+    return base?.protocol === "file:" ? base.pathname + base.search + base.hash : value;
+  }, (key, value) => attr(key, value).trimStart());
 }
 
 /** ルート相対の CSS のリソースの参照だけを書き換える。 */
@@ -132,13 +158,13 @@ function rewriteRootUrls(
 }
 
 /** Tsumu のブラウザのランタイムが各行を複製するまで、リストの項目の字句を残す。 */
-function templateParts(value: string, includeOffset = false): string {
-  const out: (string | { name: string; at?: number })[] = [];
+function templateParts(value: string, includeOffset = false, live = false): string {
+  const out: (string | { name: string; at?: number; live?: boolean })[] = [];
   let from = 0;
   for (const m of value.matchAll(/\\\{|\{([^{}\s"'<>]+)\}|\[slug\]/g)) {
     const at = m.index ?? 0;
     out.push(value.slice(from, at));
-    out.push(m[0] === "\\{" ? "{" : includeOffset ? { name: m[1] ?? "slug", at } : { name: m[1] ?? "slug" });
+    out.push(m[0] === "\\{" ? "{" : { name: m[1] ?? "slug", ...(includeOffset ? { at } : {}), ...(live ? { live } : {}) });
     from = at + m[0].length;
   }
   out.push(value.slice(from));
@@ -157,7 +183,7 @@ type Context = {
   seen: Set<string>;
   form: boolean;
   template: boolean;
-  instance?: { id?: string; hidden?: string };
+  instance?: { rootId: string; id?: string; hidden?: string };
   staticRoutes?: ReadonlyMap<string, Page[]>;
   authoredBase?: boolean;
 };
@@ -174,12 +200,12 @@ function href(ctx: Context, value: string, formAction = false): string {
   const rootRelative = pathname.startsWith("/");
   if (!rootRelative) {
     // An explicit base or a leading variable can supply an entirely different destination.
-    if (ctx.authoredBase || (!formAction && hasVars(pathname))) return safe;
+    if (ctx.authoredBase || (!formAction && /^(?:\{[^{}\s"'<>\x60]+\}|\[slug\])/.test(pathname))) return safe;
     // Relative form actions can be server endpoints even when a page has the same clean URL.
     if (formAction) return ctx.prefix + new URL(safe, archiveFileUrl(ctx.page.slug)).href.slice("file:///".length);
   }
   // A clean editor URL and its exported directory/index.html have different bases for relative links.
-  const path = rootRelative ? pathname : new URL(pathname, archiveFileUrl(ctx.page.slug)).pathname;
+  const path = rootRelative ? pathname : relativeTemplatePath(pathname, ctx.page);
   const slug = path.replace(/^\/+|\/+$/g, "");
   let route = ctx.staticRoutes.get(slug);
   if (!route && slug.includes("%")) {
@@ -190,19 +216,37 @@ function href(ctx: Context, value: string, formAction = false): string {
   return formAction ? safe : ctx.prefix + path.replace(/^\/+/, "") + suffix;
 }
 
-/** メディアのソースは、インラインのデータか、サイト内のファイルに限る。動作するような URL のスキームは使わない。 */
+/** Keep variable placeholders intact while resolving the URL against the author's clean page path. */
+function relativeTemplatePath(path: string, page: Page): string {
+  const placeholders: string[] = [];
+  let prefix = "tsumu-export-variable-";
+  // A literal authored path containing the marker must never be mistaken for a placeholder.
+  while (path.includes(prefix)) prefix += "x";
+  const masked = path.replace(/\{[^{}\s"'<>\x60]+\}|\[slug\]/g, token => {
+    const index = placeholders.push(token) - 1;
+    return prefix + index + "-end";
+  });
+  const resolved = new URL(masked, archiveFileUrl(page.slug)).pathname;
+  return resolved.replace(new RegExp(prefix + "(\\d+)-end", "g"), (match, index: string) =>
+    placeholders[Number(index)] ?? match);
+}
+
+/** Preserve the resource's target when a clean page URL moves to <slug>/index.html. */
+function staticResourceUrl(ctx: Context, safe: string): string {
+  if (/^\/(?!\/)/.test(safe)) return ctx.prefix + safe.slice(1);
+  if (!ctx.staticRoutes || ctx.authoredBase || !safe || /^(?:[a-z][a-z0-9+.-]*:|[?#])/i.test(safe)) return safe;
+  const [, path, suffix] = /^([^?#]*)([\s\S]*)$/.exec(safe)!;
+  // A leading variable can expand to a complete URL, not merely a relative filename.
+  if (/^(?:\{[^{}\s"'<>\x60]+\}|\[slug\])/.test(path)) return safe;
+  return ctx.prefix + relativeTemplatePath(path, ctx.page).slice(1) + suffix;
+}
+
 function sourceHref(ctx: Context, value: string): string {
-  const safe = safeResourceUrl(value);
-  // メディアのパスはファイルへの参照で、ページへのリンクではない。ソースが実際にアセットを
-  // 指しているときに、たまたま一致したページの slug を index.html に解決してはいけない。
-  return /^\/(?!\/)/.test(safe)
-    ? ctx.prefix + safe.replace(/^\/+/, "") : safe;
+  return staticResourceUrl(ctx, safeResourceUrl(value));
 }
 
 function mediaHref(ctx: Context, value: string): string {
-  const safe = safeMediaUrl(value);
-  return /^\/(?!\/)/.test(safe)
-    ? ctx.prefix + safe.replace(/^\/+/, "") : safe;
+  return staticResourceUrl(ctx, safeMediaUrl(value));
 }
 
 function pageHref(ctx: Context, id: string): string {
@@ -224,13 +268,14 @@ function compiledAttr(ctx: Context, node: Pick<DocNode, "scripts">, skip?: Set<s
 }
 
 function common(ctx: Context, n: DocNode, cls: string): string {
-  const id = n.attrId || ctx.instance?.id;
+  const instance = ctx.instance?.rootId === n.id ? ctx.instance : undefined;
+  const id = n.attrId || instance?.id;
   const toggle = (!!id && ctx.toggles.has(id)) || showsSelf(n);
   const retained = Object.entries(importedAttributes(n.htmlAttrs))
     .map(([key, value]) => attr(key === "htmlFor" ? "for" : key === "tabIndex" ? "tabindex" : key, value))
     .join("");
   return attr("class", cls) + attr("id", id) + retained +
-    attr("data-instance-hidden", ctx.instance?.hidden) +
+    (instance ? ' data-component-root=""' : "") + attr("data-instance-hidden", instance?.hidden || undefined) +
     (toggle ? attr("data-toggle-show", toggleShowDisplay(n)) : "") +
     compiledAttr(ctx, n) +
     flag("data-inview", n.motions?.some((m) => m.trigger === "in-view"));
@@ -238,14 +283,14 @@ function common(ctx: Context, n: DocNode, cls: string): string {
 
 function field(ctx: Context, n: DocNode, attrs: string): string {
   const f = n.field!;
-  const name = f.name ?? fieldVarName(n);
+  const name = fieldSubmissionName(n);
   const formAttrs = Object.entries(fieldSubmissionAttributes(n, action => href(ctx, action, true)))
     .map(([key, value]) => attr(key, value)).join("");
   const shared = formAttrs + attr("name", name || undefined) + flag("required", f.required) + flag("disabled", f.disabled);
-  const dynamic = (key: string, value?: string) => !ctx.template && value && hasVars(value)
+  const dynamic = (key: string, value?: string, force = false) => !ctx.template && value !== undefined && (force || hasVars(value))
     ? attr("data-live-" + key, value) : "";
-  const fieldParts = (key: string, value?: string) => ctx.template && value && hasVars(value)
-    ? attr("data-field-" + key + "-parts", templateParts(value)) : "";
+  const fieldParts = (key: string, value?: string, force = false) => ctx.template && value !== undefined && (force || hasVars(value))
+    ? attr("data-field-" + key + "-parts", templateParts(value, false, true)) : "";
   if (f.kind === "submit") {
     const label = f.label ?? "送信";
     return "<button" + attrs + ' type="submit"' + attr("value", f.submitValue) + shared +
@@ -256,13 +301,14 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
       dynamic("placeholder", f.placeholder) + fieldParts("placeholder", f.placeholder) +
       attr("rows", f.rows) + attr("maxlength", f.maxLength) +
       dynamic("value", f.defaultValue) + fieldParts("value", f.defaultValue) + ">" +
-      escapeHtml(f.defaultValue || "") + "</textarea>";
+      (/^[\r\n]/.test(f.defaultValue || "") ? "\n" : "") + escapeHtml(f.defaultValue || "") + "</textarea>";
   }
   if (f.kind === "select") {
     const values = f.options || [];
     const initial = selectDefaultValue(f);
     const selected = Math.max(0, values.findIndex((o) => o.value === initial));
-    return "<select" + attrs + shared + ">" + values.map((o, index) =>
+    const dynamicOptions = values.some(option => hasVars(option.value));
+    return "<select" + attrs + shared + dynamic("value", initial, dynamicOptions) + fieldParts("value", initial, dynamicOptions) + ">" + values.map((o, index) =>
       "<option" + attr("value", o.value) + flag("selected", index === selected) +
       dynamic("value", o.value) + fieldParts("value", o.value) +
       (!ctx.template && hasVars(o.label) ? attr("data-live", o.label) : "") + fieldParts("text", o.label) +
@@ -272,7 +318,9 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
     const text = f.label || "";
     const bare = f.submitValue !== undefined && !f.label;
     const input = "<input" + (bare ? attrs : "") + attr("type", f.kind) + shared +
-      attr("value", f.submitValue ?? (f.kind === "checkbox" ? "true" : text)) + flag("checked", f.checked) + ">";
+      attr("value", f.submitValue ?? (f.kind === "checkbox" ? "true" : text)) +
+      (f.kind === "radio" && f.submitValue === undefined ? dynamic("value", text) + fieldParts("value", text) : "") +
+      flag("checked", f.checked) + ">";
     if (bare) return input;
     return "<label" + attrs + ">" + input + "<span" + (!ctx.template && hasVars(text) ? attr("data-live", text) : "") +
       fieldParts("text", text) + ">" +
@@ -283,12 +331,14 @@ function field(ctx: Context, n: DocNode, attrs: string): string {
       flag("multiple", f.multiple) + ">";
   }
   const type = f.inputType || "text";
+  const dynamicBounds = RANGED_INPUTS.has(type) && [f.min, f.max, f.step].some(hasVars);
   const bounds = RANGED_INPUTS.has(type)
-    ? attr("min", f.min) + attr("max", f.max) + attr("step", f.step) : "";
+    ? (["min", "max", "step"] as const).map(key => attr(key, f[key]) + dynamic(key, f[key]) + fieldParts(key, f[key])).join("") : "";
   return "<input" + attrs + attr("type", type) + shared + bounds +
     (type === "color" || type === "range" ? "" :
       attr("placeholder", f.placeholder) + dynamic("placeholder", f.placeholder) + fieldParts("placeholder", f.placeholder)) +
-    attr("value", f.defaultValue) + dynamic("value", f.defaultValue) + fieldParts("value", f.defaultValue) +
+    attr("value", f.defaultValue) + dynamic("value", f.defaultValue, dynamicBounds) +
+    fieldParts("value", f.defaultValue, dynamicBounds) +
     (TEXT_INPUTS.has(type) ? attr("maxlength", f.maxLength) : "") + ">";
 }
 
@@ -305,8 +355,9 @@ function render(ctx: Context, id: string, top: boolean): string {
       const old = ctx.instance;
       const hidden = n.hiddenOn?.length ? ctx.classes.get(n.id) : "";
       ctx.instance = {
-        id: master.attrId ? undefined : n.attrId,
-        hidden: [old?.hidden, hidden].filter(Boolean).join(" "),
+        rootId: master.id,
+        id: !old && master.type !== "instance" && !master.attrId ? n.attrId : undefined,
+        hidden: [hidden, old?.rootId === n.id ? old.hidden : undefined].filter(Boolean).join(" "),
       };
       try { return render(ctx, comp.rootId, false); }
       finally { ctx.instance = old; }
@@ -316,10 +367,12 @@ function render(ctx: Context, id: string, top: boolean): string {
     if (n.type === "divider") return "<hr" + commonAttrs + ">";
     if (n.type === "image" && n.image) {
       const im = n.image;
-      const src = im.assetId ? assetMediaUrl(resource(ctx, im.assetId), im.assetSuffix) : sourceHref(ctx, im.src);
-      const imageAttrs = attr("src", hasVars(src) ? EMPTY_GIF : (src || EMPTY_GIF)) +
+      const src = im.assetId ? assetMediaUrl(resource(ctx, im.assetId), im.assetSuffix) : im.src ? sourceHref(ctx, im.src) : "";
+      const candidates = imageSrcset(im.candidates, source => source.assetId
+        ? assetMediaUrl(resource(ctx, source.assetId), source.assetSuffix) : sourceHref(ctx, source.src));
+      const imageAttrs = attr("loading", im.loading) + attr("sizes", im.sizes) + attr("srcset", candidates) + attr("src", hasVars(src) ? EMPTY_GIF : src || (candidates ? undefined : EMPTY_GIF)) +
         (!ctx.template && hasVars(src) ? attr("data-live-src", src) : "") +
-        (hasVars(src) && ctx.template ? attr("data-image-src-parts", templateParts(src)) : "") +
+        (hasVars(src) && ctx.template ? attr("data-image-src-parts", templateParts(src, false, true)) : "") +
         attr("alt", im.alt);
       const crisp = crispSvgSize(ctx.doc, n);
       if (crisp) return "<span" + commonAttrs.replace(attr("class", cls), attr("class", "crisp-svg " + cls)) +
@@ -383,10 +436,10 @@ function render(ctx: Context, id: string, top: boolean): string {
     }
     const text = n.text?.content || "";
     if (hasVars(text)) extra += ctx.template
-      ? attr("data-text-parts", templateParts(text)) : attr("data-live", text);
+      ? attr("data-text-parts", templateParts(text, false, true)) : attr("data-live", text);
     const submission = submissionAttributes(n.htmlAttrs, tag, action => href(ctx, action, true));
     for (const [key, value] of Object.entries(submission)) extra += attr(key, value);
-    if (tag === "form" && !submission.method) extra += ' method="get"';
+    if (tag === "form" && !submission.method) extra += ' method="get" data-search-form';
     if (tag === "button" && !submission.type) extra += attr("type",
       ctx.form && !n.scripts?.some((s) => s.trigger === "click") ? "submit" : "button");
     if (n.link) {
@@ -394,7 +447,7 @@ function render(ctx: Context, id: string, top: boolean): string {
       const destination = n.link.kind === "page" && n.link.pageId
         ? pageHref(ctx, n.link.pageId) : href(ctx, n.link.url || "#");
       extra += attr("href", destination) +
-        (hasVars(destination) ? (ctx.template ? attr("data-href-parts", templateParts(destination, true)) : attr("data-live-href", destination)) : "");
+        (hasVars(destination) ? (ctx.template ? attr("data-href-parts", templateParts(destination, true, true)) : attr("data-live-href", destination)) : "");
       if (n.link.newTab) extra += ' target="_blank" rel="noopener noreferrer"';
     }
     const wasForm = ctx.form;
@@ -436,7 +489,7 @@ function staticPageFragment(ctx: Context, page: Page): string {
   return !ctx.authoredBase && hasBaseHref(html) ? pageFragment({ ...ctx, authoredBase: true }, page) : html;
 }
 
-function prepareHtmlExport(doc: SiteDoc) {
+function prepareHtmlExport(doc: SiteDoc, classes: Map<string, string>) {
   const normalized = obfuscateVarNames(doc);
   unnestLinks(normalized);
   applyBreakpoints(normalized);
@@ -444,7 +497,7 @@ function prepareHtmlExport(doc: SiteDoc) {
   const assets = buildAssetNames(normalized);
   return {
     doc: normalized,
-    classes: buildClassNames(normalized),
+    classes,
     assets,
     assetSources: exportedAssetSources(normalized, assets),
     toggles: new Set([
@@ -455,8 +508,8 @@ function prepareHtmlExport(doc: SiteDoc) {
   };
 }
 
-export function createReactPageRenderer(doc: SiteDoc) {
-  const shared = prepareHtmlExport(doc);
+export function createReactPageRenderer(doc: SiteDoc, classes = buildClassNames(doc)) {
+  const shared = prepareHtmlExport(doc, classes);
   return {
     doc: shared.doc,
     renderPage: (pageId: string) => {
@@ -468,8 +521,11 @@ export function createReactPageRenderer(doc: SiteDoc) {
   };
 }
 
-export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, target: PublishTarget = "production"): GeneratedProject {
-  const shared = prepareHtmlExport(doc);
+export function generateStandaloneHtml(
+  doc: SiteDoc, next: GeneratedProject, target: PublishTarget = "production", classes = buildClassNames(doc),
+  placement?: ExportOptions["htmlPlacement"],
+): GeneratedProject {
+  const shared = prepareHtmlExport(doc, classes);
   const { doc: normalized, assets, assetSources } = shared;
   const files: Record<string, string> = {};
   const binaries: Record<string, string> = {};
@@ -488,7 +544,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
   for (const [path, source] of Object.entries(next.remoteAssets)) {
     if (path.startsWith("public/")) remoteAssets[path.slice(7)] = source;
   }
-  const manifest = buildPwaManifest(normalized, assets);
+  const manifest = buildPwaManifest(normalized, assets, "./");
   if (manifest) {
     files["manifest.webmanifest"] = JSON.stringify(manifest, null, 2) + "\n";
   }
@@ -508,7 +564,8 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
 
   const pages = normalized.pageOrder.map((id) => normalized.pages[id])
     .filter((p) => p && !p.unpublished);
-  const single = pages.length === 1;
+  const hosted = placement === "site-root";
+  const single = !hosted && pages.length === 1;
   const groups = new Map<string, Page[]>();
   for (const page of pages) {
     const key = page.slug.replace(/^\/+|\/+$/g, "");
@@ -520,18 +577,18 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
   let adobeHead: string | undefined;
   const outputPaths = new Set<string>();
   for (const group of groups.values()) {
-    const page = group[0];
+    const page = group.find(variant => !pageQueryConditions(variant.query).length) ?? group[0];
     const path = pageFilename(page, single);
     if (outputPaths.has(path)) throw new Error("Duplicate HTML output: " + path);
     outputPaths.add(path);
-    const prefix = pagePrefix(path);
+    const prefix = hosted ? "/" : pagePrefix(path);
     if (page.rawHtml?.trim()) {
       // 共通の HTML / CSS の生成処理で描画する。Next.js のルートのファイル名と、
       // 直列化した TypeScript はフレームワークの出力で、ページのデータの元ではない。
       const source = htmlZipSource(page.rawHtml, page.htmlZip, normalized.assets,
         asset => htmlZipExportSource(asset, assets));
       const html = rawHtmlWithBodyStyles(normalized, page, rewriteHtmlAssetUrls(normalized, source, assets), assets, target);
-      const base = page.htmlZip && standaloneZipBase(html, path);
+      const base = !hosted && page.htmlZip ? standaloneZipBase(html, path) : undefined;
       const assetPrefix = base?.prefix ?? prefix;
       let htmlWithScriptAssets = rewriteHtmlZipScriptUrls(html, page.htmlZip, normalized.assets, asset => {
         const url = htmlZipExportUrl(asset, assets);
@@ -550,6 +607,22 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
       ...shared, page, prefix, single, staticRoutes: groups, authoredBase,
       seen: new Set(), form: false, template: false,
     };
+    let loadingScreen = "";
+    const loading = normalized.loadingScreen;
+    if (loading?.enabled) {
+      const loadingPage = loading.pageId && normalized.pages[loading.pageId];
+      const artwork = loadingPage ? loadingPage.children.map(id => render(ctx, id, true)).join("\n") : "";
+      files["site-loading.js"] ??= staticLoadingScript(loading);
+      loadingScreen = '<template><div data-site-loading role="status" aria-live="polite"' +
+        attr("aria-label", siteText(siteLangOf(normalized), "loading")) + '>' +
+        (artwork || '<div data-site-loading-spinner></div>') + '</div></template>' +
+        '<script defer' + attr("src", prefix + "site-loading.js") + '></script>';
+    }
+    const imageFor = (variant: Page) => {
+      const image = socialImageSrc(normalized, variant, assets);
+      return image ? sourceHref(ctx, image) : "";
+    };
+    const hasSocialImage = group.some(variant => !!imageFor(variant));
     const allNoindex = target === "production" && group.every((variant) => variant.noindex);
     const body = group.length === 1
       ? staticPageFragment(ctx, page)
@@ -561,6 +634,7 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
               query: Object.fromEntries(pageQueryConditions(variant.query)),
               title: variant.title || variant.name,
               description: variant.description,
+              ...(hasSocialImage ? { ogImage: imageFor(variant) } : {}),
               noindex: target === "production" && !allNoindex && !!variant.noindex,
               lang: variant.lang || normalized.lang || "ja",
               html: staticPageFragment(context, variant),
@@ -568,15 +642,14 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
           });
           return '<script type="application/json" data-page-variants>' +
             JSON.stringify(variants).replace(/</g, "\\u003c") + '</script>' +
-            '<div data-variant-root style="display:contents"></div>';
+            '<div data-variant-root style="display:contents"></div>' +
+            noScriptQueryFallback(variants[group.indexOf(page)].html);
         })();
     const icon = normalized.favicon?.assetId ? resource(ctx, normalized.favicon.assetId) :
       normalized.favicon?.url ? sourceHref(ctx, normalized.favicon.url) : "";
     const appleIcon = normalized.appleTouchIcon?.assetId ? resource(ctx, normalized.appleTouchIcon.assetId) :
       normalized.appleTouchIcon?.url ? sourceHref(ctx, normalized.appleTouchIcon.url) : "";
-    const ogRef = page.ogImage ?? normalized.ogImage;
-    const ogSrc = ogRef?.assetId ? resource(ctx, ogRef.assetId) :
-      ogRef?.url ? sourceHref(ctx, ogRef.url) : "";
+    const ogSrc = imageFor(page);
     const pwaThemeColor = normalized.pwa?.enabled ? normalized.pwa.themeColor?.trim() : "";
     const head = [
       '<meta charset="utf-8">',
@@ -586,8 +659,8 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
       allNoindex ? '<meta name="robots" content="noindex,nofollow">' : "",
       icon && icon !== "#" ? '<link rel="icon"' + attr("href", icon) + ">" : "",
       appleIcon && appleIcon !== "#" ? '<link rel="apple-touch-icon"' + attr("href", appleIcon) + ">" : "",
-      ogSrc && ogSrc !== "#" ? '<meta property="og:image"' + attr("content", ogSrc) + ">" : "",
-      ogSrc && ogSrc !== "#" ? '<meta name="twitter:card" content="summary_large_image">' : "",
+      ogSrc && ogSrc !== "#" ? '<meta property="og:image"' + attr("content", ogSrc) + " data-route-social>" : "",
+      ogSrc && ogSrc !== "#" ? '<meta name="twitter:card" content="summary_large_image" data-route-social>' : "",
       normalized.pwa?.enabled ? '<link rel="manifest" href="' + prefix + 'manifest.webmanifest">' : "",
       pwaThemeColor ? '<meta name="theme-color"' + attr("content", pwaThemeColor) + ">" : "",
       '<link rel="stylesheet" href="' + prefix + 'styles/globals.css">',
@@ -611,16 +684,19 @@ export function generateStandaloneHtml(doc: SiteDoc, next: GeneratedProject, tar
       '<html lang="' + escapeHtml(page.lang || normalized.lang || "ja") + '">',
       "<head>", rewriteRootUrls(head, prefix, assetSources), "</head>",
       "<body>",
-      body,
+      loadingScreen, body,
       normalized.customBodyEndHtml ? rewriteRootUrls(normalized.customBodyEndHtml, prefix, assetSources) : "",
       scripts, "</body>", "</html>", "",
     ].join("\n");
   }
+  if (hosted && files["404.html"]) files["404.html"] = hostedNotFoundHtml(files["404.html"]);
   // 公開するページに専用のルートが無くても、アーカイブに必ず開ける入口を用意する。
   if (!files["index.html"] && pages.length) {
-    const first = pageFilename(pages[0], false);
+    const landing = pages.find((page) => pageFilename(page, false) !== "404.html") ?? pages[0];
+    const first = pageFilename(landing, false);
     const target = "./" + first;
     files["index.html"] = '<!doctype html><html><head><meta charset="utf-8">' +
+      '<script>location.replace(' + codeLiteral(target) + '+location.search+location.hash)</script>' +
       '<meta http-equiv="refresh" content="0;url=' + escapeHtml(target) + '">' +
       '</head><body><a href="' + escapeHtml(target) + '">Open site</a></body></html>';
   }

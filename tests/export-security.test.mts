@@ -270,7 +270,7 @@ describe("export-safety-boundaries", () => {
     const site = doc();
     const options = { language: "typescript", style: "tailwind", scope: "project" } as const;
     const registrations = [
-      ["react", "vite.config.ts", /plugins:\s*\[tailwindcss\(\)\]/],
+      ["react", "vite.config.ts", /plugins:\s*\[tailwindcss\(\)(?:,|\])/],
       ["vue", "vite.config.ts", /plugins:\s*\[vue\(\),\s*tailwindcss\(\)\]/],
       ["nuxt", "nuxt.config.ts", /vite:\s*\{\s*plugins:\s*\[tailwindcss\(\)\]/],
       ["sveltekit", "vite.config.ts", /plugins:\s*\[tailwindcss\(\),\s*sveltekit\(/],
@@ -343,6 +343,18 @@ describe("export-safety-boundaries", () => {
     assert.match(names.get("lower")!, /-2\.png$/i);
   });
 
+
+  test("differently spelled parent directories cannot silently merge when an export is extracted", async () => {
+    const { assertGeneratedPaths } = await import("../lib/generator/output-paths");
+    for (const [first, second] of [["News", "news"], ["café", "cafe\u0301"]]) {
+      const files = { [first + "/index.html"]: "page" };
+      const remoteAssets = { [second + "/images/cover.png"]: "assets/cover.png" };
+      assert.throws(() => assertGeneratedPaths({ files, binaries: {}, remoteAssets }), /generated directory collision/);
+      assert.doesNotThrow(() => assertGeneratedPaths({ files, binaries: {}, remoteAssets: {
+        [first + "/images/cover.png"]: "assets/cover.png",
+      } }));
+    }
+  });
 
   test("editable ZIP metadata cannot collide with generated page paths", async () => {
     const { assertGeneratedPaths } = await import("../lib/generator/output-paths");
@@ -1625,23 +1637,29 @@ describe("generator-framework-boundaries", () => {
     });
   }
 
-  test("distinct static HTML routes preserve their content when Next.js filenames collide", () => {
+  test("distinct ASCII and Unicode routes retain their public paths and content in Next.js and HTML", () => {
     const doc = fixture("--");
     doc.pages.home.rawHtml = '<html><head></head><body>ASCII route</body></html>';
     doc.pages.other = { ...doc.pages.home, id: "other", slug: "日本",
       rawHtml: '<html><head></head><body>Japanese route</body></html>' };
     doc.pageOrder.push("other");
+    const next = generateExportProject(doc, "nextjs");
+    assert.match(next.files[`app/${encodeURIComponent("日本")}/route.ts`], /Japanese route/);
+    assert.match(next.files["app/--/route.ts"], /ASCII route/);
     const output = generateExportProject(doc, "html");
     assert.match(output.files["--/index.html"], /ASCII route/);
     assert.doesNotMatch(output.files["--/index.html"], /Japanese route/);
     assert.match(output.files["日本/index.html"], /Japanese route/);
   });
 
-  test("React keeps distinct public routes when Next.js groups their generated JSX", () => {
+  test("React and Next.js keep accented public routes distinct", () => {
     const doc = fixture("caf-");
     doc.nodes.other = { ...makeText("Accented route"), id: "other" };
     doc.pages.other = { ...doc.pages.home, id: "other", slug: "café", children: ["other"] };
     doc.pageOrder.push("other");
+    const next = generateExportProject(doc, "nextjs");
+    assert.match(next.files["app/caf%C3%A9/page.tsx"], /Accented route/);
+    assert.match(next.files["app/caf-/page.tsx"], /Ordinary page/);
     const output = generateExportProject(doc, "react");
     assert.match(output.files["src/pages/Page0.tsx"], /Ordinary page/);
     assert.doesNotMatch(output.files["src/pages/Page0.tsx"], /Accented route/);
@@ -2131,6 +2149,20 @@ describe("published-instance-anchor", () => {
     assert.match(preview(doc, "second"), /id="second-card"/);
     assert.deepEqual(generateProject(doc).files, files, "deterministic output");
     assert.deepEqual(doc, before, "source document is unchanged");
+  });
+
+  test("native framework instances forward anchors to the styled master root", () => {
+    const doc = anchorFixture();
+    doc.nodes.first.hiddenOn = ["sm"];
+    for (const target of ["vue", "nuxt", "sveltekit"] as const) {
+      const files = generateExportProject(doc, target).files;
+      const component = Object.entries(files).find(([path]) => /Widget0\.(vue|svelte)$/.test(path))![1];
+      const page = Object.entries(files).find(([path]) => /Page0\.(vue|svelte)$/.test(path))![1];
+      assert.match(component, /(?:id=\{instanceId\}|:id="instanceId")/, target);
+      assert.match(component, /data-toggle-show[^>]+flex/, target);
+      assert.match(page, /<Widget0[^>]+(?:instance-id|instanceId)="first-card"/, target);
+      assert.doesNotMatch(page, /<div[^>]+ id="first-card"/, target);
+    }
   });
 
   test("master IDs and authored references take priority over conflicting instance settings", () => {
@@ -3015,6 +3047,21 @@ describe("vue-ssr-metadata", () => {
     });
   }
 
+  test("Vue SSR serves the authored 404 metadata with its error page", async () => {
+    const source = structuredClone(doc);
+    source.ogImage = { url: "https://example.com/default.png" };
+    source.pages.missing = { id: "missing", name: "Missing", title: "Introuvable", description: "Page absente",
+      lang: "fr", slug: "404", children: [], ogImage: { url: "https://example.com/missing.png" } };
+    source.pageOrder.push("missing");
+    const result = await harness("typescript", source)("/news/absent");
+    assert.equal(result.status, 404);
+    assert.equal(result.tree.querySelector("title").text, "Introuvable | " + site);
+    assert.equal(result.tree.querySelector("html").getAttribute("lang"), "fr");
+    assert.equal(result.tree.querySelector('meta[name="description"]').getAttribute("content"), "Page absente");
+    assert.deepEqual(result.tree.querySelectorAll('meta[property="og:image"]').map((el: any) => el.getAttribute("content")),
+      ["https://example.com/missing.png"]);
+  });
+
   test("Vue SSR language metadata cannot escape its HTML attribute", async () => {
     const source = structuredClone(doc);
     source.pages.foreign.lang = 'en" data-injected="yes';
@@ -3310,7 +3357,9 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     };
     const { files } = generateExportProject(doc, framework);
     const tree = parse(files[nativePagePath(framework)]);
-    const hidden = tree.querySelector("#hidden-use"), visible = tree.querySelector("#visible-use");
+    const idProp = framework === "sveltekit" ? "instanceId" : "instance-id";
+    const hidden = tree.querySelector(`[${idProp}="hidden-use"]`).parentNode;
+    const visible = tree.querySelector(`[${idProp}="visible-use"]`).parentNode;
     const marker = hidden.getAttribute("data-instance-hidden");
     assert.ok(marker, "instance wrapper needs the selector marker used by shared responsive CSS");
     const css = Object.entries(files).filter(([name]) => name.endsWith(".css")).map(([, content]) => content).join("\n");
@@ -3372,8 +3421,13 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) for (const priori
   if (!priority) assert.doesNotMatch(nativeImg, /fetchpriority=/);
 });
 
+function vueBoundValue(markup: string, attribute: string): string | undefined {
+  const element = parseFragment(markup).childNodes[0] as Html.Element;
+  return element.attrs.find(entry => entry.name === ":" + attribute)?.value;
+}
+
 for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
-  for (const label of ["Plan {choice}", "\\{choice}", "Static & safe"]) test(`${framework} radio submits the displayed resolved label: ${label}`, () => {
+  for (const label of ["Plan {choice}", "\\{choice}", "Static & safe", 'Plan for O\'Neil & "{choice}"']) test(`${framework} radio submits the displayed resolved label: ${label}`, () => {
     const doc: SiteDoc = {
       siteName: "Radio", assets: {}, pageOrder: ["p"],
       pages: { p: { id: "p", name: "Home", title: "Home", description: "", slug: "", children: ["radio"] } },
@@ -3384,7 +3438,7 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     assert.ok(input);
     const expression = framework === "sveltekit"
       ? /\bvalue=\{(resolveText\([^\n]*?\))\}/.exec(source)?.[1]
-      : (() => { const match = /:value="([^"]*)"/.exec(source); return match ? parse(`<div data-code="${match[1]}"></div>`).querySelector("div").getAttribute("data-code") : undefined; })();
+      : vueBoundValue(source.match(/<input\b[^>]*>/)![0], "value");
     const scope = { choice: 'A & "B"' };
     const actual = expression ? new Function("resolveText", "scope", `return ${expression}`)(native.resolveText, scope) : input.getAttribute("value");
     assert.equal(actual, native.resolveText(label, scope));
@@ -3420,11 +3474,9 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     const optionTags = [...source.matchAll(/<option\b([^>]*)>/g)].map(m => m[1]);
     const evaluate = (code: string) => runInNewContext(code, { ...native, scope: sample.scope, row0: sample.row });
     const selectedFlags = optionTags.map(attrs => {
-      const dynamic = framework === "sveltekit" ? /selected=\{(.*)\}/.exec(attrs)?.[1] : /:selected="([^"]*)"/.exec(attrs)?.[1];
-      if (dynamic) {
-        const decoded = framework === "sveltekit" ? dynamic : parse(`<div data-code="${dynamic}"></div>`).querySelector("div").getAttribute("data-code");
-        return evaluate(decoded);
-      }
+      const dynamic = framework === "sveltekit" ? /selected=\{(.*)\}/.exec(attrs)?.[1]
+        : vueBoundValue("<option " + attrs + "></option>", "selected");
+      if (dynamic) return evaluate(dynamic);
       return /\bselected\b/.test(attrs);
     });
     const selected = selectedFlags.indexOf(true);
@@ -3517,7 +3569,7 @@ test("native framework exports guard loading screens, scope list data-item field
   for (const fw of ["vue", "sveltekit"] as const) {
     const files = generateExportProject(listDoc, fw).files;
     const pageSource = files[nativePagePath(fw)];
-    assert.match(pageSource, /id="inst"[^>]*data-toggle-show="contents"/);
+    assert.match(pageSource, /<Widget0[^>]+(?:instance-id|instanceId)="inst"/);
     assert.equal((pageSource.match(/serializeListItem\(/g) ?? []).length, 1);
     assert.equal((pageSource.match(/data-item/g) ?? []).length, 1);
     const dataSource = files[(fw === "vue" ? "src/" : "src/lib/") + "site-data.js"];

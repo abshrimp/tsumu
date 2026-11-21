@@ -304,23 +304,23 @@ export default function PagePanel() {
               text={tr("The page's address (e.g. blog becomes {p1}/blog).\nAdd a query like \"blog?tab=news\" to append it to links to this page; inside the page it's available as {tab}.\nInclude [slug], as in \"blog/[slug]\", to create a detail page for each data item.", { p1: doc.siteUrl ?? "" })}
             />
           </label>
-          <input
-            key={`${page.id}-slug-${page.slug}?${page.query ?? ""}`}
+          <CommitInput
+            key={`${page.id}-slug`}
             id={`page-${page.id}-slug`}
             className="input"
             data-tutorial="tutorial-page-slug"
-            defaultValue={page.query ? `${page.slug}?${page.query}` : page.slug}
+            value={page.query ? `${page.slug}?${page.query}` : page.slug}
             placeholder={tr("(Home page)")}
-            onBlur={(e) => {
-              const value = e.target.value.trim();
+            onCommit={(input) => {
+              const value = input.trim();
               const at = value.indexOf("?");
               const path = at < 0 ? value : value.slice(0, at);
               const query = at < 0 ? "" : value.slice(at + 1).split("#")[0].replace(/\s+/g, "");
               updatePage(page.id, {
-                slug: path
+                slug: path === page.slug ? page.slug : path
                   .replace(/^\/+|\/+$/g, "")
                   .replace(/\/{2,}/g, "/")
-                  .replace(/[^a-zA-Z0-9\-/_\[\]]/g, "-"),
+                  .replace(/[^\p{L}\p{M}\p{Nd}\-/_\[\]]/gu, "-"),
                 query: query || undefined,
               });
             }}

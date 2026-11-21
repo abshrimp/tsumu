@@ -16,6 +16,7 @@ import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 import { setVarPath, withinScriptValueLimit } from "./value-semantics";
 import { PAGE_STEP_RUNNER_SOURCE } from "./page-load-steps";
 import { rewriteHtmlAssetUrls, generateSiteCss, rawHtmlWithBodyStyles, uploadedFontsCss, usedGoogleFonts } from "./generator/css";
+import { loadingScreenController, loadingScreenCss } from "./generator/loading-screen";
 import { headHtmlToJsx } from "./generator/head";
 import { adobeFontHead } from "./generator/adobe-fonts";
 import { deferRunnableScripts } from "./generator/defer-scripts";
@@ -77,7 +78,8 @@ const TEST_BLOCKED_BOTS = [
 
 export function generateProject(
   doc: SiteDoc,
-  target: PublishTarget = "production"
+  target: PublishTarget = "production",
+  classNames = buildClassNames(doc),
 ): GeneratedProject {
   // 配信するコードに変数名を出さない（編集中のデータはそのまま）
   doc = obfuscateVarNames(doc);
@@ -89,7 +91,6 @@ export function generateProject(
   raiseOverCrispSvg(doc);
   const isTest = target === "test";
   const siteLang = siteLangOf(doc);
-  const classNames = buildClassNames(doc);
   const componentNames = buildComponentNames(doc);
   const assetNames = buildAssetNames(doc);
   const ctx: JsxContext = {
@@ -121,7 +122,7 @@ export function generateProject(
   };
   const routedPages = doc.pageOrder
     .map((id) => doc.pages[id])
-    .filter((page) => !page.unpublished);
+    .filter((page) => page && !page.unpublished);
   const redirects = routedPages
     .filter((page) => page.redirectTo?.trim() && isSafeRedirectTarget(page.redirectTo))
     .map((page) => ({
@@ -158,7 +159,7 @@ export function generateProject(
   let anySmartLink = false;
   for (const pageId of doc.pageOrder) {
     const page = doc.pages[pageId];
-    if (page.unpublished) continue;
+    if (!page || page.unpublished) continue;
     if (page.redirectTo !== undefined || page.rewriteTo !== undefined) continue;
     const slug = page.slug.replace(/^\/+|\/+$/g, "");
     const dir = routeDir(slug);
@@ -293,7 +294,9 @@ ${body || "    null"}
       const weights = g.weights
         ? `, weight: ${JSON.stringify(g.weights)}`
         : "";
-      return `const ${varName} = ${g.importName}({ subsets: ["latin"], variable: "${g.cssVar}"${weights} });`;
+      // next/font otherwise inserts its metric-adjusted system font ahead of the authored fallbacks.
+      const fallback = f.hasAuthoredFallback ? ", adjustFontFallback: false" : "";
+      return `const ${varName} = ${g.importName}({ subsets: ["latin"], variable: "${g.cssVar}"${weights}${fallback} });`;
     })
     .join("\n");
   const fontClassList = fonts
@@ -303,8 +306,19 @@ ${body || "    null"}
 
   const layoutMeta: string[] = [];
   const siteUrl = doc.siteUrl?.trim();
-  if (siteUrl && /^https?:\/\//.test(siteUrl)) {
-    layoutMeta.push(`  metadataBase: new URL(${codeLiteral(siteUrl)}),`);
+  if (siteUrl) {
+    // Validate before emitting a Next.js metadata URL: a malformed editor value
+    // would otherwise make every generated page fail during module evaluation.
+    // URL also accepts mixed-case HTTP schemes, unlike a case-sensitive prefix check.
+    try {
+      const base = new URL(siteUrl);
+      if ((base.protocol === "http:" || base.protocol === "https:") &&
+          !base.username && !base.password) {
+        layoutMeta.push(`  metadataBase: new URL(${codeLiteral(siteUrl)}),`);
+      }
+    } catch {
+      // An invalid optional site URL must not prevent the rest of the site from building.
+    }
   }
   layoutMeta.push(
     `  title: {\n    default: ${codeLiteral(doc.siteName)},\n    template: ${codeLiteral(`%s | ${doc.siteName}`)},\n  },`
@@ -446,86 +460,26 @@ export default function manifest(): MetadataRoute.Manifest {
         );
       }
     }
-    const fallbackBody = `<div style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
-        <span style={{ width: 32, height: 32, border: "3px solid currentColor", borderRightColor: "transparent", borderRadius: "50%", animation: "loading-spin 700ms linear infinite" }} />
-      </div>`;
     files["components/SiteLoadingScreen.tsx"] = `"use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 ${loadingImports.length ? loadingImports.join("\n") + "\n" : ""}
-
-const MIN_DURATION = ${Math.max(0, loading.minDuration ?? 500)};
-const FADE_DURATION = ${Math.max(0, loading.fadeDuration ?? 300)};
-const SHOW_ONCE = ${!!loading.showOnce};
+${loadingScreenController(loading, true)}
 
 export default function SiteLoadingScreen() {
-  const [leaving, setLeaving] = useState(false);
-  const [hidden, setHidden] = useState(false);
-
+  const container = useRef<HTMLDivElement>(null);
+  const [finished, setFinished] = useState(false);
   useEffect(() => {
-    const wasShown = () => {
-      try {
-        return sessionStorage.getItem("site-loading-shown") === "1";
-      } catch {
-        return false;
-      }
-    };
-    const markShown = () => {
-      try {
-        sessionStorage.setItem("site-loading-shown", "1");
-      } catch {
-        // ストレージが無効でもローディング画面は閉じる
-      }
-    };
-    if (SHOW_ONCE && wasShown()) {
-      setHidden(true);
-      return;
-    }
-    const started = Date.now();
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    let fadeTimer: ReturnType<typeof setTimeout> | undefined;
-    let hideTimer: ReturnType<typeof setTimeout> | undefined;
-    const finish = () => {
-      fadeTimer = setTimeout(() => {
-        setLeaving(true);
-        if (SHOW_ONCE) markShown();
-        hideTimer = setTimeout(() => {
-          document.body.style.overflow = previousOverflow;
-          setHidden(true);
-        }, FADE_DURATION);
-      }, Math.max(0, MIN_DURATION - (Date.now() - started)));
-    };
-    if (document.readyState === "complete") finish();
-    else window.addEventListener("load", finish, { once: true });
-    return () => {
-      window.removeEventListener("load", finish);
-      if (fadeTimer) clearTimeout(fadeTimer);
-      if (hideTimer) clearTimeout(hideTimer);
-      document.body.style.overflow = previousOverflow;
-    };
+    const overlay = container.current;
+    if (!overlay) return;
+    return startLoadingScreen(overlay, () => { overlay.hidden = false; }, () => setFinished(true));
   }, []);
 
-  if (hidden) return null;
+  if (finished) return null;
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      aria-label=${jsxString(siteText(siteLang, "loading"))}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 2147483647,
-        overflow: "auto",
-        background: "#ffffff",
-        color: "#18181b",
-        opacity: leaving ? 0 : 1,
-        transition: \`opacity \${FADE_DURATION}ms ease\`,
-        pointerEvents: leaving ? "none" : "auto",
-      }}
-    >
-${loadingBody || `      ${fallbackBody}`}
-      ${loadingPage ? "" : "<style>{`@keyframes loading-spin { to { transform: rotate(360deg); } }`}</style>"}
+    <div ref={container}${loading.showOnce ? " hidden" : ""} data-site-loading="" role="status" aria-live="polite"
+      aria-label=${jsxString(siteText(siteLang, "loading"))}>
+${loadingBody || '      <div data-site-loading-spinner="" />'}
     </div>
   );
 }
@@ -597,6 +551,7 @@ body {
   overflow-x: clip;
   margin: 0;
   font-family: system-ui, -apple-system, "Hiragino Sans", sans-serif;
+  line-height: 1.6;
   color: #18181b;
   -webkit-font-smoothing: antialiased;
 }
@@ -667,6 +622,13 @@ input, textarea, select, button {
   color: inherit;
 }
 
+button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
 a {
   color: inherit;
   text-decoration: none;
@@ -674,6 +636,7 @@ a {
 `;
 
   files["app/globals.css"] = uploadedFontsCss(doc, assetNames) + files["app/globals.css"];
+  if (loading) files["app/globals.css"] += loadingScreenCss(loading);
 
   files["app/not-found.tsx"] ??= `export default function NotFound() {
   return (

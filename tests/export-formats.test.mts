@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import vm, { runInNewContext } from "node:vm";
 import { generateExportProject, exportLimitations, prepareExportProject } from "../lib/export-formats";
 import { listRuntimeDom } from "./helpers/list-runtime-dom";
-import { makeBox, makeText, createInitialDoc, makeImage } from "../lib/presets";
+import { makeBox, makeText, createInitialDoc, makeImage, makeMedia } from "../lib/presets";
 import { type ScriptStep, type SiteDoc, type Asset, type NodeStyles } from "../lib/types";
 import { filterPredicate } from "../lib/generator/render-helpers";
 import { matchesValueCondition, parseValueLiteral } from "../lib/value-semantics";
@@ -1640,6 +1640,30 @@ test("a URL link to the only exported page uses index.html without inheriting it
   assert.ok(html.includes('href="./index.html#section"'));
 });
 
+test("relative media sources keep their targets when static export moves a clean URL into a directory", () => {
+  const doc = fixture();
+  const image = makeImage();
+  image.image!.src = "./poster.svg?size=large#frame";
+  const video = makeMedia("video");
+  video.media!.src = "../clips/intro.mp4";
+  video.media!.sources = [{ src: "clips/intro.webm", type: "video/webm" }];
+  doc.nodes[image.id] = image;
+  doc.nodes[video.id] = video;
+  doc.pages.detail = { ...doc.pages.home, id: "detail", slug: "guide/detail", children: [image.id, video.id] };
+  doc.pageOrder.push("detail");
+  const path = "guide/detail/index.html";
+  const root = "https://example.test/portfolio/";
+  function sources() {
+    return [...generateExportProject(doc, "html").files[path].matchAll(/<(?:img|video|source)\b[^>]*? src="([^"]+)"/g)]
+      .map(match => match[1]);
+  }
+  assert.deepEqual(sources().map(src => new URL(src, root + path).href), [
+    root + "guide/poster.svg?size=large#frame", root + "clips/intro.mp4", root + "guide/clips/intro.webm",
+  ]);
+  doc.customHeadHtml = '<base href="https://cdn.example.test/media/">';
+  assert.deepEqual(sources(), ["./poster.svg?size=large#frame", "../clips/intro.mp4", "clips/intro.webm"]);
+});
+
 test("standalone HTML treats a favicon URL as a resource even if it matches a page slug", () => {
   const doc = fixture();
   doc.favicon = { url: "/icon.svg" };
@@ -1780,6 +1804,24 @@ test("React export includes native forms and PWA manifest", () => {
   assert.match(result.files["src/components/SearchForm.tsx"], /window\.location\.assign/);
   assert.ok(result.files["public/manifest.webmanifest"]);
   assert.match(result.files["index.html"], /manifest\.webmanifest/);
+});
+
+test("submit button IDs are independent of submission names across export formats", () => {
+  const doc = fixture();
+  doc.nodes.send = { ...makeBox(), id: "send", attrId: "send", type: "field", field: { kind: "submit", label: "Send" } };
+  doc.nodes.save = { ...doc.nodes.send, id: "save", attrId: "save", field: { kind: "submit", label: "Save", name: "intent", submitValue: "save" } };
+  doc.pages.home.children = ["send", "save"];
+  for (const [format, path] of [
+    ["html", "index.html"], ["nextjs", "app/page.tsx"], ["react", "src/pages/Page0.tsx"],
+    ["vue", "src/pages/Page0.vue"], ["nuxt", "app/generated/pages/Page0.vue"], ["sveltekit", "src/lib/pages/Page0.svelte"],
+  ] as const) {
+    const markup = generateExportProject(doc, format).files[path];
+    const buttons = markup.match(/<button\b[^>]*>/g) ?? [];
+    assert.equal(buttons.length, 2, format);
+    assert.doesNotMatch(buttons[0], /\bname=/, format);
+    assert.match(buttons[1], /\bname="intent"/, format);
+    assert.match(buttons[1], /\bvalue="save"/, format);
+  }
 });
 
 test("export scope isolates one page or the selected node", () => {
@@ -2236,6 +2278,48 @@ test("single HTML mode contains one index.html without build tooling", async () 
   assert.doesNotMatch(result.files["index.html"], /tsumu/i);
 });
 
+test("single HTML preserves head noscript markup and only embeds its real resources", async () => {
+  const comment = '<!-- example: <link rel="stylesheet" href="comment.css"> -->';
+  const meta = '<meta name="description" content="Example &amp; reference">';
+  const cssText = 'content:"url(example.svg)"';
+  const script = '<script>const example = \'<noscript><img src="quoted.png"></noscript>\';</script>';
+  // The first tag belongs to the implicit head and starts at source offset zero.
+  const html = '<noscript>' + comment + meta + '<style>.tip{background:url(pic.svg)}.tip::after{' + cssText + '}</style>' +
+    '<link rel="stylesheet" href="fallback.css"></noscript>' + script;
+  const { files } = await toSingleHtmlProject({
+    files: { "index.html": html, "fallback.css": "p{color:navy}", "pic.svg": '<svg xmlns="http://www.w3.org/2000/svg"/>' },
+    binaries: {}, remoteAssets: {},
+  });
+  const output = files["index.html"];
+  for (const literal of [comment, meta, cssText, script]) assert.ok(output.includes(literal));
+  const doc = parse(output, { scriptingEnabled: false });
+  const element = (parent: Html.ParentNode, tag: string) => parent.childNodes.find(
+    (node): node is Html.Element => "tagName" in node && node.tagName === tag)!;
+  const noscript = element(element(element(doc, "html"), "head"), "noscript");
+  assert.deepEqual(noscript.childNodes.filter(node => "tagName" in node).map(node => node.tagName), ["meta", "style", "link"]);
+  assert.match(element(noscript, "link").attrs.find(a => a.name === "href")!.value, /^data:text\/css;/);
+  assert.match(output, /background:url\(data:image\/svg\+xml;base64,/);
+});
+
+test("single HTML reuses a preloaded font in the stylesheet", async () => {
+  const calls: string[] = [];
+  const font = "https://fonts.example.test/site.woff2";
+  const project = await toSingleHtmlProject({
+    files: {
+      "index.html": '<link rel="preload" as="font" type="font/woff2" crossorigin href="' + font + '">' +
+        '<link rel="stylesheet" href="css/type.css">',
+      "css/type.css": '@font-face {font-family: Site;src:url("' + font + '") format("woff2")}',
+    }, binaries: {}, remoteAssets: {},
+  }, async url => {
+    calls.push(url);
+    return new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "font/woff2" } });
+  });
+  assert.deepEqual(calls, [font]);
+  const html = project.files["index.html"];
+  assert.match(html, /as="font"[^>]*crossorigin[^>]*href="data:font\/woff2;base64,AQID"/);
+  assert.match(html, /src:url\("data:font\/woff2;base64,AQID"\)/);
+});
+
 test("single HTML inlines local media, CSS backgrounds and script source", async () => {
   const file = await toSingleHtmlProject({
     files: {
@@ -2508,7 +2592,7 @@ test("non-Next.js exports emit icons, social preview tags, theme-color, and PWA 
     const out = generateExportProject(doc, { framework, language: "typescript", style: "css", scope: "project" });
     assert.match(out.files["index.html"], /rel="manifest" href="\/manifest\.webmanifest"/, framework);
     assert.match(out.files["index.html"], /rel="apple-touch-icon"/, framework);
-    assert.match(out.files["index.html"], /property="og:image"/, framework);
+    assert.match(out.files[framework === "vue" ? "server.mjs" : "index.html"], /property="og:image"/, framework);
     assert.match(out.files["index.html"], /name="theme-color" content="#112233"/, framework);
     assert.ok(out.files["public/manifest.webmanifest"], framework);
   }
@@ -2524,7 +2608,7 @@ test("non-Next.js exports emit icons, social preview tags, theme-color, and PWA 
   const svelte = generateExportProject(doc, { framework: "sveltekit", language: "typescript", style: "css", scope: "project" });
   assert.match(svelte.files["src/app.html"], /rel="manifest" href="\/manifest\.webmanifest"/);
   assert.match(svelte.files["src/app.html"], /rel="apple-touch-icon"/);
-  assert.match(svelte.files["src/app.html"], /property="og:image"/);
+  assert.match(svelte.files["src/routes/+page.svelte"], /property="og:image"/);
   assert.match(svelte.files["src/app.html"], /name="theme-color" content="#112233"/);
   assert.ok(svelte.files["static/manifest.webmanifest"]);
 });
@@ -3468,4 +3552,24 @@ describe("single-html-raw-content-security", () => {
     }
   });
 });
+});
+
+test("generated JSX emits numeric tabIndex and retains native defaults for invalid or absent values", () => {
+  const doc = createInitialDoc();
+  const page = doc.pages[doc.pageOrder[0]];
+  const values = [ ["negative", "-1"], ["zero", "0"], ["prefix", " +2end"], ["blank", ""],
+    ["invalid", "none"], ["overflow", "2147483648"], ["missing", undefined] ] as const;
+  page.children = values.map(([id]) => id);
+  for (const [id, value] of values) {
+    doc.nodes[id] = { ...makeText(id), id, attrId: id, htmlAttrs: value === undefined ? undefined : { tabindex: value } };
+  }
+  const jsx = generateExportProject(doc, "react").files["src/pages/Page0.tsx"];
+  const tag = (id: string) => jsx.split("\n").find(line => line.includes('id="' + id + '"'))!;
+  assert.match(tag("negative"), /"tabIndex":-1/);
+  assert.match(tag("zero"), /"tabIndex":0/);
+  assert.match(tag("prefix"), /"tabIndex":2/);
+  for (const id of ["blank", "invalid", "overflow", "missing"]) {
+    assert.ok(tag(id));
+    assert.doesNotMatch(tag(id), /tabIndex/);
+  }
 });

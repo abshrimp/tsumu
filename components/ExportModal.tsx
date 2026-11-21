@@ -10,7 +10,7 @@ import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { runChecks, type CheckResult } from "../lib/generator/checks";
 import { exportProjectZip } from "../lib/exportZip";
 import { exportLimitations, exportScopeDoc, prepareExportScopeDoc } from "../lib/export-formats";
-import { DEFAULT_EXPORT_OPTIONS, EXPORT_FRAMEWORK_OPTIONS, type ExportFormat, type ExportLanguage, type ExportStyle, type ExportScope, type ExportOptions } from "../lib/generator/export-options";
+import { exportHomeRequirement, DEFAULT_EXPORT_OPTIONS, EXPORT_FRAMEWORK_OPTIONS, type ExportFormat, type ExportLanguage, type ExportStyle, type ExportScope, type ExportOptions } from "../lib/generator/export-options";
 import { Dropdown } from "./controls";
 import { userMessage } from "../lib/errors";
 import { tr, trNodes } from "../lib/i18n";
@@ -37,7 +37,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
       return [{ level: "error", message: (error as Error).message }];
     }
     return [
-      ...runChecks(scoped, { requireHomePage: scope === "project" }),
+      ...runChecks(scoped, { requireHomePage: exportHomeRequirement(format, scope) }),
       ...exportLimitations(scoped, { ...options, scope: "project" })
         .map((message): CheckResult => ({ level: "error", message })),
     ];

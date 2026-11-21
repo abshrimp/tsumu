@@ -520,9 +520,9 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                   const src = v.trim();
                   // VarInput は、手を付けていない空のアセットの欄も blur で確定する。
                   // そのアセットは残し、外部の URL を明示的に消した場合だけ空にできるようにする。
-                  if (src || !node.image!.assetId)
+                  if (src !== (node.image!.assetId ? "" : node.image!.src))
                     updateNode(nodeId, {
-                      image: { ...node.image!, src, assetId: undefined, assetSuffix: undefined },
+                      image: { ...node.image!, src, assetId: undefined, assetSuffix: undefined, ...(node.image!.candidates && { candidates: undefined, sizes: undefined, loading: undefined }) },
                     });
                 }}
               />
@@ -544,6 +544,7 @@ export default function SettingsPanel({ nodeId }: { nodeId: string }) {
                   updateNode(nodeId, {
                     image: {
                       ...node.image!,
+                      ...(node.image!.candidates && { candidates: undefined, sizes: undefined, loading: undefined }),
                       src: nodeAssetSrc(asset),
                       assetId: asset.id, assetSuffix: undefined,
                       width: asset.width,

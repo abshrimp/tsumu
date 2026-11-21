@@ -365,7 +365,14 @@ export interface TextContent {
   heading: number;
 }
 
+export interface ImageCandidate extends Pick<MediaSource, "src" | "assetId" | "assetSuffix"> {
+  descriptor: string;
+}
+
 export interface ImageContent {
+  loading?: "lazy" | "eager";
+  candidates?: ImageCandidate[];
+  sizes?: string;
   src: string;
   alt: string;
   width: number;
@@ -518,6 +525,8 @@ export interface ZipAssetMetadata {
 export interface Asset {
   id: string;
   name: string;
+  /** Keep a numbered public filename when a partial archive omits earlier same-name assets. */
+  exportSuffix?: number;
   
   path?: string;
   

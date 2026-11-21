@@ -217,6 +217,22 @@ describe("canvas-css-declarations", () => {
     return buildCanvasCss(doc, ["a"], "base", "preview", null, "default", doc.pages.p.bodyStyles);
   }
 
+  test("viewport emulation preserves strings and asset URLs and keeps iframe body units native", () => {
+    const css = render({
+      fontFamily: '"100vw"',
+      backgroundImage: 'url(/images/100vw.svg)',
+      "--space": "1.25dvw",
+      transform: "translateY(-2LVH)",
+    });
+    assert.match(css, /font-family: "100vw";/);
+    assert.match(css, /url\(\/images\/100vw\.svg\)/);
+    assert.match(css, /--space: calc\(1.25 \* var\(--tsumu-frame-vw\)\)/);
+    assert.match(css, /translateY\(calc\(-2 \* var\(--tsumu-frame-vh, 1vh\)\)\)/);
+    const html = previewHtmlWithBodyStyles("<html><head></head><body></body></html>",
+      { base: { default: { minHeight: "100dvh" } } }, "base");
+    assert.match(html, /min-height: 100dvh;/);
+  });
+
   test("canvas CSS preserves ordinary, escaped, and function-valued declarations", () => {
     const css = render({
       color: "rebeccapurple",

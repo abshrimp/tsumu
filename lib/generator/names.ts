@@ -3,6 +3,7 @@
  */
 
 import type { SiteDoc } from "../types";
+import { importedClass } from "../imported-html-attrs";
 import { isWindowsDeviceName } from "./output-paths";
 
 /* ---------- クラス名 ---------- */
@@ -44,9 +45,9 @@ const NAME_DICT: [RegExp, string][] = [
 function nameAllocator(reserved: Iterable<string> = [], separator = "-", forbidden?: (name: string) => boolean) {
   const used = new Set(Array.from(reserved, (name) => name.toLowerCase()));
   const nextSuffix = new Map<string, number>();
-  return (base: string, extension = ""): string => {
+  return (base: string, extension = "", preferredSuffix = 1): string => {
     const key = base.toLowerCase() + "\0" + extension.toLowerCase();
-    let name = base + extension;
+    let name = (preferredSuffix > 1 ? base + separator + preferredSuffix : base) + extension;
     let next = nextSuffix.get(key) ?? 2;
     while (used.has(name.toLowerCase()) || forbidden?.(name)) {
       name = base + separator + next++ + extension;
@@ -57,10 +58,17 @@ function nameAllocator(reserved: Iterable<string> = [], separator = "-", forbidd
   };
 }
 
-export function buildClassNames(doc: SiteDoc): Map<string, string> {
-  const allocate = nameAllocator();
+export function buildClassNames(doc: SiteDoc, prefix = ""): Map<string, string> {
+  const nodes = Object.values(doc.nodes);
+  // 保持した HTML クラスや書き出しランタイムのクラスには、別のノードの宣言を当てない。
+  const reserved = new Set(["crisp-svg", "is-inview"]);
+  for (const node of nodes) {
+    const source = importedClass(node.htmlClass);
+    if (source) for (const name of source.split(/\s+/)) reserved.add(name);
+  }
+  const allocate = nameAllocator(reserved);
   const map = new Map<string, string>();
-  for (const node of Object.values(doc.nodes)) {
+  for (const node of nodes) {
     let name0 = node.name;
     for (const [re, en] of NAME_DICT) {
       if (re.test(name0)) {
@@ -75,7 +83,7 @@ export function buildClassNames(doc: SiteDoc): Map<string, string> {
       .replace(/^-+|-+$/g, "")
       .replace(/-{2,}/g, "-");
     if (!base || /^\d/.test(base)) base = "el";
-    map.set(node.id, allocate(base));
+    map.set(node.id, allocate(prefix + base));
   }
   return map;
 }
@@ -117,7 +125,7 @@ function extFromMime(mimeType?: string, dataUrl?: string): string {
  * アセットの出力ファイル名（public/assets/ の中）。
  * 同じ名前のファイルをアップロードしても上書きされないよう、一意にする
  */
-export function buildAssetNames(doc: SiteDoc): Map<string, string> {
+export function buildAssetNames(doc: Pick<SiteDoc, "assets">, suffixes?: Map<string, number>): Map<string, string> {
   // ZIP は、大文字と小文字を区別しないファイルシステムに展開されることが多い。
   // 元の綴りは保ち、大文字と小文字だけが違う名前には接尾辞を付ける。
   const allocate = nameAllocator();
@@ -147,7 +155,13 @@ export function buildAssetNames(doc: SiteDoc): Map<string, string> {
     // 書き出し全体を失敗させずに、有効なアップロード済みのアセットの名前を変える。
     const base = isWindowsDeviceName(originalBase)
       ? "_" + originalBase : originalBase;
-    map.set(asset.id, allocate(base, ext));
+    const suffix = asset.exportSuffix;
+    const preferred = typeof suffix === "number" && Number.isSafeInteger(suffix) && suffix > 1 ? suffix : 1;
+    const name = allocate(base, ext, preferred);
+    map.set(asset.id, name);
+    if (suffixes && name !== base + ext) {
+      suffixes.set(asset.id, Number(name.slice(base.length + 1, name.length - ext.length)));
+    }
   }
   return map;
 }

@@ -88,17 +88,21 @@ test("reenabling replaces the retirement worker with the unchanged generated PWA
 
 for (const cacheResult of ["present", "absent", "failure"] as const) {
   test(`retirement waits for install, unregisters itself after cache ${cacheResult}, and leaves other caches alone`, async () => {
-    const storage = new Set(["customer-cache", "site-pwa-unrelated", ...(cacheResult === "absent" ? [] : ["site-pwa-v1"])]);
+    const path = cacheResult === "absent" ? "/" : "/portfolio/";
+    const cache = "site-pwa-v1" + path.replace(/\/$/, "");
+    const other = ["customer-cache", path === "/" ? "site-pwa-v1/portfolio" : "site-pwa-v1"];
+    const storage = new Set([...other, ...(cacheResult === "absent" ? [] : [cache])]);
     const calls: string[] = [];
     type Handler = (event: { waitUntil: (value: Promise<unknown>) => void }) => void;
     const handlers = new Map<string, Handler>();
     let skip!: () => void;
     const skipped = new Promise<void>(resolve => { skip = resolve; });
     runInNewContext(prepare({ enabled: false }).files["public/sw.js"], {
+      URL,
       self: {
         addEventListener: (name: string, handler: Handler) => handlers.set(name, handler),
         skipWaiting: () => { calls.push("skipWaiting"); return skipped; },
-        registration: { unregister: async () => { calls.push("unregister"); return true; } },
+        registration: { scope: "https://example.test" + path, unregister: async () => { calls.push("unregister"); return true; } },
       },
       caches: { delete: async (name: string) => {
         calls.push(`delete:${name}`);
@@ -115,10 +119,34 @@ for (const cacheResult of ["present", "absent", "failure"] as const) {
     handlers.get("activate")!({ waitUntil: value => { activation = value; } });
     assert.ok(activation);
     await activation;
-    assert.deepEqual(calls, ["skipWaiting", "delete:site-pwa-v1", "unregister"]);
-    assert.deepEqual([...storage], ["customer-cache", "site-pwa-unrelated", ...(cacheResult === "failure" ? ["site-pwa-v1"] : [])]);
+    assert.deepEqual(calls, ["skipWaiting", "delete:" + cache, "unregister"]);
+    assert.deepEqual([...storage], [...other, ...(cacheResult === "failure" ? [cache] : [])]);
   });
 }
+
+test("a static PWA resolves its launch, icon and worker from the site's published directory", async () => {
+  const { files } = await prepareExportProject({
+    ...doc, pwa: { enabled: true, icon: { assetId: "icon" } },
+    assets: { icon: { id: "icon", name: "logo.png", width: 192, height: 192, dataUrl: "data:image/png;base64,AA==" } },
+    pageOrder: ["home", "about"],
+    pages: { ...doc.pages, about: { ...doc.pages.home, id: "about", slug: "guide/about" } },
+  }, "html");
+  const page = files["guide/about/index.html"];
+  const manifest = JSON.parse(files["manifest.webmanifest"]);
+  for (const root of ["https://example.test/", "https://example.test/portfolio/"]) {
+    const url = new URL("guide/about/index.html", root);
+    const manifestUrl = new URL(/rel="manifest" href="([^"]+)"/.exec(page)![1], url);
+    assert.equal(new URL(manifest.start_url, manifestUrl).href, root);
+    assert.equal(new URL(manifest.scope, manifestUrl).href, root);
+    assert.equal(new URL(manifest.icons[0].src, manifestUrl).href, root + "assets/logo.png");
+    let worker: string | undefined;
+    runInNewContext(files["pwa.js"], { URL,
+      document: { currentScript: { src: new URL(/src="([^"]*pwa\.js)"/.exec(page)![1], url).href } },
+      navigator: { serviceWorker: { register: async (src: URL) => { worker = src.href; } } },
+    });
+    assert.equal(worker, root + "sw.js");
+  }
+});
 
 
 const workerPaths: Record<ExportFormat, string> = {

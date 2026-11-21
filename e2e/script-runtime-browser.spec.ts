@@ -292,6 +292,24 @@ for (const published of [false, true]) {
 }
 
 // 書き出した DOM を使い、アンカーへの移動と表示を切り替えるスクリプトが、同じコンポーネントを対象にすることを確かめる。
+test("a published URL action can jump back to the current fragment", async ({ page }) => {
+  const entries: Entry[] = [{ trigger: "click", steps: [{ id: "jump", kind: "open-url", url: "#details" }] }];
+  await page.route("https://navigation.test/**", route => route.fulfill({
+    contentType: "text/html",
+    body: '<base href="/another/"><main data-page-body="a"><button id="jump">Jump</button>' +
+      '<div style="height:200vh"></div><h2 id="details">Details</h2></main>',
+  }));
+  await page.goto("https://navigation.test/guide?lang=ja");
+  await attach(page, "#jump", entries);
+  await install(page, true, entries);
+  for (let i = 0; i < 2; i++) {
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.locator("#jump").click();
+    await expect(page).toHaveURL("https://navigation.test/guide?lang=ja#details");
+    await expect(page.locator("#details")).toBeInViewport();
+  }
+});
+
 test("Published instance anchors and visibility toggles preserve the master's layout", async ({ page }) => {
   const doc = anchorFixture();
   const { html, css } = renderAnchorExport(doc);

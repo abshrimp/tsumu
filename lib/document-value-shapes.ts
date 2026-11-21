@@ -62,7 +62,10 @@ export function validNodeAdditionalFields(node: Record<string, unknown>): boolea
     nullable(node.image, x => record(x) &&
       str(x.src) && str(x.alt) && finite(x.width) && finite(x.height) &&
       optional(x.assetId, str) && optional(x.assetSuffix, v => str(x.assetId) && validAssetSuffix(v)) && optional(x.priority, bool) &&
-      optional(x.crispShadow, bool)) &&
+      optional(x.crispShadow, bool) && optional(x.sizes, str) && optional(x.loading, value => choice(value, ["lazy", "eager"])) &&
+      optional(x.candidates, values => arrayOf(values, source => record(source) && str(source.src) &&
+        typeof source.descriptor === "string" && !source.descriptor.includes(",") && optional(source.assetId, str) &&
+        optional(source.assetSuffix, v => str(source.assetId) && validAssetSuffix(v))))) &&
     nullable(node.media, x => record(x) &&
       choice(x.kind, ["video", "audio"]) && str(x.src) &&
       optional(x.assetId, str) && optional(x.assetSuffix, v => str(x.assetId) && validAssetSuffix(v)) &&

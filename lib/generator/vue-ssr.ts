@@ -1,10 +1,11 @@
+import type { NotFoundMetadata } from "./native-components";
 import type { SiteDoc } from "../types";
 import type { ExportLanguage } from "./export-options";
 import { adobeFontHead } from "./adobe-fonts";
 import { frameworkHeadTags } from "./framework-export";
 
 export function withVueSsr(
-  files: Record<string, string>, doc: SiteDoc, language: ExportLanguage,
+  files: Record<string, string>, doc: SiteDoc, language: ExportLanguage, missing: NotFoundMetadata,
 ): void {
   const ts = language === "typescript";
   const ext = ts ? "ts" : "js";
@@ -48,17 +49,16 @@ export function withVueSsr(
     '  if (!selected) {',
     '    const app = createSSRApp(App, { initialPageId: "", initialVars: {} });',
     '    const html = await renderToString(app);',
-    '    return { status: 404, html, id: "", vars: {},',
-    '      title: "Not Found", description: "", language: ' + JSON.stringify(doc.lang || "ja") + ' };',
+    '    return { status: 404, html, id: "", vars: {}, ...' + JSON.stringify(missing) + ' };',
     '  }',
     '  const vars = await loadPageData(selected.plan, url.searchParams,',
-    '    (uri, init) => requestPublic(uri, init, url.origin,',
+    '    (uri, init) => requestPublic(uri, init, url.href,',
     '      (path' + (ts ? ': string' : '') + ', options' + (ts ? ': RequestInit' : '') + ') =>',
     '        fetch(new URL(path, url.origin).href, options)));',
     '  const app = createSSRApp(App, { initialPageId: selected.id, initialVars: vars });',
     '  const html = await renderToString(app);',
     '  return { status: 200, html, id: selected.id, vars,',
-    '    title: selected.title + " | " + ' + JSON.stringify(doc.siteName) + ', description: selected.description, noindex: selected.noindex, language: selected.language };',
+    '    title: selected.title + " | " + ' + JSON.stringify(doc.siteName) + ', description: selected.description, noindex: selected.noindex, ogImage: selected.ogImage, language: selected.language };',
     '}',
     "",
   ].join("\n");
@@ -66,11 +66,13 @@ export function withVueSsr(
   // 本番ではコンパイルした SSR の入口を読み込んで、ビルドしたクライアントのアセットを配信する。
   files["server.mjs"] = [
     'import { createServer } from "node:http";',
+    'import { createReadStream } from "node:fs";',
     'import { readFile, stat } from "node:fs/promises";',
+    'import { pipeline } from "node:stream/promises";',
     'import { resolve, sep, extname } from "node:path";',
     'import { fileURLToPath } from "node:url";',
     'const root = fileURLToPath(new URL(".", import.meta.url));',
-    'const production = process.env.NODE_ENV === "production";',
+    'const production = process.env.NODE_ENV === "production" || process.argv.includes("--production");',
     'const dist = resolve(root, "dist/client");',
     'const templateFile = resolve(production ? dist : root, "index.html");',
     'const vite = production ? null : await (await import("vite")).createServer({',
@@ -81,7 +83,17 @@ export function withVueSsr(
     '  ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".avif": "image/avif",',
     '  ".woff2": "font/woff2", ".woff": "font/woff", ".ttf": "font/ttf", ".otf": "font/otf",',
     '  ".mp4": "video/mp4", ".webm": "video/webm", ".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg",',
-    '  ".ico": "image/x-icon", ".json": "application/json", ".webmanifest": "application/manifest+json", ".txt": "text/plain; charset=utf-8", ".xml": "application/xml" };',
+    '  ".ico": "image/x-icon", ".m4a": "audio/mp4", ".mov": "video/quicktime", ".wasm": "application/wasm",',
+    '  ".json": "application/json", ".webmanifest": "application/manifest+json", ".txt": "text/plain; charset=utf-8", ".xml": "application/xml" };',
+    '// Browsers request a single byte range when seeking in audio or video.',
+    'function byteRange(header, size) {',
+    '  const match = typeof header === "string" && /^bytes=(\\d*)-(\\d*)$/i.exec(header);',
+    '  if (!match || (!match[1] && !match[2])) return;',
+    '  if (match[1] && match[2] && Number(match[2]) < Number(match[1])) return;',
+    '  const start = match[1] ? Number(match[1]) : Math.max(0, size - Number(match[2]));',
+    '  const end = match[1] && match[2] ? Math.min(Number(match[2]), size - 1) : size - 1;',
+    '  return { start, end };',
+    '}',
     'async function handle(req, res) {',
     '  const origin = new URL("http://127.0.0.1:" + Number(process.env.PORT || 3000));',
     '  let url;',
@@ -98,13 +110,22 @@ export function withVueSsr(
     '    try { file = resolve(dist, "." + decodeURIComponent(url.pathname)); } catch {}',
     '    if (file && file !== templateFile && file.startsWith(dist + sep)) {',
     '      try {',
-    '        if ((await stat(file)).isFile()) {',
-    '          const bytes = await readFile(file);',
+    '        const info = await stat(file);',
+    '        if (info.isFile()) {',
     '          const ext = extname(file).toLowerCase();',
-    '          const headers = { "Content-Type": mime[ext] || "application/octet-stream", "X-Content-Type-Options": "nosniff" };',
+    '          const headers = { "Content-Type": mime[ext] || "application/octet-stream", "X-Content-Type-Options": "nosniff", "Accept-Ranges": "bytes" };',
     '          if (ext === ".svg") headers["Content-Security-Policy"] = "default-src \'none\'; style-src \'unsafe-inline\'; sandbox";',
-    '          res.writeHead(200, headers);',
-    '          res.end(bytes); return;',
+    '          const range = req.method === "GET" && !req.headers["if-range"] ? byteRange(req.headers.range, info.size) : undefined;',
+    '          if (range && range.start > range.end) {',
+    '            res.writeHead(416, { ...headers, "Content-Range": "bytes */" + info.size, "Content-Length": 0 });',
+    '            res.end(); return;',
+    '          }',
+    '          if (range) headers["Content-Range"] = "bytes " + range.start + "-" + range.end + "/" + info.size;',
+    '          headers["Content-Length"] = range ? range.end - range.start + 1 : info.size;',
+    '          res.writeHead(range ? 206 : 200, headers);',
+    '          if (req.method === "HEAD" || info.size === 0) { res.end(); return; }',
+    '          await pipeline(createReadStream(file, range), res).catch(() => res.destroy());',
+    '          return;',
     '        }',
     '      } catch {}',
     '    }',
@@ -122,10 +143,11 @@ export function withVueSsr(
     '      "app-data": \'<script id="site-payload" type="application/json">\' + sitePayload + "</script>",',
     '      "page-title": escapeHtml(result.title),',
     '      "page-description": escapeHtml(result.description),',
+    `      "page-social": result.ogImage ? '<meta property="og:image" content="' + escapeHtml(result.ogImage) + '"><meta name="twitter:card" content="summary_large_image">' : "",`,
     `      "page-robots": result.noindex ? '<meta name="robots" content="noindex, nofollow">' : "",`,
     '      "page-language": escapeHtml(result.language || ' + JSON.stringify(doc.lang || "ja") + '),',
     '    };',
-    '    let html = template.replace(/<!--(app-html|app-data|page-title|page-description|page-language|page-robots)-->/g, (_, key) => slots[key]);',
+    '    let html = template.replace(/<!--(app-html|app-data|page-title|page-description|page-language|page-robots|page-social)-->/g, (_, key) => slots[key]);',
     '    if (vite) html = await vite.transformIndexHtml(url.pathname, html);',
     '    res.writeHead(result.status, { "Content-Type": "text/html; charset=utf-8", "X-Content-Type-Options": "nosniff" });',
     '    res.end(html);',
@@ -147,7 +169,7 @@ export function withVueSsr(
     "<head>",
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
     '<meta name="description" content="<!--page-description-->">',
-    '<!--page-robots-->',
+    '<!--page-robots--><!--page-social-->',
     frameworkHeadTags(doc),
     "<title><!--page-title--></title>",
     adobeFontHead(doc),
@@ -165,8 +187,8 @@ export function withVueSsr(
     dev: "node server.mjs",
     build: (ts ? "vue-tsc --noEmit && " : "") +
       "vite build --outDir dist/client && vite build --ssr src/entry-server." + ext + " --outDir dist/server",
-    start: "NODE_ENV=production node server.mjs",
-    preview: "NODE_ENV=production node server.mjs",
+    start: "node server.mjs --production",
+    preview: "node server.mjs --production",
   };
   pkg.dependencies["@vue/server-renderer"] = "^3.5.25";
   files["package.json"] = JSON.stringify(pkg, null, 2) + "\n";

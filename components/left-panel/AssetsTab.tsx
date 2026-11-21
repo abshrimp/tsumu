@@ -653,6 +653,7 @@ export function AssetsTab() {
           node.image.assetSuffix = undefined;
           node.image.src = "";
         }
+        if (node.image?.candidates) node.image.candidates = node.image.candidates.filter(source => source.assetId !== asset.id);
         if (node.media?.assetId === asset.id) {
           node.media.assetId = undefined;
           node.media.assetSuffix = undefined;

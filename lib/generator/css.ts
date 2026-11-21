@@ -1,3 +1,5 @@
+import { decodeCssEscapes } from "../css-escape";
+import { css2FamilyToken } from "../google-font-weights";
 import { decodeHtmlAttribute } from "../html-entities";
 import type { PublishTarget } from "../generator";
 import { insertIntoHtmlHead } from "./head";
@@ -9,7 +11,7 @@ import { tr } from "../i18n";
  */
 
 import { escapeStyleContent, replaceCssAssetUrls } from "../css-assets";
-import type { Breakpoint, Page, SiteDoc, StyleMap } from "../types";
+import type { Breakpoint, NodeStyles, Page, SiteDoc, StyleMap } from "../types";
 import {
   allFonts,
   BP_INFO,
@@ -18,35 +20,61 @@ import {
   extractPartStyles,
   extractSelectionStyles,
   isHiddenAt,
+  hasAbsoluteChild,
   resolveStyles,
   STATE_INFO,
   STATE_ORDER,
 } from "../style";
 import { keyframesCss, motionCss } from "../motion";
 import { customStateSelector } from "../custom-states";
-import { cssDecls, safeCssDeclaration, safeCssDeclarationValue, safeCssPropertyName, safeCustomCssDeclarations } from "../css-declaration";
+import { cssDecls, safeCssDeclaration, safeCssDeclarationValue, safeCssPropertyName, safeCustomCssDeclarations, splitCssList } from "../css-declaration";
 
 /* ---------- フォント ---------- */
 
+function fontFamilyKey(token: string): string {
+  const quoted = (token.startsWith('"') || token.startsWith("'")) && token.endsWith(token[0]);
+  const name = quoted ? token.slice(1, -1) : token.replace(/\s+/g, " ");
+  return decodeCssEscapes(name).toLowerCase();
+}
+
+/** Visit literal names, including names inside a var() fallback, without splitting CSS functions or strings. */
+function mapFontStack(
+  value: string,
+  resolve: (token: string, single: boolean) => string,
+  depth = 0,
+): string {
+  const stack = splitCssList(value, ",");
+  return stack.map(token => {
+    const variable = /^var\((\s*--[\w-]+\s*,)([\s\S]*)\)$/i.exec(token);
+    if (variable && depth < 32) {
+      return "var(" + variable[1] + " " + mapFontStack(variable[2], resolve, depth + 1) + ")";
+    }
+    return resolve(token, stack.length === 1 && depth === 0);
+  }).join(", ");
+}
+
 function usedFontFamilies(doc: SiteDoc) {
-  const families = new Set<string>();
-  for (const page of Object.values(doc.pages)) {
-    for (const styles of [page.bodyStyles, page.bodyDarkStyles]) {
-      for (const bp of Object.values(styles ?? {})) {
-        for (const map of Object.values(bp)) {
-          if (map?.fontFamily) families.add(map.fontFamily);
-        }
+  const families = new Map<string, boolean>();
+  function collect(sheet: NodeStyles | undefined) {
+    for (const bp of Object.values(sheet ?? {})) {
+      for (const map of Object.values(bp)) {
+        const family = map?.fontFamily ?? map?.["font-family"];
+        if (!family) continue;
+        mapFontStack(family, (token, single) => {
+          const key = fontFamilyKey(token);
+          families.set(key, !!families.get(key) || !single);
+          return token;
+        });
       }
     }
   }
+  for (const page of Object.values(doc.pages)) {
+    collect(page.bodyStyles);
+    collect(page.bodyDarkStyles);
+  }
   for (const node of Object.values(doc.nodes)) {
-    for (const styles of [node.styles, node.darkStyles]) {
-      for (const bp of Object.values(styles ?? {})) {
-        for (const map of Object.values(bp)) {
-          if (map?.fontFamily) families.add(map.fontFamily);
-        }
-      }
-    }
+    collect(node.styles);
+    collect(node.darkStyles);
   }
   return families;
 }
@@ -54,15 +82,15 @@ function usedFontFamilies(doc: SiteDoc) {
 export function usedGoogleFonts(doc: SiteDoc) {
   const families = usedFontFamilies(doc);
   return allFonts(doc.customFonts).filter(
-    (f) => isSafeGoogleFont(f) && families.has(f.value)
-  );
+    (f) => isSafeGoogleFont(f) && families.has(f.value.toLowerCase())
+  ).map(font => ({ ...font, hasAuthoredFallback: families.get(font.value.toLowerCase()) }));
 }
 
 /** Only referenced uploaded fonts are emitted into generated stylesheets. */
 export function usedUploadedFonts(doc: SiteDoc) {
   if (!doc.uploadedFonts?.length) return [];
   const families = usedFontFamilies(doc);
-  return doc.uploadedFonts.filter(font => families.has(font.family) &&
+  return doc.uploadedFonts.filter(font => families.has(font.family.toLowerCase()) &&
     Object.hasOwn(doc.assets, font.assetId));
 }
 
@@ -85,7 +113,7 @@ export function uploadedFontsCss(doc: SiteDoc, assetNames: Map<string, string>):
 export function usedAdobeFonts(doc: SiteDoc) {
   if (!doc.adobeFonts?.length) return [];
   const families = usedFontFamilies(doc);
-  return doc.adobeFonts.filter((f) => families.has(f.family));
+  return doc.adobeFonts.filter((f) => families.has(f.family.toLowerCase()));
 }
 
 /**
@@ -106,13 +134,12 @@ function cssQuoted(value: string): string {
 export function googleFontsCss(doc: SiteDoc): string {
   const fonts = usedGoogleFonts(doc);
   if (!fonts.length) return "";
-  const imports = fonts.map((font) =>
-    '@import url("https://fonts.googleapis.com/css2?family=' +
-    encodeURIComponent(font.value).replace(/%20/g, "+") +
-    ':wght@' + (font.google?.weights?.length ? font.google.weights.join(";") : "400") +
-    '&display=swap");');
+  const imports = fonts.map((font) => {
+    const family = css2FamilyToken({ family: font.value, weights: font.google!.weights ?? "variable" });
+    return '@import url("https://fonts.googleapis.com/css2?' + family + '&display=swap");';
+  });
   const declarations = fonts.filter((font) => /^--[\w-]+$/.test(font.google!.cssVar)).map((font) =>
-    "  " + font.google!.cssVar + ": " + cssQuoted(font.value) + ", sans-serif;");
+    "  " + font.google!.cssVar + ": " + cssQuoted(font.value) + ";");
   return imports.join("\n") + (declarations.length ? "\n:root {\n" + declarations.join("\n") + "\n}\n" : "\n");
 }
 
@@ -157,16 +184,26 @@ type CssValueResolver = (prop: string, value: string) => string;
 
 export function createCssValueResolver(doc: SiteDoc, assetNames: Map<string, string>): CssValueResolver {
   let sources: Map<string, string> | undefined;
-  let fonts: ReturnType<typeof allFonts> | undefined;
+  let fonts: Map<string, ReturnType<typeof allFonts>[number]> | undefined;
   return (prop, value) => {
-    if (prop === "fontFamily") {
-      fonts ??= allFonts(doc.customFonts, doc.adobeFonts, doc.uploadedFonts);
-      const font = fonts.find(f => f.value === value);
-      if (font?.google && isSafeGoogleFont(font)) return `var(${font.google.cssVar}), "${value}", sans-serif`;
-      if ((font?.adobe || font?.uploaded) && /^[A-Za-z][A-Za-z0-9 _-]{0,79}$/.test(value)) {
-        return `"${value}", sans-serif`;
-      }
-      return value;
+    if (prop === "fontFamily" || prop === "font-family") {
+      fonts ??= new Map(allFonts(doc.customFonts, doc.adobeFonts, doc.uploadedFonts)
+        .map(font => [font.value.toLowerCase(), font]));
+      let resolved = false;
+      const stack = mapFontStack(value, (token, single) => {
+        const font = fonts!.get(fontFamilyKey(token));
+        let reference: string;
+        if (font?.google && isSafeGoogleFont(font)) {
+          reference = `var(${font.google.cssVar}, ${cssQuoted(font.value)})`;
+        } else if ((font?.adobe || font?.uploaded) && /^[A-Za-z][A-Za-z0-9 _-]{0,79}$/.test(font.value)) {
+          reference = cssQuoted(font.value);
+        } else {
+          return token;
+        }
+        resolved = true;
+        return single ? reference + ", sans-serif" : reference;
+      });
+      return resolved ? stack : value;
     }
     // A CSS URL occurs in a function or a quoted @import.
     if (!assetNames.size || !/[(@]/.test(value)) return value;
@@ -267,6 +304,13 @@ function ruleFor(
   return `${indent}${selector} {\n${body}\n${indent}}`;
 }
 
+// A page with an authored dark body uses the same native form and scrollbar colors as its canvas.
+// Zero specificity lets explicit color-scheme declarations, including light, take precedence.
+function darkBodyRule(resolveValue: CssValueResolver, selector: string, map: StyleMap, indent: string): string {
+  return ruleFor(resolveValue, `:where(${selector})`, { colorScheme: "dark" }, indent) + "\n" +
+    ruleFor(resolveValue, selector, map, indent);
+}
+
 export function generateSiteCss(
   doc: SiteDoc,
   classNames: Map<string, string>,
@@ -308,23 +352,20 @@ export function generateSiteCss(
     for (const bp of BP_ORDER) {
       const map = { ...(page.bodyDarkStyles?.[bp]?.default ?? {}) };
       if (!Object.keys(map).length) continue;
-      darkMediaBlocks[bp].push(ruleFor(resolveValue, selector, map, bp === "base" ? "" : "  "));
+      darkMediaBlocks[bp].push(darkBodyRule(resolveValue, selector, map, bp === "base" ? "" : "  "));
     }
   }
 
   for (const node of Object.values(doc.nodes)) {
     const cls = classNames.get(node.id)!;
     // モーション（transition + animation）
-    const mCss = motionCss(node.motions, "paused", node.id);
+    const mCss = motionCss(node.motions, "observe", node.id);
     usedKeyframes.push(...mCss.usedKeyframes);
     customKeyframes.push(...mCss.customKeyframes);
     const motionDecls = mCss.base;
     for (const p of mCss.pseudo) {
       if (p.pseudo !== ":hover" && p.pseudo !== ":active") continue;
       blocks.push(`.${cls}${p.pseudo} {\n${p.decls.map((d) => `  ${d}`).join("\n")}\n}`);
-    }
-    if (mCss.hasInView) {
-      blocks.push(`.${cls}.is-inview {\n  animation-play-state: running;\n}`);
     }
     // 各幅でキャンバスと同じにする。配置の基準を推定する必要があるのは、その
     // ブレークポイントで絶対配置の子がある場合だけ。書かれた配置の指定を優先する。
@@ -336,10 +377,7 @@ export function generateSiteCss(
     let wasAutoPositioned = false;
     for (const bp of BP_ORDER) {
       const position = resolveStyles(node, bp, "default").position;
-      const autoPositioned = !position && !hasCustomPosition && node.children.some((cid) => {
-        const child = doc.nodes[cid];
-        return child && resolveStyles(child, bp, "default").position === "absolute";
-      });
+      const autoPositioned = !position && !hasCustomPosition && hasAbsoluteChild(doc, node, bp);
       const inferredPosition = autoPositioned && !wasAutoPositioned ? "relative"
         : !autoPositioned && wasAutoPositioned && !position ? "static" : undefined;
       wasAutoPositioned = autoPositioned;
@@ -411,21 +449,25 @@ export function generateSiteCss(
         }
       }
     }
-    // ダーク時の差分。ライトの基本ルールとレスポンシブ指定を残したまま上書きする。
+    if (mCss.inView.length) {
+      // 監視スクリプトが動かない環境でも本文を読めるよう、交差後にだけ適用する。
+      blocks.push(`.${cls}:where(.is-inview) {\n${mCss.inView.map((d) => `  ${d}`).join("\n")}\n}`);
+    }
+    // ダークのルールはライトのすべての幅より後に適用される。大きい幅で出力した位置指定を追跡する。
+    let previousDarkPosition: string | undefined;
     for (const bp of BP_ORDER) {
       const lightPosition = resolveStyles(node, bp, "default").position;
       const darkPosition = resolveStyles(node, bp, "default", "dark").position;
-      const hasAbsoluteChild = (theme: "light" | "dark") => node.children.some((id) => {
-        const child = doc.nodes[id];
-        return child && resolveStyles(child, bp, "default", theme).position === "absolute";
-      });
       // ダーク側だけで子が絶対配置になる場合も、キャンバスと同じ配置基準にする。
       // ライト側の自動配置が不要になった場合は static へ明示的に戻す。
       const lightEffective = lightPosition ??
-        (!hasCustomPosition && hasAbsoluteChild("light") ? "relative" : "static");
+        (!hasCustomPosition && hasAbsoluteChild(doc, node, bp, "light") ? "relative" : "static");
       const darkEffective = darkPosition ??
-        (!hasCustomPosition && hasAbsoluteChild("dark") ? "relative" : "static");
-      const inferredDarkPosition = lightEffective === darkEffective ? undefined : darkEffective;
+        (!hasCustomPosition && hasAbsoluteChild(doc, node, bp, "dark") ? "relative" : "static");
+      const authoredDarkPosition = node.darkStyles?.[bp]?.default?.position;
+      const cascadedPosition = authoredDarkPosition ?? previousDarkPosition ?? lightEffective;
+      const inferredDarkPosition = cascadedPosition === darkEffective ? undefined : darkEffective;
+      previousDarkPosition = authoredDarkPosition ?? inferredDarkPosition ?? previousDarkPosition;
       const bpStyles = node.darkStyles?.[bp] ?? (inferredDarkPosition ? {} : undefined);
       if (!bpStyles) continue;
       const customStates = Object.keys(bpStyles)
@@ -488,7 +530,7 @@ export function generateSiteCss(
       `@media ${bpRangeQuery(bp)} {\n${mergeIdenticalRules(hideRules[bp]).join("\n\n")}\n}`
     );
   }
-  const kf = keyframesCss(usedKeyframes, customKeyframes);
+  const kf = resolveValue("customKeyframes", keyframesCss(usedKeyframes, customKeyframes));
   if (kf) blocks.push(kf);
   return blocks.join("\n\n") + "\n";
 }
@@ -566,7 +608,7 @@ export function rawHtmlWithBodyStyles(
   for (const bp of BP_ORDER) {
     const map = { ...(page.bodyDarkStyles?.[bp]?.default ?? {}) };
     if (!Object.keys(map).length) continue;
-    const rule = ruleFor(resolveValue, "body", map, bp === "base" ? "" : "  ");
+    const rule = darkBodyRule(resolveValue, "body", map, bp === "base" ? "" : "  ");
     if (bp === "base") darkBase.push(rule);
     else darkResponsive.push(`@media (max-width: ${BP_INFO[bp].maxWidth}px) {\n${rule}\n}`);
   }

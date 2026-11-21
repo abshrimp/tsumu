@@ -3,12 +3,13 @@
  */
 
 import { fieldSubmissionAttributes, submissionAttributes, submissionProps } from "../imported-form";
+import { imageSrcset } from "../srcset";
 import { assetMediaUrl } from "../media-url";
 import { safeMediaUrl, safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import type { SiteDoc } from "../types";
 import { toggleShowDisplay } from "../style";
 import { embedSrc, YOUTUBE_ALLOW } from "../embed";
-import { selectDefaultValue, fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
+import { selectDefaultValue, fieldSubmissionName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
 import { hasVars, KEEP_ESCAPES } from "../vars";
 import { type ListOp } from "../data";
 import { resolveTag } from "../tags";
@@ -55,7 +56,7 @@ export interface JsxContext {
   doc: SiteDoc;
   /** 余分な DOM の包みを作らずに、インスタンスごとの表示の切り替えを受け取るコンポーネントのルート。 */
   componentRootId?: string;
-  /** リストを含む部品は、ページのデータの範囲で展開する。 */
+  /** データに依存する部品を、置かれたページの変数の範囲で展開する。 */
   inlineComponents?: Set<string>;
   /** 展開している使用箇所。通常の部品のファイルでは props を使う。 */
   inlineInstance?: { visibilityClass: string; anchor?: string };
@@ -148,7 +149,7 @@ function renderNodeInner(
     // ページ上の使用箇所のアンカー。マスター自身の ID と入れ子の参照は変えない。
     const anchor = !ctx.componentRootId && node.attrId && root && root.type !== "instance" && !root.attrId
       ? ` instanceId=${jsxString(node.attrId)}` : "";
-    // 部品の中のリストも、置かれたページや外側の項目の変数と、実行の計画を使う。
+    // 部品の中の差し込みやリストも、置かれたページや外側の項目の変数を使う。
     // 新しいデータの props は作らず、通常の部品の出力とローディング画面は変えない。
     if (root && ctx.listVars && ctx.inlineComponents?.has(node.componentId!)) {
       const previousRoot = ctx.componentRootId;
@@ -173,7 +174,14 @@ function renderNodeInner(
   }
 
   const cls = [ctx.classNames.get(id)!, importedClass(node.htmlClass)].filter(Boolean).join(" ");
-  const preserved = importedAttributes(node.htmlAttrs);
+  const preserved: Record<string, string | number> = importedAttributes(node.htmlAttrs);
+  if (typeof preserved.tabIndex === "string") {
+    // HTML parses a signed integer prefix. An invalid tabindex leaves native focus behavior in place.
+    const digits = /^[\t\n\f\r ]*[+-]?\d+/.exec(preserved.tabIndex);
+    const index = digits ? Number(digits[0]) : NaN;
+    if (index >= -2147483648 && index <= 2147483647) preserved.tabIndex = index;
+    else delete preserved.tabIndex;
+  }
   const importedAttrs = Object.keys(preserved).length ? ` {...${JSON.stringify(preserved)}}` : "";
   const anchorAttr = node.attrId ? ` id=${jsxString(node.attrId)}`
     : id === ctx.componentRootId
@@ -182,9 +190,9 @@ function renderNodeInner(
         : " id={instanceId || undefined}"
       : "";
   const instanceVisibilityAttr = id === ctx.componentRootId
-    ? ctx.inlineInstance
+    ? ' data-component-root=""' + (ctx.inlineInstance
       ? ctx.inlineInstance.visibilityClass ? ` data-instance-hidden=${jsxString(ctx.inlineInstance.visibilityClass)}` : ""
-      : " data-instance-hidden={hiddenClassName || undefined}"
+      : " data-instance-hidden={hiddenClassName || undefined}")
     : "";
 
   // スクリプト: 実行する側には data-scripts を、表示される側には表示に戻すときの display の値を出力する
@@ -338,7 +346,11 @@ ${indent}</div>`;
   if (node.type === "image" && node.image) {
     const width = Number.isFinite(node.image.width) && node.image.width > 0 ? node.image.width : 800;
     const height = Number.isFinite(node.image.height) && node.image.height > 0 ? node.image.height : 500;
-    ctx.usesImage = true;
+    const candidates = imageSrcset(node.image.candidates, source => source.assetId
+      ? assetMediaUrl(assetPath(ctx, source.assetId), source.assetSuffix) : source.src);
+    // next/image manages its own srcSet. A supplied candidate list belongs to the native image.
+    const tag = candidates ? "img" : "Image";
+    if (!candidates) ctx.usesImage = true;
     const src = node.image.assetId
       ? assetMediaUrl(assetPath(ctx, node.image.assetId), node.image.assetSuffix)
       : node.image.src;
@@ -351,7 +363,7 @@ ${indent}</div>`;
       srcAttr = `src={safeImageSrc(interpolate(${JSON.stringify(src)}, ${base}))}`;
       if (ctx.inTemplate) {
         // 項目が届いてから一度だけ解決する。代替値に含まれる波括弧は、文字として残す。
-        srcAttr += ` data-image-src-parts={JSON.stringify(${textParts(src, base)})}`;
+        srcAttr += ` data-image-src-parts={JSON.stringify(${textParts(src, base, false, ctx.isLive)})}`;
       } else if (livesHere(ctx)) {
         const keep = keepTokens(src, ctx.isLive);
         if (Object.keys(keep).length) {
@@ -359,9 +371,15 @@ ${indent}</div>`;
         }
       }
     }
+    if (candidates) {
+      if (!src) srcAttr = "";
+      srcAttr = `srcSet=${jsxString(candidates)} ` + srcAttr;
+      if (node.image.loading) srcAttr = `loading=${jsxString(node.image.loading)} ` + srcAttr;
+    }
+    if (candidates && node.image.sizes) srcAttr = `sizes=${jsxString(node.image.sizes)} ` + srcAttr;
     // Next.js 16 では priority が非推奨のため、preload を使い、取得の優先度も上げる
     const priority = (pad: string) =>
-      node.image!.priority ? `\n${pad}preload\n${pad}fetchPriority="high"` : "";
+      node.image!.priority ? (candidates ? "" : `\n${pad}preload`) + `\n${pad}fetchPriority="high"` : "";
     const crisp = crispSvgSize(ctx.doc, node);
     if (crisp) {
       // iOS Safari の SVG フィルターを鮮明に描くため、画像だけを2倍で描画して縮小する。
@@ -370,10 +388,10 @@ ${indent}</div>`;
       // 画像は絶対配置なので、実寸を持つ透明な svg で中身の大きさを伝え、
       // 中身で幅の決まる親の中で width: 100% の枠が 0 に潰れないようにする
       const { width: w, height: h } = crisp;
-      return `${indent}<span${idAttr}\n${indent}  className=${jsxString("crisp-svg " + cls)}\n${indent}  style={{ ["--crisp-svg-width"]: "${w}px", ["--crisp-svg-ratio"]: "${w} / ${h}" } as import("react").CSSProperties}\n${indent}>\n${indent}  <svg aria-hidden="true" width={${w}} height={${h}} viewBox="0 0 ${w} ${h}" />\n${indent}  <Image\n${indent}    ${srcAttr}\n${indent}    alt=${jsxString(node.image.alt)}\n${indent}    width={${w * 2}}\n${indent}    height={${h * 2}}${priority(indent + "    ")}\n${indent}  />\n${indent}</span>`;
+      return `${indent}<span${idAttr}\n${indent}  className=${jsxString("crisp-svg " + cls)}\n${indent}  style={{ ["--crisp-svg-width"]: "${w}px", ["--crisp-svg-ratio"]: "${w} / ${h}" } as import("react").CSSProperties}\n${indent}>\n${indent}  <svg aria-hidden="true" width={${w}} height={${h}} viewBox="0 0 ${w} ${h}" />\n${indent}  <${tag}\n${indent}    ${srcAttr}\n${indent}    alt=${jsxString(node.image.alt)}\n${indent}    width={${w * 2}}\n${indent}    height={${h * 2}}${priority(indent + "    ")}\n${indent}  />\n${indent}</span>`;
     }
     // 実際の大きさが分からない画像（読み込む前など）でも、next/image の width と height は必須
-    return `${indent}<Image${idAttr}\n${indent}  ${srcAttr}\n${indent}  alt=${jsxString(node.image.alt)}\n${indent}  width={${width}}\n${indent}  height={${height}}\n${indent}  className=${jsxString(cls)}${priority(indent + "  ")}\n${indent}/>`;
+    return `${indent}<${tag}${idAttr}\n${indent}  ${srcAttr}\n${indent}  alt=${jsxString(node.image.alt)}\n${indent}  width={${width}}\n${indent}  height={${height}}\n${indent}  className=${jsxString(cls)}${priority(indent + "  ")}\n${indent}/>`;
   }
 
   if (node.type === "divider") {
@@ -416,7 +434,7 @@ ${indent}</div>`;
       return hasVars(v) ? ` ${name}={${textExpr(v)}}` + partsOf(name === "defaultValue" ? "value" : name, v) : ` ${name}=${jsxString(v)}`;
     };
     // 取り込んだフォームは、DOM の ID と別に送信用の name を保持する。
-    const fieldName = f.name ?? (f.kind === "submit" ? "" : fieldVarName(node));
+    const fieldName = fieldSubmissionName(node);
     const submission = submissionProps(fieldSubmissionAttributes(node));
     const formAttrs = Object.keys(submission).length ? ` {...${JSON.stringify(submission)}}` : "";
     const nameAttr = formAttrs + (fieldName ? ` name=${jsxString(fieldName)}` : "");
@@ -465,7 +483,8 @@ ${indent}</div>`;
     }
     const type = f.inputType ?? "text";
     const ranged = RANGED_INPUTS.has(type);
-    const rangeAttr = ranged ? attr("min", f.min) + attr("max", f.max) + attr("step", f.step) : "";
+    const rangeAttr = ranged ? (["min", "max", "step"] as const)
+      .map(key => attr(key, f[key]) + liveOf("data-live-" + key, f[key])).join("") : "";
     const textLen = TEXT_INPUTS.has(type) ? lenAttr : "";
     // 色と範囲は空の値を持てないため、案内文は出さない
     const ph = type === "color" || type === "range" ? "" : phAttr;
@@ -532,7 +551,7 @@ ${indent}</div>`;
       const base = ctx.varsExpr ?? "vars";
       if (ctx.inTemplate) {
         // 最初のテキストだけを埋める。子要素は壊さず、データの中の波括弧も解決し直さない。
-        liveAttr = ` data-text-parts={JSON.stringify(${textParts(node.text.content, base)})}`;
+        liveAttr = ` data-text-parts={JSON.stringify(${textParts(node.text.content, base, false, ctx.isLive)})}`;
       }
       inner.push(`${indent}  {interpolate(${JSON.stringify(node.text.content)}, ${base})}`);
       // 画面上で値が決まる {変数}（件数など）は、値が変わるたびにブラウザで書き直す
@@ -577,7 +596,7 @@ ${indent}</div>`;
     const hasLiveHref = Object.keys(keep).length > 0;
     if (ctx.inTemplate) {
       // URL の元の区切りと参照した値だけを残し、行の値で一度だけ解決する。
-      attrs += ` data-href-parts={JSON.stringify(${textParts(node.link.url!, base, true)})}`;
+      attrs += ` data-href-parts={JSON.stringify(${textParts(node.link.url!, base, true, ctx.isLive)})}`;
     } else if (hasLiveHref) {
       attrs += ` data-live-href={interpolate(${JSON.stringify(node.link.url)}, { ...${base}, ...${JSON.stringify({ ...keep, [KEEP_ESCAPES]: true })} })}`;
     }

@@ -4,8 +4,8 @@ import { CSS_ASSET_ATTRIBUTES, rewriteCssAssetUrls } from "./css-assets";
 import { rewriteSrcsetUrls } from "./srcset";
 import { archiveBaseUrl, archiveResolver } from "./zip-references";
 
-export function htmlResourceElements(source: string, mode: "document" | "fragment" = "document") {
-  const options = { sourceCodeLocationInfo: true };
+export function htmlResourceElements(source: string, mode: "document" | "fragment" = "document", scriptingEnabled = true) {
+  const options = { sourceCodeLocationInfo: true, scriptingEnabled };
   const doc = mode === "fragment" ? parseFragment(source, options) : parse(source, options);
   const elements: Html.Element[] = [];
   const pending: Html.Node[] = [doc];

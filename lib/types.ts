@@ -392,7 +392,14 @@ export interface TextContent {
   heading: number;
 }
 
+export interface ImageCandidate extends Pick<MediaSource, "src" | "assetId" | "assetSuffix"> {
+  descriptor: string;
+}
+
 export interface ImageContent {
+  loading?: "lazy" | "eager";
+  candidates?: ImageCandidate[];
+  sizes?: string;
   src: string;
   alt: string;
   width: number;
@@ -566,6 +573,8 @@ export interface ZipAssetMetadata {
 export interface Asset {
   id: string;
   name: string;
+  /** Keep a numbered public filename when a partial archive omits earlier same-name assets. */
+  exportSuffix?: number;
   /** Workers KV でのパス（/api/assets/file を通して配信する） */
   path?: string;
   /** サーバーの保存先が無いときに、このブラウザの中に保存した中身（data URL） */

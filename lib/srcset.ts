@@ -1,12 +1,13 @@
+import type { ImageCandidate } from "./types";
+import { safeResourceUrl } from "./url-policy";
+
 /** HTML の srcset の URL の部分だけを書き換え、記述子と区切りはそのまま残す。
  * URL の部分は、途中のコンマではなく ASCII の空白で終わる（data: の URL を含む）。
  * 候補の境界は、HTML の srcset 属性の解析の手順に従う。
  */
-export function rewriteSrcsetUrls(value: string, resolve: (url: string) => string, maxLength = Infinity): string {
+export function* srcsetCandidates(value: string) {
   const space = (ch: string) => /[\t\n\f\r ]/.test(ch);
   let position = 0;
-  let copied = 0;
-  let output = "";
   while (position < value.length) {
     while (position < value.length && (space(value[position]) || value[position] === ",")) position++;
     const start = position;
@@ -14,13 +15,11 @@ export function rewriteSrcsetUrls(value: string, resolve: (url: string) => strin
     let end = position;
     // 記述子が無い場合、末尾のコンマは URL の一部ではなく、候補の終わりを表す。
     while (end > start && value[end - 1] === ",") end--;
-    if (end > start) {
-      const url = resolve(value.slice(start, end));
-      if (output.length + start - copied + url.length > maxLength) throw new Error("Embedded srcset exceeds the size limit.");
-      output += value.slice(copied, start) + url;
-      copied = end;
+    if (end < position) {
+      if (end > start) yield { start, end, descriptor: "" };
+      continue;
     }
-    if (end < position) continue;
+    const descriptorStart = position;
     // 丸かっこの中の記述子にあるコンマは、候補の区切りではない。
     // 対応していない記述子もそのまま残す。検証はブラウザに任せる。
     let parentheses = false;
@@ -31,7 +30,34 @@ export function rewriteSrcsetUrls(value: string, resolve: (url: string) => strin
       } else if (ch === "(") parentheses = true;
       else if (ch === ",") break;
     }
+    if (end > start) {
+      const descriptorEnd = value[position - 1] === "," ? position - 1 : position;
+      yield { start, end, descriptor: value.slice(descriptorStart, descriptorEnd).trim() };
+    }
+  }
+}
+
+export function rewriteSrcsetUrls(value: string, resolve: (url: string) => string, maxLength = Infinity): string {
+  let copied = 0, output = "";
+  for (const { start, end } of srcsetCandidates(value)) {
+    const url = resolve(value.slice(start, end));
+    if (output.length + start - copied + url.length > maxLength) throw new Error("Embedded srcset exceeds the size limit.");
+    output += value.slice(copied, start) + url;
+    copied = end;
   }
   if (output.length + value.length - copied > maxLength) throw new Error("Embedded srcset exceeds the size limit.");
   return output + value.slice(copied);
+}
+
+/** Keep width and density descriptors attached to their own exported or preview URL. */
+export function imageSrcset(candidates: ImageCandidate[] | undefined, resolve: (candidate: ImageCandidate) => string) {
+  if (!candidates?.length) return undefined;
+  const result: string[] = [];
+  for (const candidate of candidates) {
+    const url = safeResourceUrl(resolve(candidate));
+    if (!url || url === "#" || candidate.descriptor.includes(",")) continue;
+    const token = url.replace(/[\t\n\f\r ]/g, encodeURIComponent);
+    result.push(candidate.descriptor ? token + " " + candidate.descriptor : token);
+  }
+  return result.join(", ") || undefined;
 }

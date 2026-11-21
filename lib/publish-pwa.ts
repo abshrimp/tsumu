@@ -1,6 +1,9 @@
 import type { SiteDoc } from "./types";
 import type { ExportFormat } from "./generator/export-options";
 
+// Cache Storage is shared by every registration on the origin. Retire only this site's cache.
+export const PWA_CACHE_NAME = '"site-pwa-v1" + new URL(self.registration.scope).pathname.replace(/\\/$/, "")';
+
 /**
  * 公開先で管理していた Service Worker だけを、終了用のものに置き換える。
  * sw.js を削除するだけでは、更新に失敗したブラウザに古い Worker が残る。
@@ -24,7 +27,7 @@ export function addPwaRetirementWorker(
 });
 self.addEventListener("activate", function (e) {
   e.waitUntil(
-    caches.delete("site-pwa-v1").catch(function () {}).then(function () {
+    caches.delete(${PWA_CACHE_NAME}).catch(function () {}).then(function () {
       return self.registration.unregister();
     })
   );

@@ -33,7 +33,10 @@ export function routeDir(slug: string): string {
     .split("/")
     // 「.」「..」の区切りや使えない文字で、プロジェクトの外を指すパスを作らない（AI や取り込んだデータの URL もここを通る）
     .filter((seg) => seg && seg !== "." && seg !== "..")
-    .map((seg) => seg.replace(/[^A-Za-z0-9._~\-\[\]]/g, "-"))
+    // Percent-encode Unicode in App Router filenames: the public URL stays intact and
+    // Next can prerender it without passing non-Latin characters to its ASCII encoder.
+    .map((seg) => seg.replace(/[^A-Za-z0-9._~\-\[\]]/gu, (ch) =>
+      ch.charCodeAt(0) >= 0xa0 ? encodeURIComponent(ch.toWellFormed()) : "-"))
     .map((seg) => (seg.startsWith("_") ? `%5F${seg.slice(1)}` : seg))
     .join("/");
 }

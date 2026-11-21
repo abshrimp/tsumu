@@ -11,6 +11,7 @@ import { importedClass, readImportedAttributes } from "./imported-html-attrs";
 import { importedFormAction } from "./imported-form";
 import { archiveBaseUrl, archiveFileUrl } from "./zip-references";
 import { sanitizeImportedSvg } from "./imported-svg";
+import { srcsetCandidates } from "./srcset";
 import { safeNavigationUrl, safeResourceUrl } from "./url-policy";
 import { expandZipCss } from "./html-css-import";
 import { importedAssetPath, isZipJavascript } from "./generator/imported-assets";
@@ -540,7 +541,17 @@ export function convertHtmlToSite(html: string, options: Options = {}): HtmlConv
       const src = safeUrl(element.getAttribute("src") || "");
       const matched = getAsset(src);
       const asset = matched?.asset;
+      const srcset = element.getAttribute("srcset") ?? "";
+      const candidates = Array.from(srcsetCandidates(srcset)).flatMap(({ start, end, descriptor }) => {
+        const url = safeUrl(srcset.slice(start, end));
+        if (!url || descriptor.includes(",")) return [];
+        const ref = getAsset(url);
+        return [{ src: ref ? "" : url, descriptor, ...(ref && { assetId: ref.asset.id, ...(ref.suffix && { assetSuffix: ref.suffix }) }) }];
+      });
+      const loading = element.getAttribute("loading")?.toLowerCase();
       common.image = {
+        ...(candidates.length > 0 && (loading === "lazy" || loading === "eager") && { loading }),
+        ...(candidates.length > 0 && { candidates, ...(element.hasAttribute("sizes") && { sizes: element.getAttribute("sizes")! }) }),
         src: asset ? "" : src,
         alt: element.getAttribute("alt") || "",
         width: parseSize(element.getAttribute("width"), asset?.width || 800),

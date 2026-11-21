@@ -1,4 +1,6 @@
-import type { SiteDoc } from "../types";
+import { socialImageSrc, UPDATE_SOCIAL_IMAGE } from "./social-image";
+import { isPortableOutputPath } from "./output-paths";
+import type { Page, SiteDoc } from "../types";
 import { pagePlan } from "../data";
 import { scriptsFile } from "../script-runtime";
 import { PAGE_DATA_RUNTIME } from "./browser-data";
@@ -6,12 +8,55 @@ import { createReactPageRenderer } from "./html-export";
 import type { GeneratedProject, PublishTarget } from "../generator";
 import { googleFontsCss } from "./css";
 import { adobeFontHead } from "./adobe-fonts";
-import { buildAssetNames } from "./names";
+import { buildAssetNames, buildClassNames } from "./names";
 import { imageRefSrc } from "./render-helpers";
 import { buildPwaManifest } from "./templates";
 import { REACT_SEARCH_FORM } from "./react-form";
 import { indexQueryVariants } from "./page";
 import { pageQueryConditions, routeDir } from "../page-query";
+
+const FRAGMENT_HISTORY = `// A fragment visit can be restored more than once, including two visits to the same URL.
+type FragmentPosition = { href: string; x: number; y: number };
+const entryNavigation = (window as Window & { navigation?: { currentEntry?: { key: string } } }).navigation;
+function positionKey() {
+  const key = entryNavigation?.currentEntry?.key;
+  return key ? "site-fragment-scroll:" + key : null;
+}
+window.addEventListener("pagehide", () => {
+  const key = positionKey();
+  if (!key || !location.hash || history.scrollRestoration === "manual") return;
+  try {
+    sessionStorage.setItem(key, JSON.stringify({ href: location.href, x: scrollX, y: scrollY }));
+  } catch { /* Storage may be unavailable. */ }
+});
+function savedFragmentPosition(): FragmentPosition | undefined {
+  const key = positionKey();
+  const visit = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+  if (!key || !location.hash || visit?.type !== "back_forward" || history.scrollRestoration === "manual") return;
+  try {
+    const position = JSON.parse(sessionStorage.getItem(key) || "null");
+    if (position?.href === location.href && Number.isFinite(position.x) && Number.isFinite(position.y)) return position;
+  } catch { /* Allow native navigation when this entry has no readable position. */ }
+}
+const saved = savedFragmentPosition();
+if (saved) {
+  // Mount after the browser finishes looking for the fragment. Restoring while a native
+  // anchor scroll is pending lets WebKit scroll back to the heading on a later paint.
+  window.addEventListener("pageshow", event => {
+    if (event.persisted) return;
+    requestAnimationFrame(() => {
+      flushSync(render);
+      if (location.href === saved.href && history.scrollRestoration !== "manual") {
+        window.scrollTo({ left: saved.x, top: saved.y, behavior: "instant" });
+      }
+    });
+  }, { once: true });
+} else if (location.hash) {
+  // On a direct visit, let the browser scroll to and focus the rendered fragment.
+  flushSync(render);
+} else {
+  render();
+}`;
 
 const esc = (value: string) =>
   value.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]!);
@@ -47,7 +92,9 @@ export function needsReactPageRuntime(doc: SiteDoc, pageId: string): boolean {
 }
 
 /** Output a client-rendered Vite application with static client routes and assets. */
-export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: PublishTarget): GeneratedProject {
+export function buildReactProject(
+  doc: SiteDoc, next: GeneratedProject, target: PublishTarget, classes = buildClassNames(doc),
+): GeneratedProject {
   const files: Record<string, string> = {};
   for (const [path, source] of Object.entries(next.files)) {
     if (path.startsWith("public/")) files[path] = source;
@@ -63,8 +110,13 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
     } else if (path.startsWith("components/")) files["src/" + path] = reactSource(source);
     else if (path === "lib/vars.ts") files["src/lib/vars.ts"] = source;
   }
-  const pages = doc.pageOrder.map((id) => doc.pages[id])
-    .filter((page) => page && !page.unpublished && page.slug.replace(/^\/+|\/+$/g, "") !== "404");
+  const published = doc.pageOrder.map(id => doc.pages[id]).filter(page => page && !page.unpublished);
+  const is404 = (page: Page) => page.slug.replace(/^\/+|\/+$/g, "") === "404";
+  const missingPage = published.find(is404);
+  const pages = published.filter(page => !is404(page));
+  const assetNames = buildAssetNames(doc);
+  const missingImage = socialImageSrc(doc, missingPage, assetNames);
+  const hasSocialImages = !!missingImage || pages.some(page => !!socialImageSrc(doc, page, assetNames));
   const imports: string[] = [];
   const entries: string[] = [];
   // Data-dependent pages are populated by the shared browser runtime. Other
@@ -74,7 +126,7 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
   // cannot reproduce those browser-side data dependencies.
   const variants = indexQueryVariants(pages);
   const clientPages = new Set(pages.filter((page) => needsReactPageRuntime(doc, page.id)).map((page) => page.id));
-  const clientRenderer = clientPages.size ? createReactPageRenderer(doc) : undefined;
+  const clientRenderer = clientPages.size ? createReactPageRenderer(doc, classes) : undefined;
   if (clientRenderer) {
     files["public/data-loader.js"] = PAGE_DATA_RUNTIME;
     files["public/scripts.js"] = scriptsFile(clientRenderer.doc, true);
@@ -107,6 +159,7 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
       ", query: Object.fromEntries(" + JSON.stringify(query) + ")" +
       ", title: " + JSON.stringify(page.title || page.name) +
       ", description: " + JSON.stringify(page.description) +
+      ", ogImage: " + JSON.stringify(socialImageSrc(doc, page, assetNames)) +
       ", noindex: " + (target === "production" && !!page.noindex) +
       ", lang: " + JSON.stringify(page.lang || doc.lang || "ja") +
       ", Component: Page" + i + " },");
@@ -126,21 +179,37 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
     ...imports, "",
     "const SITE_NAME = " + JSON.stringify(doc.siteName) + ";",
     "const scripts: string[] = " + JSON.stringify(scripts.map((name) => "/" + name)) + ";",
-    "type Route = { path: string; query: Record<string, string>; title: string; description: string; noindex: boolean; lang: string; Component: ComponentType };",
+    "type Route = { path: string; query: Record<string, string>; title: string; description: string; ogImage: string | null; noindex: boolean; lang: string; Component: ComponentType };",
     "const routes: Route[] = [", ...entries, "];", "",
     "export default function App() {",
-    '  const pathname = (() => {',
+    '  let pathname = (() => {',
     '    try { return decodeURI(window.location.pathname); }',
     '    catch { return window.location.pathname; }',
     '  })().replace(/\\/+$/, "") || "/";',
+    '  if (pathname.endsWith("/index.html") && !routes.some(item => item.path === pathname)) {',
+    '    pathname = pathname.slice(0, -"/index.html".length) || "/";',
+    '  }',
     '  const search = new URLSearchParams(window.location.search);',
     '  const matches = routes.filter((item) => item.path === pathname && Object.entries(item.query).every(([key, value]) => search.get(key) === value));',
     '  const route = matches.sort((a, b) => Object.keys(b.query).length - Object.keys(a.query).length)[0] ?? routes.find((item) => item.path === pathname);',
     '  const Page = route?.Component ?? NotFound;',
     '  useEffect(() => {',
-    '    document.title = route ? route.title + " | " + SITE_NAME : SITE_NAME;',
-    '    document.documentElement.lang = route?.lang ?? ' + JSON.stringify(doc.lang || "ja") + ";",
-    '    document.querySelector(\'meta[name="description"]\')?.setAttribute("content", route?.description ?? "");',
+    '    document.title = route ? route.title + " | " + SITE_NAME : ' + JSON.stringify(missingPage ? (missingPage.title || missingPage.name) + " | " + doc.siteName : doc.siteName) + ";",
+    '    document.documentElement.lang = route?.lang ?? ' + JSON.stringify(missingPage?.lang || doc.lang || "ja") + ";",
+    '    document.querySelector(\'meta[name="description"]\')?.setAttribute("content", route?.description ?? ' + JSON.stringify(missingPage?.description || "") + ");",
+    ...(hasSocialImages ? [
+      '    const image = route ? (route.ogImage || "") : ' + JSON.stringify(missingImage || "") + ";",
+      UPDATE_SOCIAL_IMAGE,
+    ] : []),
+    ...(target === "production" ? [
+      '    const robots = document.querySelector("meta[data-route-noindex]");',
+      '    if (route && !route.noindex) robots?.remove();',
+      '    else if (!robots) {',
+      '      const meta = document.createElement("meta");',
+      '      meta.name = "robots"; meta.content = "noindex, nofollow";',
+      '      meta.setAttribute("data-route-noindex", ""); document.head.appendChild(meta);',
+      '    }',
+    ] : []),
     '  }, [route]);',
     '  useEffect(() => {',
     '    // Mount scripts in order, after the React tree has been committed.',
@@ -165,7 +234,6 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
     '  return (',
     '    <>',
     loading ? '      <SiteLoadingScreen />' : '',
-    '      {route?.noindex && <meta name="robots" content="noindex, nofollow" />}',
     '      <Page />',
     doc.customBodyEndHtml?.trim() ? '      <div dangerouslySetInnerHTML={{ __html: ' + JSON.stringify(doc.customBodyEndHtml) + ' }} />' : '',
     '    </>',
@@ -174,22 +242,23 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
   ].filter((line) => line !== "").join("\n");
   files["src/App.tsx"] = app;
   files["src/main.tsx"] = [
+    'import { flushSync } from "react-dom";',
     'import { createRoot } from "react-dom/client";',
     'import App from "./App";',
     'import "./globals.css";',
     'import "./site.css";', '',
     'const root = document.getElementById("root");',
     'if (!root) throw new Error("Missing React root");',
-    'createRoot(root).render(<App />);', '',
+    'const app = createRoot(root);',
+    'const render = () => app.render(<App />);',
+    FRAGMENT_HISTORY, '',
   ].join("\n");
 
   files["src/globals.css"] = googleFontsCss(doc) + next.files["app/globals.css"];
   files["src/site.css"] = next.files["styles/site.css"];
 
-  const assetNames = buildAssetNames(doc);
   const favicon = imageRefSrc(assetNames, doc.favicon);
   const appleIcon = imageRefSrc(assetNames, doc.appleTouchIcon);
-  const ogSrc = imageRefSrc(assetNames, doc.ogImage);
   const pwaThemeColor = doc.pwa?.enabled ? doc.pwa.themeColor?.trim() : "";
   // Vite ではマニフェストと Service Worker は public のアセットなので、Next.js のルートは不要。
   const manifest = buildPwaManifest(doc, assetNames);
@@ -201,16 +270,40 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
     pwaThemeColor ? '<meta name="theme-color" content="' + esc(pwaThemeColor) + '">' : "",
     favicon ? '<link rel="icon" href="' + esc(favicon) + '">' : "",
     appleIcon ? '<link rel="apple-touch-icon" href="' + esc(appleIcon) + '">' : "",
-    ogSrc ? '<meta property="og:image" content="' + esc(ogSrc) + '">' : "",
-    ogSrc ? '<meta name="twitter:card" content="summary_large_image">' : "",
   ].filter(Boolean).join("\n    ");
+  // A static host serves one HTML document for each path, independent of its query.
+  // Its initial metadata describes the unconditional page. React selects query variants on mount.
+  const groups = new Map<string, Page[]>();
+  for (const page of pages) {
+    const path = "/" + page.slug.replace(/^\/+|\/+$/g, "");
+    const group = groups.get(path) ?? [];
+    group.push(page);
+    groups.set(path, group);
+  }
+  const headOf = (page: Page | undefined, noindex: boolean) => {
+    const image = socialImageSrc(doc, page, assetNames);
+    return {
+      lang: esc(page?.lang || doc.lang || "ja"),
+      head: [
+        '<title>' + esc(page ? (page.title || page.name) + " | " + doc.siteName : doc.siteName) + '</title>',
+        '<meta name="description" content="' + esc(page?.description || "") + '">',
+        image ? '<meta property="og:image" content="' + esc(image) + '" data-route-social>' : "",
+        image ? '<meta name="twitter:card" content="summary_large_image" data-route-social>' : "",
+        noindex && target === "production" ? '<meta name="robots" content="noindex, nofollow" data-route-noindex>' : "",
+      ].filter(Boolean).join("\n"),
+    };
+  };
+  const heads = Array.from(groups, ([path, group]) => ({
+    path, ...headOf(group.find(page => !pageQueryConditions(page.query).length) ?? group[0], group.every(page => page.noindex)),
+  }));
+  const missing = headOf(missingPage, true);
+  const home = heads.find(entry => entry.path === "/") ?? missing;
   files["index.html"] = [
-    "<!doctype html>", '<html lang="' + esc(doc.lang || "ja") + '">', "  <head>",
+    "<!doctype html>", '<html lang="' + home.lang + '">', "  <head>",
     '    <meta charset="UTF-8">',
     '    <meta name="viewport" content="width=device-width, initial-scale=1.0">',
-    '    <meta name="description" content="">',
+    "    <!--page-head-->" + home.head + "<!--/page-head-->",
     "    " + icons,
-    "    <title>" + esc(doc.siteName) + "</title>",
     "    " + adobeFontHead(doc),
     "    " + (doc.customHeadHtml ?? ""),
     "  </head>", "  <body>", '    <div id="root"></div>',
@@ -228,10 +321,86 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
       "@types/react-dom": "^19.3.0", typescript: "^7.0.2", vite: "^7.3.1",
     },
   }, null, 2) + "\n";
+  // Build additional route documents from Vite's finished index so asset hashes,
+  // transformed custom head code, and project-wide preview directives are preserved.
+  // Non-portable paths or paths overlapping an authored public file keep the SPA fallback.
+  const publicPaths = [...Object.keys(files), ...Object.keys(next.binaries), ...Object.keys(next.remoteAssets)]
+    .filter(path => path.startsWith("public/")).map(path => path.slice(7));
+  const canon = (path: string) => path.normalize("NFC").toLowerCase();
+  const outputs = ["index.html", ...publicPaths];
+  const outputFor = (name: string) => {
+    if (!isPortableOutputPath(name) || outputs.some(existing => {
+      const a = canon(existing), b = canon(name);
+      return a === b || a.startsWith(b + "/") || b.startsWith(a + "/");
+    })) return null;
+    outputs.push(name);
+    return name;
+  };
+  const routeHeads = heads.map(entry => ({ ...entry,
+    file: entry.path === "/" ? null : outputFor(entry.path.slice(1) + "/index.html"),
+  }));
+  const missingFile = outputFor("404.html");
   files["vite.config.ts"] = [
-    'import { defineConfig } from "vite";',
-    'import { fileURLToPath } from "node:url";', "",
+    'import { defineConfig, type Plugin } from "vite";',
+    'import { fileURLToPath } from "node:url";',
+    'import { readFile } from "node:fs/promises";',
+    'import { resolve } from "node:path";', "",
+    'const heads: { path: string; lang: string; head: string; file: string | null }[] = ' + JSON.stringify(routeHeads, null, 2) + ';',
+    'const missing = ' + JSON.stringify(missing) + ';',
+    'function withHead(html: string, page: { head: string; lang: string }) {',
+    `  return html.replace(/<html lang="[^"]*">/, () => '<html lang="' + page.lang + '">')`,
+    '    .replace(/<!--page-head-->[\\s\\S]*?<!--\\/page-head-->/, () => page.head);',
+    '}',
+    'function routeFor(url: string) {',
+    '  let path = new URL(url, "http://localhost").pathname;',
+    '  try { path = decodeURI(path); } catch { /* Keep the original path. */ }',
+    '  path = path.replace(/\\/+$/, "") || "/";',
+    '  return heads.find(page => page.path === path) ?? (path.endsWith("/index.html")',
+    '    ? heads.find(page => page.path === (path.slice(0, -"/index.html".length) || "/")) : undefined);',
+    '}',
+    'const routeDocuments: Plugin = {',
+    '  name: "route-documents", enforce: "post",',
+    '  transformIndexHtml(html, context) {',
+    '    if (!context.server) return;',
+    '    return withHead(html, routeFor(context.originalUrl || context.path) ?? missing);',
+    '  },',
+    '  configureServer(server) {',
+    '    return () => server.middlewares.use(async (req, res, next) => {',
+    '      if (req.url !== "/index.html" || !req.originalUrl || routeFor(req.originalUrl)) return next();',
+    '      try {',
+    '        const source = await readFile(resolve(server.config.root, "index.html"), "utf8");',
+    '        const html = await server.transformIndexHtml(req.originalUrl, source);',
+    '        res.statusCode = 404; res.setHeader("Content-Type", "text/html; charset=utf-8");',
+    '        res.end(req.method === "HEAD" ? undefined : html);',
+    '      } catch (error) { next(error); }',
+    '    });',
+    '  },',
+    '  configurePreviewServer(server) {',
+    '    // Vite falls back to the root index for a slashless directory URL.',
+    '    // Run after its asset middleware so public files keep their normal behavior.',
+    '    return () => server.middlewares.use(async (req, res, next) => {',
+    '      if (req.url !== "/index.html" || !req.originalUrl || req.originalUrl === "/index.html") return next();',
+    '      const page = routeFor(req.originalUrl);',
+    '      if (page?.file) { req.url = encodeURI("/" + page.file); return next(); }',
+    '      if (page?.path === "/") return next();',
+    '      try {',
+    '        const index = await readFile(resolve(server.config.root, server.config.build.outDir, "index.html"), "utf8");',
+    '        res.statusCode = page ? 200 : 404;',
+    '        res.setHeader("Content-Type", "text/html; charset=utf-8");',
+    '        res.end(req.method === "HEAD" ? undefined : withHead(index, page ?? missing));',
+    '      } catch (error) { next(error); }',
+    '    });',
+    '  },',
+    '  generateBundle: { order: "post", handler(_, bundle) {',
+    '    const index = bundle["index.html"];',
+    '    if (!index || index.type !== "asset" || typeof index.source !== "string") this.error("Missing built index.html");',
+    '    const shell = index.source;',
+    '    for (const page of heads) if (page.file) this.emitFile({ type: "asset", fileName: page.file, source: withHead(shell, page) });',
+    ...(missingFile ? ['    this.emitFile({ type: "asset", fileName: "404.html", source: withHead(shell, missing) });'] : []),
+    '  } },',
+    '};',
     "export default defineConfig({",
+    '  plugins: [routeDocuments],',
     '  esbuild: { jsx: "automatic" },',
     '  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },',
     "});", "",
@@ -252,7 +421,7 @@ export function buildReactProject(doc: SiteDoc, next: GeneratedProject, target: 
     "Generated by Tsumu (https://github.com/abshrimp/tsumu).", "",
     "Run npm install and npm run dev, or npm run build to create dist/.",
     "This is a client-rendered SPA (no SSR). Public API requests run in the browser and require CORS.",
-    "On a static host, configure fallback to index.html for deep links.",
+    "The build includes HTML metadata for fixed routes and a 404.html. Configure your static host to serve directory indexes and its error document.",
     "Use the Next.js format for dynamic data, redirects, reverse proxies or SEO-sensitive pages.", "",
   ].join("\n");
   return { files, binaries: { ...next.binaries }, remoteAssets: { ...next.remoteAssets } };

@@ -7,6 +7,9 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { defaultSearch, firstSearch, nextSearch, searchFormFiles } from "../tests/helpers/search-form-navigation";
 import { searchFormValuesBundle } from "../tests/helpers/search-form-values";
+import { generateExportProject } from "../lib/export-formats";
+import { makeBox, makeText } from "../lib/presets";
+import type { SiteDoc } from "../lib/types";
 
 for (const format of ["nextjs", "react"] as const) {
   test(`${format} search forms preserve empty and repeated successful fields @form-values`, async ({ page }) => {
@@ -41,6 +44,7 @@ for (const format of ["nextjs", "react"] as const) {
     expect(params.get("note")).toBe("");
     expect(params.get("sort")).toBe("");
     expect(params.get("size")).toBe("S");
+    expect(params.getAll("intent")).toEqual(["search"]);
     expect(params.has("disabled")).toBe(false);
     expect(params.has("fieldset-disabled")).toBe(false);
     expect(params.has("upload")).toBe(false);
@@ -68,9 +72,54 @@ for (const format of ["nextjs", "react"] as const) {
     await expect(page.locator("#color")).toHaveValues(["green", "blue"]);
     await page.goForward();
     await expect(page.locator("#color")).toHaveValues(["red"]);
+    const saved = page.waitForRequest(request => request.url() === "http://form.export.test/saved" && request.method() === "POST");
+    await page.locator("#save").click();
+    expect(new URLSearchParams((await saved).postData()!).getAll("intent")).toEqual(["save"]);
     expect(errors).toEqual([]);
   });
 }
+
+test("a static search form keeps its query-selected page after submission @form-values", async ({ page }) => {
+  const home = { id: "home", name: "Home", slug: "", title: "Home", description: "", children: ["title"] };
+  const doc: SiteDoc = {
+    schemaVersion: 1, siteName: "Catalog", assets: {}, pageOrder: ["home", "search"],
+    pages: { home, search: { ...home, id: "search", title: "Products", query: "tab=products", children: ["form"] } },
+    nodes: {
+      title: { ...makeText("Home"), id: "title" },
+      form: { ...makeBox(), id: "form", semantic: "form", children: ["query", "send", "post"] },
+      query: { ...makeBox(), id: "query", attrId: "q", type: "field", field: { kind: "input" } },
+      send: { ...makeBox(), id: "send", type: "field", field: { kind: "submit", label: "Search" } },
+      post: { ...makeBox(), id: "post", type: "field", field: { kind: "submit", label: "Save" },
+        htmlAttrs: { formaction: "/save", formmethod: "post" } },
+    },
+  };
+  const { files } = generateExportProject(doc, "html");
+  await page.route("https://search.test/**", route => {
+    const path = new URL(route.request().url()).pathname.slice(1) || "index.html";
+    return route.fulfill({ contentType: path.endsWith(".js") ? "text/javascript" : path.endsWith(".css") ? "text/css" : "text/html",
+      body: files[path] ?? "" });
+  });
+  await page.goto("https://search.test/?tab=products&lang=ja&lang=en&q=old");
+  await page.locator("#q").fill("chair");
+  await page.evaluate(() => document.querySelector("form")!.addEventListener("submit", e => e.preventDefault(), { once: true }));
+  await page.getByRole("button", { name: "Search" }).click();
+  expect(new URL(page.url()).searchParams.get("q")).toBe("old");
+  expect(await page.evaluate(() => new FormData(document.querySelector("form")!).has("tab"))).toBe(false);
+  await page.evaluate(() => {
+    // A form listener may inspect the payload before the browser builds the actual submission.
+    const form = document.querySelector("form")!;
+    form.addEventListener("submit", () => { new FormData(form); });
+  });
+  await page.getByRole("button", { name: "Search" }).click();
+  await expect(page).toHaveTitle("Products");
+  const query = new URL(page.url()).searchParams;
+  expect(query.getAll("q")).toEqual(["chair"]);
+  expect(query.getAll("lang")).toEqual(["ja", "en"]);
+  expect(query.get("tab")).toBe("products");
+  const posted = page.waitForRequest(req => req.method() === "POST");
+  await page.getByRole("button", { name: "Save" }).click();
+  expect(new URLSearchParams((await posted).postData()!).has("tab")).toBe(false);
+});
 
 test.describe("Next.js search form navigation", () => {
   const loadDependency = createRequire(resolve("package.json"));
@@ -120,6 +169,49 @@ test.describe("Next.js search form navigation", () => {
       await once(server, "exit");
     }
     if (directory) await rm(directory, { recursive: true, force: true });
+  });
+
+  test("Back and Forward revisit submitted searches, their fields, and the original fragment @export-browser", async ({ page }) => {
+    await page.goto(`${origin}/search${firstSearch}#search-form`);
+    await expect(page.locator("#q")).toHaveValue("first");
+    const initialLength = await page.evaluate(() => history.length);
+    for (const value of ["green tea", "black tea"]) {
+      await page.locator("#q").fill(value);
+      await page.locator("#submit").click();
+      await expect(page.locator("#result")).toHaveText("API: " + value);
+    }
+    const revision = await page.locator("#render-revision").textContent();
+    await page.locator("#submit").click();
+    await expect(page.locator("#render-revision")).not.toHaveText(revision!);
+    expect(await page.evaluate(() => history.length)).toBe(initialLength + 2);
+    for (const [direction, query] of [["back", "green tea"], ["back", "first"], ["forward", "green tea"], ["forward", "black tea"]]) {
+      if (direction === "back") await page.goBack();
+      else await page.goForward();
+      await expect(page.locator("#result")).toHaveText("API: " + query);
+      await expect(page.locator("#q")).toHaveValue(query);
+      const url = new URL(page.url());
+      expect(url.searchParams.get("q")).toBe(query);
+      expect(url.hash).toBe("#search-form");
+    }
+  });
+
+  test("delayed actions from an earlier search do not hide the next results", async ({ page }) => {
+    await page.clock.install();
+    await page.goto(origin + "/search" + firstSearch);
+    await expect(page.locator("#result")).toHaveText("API: first");
+    await page.locator("#delay").click();
+    await expect(page.locator("#ready")).toBeHidden();
+
+    await page.locator("#next-link").click();
+    await expect(page.locator("#result")).toHaveText("API: next");
+    await page.clock.fastForward(31_000);
+    await expect(page.locator("#result")).toBeVisible();
+
+    // An anchor within the same results keeps the new page's own action alive.
+    await page.locator("#delay").click();
+    await page.evaluate(() => { location.hash = "result"; });
+    await page.clock.fastForward(31_000);
+    await expect(page.locator("#result")).toBeHidden();
   });
 
   test("Search forms follow client-side navigation and history while preserving input on same-URL renders", async ({ page }) => {

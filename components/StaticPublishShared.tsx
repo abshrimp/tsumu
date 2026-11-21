@@ -72,7 +72,7 @@ export function staticPublishError(cause: unknown, fallback: string): string {
 
 export function useStaticPublishChecks(doc: SiteDoc): CheckResult[] {
   return useMemo<CheckResult[]>(() => [
-    ...runChecks(doc),
+    ...runChecks(doc, { requireHomePage: "if-defined" }),
     ...exportLimitations(doc, {
       framework: "html", language: "javascript", style: "css", scope: "project",
     }).map((message): CheckResult => ({ level: "error", message })),

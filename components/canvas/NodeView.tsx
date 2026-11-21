@@ -1,5 +1,6 @@
 "use client";
 
+import { imageSrcset } from "../../lib/srcset";
 import { safeNavigationUrl, safeResourceUrl } from "../../lib/url-policy";
 import { canvasHtml } from "../../lib/canvas-html";
 
@@ -41,11 +42,14 @@ function GhostViewInner({
   isTop,
   itemVars,
   instanceIds = [],
+  placement,
 }: {
   id: string;
   isTop: boolean;
   itemVars?: Record<string, unknown>;
   instanceIds?: string[];
+  /** Canvas selection and anchor attributes belonging to this placement, on its actual root. */
+  placement?: Record<string, unknown>;
 }): ReactNode {
   const doc = useEditor((s) => s.doc);
   const setActivePage = useEditor((s) => s.setActivePage);
@@ -56,9 +60,11 @@ function GhostViewInner({
 
   const scopedVars = itemVars;
   const vars = { ...ctx.pageVars, ...scopedVars };
-  const common: Record<string, unknown> = { "data-ghost": id, ...importedAttributes(node.htmlAttrs) };
-  if (importedClass(node.htmlClass)) common.className = importedClass(node.htmlClass);
+  const common: Record<string, unknown> = { ...placement, "data-ghost": id, ...importedAttributes(node.htmlAttrs) };
+  const className = [placement?.className, importedClass(node.htmlClass)].filter(Boolean).join(" ");
+  if (className) common.className = className;
   if (instanceIds.length) common["data-instance-node"] = instanceIds.join(" ");
+  if (instanceIds.length || placement) common["data-component-root"] = "";
   if (node.attrId) common.id = node.attrId;
   if (ctx.preview) applyScriptsAttr(node, common, doc, vars, ctx.clientVars);
 
@@ -67,6 +73,9 @@ function GhostViewInner({
     const src = hasVars(raw) ? interpolate(raw, vars) : raw;
     return createElement("img", {
       ...common,
+      loading: node.image.loading,
+      sizes: node.image.sizes,
+      srcSet: imageSrcset(node.image.candidates, source => mediaSrc(doc, source)),
       src: src.trim() ? safeResourceUrl(src) : undefined,
       alt: node.image.alt,
       draggable: false,
@@ -94,7 +103,8 @@ function GhostViewInner({
     if (chain.includes(comp.id)) return recursiveInstance(common);
     return (
       <InstanceChainCtx.Provider value={[...chain, comp.id]}>
-        <GhostView key={id} id={comp.rootId} isTop={isTop} itemVars={scopedVars} instanceIds={[...instanceIds, id]} />
+        <GhostView key={id} id={comp.rootId} isTop={isTop} itemVars={scopedVars} instanceIds={[...instanceIds, id]}
+          placement={placement && { ...placement, id: undefined }} />
       </InstanceChainCtx.Provider>
     );
   }
@@ -153,7 +163,7 @@ function GhostViewInner({
       />
     );
   }
-  if (node.link) {
+  if (node.link && (ctx.preview || !placement)) {
     const rawUrl = node.link.kind === "url" ? (node.link.url || "#") : "#";
     const resolved = hasVars(rawUrl) ? interpolateUrl(rawUrl, vars) : rawUrl;
     const href = safeNavigationUrl(resolved);
@@ -173,7 +183,7 @@ function GhostViewInner({
       } else if (node.link.newTab) {
         common.target = "_blank";
         common.rel = "noopener noreferrer";
-      } else if (!href.startsWith("#")) {
+      } else {
         common.onClick = (e: React.MouseEvent) => {
           prevClick?.(e);
           e.preventDefault();
@@ -183,8 +193,9 @@ function GhostViewInner({
     }
   }
   if (tag === "button") applyButton(node, common, ctx.preview, ctx.refresh);
+  const renderAsBox = placement ? !!node.link && !ctx.preview : tag === "form";
   return createElement(
-    node.link ? "a" : tag === "form" ? "div" : tag,
+    renderAsBox ? "div" : tag,
     common,
     children.length ? children : undefined
   );
@@ -335,51 +346,10 @@ export function NodeView({
       });
     }
     if (chain.includes(comp.id)) return recursiveInstance(common);
-    const tag = resolveTag(root, isTop);
-    // プレビューでは、インスタンスの外枠にもマスターの ID・スクリプト・リンクを反映する。
-    if (ctx.preview) {
-      if (root.attrId) common.id = root.attrId;
-      applyScriptsAttr(root, common, doc, vars, ctx.clientVars);
-      if (root.link) {
-        const link = root.link;
-        const rawUrl = link.kind === "page" ? "#" : link.url || "#";
-        const href = safeNavigationUrl(hasVars(rawUrl) ? interpolateUrl(rawUrl, vars) : rawUrl);
-        common.href = href;
-        if (link.kind === "page" && link.pageId) {
-          common.onClick = (e: React.MouseEvent) => {
-            e.preventDefault();
-            setActivePage(link.pageId!);
-          };
-        } else if (link.newTab) {
-          common.target = "_blank";
-          common.rel = "noopener noreferrer";
-        } else if (!href.startsWith("#")) {
-          common.onClick = (e: React.MouseEvent) => {
-            e.preventDefault();
-            ctx.navigate(href);
-          };
-        }
-      }
-      if (tag === "button") applyButton(root, common, true, ctx.refresh);
-    }
-    const children: ReactNode[] = [];
-    if (root.text) {
-      children.push(
-        hasVars(root.text.content)
-          ? renderTpl(root.text.content, vars, ctx.preview)
-          : root.text.content
-      );
-    }
-    for (const childId of root.children) {
-      children.push(<GhostView key={childId} id={childId} isTop={false} itemVars={scopedVars} />);
-    }
     return (
       <InstanceChainCtx.Provider key={id} value={[...chain, comp.id]}>
-        {createElement(
-          tag === "a" && !ctx.preview ? "div" : tag,
-          { ...common, "data-instance": comp.id, "data-ghost": root.id },
-          children.length ? children : undefined
-        )}
+        <GhostView id={root.id} isTop={false} itemVars={scopedVars}
+          placement={{ ...common, "data-instance": comp.id }} />
       </InstanceChainCtx.Provider>
     );
   }
@@ -389,6 +359,9 @@ export function NodeView({
     const src = hasVars(rawSrc) ? interpolate(rawSrc, vars) : rawSrc;
     return createElement("img", {
       ...common,
+      loading: node.image.loading,
+      sizes: node.image.sizes,
+      srcSet: imageSrcset(node.image.candidates, source => mediaSrc(doc, source)),
       src: src.trim() ? safeResourceUrl(src) : undefined,
       alt: node.image.alt,
       draggable: false,
@@ -478,7 +451,7 @@ export function NodeView({
       } else if (node.link.newTab) {
         common.target = "_blank";
         common.rel = "noopener noreferrer";
-      } else if (!href.startsWith("#")) {
+      } else {
         common.onClick = (e: React.MouseEvent) => {
           prevClick?.(e);
           e.preventDefault();

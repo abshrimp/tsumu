@@ -30,6 +30,18 @@ export function hasPublishCredentials(doc: SiteDoc): boolean {
   function decodeURIComponentSafe(value: string): string {
     try { return decodeURIComponent(value); } catch { return value; }
   }
+  // A site's public URL also remains in the editable document stored in export repositories.
+  // Block userinfo and credential-bearing query parameters even when there are no fetch steps.
+  if (doc && typeof doc === "object" && typeof doc.siteUrl === "string") {
+    const siteUrl = doc.siteUrl;
+    try {
+      const parsed = new URL(siteUrl);
+      if (parsed.username || parsed.password || (parsed.search && containsParam(parsed.search, true))) return true;
+    } catch {
+      if (/^(?:https?:)?\/\/[^/\s@]+@/i.test(siteUrl)) return true;
+    }
+    if (siteUrl.split(/[?#]/).slice(1).some((part) => containsParam(part, true))) return true;
+  }
   const pending: unknown[] = [doc];
   while (pending.length) {
     const value = pending.pop();

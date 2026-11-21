@@ -191,6 +191,7 @@ export default function Canvas() {
     refreshData,
     setActivePage,
     navigateTo,
+    fragmentRequest,
   } = useCanvasData({
     page,
     doc,
@@ -375,6 +376,7 @@ export default function Canvas() {
 
   // ページごとのスクロール位置を記憶し、ページを開き直したときや、次にエディタを開いたときに戻す
   const editingCompId = useEditor((s) => s.editingComponentId);
+  const lastFragment = useRef<typeof fragmentRequest>(null);
   useEffect(() => {
     const area = areaRef.current;
     if (!area || editingCompId) return;
@@ -391,6 +393,23 @@ export default function Canvas() {
     // 内容の高さが決まってから戻す
     let raf = requestAnimationFrame(() => {
       raf = requestAnimationFrame(() => {
+        if (fragmentRequest?.pageId === key && lastFragment.current !== fragmentRequest) {
+          lastFragment.current = fragmentRequest;
+          const frame = frameRef.current;
+          const raw = fragmentRequest.hash.slice(1);
+          let id = raw;
+          try { id = decodeURIComponent(raw); } catch { /* Also support literal percent signs in IDs. */ }
+          const selector = cssQuotedAttributeValue(id);
+          const target = id && (frame?.querySelector<HTMLElement>(`[id=${selector}]`) ??
+            frame?.querySelector<HTMLElement>(`a[name=${selector}]`));
+          if (target) {
+            target.scrollIntoView({ block: "start", inline: "nearest" });
+            target.focus({ preventScroll: true });
+            return;
+          }
+          if (!id || id.toLowerCase() === "top") area.scrollTop = 0;
+          return;
+        }
         if (saved) {
           area.scrollTop = saved[0];
           area.scrollLeft = saved[1];
@@ -416,7 +435,7 @@ export default function Canvas() {
       if (timer) clearTimeout(timer);
       area.removeEventListener("scroll", onScroll);
     };
-  }, [activePageId, editingCompId]);
+  }, [activePageId, editingCompId, fragmentRequest]);
 
   // Cmd/Ctrl + スクロールで拡大・縮小する（ピンチ操作も ctrlKey 付きのイベントとして届く）
   useEffect(() => {
@@ -441,8 +460,11 @@ export default function Canvas() {
     // clientWidth はスクロールバーの表示の有無で変わる。それを基準にすると、倍率の変更 →
     // 内容の高さの変化 → スクロールバーの表示の切り替え…が繰り返し起きるため、
     // スクロールバーを含む offsetWidth を基準にする
-    const update = () =>
+    const update = () => {
+      // 端末の高さ指定はないので、スクロールする文書の高さではなく表示領域の高さを使う。
+      area.style.setProperty("--tsumu-frame-vh", `${area.clientHeight / 100}px`);
       setFitScale(Math.min(1, (area.offsetWidth - 56) / frameWidth));
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(area);
@@ -1067,7 +1089,7 @@ export default function Canvas() {
         <div
           ref={frameRef}
           className={`canvas-frame${mode === "preview" ? " is-preview" : ""}`}
-          style={{ width: frameWidth, zoom: scale } as React.CSSProperties}
+          style={{ width: frameWidth, zoom: scale, "--tsumu-frame-vw": `${frameWidth / 100}px` } as React.CSSProperties}
         >
           <div
             className={`cv-root${mode === "design" ? " cv-design" : ""}`}

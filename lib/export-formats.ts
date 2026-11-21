@@ -4,7 +4,7 @@ import { pagePlan } from "./data";
 import { generateProject, type GeneratedProject, type PublishTarget } from "./generator";
 import { usedUploadedFonts } from "./generator/css";
 import { buildReactProject, needsReactPageRuntime } from "./generator/react-export";
-import { buildAssetNames } from "./generator/names";
+import { buildAssetNames, buildClassNames } from "./generator/names";
 import { generateStandaloneHtml } from "./generator/html-export";
 import { buildAdditionalFramework } from "./generator/framework-export";
 import { applyExportStyle } from "./generator/style-export";
@@ -15,6 +15,15 @@ import { assertGeneratedPaths } from "./generator/output-paths";
 import { hasPublishCredentials } from "./publish-security";
 import { tr } from "./i18n";
 import { resolveExportOptions, type ExportFormat, type ExportOptions } from "./generator/export-options";
+
+/** Keep literal /assets/name-N.ext references working after same-name siblings are pruned. */
+function preserveAssetFilenames(scoped: SiteDoc, suffixes: Map<string, number>): SiteDoc {
+  for (const [id, asset] of Object.entries(scoped.assets)) {
+    const suffix = suffixes.get(id);
+    if (suffix && asset.exportSuffix !== suffix) scoped.assets[id] = { ...asset, exportSuffix: suffix };
+  }
+  return scoped;
+}
 
 /**
  * 一部だけを書き出す場合は、他のページの編集可能なノードや無関係なアセットを含めてはいけない。
@@ -49,16 +58,18 @@ function prunePartialDoc(doc: SiteDoc): SiteDoc {
     ...doc, nodes, components,
     assets: {},
     uploadedFonts: doc.uploadedFonts && usedUploadedFonts({ ...doc, nodes }),
-    loadingScreen: doc.loadingScreen?.pageId && Object.hasOwn(doc.pages, doc.loadingScreen.pageId)
-      ? doc.loadingScreen : undefined,
     pageFolders: doc.pageFolders?.filter(folder => folders.has(folder.id)).map(folder =>
       folder.beforePageId && !Object.hasOwn(doc.pages, folder.beforePageId)
         ? { id: folder.id, name: folder.name } : folder),
   };
-  const assetIds = scopedAssetIds(scoped, doc.assets);
+  const suffixes = new Map<string, number>();
+  const names = buildAssetNames(doc, suffixes);
+  const assetIds = scopedAssetIds(scoped, doc.assets, names);
   const assets: SiteDoc["assets"] = Object.create(null);
-  for (const id of zipAssetClosure(doc.assets, assetIds)) assets[id] = doc.assets[id];
-  return { ...scoped, assets };
+  const closure = zipAssetClosure(doc.assets, assetIds);
+  // Preserve the original allocation order as well as names referred to by literal URLs.
+  for (const id of Object.keys(doc.assets)) if (closure.has(id)) assets[id] = doc.assets[id];
+  return preserveAssetFilenames({ ...scoped, assets }, suffixes);
 }
 
 /** 選択したノードは、選択したページから実際にたどれなければならない。
@@ -94,8 +105,20 @@ export function exportScopeDoc(doc: SiteDoc, options: ExportOptions): SiteDoc {
   if (options.scope === "page") {
     // 明示的に選んだページは、プロジェクト全体の公開から除外されていても書き出せる。
     // そうしないと、選んだページが正しくても、ZIP にページのマークアップが入らない。
-    return prunePartialDoc({ ...doc, pages: { [page.id]: { ...page, unpublished: false } },
-      pageOrder: [page.id] });
+    const pages: SiteDoc["pages"] = { [page.id]: { ...page, unpublished: false } };
+    let loadingScreen = doc.loadingScreen;
+    const artwork = loadingScreen?.pageId;
+    // The editor keeps the loading artwork outside the public page order. It is a dependency
+    // of a visual page. A separate ordinary or unpublished page is outside this export.
+    if (!loadingScreen?.enabled || page.rawHtml?.trim() ||
+        !["nextjs", "react", "html", "single-html"].includes(options.framework)) {
+      loadingScreen = undefined;
+    } else if (artwork) {
+      if (artwork !== page.id && Object.hasOwn(doc.pages, artwork) &&
+          !doc.pageOrder.includes(artwork) && !doc.pages[artwork].unpublished) pages[artwork] = doc.pages[artwork];
+      else loadingScreen = undefined;
+    }
+    return prunePartialDoc({ ...doc, pages, loadingScreen, pageOrder: [page.id] });
   }
   const node = options.nodeId && Object.prototype.hasOwnProperty.call(doc.nodes, options.nodeId)
     ? doc.nodes[options.nodeId] : undefined;
@@ -122,7 +145,7 @@ export function exportScopeDoc(doc: SiteDoc, options: ExportOptions): SiteDoc {
     pageScripts: undefined,
     children: [node.id],
   };
-  return prunePartialDoc({ ...doc, pages: { [id]: scopedPage }, pageOrder: [id] });
+  return prunePartialDoc({ ...doc, pages: { [id]: scopedPage }, pageOrder: [id], loadingScreen: undefined });
 }
 
 function publishedPages(doc: SiteDoc) {
@@ -246,13 +269,15 @@ export function generateExportProject(
   if (limitations.length) {
     throw new Error(tr("This export format does not yet support these features:") + "\n" + limitations.join("\n"));
   }
-  const next = generateProject(scoped, target);
+  // Tailwind scans generated markup too. Only author-supplied classes should activate its utilities.
+  const classes = buildClassNames(scoped, options.style === "tailwind" ? "tsumu-" : "");
+  const next = generateProject(scoped, target, classes);
   const generated = options.framework === "react"
-    ? buildReactProject(scoped, next, target)
+    ? buildReactProject(scoped, next, target, classes)
     : (options.framework === "html" || options.framework === "single-html")
-      ? generateStandaloneHtml(scoped, next, target)
+      ? generateStandaloneHtml(scoped, next, target, classes, options.framework === "html" ? options.htmlPlacement : undefined)
       : (options.framework === "vue" || options.framework === "nuxt" || options.framework === "sveltekit")
-        ? buildAdditionalFramework(scoped, next, options.framework, options.language, target)
+        ? buildAdditionalFramework(scoped, next, options.framework, options.language, target, classes)
         : next;
   const styled = options.style === "css" ? generated
     : applyExportStyle(generated, options.framework, options.style);
@@ -297,6 +322,9 @@ export async function prepareExportScopeDoc(doc: SiteDoc, options: ExportOptions
   if (scoped !== doc && Object.keys(scoped.assets).length) {
     const { retainImportedDependencies } = await import("./generator/imported-dependencies");
     await retainImportedDependencies(scoped, doc.assets);
+    const suffixes = new Map<string, number>();
+    buildAssetNames(doc, suffixes);
+    preserveAssetFilenames(scoped, suffixes);
   }
   return scoped;
 }

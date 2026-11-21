@@ -83,6 +83,23 @@ try {
     }
     await page.getByText("Status: done", { exact: true }).first().waitFor({ timeout: 1000 });
   });
+  await check("named submit target", async () => {
+    await page.route("**/preview?*", route => route.fulfill({ contentType: "text/html", body: "<p>Preview results</p>" }));
+    await page.locator("#searchTerm").fill("green tea");
+    const preview = page.frame({ name: "previewPane" });
+    if (!preview) throw new Error("Missing search preview frame");
+    await page.getByRole("button", { name: "Preview", exact: true }).click();
+    await preview.waitForURL(target => target.pathname === "/preview" &&
+      target.searchParams.get("searchTerm") === "green tea" && target.searchParams.getAll("intent").join(",") === "preview",
+      { timeout: 7000 });
+    if (page.url() !== url) throw new Error("Preview replaced the search page");
+    if (framework === "sveltekit") {
+      const original = await page.evaluateHandle(() => document);
+      await page.getByRole("button", { name: "Search", exact: true }).click();
+      await page.waitForURL(target => target.pathname === "/" && target.searchParams.get("intent") === "search");
+      if (!await page.evaluate(previous => previous === document, original)) throw new Error("Search reloaded the document");
+    }
+  });
   if (errors.length) throw new Error("Generated browser JavaScript errors:\n" + errors.join("\n"));
   console.log(framework + " generated browser: hydrated and updated a variable after click");
 } finally {

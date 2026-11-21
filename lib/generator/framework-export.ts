@@ -1,3 +1,4 @@
+import { socialImageSrc } from "./social-image";
 import type { SiteDoc } from "../types";
 import type { GeneratedProject, PublishTarget } from "../generator";
 import type { ExportLanguage } from "./export-options";
@@ -22,15 +23,12 @@ const escapeTemplateHtml = (value: string): string =>
 export function frameworkHeadTags(doc: SiteDoc, assetNames = buildAssetNames(doc)): string {
   const favicon = imageRefSrc(assetNames, doc.favicon);
   const appleIcon = imageRefSrc(assetNames, doc.appleTouchIcon);
-  const ogSrc = imageRefSrc(assetNames, doc.ogImage);
   const pwaThemeColor = doc.pwa?.enabled ? doc.pwa.themeColor?.trim() : "";
   return [
     doc.pwa?.enabled ? '<link rel="manifest" href="/manifest.webmanifest">' : "",
     pwaThemeColor ? '<meta name="theme-color" content="' + escapeTemplateHtml(pwaThemeColor) + '">' : "",
     favicon ? '<link rel="icon" href="' + escapeTemplateHtml(favicon) + '">' : "",
     appleIcon ? '<link rel="apple-touch-icon" href="' + escapeTemplateHtml(appleIcon) + '">' : "",
-    ogSrc ? '<meta property="og:image" content="' + escapeTemplateHtml(ogSrc) + '">' : "",
-    ogSrc ? '<meta name="twitter:card" content="summary_large_image">' : "",
   ].filter(Boolean).join("");
 }
 
@@ -67,7 +65,7 @@ const jsonIndent = (value: unknown) => JSON.stringify(value, null, 2) + "\n";
 
 export function buildAdditionalFramework(
   doc: SiteDoc, next: GeneratedProject, framework: AdditionalFramework,
-  language: ExportLanguage, target: PublishTarget = "production",
+  language: ExportLanguage, target: PublishTarget = "production", classes?: Map<string, string>,
 ): GeneratedProject {
   const common = commonFiles(doc, next, framework);
   const files = common.files;
@@ -121,7 +119,7 @@ export function buildAdditionalFramework(
     const adobe = adobeFontProjects(usedAdobeFonts(doc));
     const favicon = imageRefSrc(common.assetNames, doc.favicon);
     const appleIcon = imageRefSrc(common.assetNames, doc.appleTouchIcon);
-    const ogSrc = imageRefSrc(common.assetNames, doc.ogImage);
+    const ogSrc = socialImageSrc(doc, undefined, common.assetNames);
     const pwaThemeColor = doc.pwa?.enabled ? doc.pwa.themeColor?.trim() : "";
     const links: Array<{ rel: string; href: string }> = [
       ...(doc.pwa?.enabled ? [{ rel: "manifest", href: "/manifest.webmanifest" }] : []),
@@ -196,5 +194,5 @@ export function buildAdditionalFramework(
     });
   }
   files[".gitignore"] = "node_modules/\ndist/\n.nuxt/\n.output/\n.svelte-kit/\nbuild/\n";
-  return applyNativeFramework(doc, { files, binaries: common.binaries, remoteAssets: common.remoteAssets }, framework, language, target);
+  return applyNativeFramework(doc, { files, binaries: common.binaries, remoteAssets: common.remoteAssets }, framework, language, target, classes);
 }

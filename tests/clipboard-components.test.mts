@@ -1678,6 +1678,35 @@ test("SettingsPanel component conversion retains nested list rows in Canvas and 
   assert.deepEqual(after, saved, "export does not change the saved document");
 });
 
+test("a list-free reusable component renders the enclosing page and row data", async () => {
+  const records = [{ title: "Copper" }, { title: "Indigo" }];
+  const root = { ...makeText("{catalog.0.title}"), id: "title", attrId: "bound-title" };
+  const instance = { ...makeBox(), id: "instance", type: "instance" as const, componentId: "card" };
+  const doc: SiteDoc = {
+    schemaVersion: 1, siteName: "Page bindings", assets: {}, pageOrder: ["p"],
+    pages: { p: { id: "p", name: "Home", slug: "", title: "Home", description: "",
+      children: ["direct", "instance", "list"], pageScripts: [{ id: "load", trigger: "load", steps: [
+        { id: "fetch", kind: "fetch", url: "https://example.test/catalog", as: "catalog", preview: { sample: records } },
+      ] }] } },
+    components: { card: { id: "card", name: "Card", rootId: "title" } },
+    nodes: {
+      direct: { ...makeText("{catalog.0.title}"), id: "direct", attrId: "comparison" },
+      title: root, instance,
+      list: { ...makeBox(), id: "list", type: "list", list: { from: "catalog" }, children: ["rowInstance"] },
+      rowInstance: { ...instance, id: "rowInstance" },
+    },
+  };
+  const html = parse(await publishedComponentList(doc, "app/page.tsx", records));
+  assert.equal(html.querySelector("#comparison").textContent, "Copper");
+  const values = (root: ReturnType<typeof parse>) => root.querySelectorAll("#bound-title").map((el: any) => el.textContent);
+  assert.deepEqual(values(parse(canvas(doc))), ["Copper", "Copper", "Copper"]);
+  assert.deepEqual(values(html), values(parse(canvas(doc))));
+  doc.nodes.title.text!.content = "{title}";
+  const expectedRows = values(parse(canvas(doc)));
+  assert.deepEqual(expectedRows, ["", "Copper", "Indigo"]);
+  assert.deepEqual(values(parse(await publishedComponentList(doc, "app/page.tsx", records))), expectedRows);
+});
+
 test("nested component instances retain per-item scripts, independent visibility and existing anchor rules", async () => {
   let doc = componentListDoc();
   // 2段の部品と、ルートが参照になっている部品も、store の変換で作る。
@@ -1803,7 +1832,7 @@ test("list-bearing component cycles terminate, while ordinary static component f
 
 test("static nested components and form boundaries keep their standalone behavior", async () => {
   const doc = convert(componentListDoc()), instance = doc.nodes[doc.nodes.products.children[0]];
-  doc.nodes.static = { ...makeText("Static {name}"), id: "static" };
+  doc.nodes.static = { ...makeText("Static caption"), id: "static" };
   doc.components!.static = { id: "static", rootId: "static", name: "Static" };
   doc.nodes.staticUse = { ...makeBox(), id: "staticUse", type: "instance", componentId: "static", attrId: "ignored-static-anchor", hiddenOn: ["lg"] };
   doc.nodes.card.children.push("staticUse", "inside-button");
@@ -1822,7 +1851,7 @@ test("static nested components and form boundaries keep their standalone behavio
   assert.match(html, /id="card&quot;&lt;&amp;"/);
   assert.match(html, /data-toggle-show="flex"/);
   assert.match(files["app/page.tsx"], /<Static hiddenClassName="[^"]+" \/>/);
-  assert.match(files["components/Static.tsx"], /interpolate\("Static \{name\}", \{\}\)/);
+  assert.match(files["components/Static.tsx"], /Static caption/);
   const standalone = structuredClone(doc); standalone.pages.p.children = ["staticUse"];
   assert.equal(files["components/Static.tsx"], generateProject(standalone).files["components/Static.tsx"]);
 });
@@ -1942,7 +1971,7 @@ function renderRoot(patch: Partial<DocNode>, preview = true) {
   const require = createRequire(filename);
   const { VarsCtx } = require("./render");
   const actions: string[] = [];
-  const ctx = { preview, pageVars: { destination: "https://example.org/path" }, clientVars: new Set(), refresh: () => actions.push("refresh"), navigate: (url: string) => actions.push(url) };
+  const ctx = { preview, pageVars: { destination: "https://example.org/path", rows: [{ name: "One" }, { name: "Two" }] }, listOps: new Map(), fieldValues: {}, clientVars: new Set(), refresh: () => actions.push("refresh"), navigate: (url: string) => actions.push(url) };
   const root = { ...makeBox(), id: "root", text: { content: "Click", heading: 0 }, ...patch };
   const state = {
     doc: { nodes: { root, inst: { ...makeBox(), id: "inst", type: "instance", componentId: "c" } }, components: { c: { id: "c", rootId: "root" } }, pages: {} },
@@ -1956,7 +1985,9 @@ function renderRoot(patch: Partial<DocNode>, preview = true) {
     if (id === "react") return { ...React, useContext: (context: unknown) => context === VarsCtx ? ctx : [] };
     return require(id);
   }, mod, mod.exports);
-  const element = mod.exports.NodeView({ id: "inst", isTop: true }).props.children;
+  const ghost = mod.exports.NodeView({ id: "inst", isTop: true }).props.children;
+  // Run the shared memoized component renderer with the same mocked hooks to inspect its DOM event handlers.
+  const element = ghost.type.type(ghost.props);
   const click = () => element.props.onClick({ preventDefault: () => actions.push("prevent"), currentTarget: { closest: () => ({}) } });
   return { element, actions, click };
 }
@@ -1967,6 +1998,20 @@ test("component preview retains root IDs and click scripts on the instance eleme
   assert.equal(element.props["data-node"], "inst");
   assert.equal(element.props["data-ghost"], "root");
   assert.equal(JSON.parse(element.props["data-scripts"])[0].steps[0].url, "https://example.org");
+});
+
+test("field and list component roots keep their actual control and repeated contents", () => {
+  const { element: field } = renderRoot({ type: "field", field: { kind: "select", defaultValue: "b", options: [
+    { label: "First", value: "a" }, { label: "Second", value: "b" },
+  ] } });
+  assert.equal(renderRoot({ semantic: "form" }).element.type, "form");
+  assert.equal(field.type, "select");
+  assert.equal(field.props.value, "b");
+  assert.deepEqual(field.props.children.map((option: any) => option.props.children), ["First", "Second"]);
+  const { element: list } = renderRoot({ type: "list", list: { from: "rows" } });
+  assert.equal(list.type, "div");
+  assert.equal(list.props["data-array"], "rows");
+  assert.deepEqual(list.props.children.map((row: any) => JSON.parse(row.props["data-item"])), [{ name: "One" }, { name: "Two" }]);
 });
 
 test("component root URL links navigate with interpolated and sanitized URLs", () => {

@@ -18,7 +18,8 @@ export const searchFormValuesHtml = `
   <fieldset disabled><input name="fieldset-disabled" value="excluded"></fieldset>
   <input id="upload" type="file" name="upload">
   <input value="unnamed">
-  <button id="submit" type="submit">Search</button>`;
+  <button id="submit" type="submit" name="intent" value="search">Search</button>
+  <button id="save" type="submit" name="intent" value="save" formaction="/saved" formmethod="post">Save</button>`;
 
 const searchFormBundleCache = new Map<"nextjs" | "react", Promise<string>>();
 
@@ -48,7 +49,7 @@ import { useSyncExternalStore } from "react";
 const subscribe = (callback) => { window.addEventListener("popstate", callback); return () => window.removeEventListener("popstate", callback); };
 export const usePathname = () => window.location.pathname;
 export const useSearchParams = () => new URLSearchParams(useSyncExternalStore(subscribe, () => window.location.search));
-export const useRouter = () => ({ replace(url) { window.history.replaceState(null, "", url); window.dispatchEvent(new PopStateEvent("popstate")); } });
+export const useRouter = () => ({ push(url) { window.history.pushState(null, "", url); window.dispatchEvent(new PopStateEvent("popstate")); } });
 `,
         }));
       } }],

@@ -101,6 +101,7 @@ function entryWithId(id: string, value: unknown): value is Record<string, unknow
 
 export function validAssetEntry(id: string, value: unknown): boolean {
   return safeCollectionId(id) && entryWithId(id, value) && typeof value.name === "string" &&
+    (value.exportSuffix == null || (typeof value.exportSuffix === "number" && Number.isSafeInteger(value.exportSuffix) && value.exportSuffix > 1)) &&
     (value.dataUrl == null || typeof value.dataUrl === "string") &&
     (value.path == null || typeof value.path === "string") &&
     (value.mimeType == null || typeof value.mimeType === "string") &&
@@ -254,6 +255,7 @@ export function validSiteDoc(parsed: unknown): boolean {
   for (const node of Object.values(parsed.nodes)) {
     const entry = node as Record<string, unknown>;
     if (!assetRefValid(entry.image) || !assetRefValid(entry.media) ||
+        (record(entry.image) && Array.isArray(entry.image.candidates) && !entry.image.candidates.every(assetRefValid)) ||
         (record(entry.media) && Array.isArray(entry.media.sources) && !entry.media.sources.every(assetRefValid))) return false;
   }
   if (!assetRefValid(parsed.favicon) || !assetRefValid(parsed.appleTouchIcon) ||

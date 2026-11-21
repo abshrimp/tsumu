@@ -78,10 +78,12 @@ function hasSelfRedirect(page: Page, earlierRedirects: Page[]): boolean {
   });
 }
 
-export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckResult[] {
+export function runChecks(
+  doc: SiteDoc, { requireHomePage = true }: { requireHomePage?: boolean | "if-defined" } = {},
+): CheckResult[] {
   const results: CheckResult[] = [];
   const routes = new Map<string, { name: string; conditions: string; shareable: boolean }[]>();
-  const published = doc.pageOrder.filter((pid) => !doc.pages[pid].unpublished);
+  const published = doc.pageOrder.filter((pid) => !!doc.pages[pid] && !doc.pages[pid].unpublished);
   /** shareable = 通常のページ（クエリが違えば、同じ URL を共有できる） */
   const registerRoute = (page: Page, shareable = false) => {
     // [slug] を含む URL は固有のルートとして扱う（/events と /events/[slug] は共存できる）
@@ -118,6 +120,7 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
     }
   };
 
+  const isHome = (id: string) => !!doc.pages[id] && !doc.pages[id].slug.replace(/^\/+|\/+$/g, "");
   if (!published.length) {
     results.push({
       help: "page-draft",
@@ -125,9 +128,8 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
       message: tr("No pages to publish (all pages are unpublished)"),
     });
   } else if (
-    requireHomePage && !published.some(
-      (pid) => doc.pages[pid].slug.replace(/^\/+|\/+$/g, "") === ""
-    )
+    requireHomePage && !published.some(isHome) &&
+    (requireHomePage === true || doc.pageOrder.some(isHome))
   ) {
     results.push({
       help: "page-draft",
@@ -232,7 +234,7 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
     }
   }
   for (const node of Object.values(doc.nodes)) {
-    for (const ref of [node.image, node.media, ...(node.media?.sources ?? [])]) {
+    for (const ref of [node.image, ...(node.image?.candidates ?? []), node.media, ...(node.media?.sources ?? [])]) {
       if (ref?.assetId) assetRefs.push({ id: ref.assetId, label: tr("\"{name}\"", { name: node.name }) });
     }
   }

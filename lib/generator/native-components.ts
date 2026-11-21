@@ -1,13 +1,15 @@
 import { fieldSubmissionAttributes, submissionAttributes } from "../imported-form";
+import { imageSrcset } from "../srcset";
 import { assetMediaUrl } from "../media-url";
+import { socialImageSrc } from "./social-image";
 import type { PublishTarget } from "../generator";
 import type { SiteDoc, Page, DocNode } from "../types";
-import { listFromOf, obfuscateVarNames, pagePlan } from "../data";
+import { idVarNodesOf, listFromOf, obfuscateVarNames, pagePlan } from "../data";
 import { buildClassNames, buildAssetNames } from "./names";
 import { unnestLinks } from "./page";
 import { applyBreakpoints, toggleShowDisplay } from "../style";
 import { crispSvgSize, hasBlockDescendant, raiseOverCrispSvg, showsSelf } from "./render-helpers";
-import { selectDefaultValue, fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
+import { selectDefaultValue, fieldDefaults, fieldSubmissionName, fieldVarName, RANGED_INPUTS, TEXT_INPUTS } from "../fields";
 import { resolveTag } from "../tags";
 import { hasVars } from "../vars";
 import { pageQueryConditions } from "../page-query";
@@ -34,6 +36,7 @@ type Context = {
   seen: Set<string>;
   inForm: boolean;
   rows: string[];
+  componentRootId?: string;
   level: number;
 };
 
@@ -59,9 +62,11 @@ function expr(ctx: Context, fn: string, template: string): string {
     (ctx.rows.length ? ", " + ctx.rows.join(", ") : "") + ")";
 }
 function dynamicAttr(ctx: Context, name: string, expression: string): string {
-  return ctx.vue
-    ? " :" + name + '="' + esc(expression) + '"'
-    : " " + name + "={" + expression + "}";
+  if (!ctx.vue) return " " + name + "={" + expression + "}";
+  // vue-tsc reads bound expressions as TypeScript. Keep JSON string delimiters literal.
+  const quote = expression.includes('"') ? "'" : '"';
+  const source = expression.replace(/&/g, "&amp;").replace(/'/g, "&#39;").replace(/</g, "&lt;");
+  return " :" + name + "=" + quote + source + quote;
 }
 function valueAttr(ctx: Context, name: string, value: string | undefined): string {
   if (!value) return value === "" ? literal(name, "") : "";
@@ -88,13 +93,15 @@ function compiled(ctx: Context, node: Pick<DocNode, "scripts">, skip?: Set<strin
 }
 
 function common(ctx: Context, node: DocNode, className: string): string {
+  const root = node.id === ctx.componentRootId && node.type !== "instance";
   const show = (node.attrId && ctx.toggles.has(node.attrId)) || showsSelf(node);
   const retained = Object.entries(importedAttributes(node.htmlAttrs))
     .map(([key, value]) => literal(key === "htmlFor" ? "for" : key === "tabIndex" ? "tabindex" : key, value))
     .join("");
-  return literal("class", className) +
-    literal("id", node.attrId) + retained +
-    (show ? literal("data-toggle-show", node.type === "instance" ? "contents" : toggleShowDisplay(node)) : "") +
+  return literal("class", className) + (root ? ' data-component-root=""' : "") +
+    (root && !node.attrId ? dynamicAttr(ctx, "id", "instanceId") : literal("id", node.attrId)) + retained +
+    (show ? literal("data-toggle-show", node.type === "instance" ? "contents" : toggleShowDisplay(node)) : root && !node.attrId
+      ? dynamicAttr(ctx, "data-toggle-show", "instanceId ? " + q(toggleShowDisplay(node)) + " : undefined") : "") +
     (node.motions?.some((m) => m.trigger === "in-view") ? " data-inview" : "") +
     compiled(ctx, node);
 }
@@ -118,11 +125,16 @@ function node(ctx: Context, id: string, top = false): string {
       if (!comp) return "";
       ctx.imports.add(comp);
       const scope = ctx.rows.length ? "scopeOf(scope, " + ctx.rows.join(", ") + ")" : "scope";
-      const body = ctx.vue ? "<" + comp + ' :scope="' + esc(scope) + '" :list-ops="listOps" />'
-        : "<" + comp + " scope={" + scope + "} {listOps} />";
-      return '<div style="display:contents"' + common(ctx, n, [ctx.classes.get(id) || "el", importedClass(n.htmlClass)].filter(Boolean).join(" ")) +
-        (n.hiddenOn?.length ? literal("data-instance-hidden", ctx.classes.get(id) || "el") : "") +
-        ">" + body + "</div>";
+      const master = ctx.doc.components?.[n.componentId || ""];
+      const root = master && ctx.doc.nodes[master.rootId];
+      const anchor = !ctx.componentRootId && root && root.type !== "instance" && !root.attrId ? n.attrId : undefined;
+      const placement = literal(ctx.vue ? "instance-id" : "instanceId", anchor);
+      const body = ctx.vue ? "<" + comp + ' :scope="' + esc(scope) + '" :list-ops="listOps"' + placement + " />"
+        : "<" + comp + " scope={" + scope + "} {listOps}" + placement + " />";
+      // Instance-specific attributes and handlers retain their wrapper; the visible master owns the anchor.
+      const wrapper = common(ctx, { ...n, attrId: undefined }, [ctx.classes.get(id) || "el", importedClass(n.htmlClass)].filter(Boolean).join(" "));
+      const hidden = n.hiddenOn?.length ? literal("data-instance-hidden", ctx.classes.get(id) || "el") : "";
+      return '<div style="display:contents"' + wrapper + hidden + ">" + body + "</div>";
     }
 
     const cls = [ctx.classes.get(id) || "el", importedClass(n.htmlClass)].filter(Boolean).join(" ");
@@ -133,9 +145,11 @@ function node(ctx: Context, id: string, top = false): string {
       const source = im.assetId && ctx.assets.get(im.assetId) ?
         assetMediaUrl("/assets/" + ctx.assets.get(im.assetId), im.assetSuffix) : im.src;
       const safeStatic = source ? safeResourceUrl(source) : "";
-      const imageSrc = hasVars(source)
+      const candidates = imageSrcset(im.candidates, item => item.assetId && ctx.assets.has(item.assetId)
+        ? assetMediaUrl("/assets/" + ctx.assets.get(item.assetId), item.assetSuffix) : item.src);
+      const imageSrc = literal("loading", im.loading) + literal("sizes", im.sizes) + literal("srcset", candidates) + (hasVars(source)
         ? srcAttr(ctx, "src", source, true)
-        : literal("src", !safeStatic || safeStatic === "#" ? EMPTY_GIF : safeStatic);
+        : literal("src", !safeStatic || safeStatic === "#" ? (candidates ? undefined : EMPTY_GIF) : safeStatic));
       const crisp = crispSvgSize(ctx.doc, n);
       if (crisp) {
         return "<span" + attrs.replace(literal("class", cls), literal("class", "crisp-svg " + cls)) +
@@ -185,7 +199,7 @@ function node(ctx: Context, id: string, top = false): string {
       const f = n.field;
       const name = fieldVarName(n);
       const formAttrs = Object.entries(fieldSubmissionAttributes(n)).map(([key, value]) => literal(key, value)).join("");
-      const fields = formAttrs + literal("name", f.name ?? name) + truth("disabled", f.disabled) + truth("required", f.required);
+      const fields = formAttrs + literal("name", fieldSubmissionName(n) || undefined) + truth("disabled", f.disabled) + truth("required", f.required);
       const fieldEvent = (event: "input" | "change"): string => !name ? "" :
         ctx.vue
           ? " @" + event + '="setField(scope, ' + esc(q(name)) + ', $event)"'
@@ -198,10 +212,11 @@ function node(ctx: Context, id: string, top = false): string {
       }
       if (f.kind === "textarea") {
         const val = f.defaultValue || "";
-        const contents = hasVars(val) ? (ctx.vue ? "{{ " + expr(ctx, "resolveText", val) + " }}"
-          : "{" + expr(ctx, "resolveText", val) + "}") : staticText(val);
+        const resolved = hasVars(val) ? expr(ctx, "resolveText", val) : q(val);
+        const textarea = "textareaText(" + resolved + ")";
+        const contents = ctx.vue ? "{{ " + textarea + " }}" : "{" + textarea + "}";
         return "<textarea" + attrs + fields + fieldEvent("input") + valueAttr(ctx, "placeholder", f.placeholder) +
-          literal("rows", f.rows) + literal("maxlength", f.maxLength) + ">" + contents + "</textarea>";
+          literal("rows", f.rows) + literal("maxlength", f.maxLength) + (ctx.vue ? "" : dynamicAttr(ctx, "defaultValue", resolved)) + ">" + contents + "</textarea>";
       }
       if (f.kind === "select") {
         const optionValues = (f.options || []).map((option) => option.value);
@@ -229,7 +244,7 @@ function node(ctx: Context, id: string, top = false): string {
         const value = f.submitValue !== undefined ? literal("value", f.submitValue) :
           valueAttr(ctx, "value", f.kind === "checkbox" ? "true" : label);
         const input = "<input" + (bare ? attrs : "") + literal("type", f.kind) + fields + fieldEvent("change") +
-          truth("checked", f.checked) + value + (ctx.vue ? ">" : " />");
+          truth("checked", f.checked) + (!ctx.vue && f.checked ? " defaultChecked={true}" : "") + value + (ctx.vue ? ">" : " />");
         return bare ? input : "<label" + attrs + ">" + input + "<span>" + body + "</span></label>";
       }
       if (f.kind === "file") {
@@ -241,7 +256,8 @@ function node(ctx: Context, id: string, top = false): string {
         ? valueAttr(ctx, "min", f.min) + valueAttr(ctx, "max", f.max) + valueAttr(ctx, "step", f.step) : "";
       return "<input" + attrs + fields + fieldEvent("input") + literal("type", inputType) +
         (inputType === "color" || inputType === "range" ? "" : valueAttr(ctx, "placeholder", f.placeholder)) +
-        valueAttr(ctx, "value", f.defaultValue) + bounds +
+        (!ctx.vue ? valueAttr(ctx, "defaultValue", f.defaultValue) : "") +
+        (ctx.vue && hasVars(f.defaultValue) ? dynamicAttr(ctx, "value.attr", expr(ctx, "resolveText", f.defaultValue!)) : valueAttr(ctx, "value", f.defaultValue)) + bounds +
         (TEXT_INPUTS.has(inputType) ? literal("maxlength", f.maxLength) : "") + (ctx.vue ? ">" : " />");
     }
     if (n.type === "list" && n.list) {
@@ -261,11 +277,11 @@ function node(ctx: Context, id: string, top = false): string {
       if (ctx.vue) {
         return "<div" + attrs + literal("data-array", from) + ">" +
           '<div v-for="(' + row + ", " + index + ") in " + esc(listExpr) +
-          '" :key="' + index + '" data-row style="display:contents"' + itemAttr + ">" + inner + "</div></div>";
+          '" :key="' + index + '" data-row style="display:contents" v-row-item="' + row + '"' + itemAttr + ">" + inner + "</div></div>";
       }
       return "<div" + attrs + literal("data-array", from) + ">" +
         "{#each " + listExpr + " as " + row + ", " + index + " (" + index + ")}" +
-        '<div data-row style="display:contents"' + itemAttr + ">" + inner + "</div>" +
+        '<div data-row style="display:contents" use:bindRowItem={' + row + '}' + itemAttr + ">" + inner + "</div>" +
         "{/each}</div>";
     }
 
@@ -285,7 +301,8 @@ function node(ctx: Context, id: string, top = false): string {
       : staticText(value);
     const submission = submissionAttributes(n.htmlAttrs, tag);
     let extra = Object.entries(submission).map(([key, value]) => literal(key, value)).join("");
-    if (tag === "form" && !submission.method) extra += ' method="get"';
+    if (tag === "form") extra += ctx.vue ? ' @reset="resetFields($event)"' : ' onreset={(event) => resetFields(event)}';
+    if (tag === "form" && !submission.method) extra += ' method="get" data-search-form';
     if (paragraphWrapper) extra += ' data-p=""';
     if (tag === "button" && !submission.type) extra += literal("type", wasForm && !n.scripts?.some(script => script.trigger === "click") ? "submit" : "button");
     if (n.link) {
@@ -301,13 +318,22 @@ function node(ctx: Context, id: string, top = false): string {
   }
 }
 
+export interface NotFoundMetadata {
+  title: string;
+  description: string;
+  language: string;
+  ogImage: string | null;
+  noindex: boolean;
+}
+
 interface NativeFiles {
   doc: SiteDoc;
-  pages: { id: string; name: string; title: string; description: string; noindex: boolean; slug: string;
+  pages: { id: string; name: string; title: string; description: string; noindex: boolean; ogImage: string | null; slug: string;
     query: Record<string, string>; language: string; plan: ReturnType<typeof serializePageDataPlan> }[];
   pageFiles: Record<string, string>;
   componentFiles: Record<string, string>;
   notFound?: string;
+  notFoundMetadata: NotFoundMetadata;
 }
 
 /** 書かれたすべてのページとコンポーネントについて、フレームワーク固有の明示的なテンプレートのツリーを生成する。 */
@@ -316,12 +342,12 @@ export function generateNativeFiles(
   lang: NativeLanguage,
   target: PublishTarget,
   mode: NativeView,
+  classes = buildClassNames(doc),
 ): NativeFiles {
   const normalized = obfuscateVarNames(doc);
   unnestLinks(normalized);
   applyBreakpoints(normalized);
   raiseOverCrispSvg(normalized);
-  const classes = buildClassNames(normalized);
   const assets = buildAssetNames(normalized);
   const components = new Map(Object.values(normalized.components ?? {})
     .map((component, index) => [component.id, "Widget" + index]));
@@ -343,7 +369,8 @@ export function generateNativeFiles(
   };
   const build = (ids: string[], page?: PageRenderPlan, id?: string) => {
     const ctx = makeCtx();
-    let tree = ids.map((nid) => node(ctx, nid, true)).join("\n");
+    if (!page) ctx.componentRootId = ids[0];
+    let tree = ids.map((nid) => node(ctx, nid, !!page)).join("\n");
     if (page) {
       const script = compiled(ctx, { scripts: page.pageScripts }, page.serverIds);
       tree = "<span hidden" + literal("data-page-body", page.id) + script + "></span>\n" + tree;
@@ -351,20 +378,32 @@ export function generateNativeFiles(
     const ext = ctx.vue ? ".vue" : ".svelte";
     const dependencyImports = [...ctx.imports].filter((name) => name !== id).map((name) =>
       'import ' + name + ' from "../components/' + name + ext + '";');
-    const helper = 'import { resolveText, resolveUrl, resolveResourceUrl, scopeOf, listItemsWithOps, serializeListItem, selectedOption, setField } from "../site-data.js";';
+    const helper = 'import { resolveText, resolveUrl, resolveResourceUrl, scopeOf, listItemsWithOps, serializeListItem, selectedOption, setField, resetFields, formScope, textareaText' + (ctx.vue ? ', vRowItem' : ', bindRowItem') + ' } from "../site-data.js";';
     const constants = ctx.code;
     if (page) {
       constants.push("const listOps = JSON.parse(" + q(JSON.stringify(page.listOps)) + ");");
     }
-    const props = page ? "scope: Record<string, unknown>" : "scope: Record<string, unknown>; listOps?: Record<string, unknown>";
-    const propNames = page ? "scope" : "scope, listOps";
+    const props = page ? "scope: Record<string, unknown>" : "scope: Record<string, unknown>; listOps?: Record<string, unknown>; instanceId?: string";
+    const fields = page ? idVarNodesOf(normalized, page.id).filter(node => node.field) : [];
+    const defaults = fieldDefaults(fields);
+    const selectOptions = new Map(fields.flatMap(node => node.field?.kind === "select"
+      ? [[fieldVarName(node), node.field] as const] : []));
+    const seeds = Object.entries(defaults).map(([name, value]) => {
+      const select = selectOptions.get(name);
+      return select ? [name, selectDefaultValue(select) ?? null, (select.options ?? []).map(option => option.value)] : [name, value];
+    });
+    const withFields = seeds.length > 0;
+    if (withFields) constants.push("const defaults = " + q(seeds) + ";");
+    const propNames = page ? (withFields ? "scope: suppliedScope" : "scope") : "scope, listOps, instanceId";
 
     if (ctx.vue) return [
       '<script setup' + (lang === "typescript" ? ' lang="ts"' : "") + '>',
       helper, ...dependencyImports,
-      lang === "typescript" ?
+      ...(withFields ? ['import { computed } from "vue";'] : []),
+      (withFields ? "const props = " : "") + (lang === "typescript" ?
         "defineProps<{ " + props + " }>();" :
-        "defineProps({ scope: { type: Object, required: true }" + (page ? "" : ", listOps: Object") + " });",
+        "defineProps({ scope: { type: Object, required: true }" + (page ? "" : ", listOps: Object, instanceId: String") + " });"),
+      ...(withFields ? ["const scope = computed(() => formScope(props.scope, defaults));"] : []),
       ...constants,
       "</script>",
       "<template>", tree, "</template>", "",
@@ -375,7 +414,9 @@ export function generateNativeFiles(
       lang === "typescript" ?
         "let { " + propNames + " }: { " + props + " } = $props();" :
         "let { " + propNames + " } = $props();",
-      ...constants, "</script>",
+      ...constants,
+      ...(withFields ? ["const scope = $derived(formScope(suppliedScope, defaults));"] : []),
+      "</script>",
       tree, "",
     ].join("\n");
   };
@@ -405,9 +446,14 @@ export function generateNativeFiles(
       const view = { id: page.id, pageScripts: page.pageScripts, serverIds: model.serverIds, listOps: plan.listOps };
       pageFiles[name] = build(page.children, view);
       return { id: page.id, name, title: page.title || page.name,
-        description: page.description, noindex: target === "production" && !!page.noindex, slug: page.slug,
+        ogImage: socialImageSrc(normalized, page, assets), description: page.description, noindex: target === "production" && !!page.noindex, slug: page.slug,
         query: Object.fromEntries(pageQueryConditions(page.query)),
         language: page.lang || normalized.lang || "ja", plan };
     });
-  return { doc: normalized, pages, pageFiles, componentFiles, notFound };
+  const notFoundMetadata = {
+    title: custom404 ? (custom404.title || custom404.name) + " | " + normalized.siteName : "Not Found",
+    description: custom404?.description || "", language: custom404?.lang || normalized.lang || "ja",
+    ogImage: socialImageSrc(normalized, custom404, assets), noindex: target === "production",
+  };
+  return { doc: normalized, pages, pageFiles, componentFiles, notFound, notFoundMetadata };
 }
