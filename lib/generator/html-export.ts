@@ -199,12 +199,12 @@ function href(ctx: Context, value: string, formAction = false): string {
   const rootRelative = pathname.startsWith("/");
   if (!rootRelative) {
     // An explicit base or a leading variable can supply an entirely different destination.
-    if (ctx.authoredBase || (!formAction && hasVars(pathname))) return safe;
+    if (ctx.authoredBase || (!formAction && /^(?:\{[^{}\s"'<>\x60]+\}|\[slug\])/.test(pathname))) return safe;
     // Relative form actions can be server endpoints even when a page has the same clean URL.
     if (formAction) return ctx.prefix + new URL(safe, archiveFileUrl(ctx.page.slug)).href.slice("file:///".length);
   }
   // A clean editor URL and its exported directory/index.html have different bases for relative links.
-  const path = rootRelative ? pathname : new URL(pathname, archiveFileUrl(ctx.page.slug)).pathname;
+  const path = rootRelative ? pathname : relativeTemplatePath(pathname, ctx.page);
   const slug = path.replace(/^\/+|\/+$/g, "");
   let route = ctx.staticRoutes.get(slug);
   if (!route && slug.includes("%")) {
@@ -215,13 +215,29 @@ function href(ctx: Context, value: string, formAction = false): string {
   return formAction ? safe : ctx.prefix + path.replace(/^\/+/, "") + suffix;
 }
 
+/** Keep variable placeholders intact while resolving the URL against the author's clean page path. */
+function relativeTemplatePath(path: string, page: Page): string {
+  const placeholders: string[] = [];
+  let prefix = "tsumu-export-variable-";
+  // A literal authored path containing the marker must never be mistaken for a placeholder.
+  while (path.includes(prefix)) prefix += "x";
+  const masked = path.replace(/\{[^{}\s"'<>\x60]+\}|\[slug\]/g, token => {
+    const index = placeholders.push(token) - 1;
+    return prefix + index + "-end";
+  });
+  const resolved = new URL(masked, archiveFileUrl(page.slug)).pathname;
+  return resolved.replace(new RegExp(prefix + "(\\d+)-end", "g"), (match, index: string) =>
+    placeholders[Number(index)] ?? match);
+}
+
 /** Preserve the resource's target when a clean page URL moves to <slug>/index.html. */
 function staticResourceUrl(ctx: Context, safe: string): string {
   if (/^\/(?!\/)/.test(safe)) return ctx.prefix + safe.slice(1);
   if (!ctx.staticRoutes || ctx.authoredBase || !safe || /^(?:[a-z][a-z0-9+.-]*:|[?#])/i.test(safe)) return safe;
   const [, path, suffix] = /^([^?#]*)([\s\S]*)$/.exec(safe)!;
-  if (hasVars(path)) return safe;
-  return ctx.prefix + new URL(path, archiveFileUrl(ctx.page.slug)).pathname.slice(1) + suffix;
+  // A leading variable can expand to a complete URL, not merely a relative filename.
+  if (/^(?:\{[^{}\s"'<>\x60]+\}|\[slug\])/.test(path)) return safe;
+  return ctx.prefix + relativeTemplatePath(path, ctx.page).slice(1) + suffix;
 }
 
 function sourceHref(ctx: Context, value: string): string {
