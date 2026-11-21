@@ -1696,6 +1696,21 @@ test("overlapping drops remain busy until all complete and old errors cannot ove
   }
 });
 
+test("browser fallback is an informational notice, while an upload failure remains an error", async () => {
+  const work = deferred<Asset>(); const f = setup(() => work.promise);
+  try {
+    f.add();
+    work.resolve({ ...uploaded, path: undefined, dataUrl: "data:audio/wav;base64,bG9jYWw=" });
+    await tick();
+    const notices = f.render();
+    const info = notices.find((e) => e.props?.role === "status" && e.type === "p");
+    assert.ok(info, "a successful fallback must produce a status message");
+    assert.equal(info.props.children, "サーバーに保存できなかったため、このブラウザに保存しました。");
+    assert.equal(info.props.style?.color, undefined, "a successful fallback must keep the neutral hint color");
+    assert.equal(notices.some((e) => e.props?.role === "alert" && e.type === "p"), false);
+  } finally { f.ui.unmount(); }
+});
+
 test("a current upload failure can be retried and fallback files remain available", async () => {
   const first = deferred<Asset>(); const second = deferred<Asset>(); let calls = 0;
   const f = setup(() => ++calls === 1 ? first.promise : second.promise);

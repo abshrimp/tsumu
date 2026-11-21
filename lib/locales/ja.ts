@@ -895,7 +895,7 @@ const ja: Dict = {
   " ({unknown} with unknown size)": "（うち{unknown}件はサイズ不明）",
   "The server permanently deletes files that no other saved site uses.": "保存済みの別サイトでも使用しているファイルは残ります。それ以外のファイルはサーバーから完全に削除されます。",
   "Delete {length} unused assets?": "使っていないアセット {length}件を削除しますか？",
-  "Couldn't save to the server, so it was saved in this browser. Check the save status at the bottom of the screen.": "サーバーに保存できなかったため、このブラウザに保存しました。画面の下の保存の状態を確認してください。",
+  "Couldn't save to the server, so it was saved in this browser.": "サーバーに保存できなかったため、このブラウザに保存しました。",
   "Can't save to the server yet. Check the save status at the bottom of the screen.": "まだサーバーに保存できません。画面の下の保存の状態を確認してください。",
   "Couldn't move it to the server": "サーバーへ移せませんでした",
   "The server deletes this file if no other saved site uses it.": "保存済みの別サイトで使用していなければ、このファイルはサーバーから削除されます。",

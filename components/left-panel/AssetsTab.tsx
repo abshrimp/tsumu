@@ -306,6 +306,7 @@ export function AssetsTab() {
   }, []);
 
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -391,6 +392,7 @@ export function AssetsTab() {
     const history = useEditor.getState().historyRevision;
     setUploadCount((count) => count + 1);
     setError(null);
+    setNotice(null);
     const historyChanged = () => useEditor.getState().historyRevision !== history;
     return {
       historyChanged,
@@ -404,6 +406,7 @@ export function AssetsTab() {
     const inScope = removalScope();
     const src = assetSrc(asset);
     setError(null);
+    setNotice(null);
     try {
       await downloadAsset(asset);
     } catch {
@@ -526,9 +529,7 @@ export function AssetsTab() {
         else updateDoc((d) => void (d.assets[asset.id] = asset));
       }
       if (fellBack && request.current()) {
-        setError(
-          tr("Couldn't save to the server, so it was saved in this browser. Check the save status at the bottom of the screen.")
-        );
+        setNotice(tr("Couldn't save to the server, so it was saved in this browser."));
       }
     } catch (e) {
       if (request.current()) setError(userMessage(e, tr("Couldn't upload")));
@@ -734,11 +735,9 @@ export function AssetsTab() {
               e.target.value = "";
             }}
           />
+          {notice && <p className="hint" role="status" style={{ marginBottom: 0 }}>{notice}</p>}
           {error && (
-            <p
-              className="hint"
-              style={{ color: "var(--danger)", marginBottom: 0 }}
-            >
+            <p className="hint" role="alert" style={{ color: "var(--danger)", marginBottom: 0 }}>
               {error}
             </p>
           )}
