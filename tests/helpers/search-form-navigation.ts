@@ -27,6 +27,13 @@ export function searchFormFiles() {
   });
   const links = [link("first-link", `/search${firstSearch}`), link("next-link", `/search${nextSearch}`), link("defaults-link", `/search${defaultSearch}`)];
   const result: DocNode = { ...makeBox(), id: "result", attrId: "result", text: { content: "API: {response.q}", heading: 0 } };
+  const delayed: DocNode = { ...makeBox(), id: "delay", attrId: "delay", semantic: "button", text: { content: "Hide result later", heading: 0 },
+    scripts: [{ id: "after-wait", trigger: "click", steps: [
+      { id: "started", kind: "hide", target: "ready" },
+      { id: "wait", kind: "wait", seconds: 30 },
+      { id: "finish", kind: "hide", target: "result" },
+    ] }] };
+  const ready: DocNode = { ...makeBox(), id: "ready", attrId: "ready", text: { content: "Ready", heading: 0 } };
   const revision: DocNode = { ...makeBox(), id: "revision", attrId: "render-revision", text: { content: "{response.revision}", heading: 0 } };
   const staticInput = field("static-input", { kind: "input", defaultValue: "Static form" });
   const staticForm: DocNode = { ...makeBox(), id: "static-form", attrId: "static-form", semantic: "form", children: [staticInput.id] };
@@ -34,13 +41,13 @@ export function searchFormFiles() {
     schemaVersion: 1, siteName: "Search navigation fixture", assets: {}, pageOrder: ["static", "search"],
     pages: {
       static: { id: "static", name: "Static", slug: "", title: "Static", description: "", children: [staticForm.id, ...links.map((n) => n.id)] },
-      search: { id: "search", name: "Search", slug: "search", title: "Search", description: "", children: [form.id, result.id, revision.id, ...links.map((n) => n.id)], pageScripts: [{
+      search: { id: "search", name: "Search", slug: "search", title: "Search", description: "", children: [form.id, result.id, revision.id, ready.id, delayed.id, ...links.map((n) => n.id)], pageScripts: [{
         id: "load", trigger: "load", steps: [
           { id: "fetch", kind: "fetch", url: "https://example.com/search?q={q}", as: "response" },
         ],
       }] },
     },
-    nodes: Object.fromEntries([...fields, form, ...links, result, revision, staticInput, staticForm].map((n) => [n.id, n])),
+    nodes: Object.fromEntries([...fields, form, ...links, result, revision, ready, delayed, staticInput, staticForm].map((n) => [n.id, n])),
   };
   const { files } = generateProject(doc);
   files["lib/safe-fetch.ts"] = `

@@ -1,4 +1,32 @@
+import { htmlResourceElements } from "../html-zip-source";
 import { UPDATE_SOCIAL_IMAGE } from "./social-image";
+
+/** Without a client router the route can still display the default page's authored HTML. */
+export function noScriptQueryFallback(html: string): string {
+  const endTag = /<(?=\/noscript[\t\n\f\r />])/gi;
+  if (!endTag.test(html)) return "<noscript>" + html + "</noscript>";
+  // With scripting enabled the outer noscript is raw text. Preserve an authored fallback's
+  // children and attributes without letting its end tag close the outer element early.
+  const edits: { start: number; end: number; value: string }[] = [];
+  for (const el of htmlResourceElements(html, "fragment", false).elements) {
+    const loc = el.sourceCodeLocation;
+    if (!loc?.startTag || el.namespaceURI !== "http://www.w3.org/1999/xhtml") continue;
+    if (el.tagName === "noscript") {
+      const start = loc.startTag.startOffset + 1;
+      edits.push({ start, end: start + "noscript".length, value: "span" });
+      if (loc.endTag) edits.push({ start: loc.endTag.startOffset, end: loc.endTag.endOffset, value: "</span>" });
+    } else if (el.tagName === "style" && loc.endTag) {
+      const start = loc.startTag.endOffset, end = loc.endTag.startOffset;
+      const css = html.slice(start, end);
+      const value = css.replace(endTag, "\\3c ");
+      if (value !== css) edits.push({ start, end, value });
+    }
+  }
+  for (const { start, end, value } of edits.sort((a, b) => b.start - a.start)) {
+    html = html.slice(0, start) + value + html.slice(end);
+  }
+  return "<noscript>" + html.replace(endTag, "&lt;") + "</noscript>";
+}
 
 /**
  * 静的なページでの URL のクエリ違いの振り分け。1つの HTML ファイルで、サーバーを使わずに、

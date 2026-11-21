@@ -228,12 +228,17 @@ export function useCanvasData({
   }, [mode, page?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setActivePage = useEditor((s) => s.setActivePage);
+  const [fragmentRequest, setFragmentRequest] = useState<{ pageId: string; hash: string } | null>(null);
 
   /** プレビューでのリンクの移動: サイト内のパスなら、ページの切り替えとして扱う */
   const navigateTo = useCallback(
     (url: string) => {
       const raw = url.trim();
-      if (!raw || raw.startsWith("#")) return;
+      if (!raw) return;
+      if (raw.startsWith("#")) {
+        setFragmentRequest({ pageId: activePageId, hash: raw });
+        return;
+      }
       if (/^(https?:)?\/\//i.test(raw) || /^(mailto|tel):/i.test(raw)) {
         window.open(raw, "_blank", "noopener");
         return;
@@ -250,12 +255,18 @@ export function useCanvasData({
       }
       if (targetUrl.origin !== origin) return;
       const path = clean(targetUrl.pathname);
+      let decodedPath = path;
+      try { decodedPath = decodeURI(path); } catch { /* Keep a literal malformed escape. */ }
+      const selectDestination = (pageId: string) => {
+        setActivePage(pageId);
+        setFragmentRequest(raw.includes("#") ? { pageId, hash: targetUrl.hash } : null);
+      };
       const query = targetUrl.searchParams;
       const pages = doc.pageOrder.map((pid) => doc.pages[pid]);
       // 通常のページ（URL が完全に一致するもの）。同じパスのページは、クエリで振り分ける。
-      const normal = queryPage(pages.filter((p) => !p.slug.includes("[slug]") && clean(p.slug) === path), query);
+      const normal = queryPage(pages.filter((p) => !p.slug.includes("[slug]") && (clean(p.slug) === decodedPath || clean(p.slug) === path)), query);
       if (normal) {
-        setActivePage(normal.id);
+        selectDestination(normal.id);
         return;
       }
       // [slug] のページ: 値を取り出して、プレビューの対象に反映する
@@ -283,7 +294,7 @@ export function useCanvasData({
         const target = queryPage(pages.filter((p) => clean(p.slug) === slug), query)!;
         setPreviewSlug(val);
         // setActivePage は previewIndex を 0 に戻すため、先にページを切り替える
-        setActivePage(target.id);
+        selectDestination(target.id);
         // 移動先の中心となるデータが「{slug} のものを探す」なら、一致する項目を選ぶ
         const main = primaryCandidates(doc, target.id);
         if (main?.field) {
@@ -296,10 +307,10 @@ export function useCanvasData({
       }
       // どのページにも一致しない: 404 のページ（URL が「404」）があれば表示する
       const nf = doc.pageOrder.find((pid) => clean(doc.pages[pid].slug) === "404");
-      if (nf) setActivePage(nf);
+      if (nf) selectDestination(nf);
     },
-    [doc, page?.slug, slugVal, setActivePage, setPreviewIndex]
+    [doc, page?.slug, activePageId, slugVal, setActivePage, setPreviewIndex]
   );
 
-  return { fetchedVars, fieldValues, setFieldValues, setClientValues, setLiveSamples, setLiveTotals, setFullData, previewSlug, setPreviewSlug, refreshing, primary, primaryFindBy, primaryItems, setTypedSlugOf, slugNotFound, slugVal, plan, fieldVarNodes, pageVars, refreshData, setActivePage, navigateTo };
+  return { fetchedVars, fieldValues, setFieldValues, setClientValues, setLiveSamples, setLiveTotals, setFullData, previewSlug, setPreviewSlug, refreshing, primary, primaryFindBy, primaryItems, setTypedSlugOf, slugNotFound, slugVal, plan, fieldVarNodes, pageVars, refreshData, setActivePage, navigateTo, fragmentRequest };
 }

@@ -49,7 +49,7 @@ import { useSyncExternalStore } from "react";
 const subscribe = (callback) => { window.addEventListener("popstate", callback); return () => window.removeEventListener("popstate", callback); };
 export const usePathname = () => window.location.pathname;
 export const useSearchParams = () => new URLSearchParams(useSyncExternalStore(subscribe, () => window.location.search));
-export const useRouter = () => ({ replace(url) { window.history.replaceState(null, "", url); window.dispatchEvent(new PopStateEvent("popstate")); } });
+export const useRouter = () => ({ push(url) { window.history.pushState(null, "", url); window.dispatchEvent(new PopStateEvent("popstate")); } });
 `,
         }));
       } }],

@@ -179,7 +179,7 @@ function GhostViewInner({
       } else if (node.link.newTab) {
         common.target = "_blank";
         common.rel = "noopener noreferrer";
-      } else if (!href.startsWith("#")) {
+      } else {
         common.onClick = (e: React.MouseEvent) => {
           prevClick?.(e);
           e.preventDefault();
@@ -444,7 +444,7 @@ export function NodeView({
       } else if (node.link.newTab) {
         common.target = "_blank";
         common.rel = "noopener noreferrer";
-      } else if (!href.startsWith("#")) {
+      } else {
         common.onClick = (e: React.MouseEvent) => {
           prevClick?.(e);
           e.preventDefault();

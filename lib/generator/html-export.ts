@@ -31,7 +31,7 @@ import { EMPTY_GIF, buildPwaManifest } from "./templates";
 import { scriptsFile } from "../script-runtime";
 import { PAGE_DATA_RUNTIME, serializePageDataPlan } from "./browser-data";
 import { socialImageSrc } from "./social-image";
-import { QUERY_VARIANT_RUNTIME } from "./query-route";
+import { noScriptQueryFallback, QUERY_VARIANT_RUNTIME } from "./query-route";
 import { safeMediaUrl, safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
 import { rewriteCssAssetUrls } from "../css-assets";
@@ -637,15 +637,10 @@ export function generateStandaloneHtml(
               html: staticPageFragment(context, variant),
             };
           });
-          // The query router fills the active variant when JavaScript runs. Without it,
-          // show the unconditional page rather than leaving the published page empty.
-          // Never let authored snippets close the noscript container prematurely.
-          const fallback = staticPageFragment({ ...ctx, seen: new Set<string>() }, page)
-            .replace(/<\/noscript(?=[\t\n\f\r />])/gi, "&lt;/noscript");
           return '<script type="application/json" data-page-variants>' +
             JSON.stringify(variants).replace(/</g, "\\u003c") + '</script>' +
             '<div data-variant-root style="display:contents"></div>' +
-            '<noscript>' + fallback + '</noscript>';
+            noScriptQueryFallback(variants[group.indexOf(page)].html);
         })();
     const icon = normalized.favicon?.assetId ? resource(ctx, normalized.favicon.assetId) :
       normalized.favicon?.url ? sourceHref(ctx, normalized.favicon.url) : "";

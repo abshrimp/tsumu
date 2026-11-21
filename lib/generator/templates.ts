@@ -252,10 +252,9 @@ export default function SearchForm({
         if (!qs) return;
         event.preventDefault();
         // ソフトナビゲーション: サーバー再取得で一覧だけが更新される
-        router.replace(
-          qs.toString() ? \`?\${qs.toString()}\` : window.location.pathname,
-          { scroll: false }
-        );
+        const query = qs.toString();
+        const href = query ? \`?\${query}\` : window.location.pathname;
+        router.push(href + window.location.hash, { scroll: false });
       }}
     >
       {children}

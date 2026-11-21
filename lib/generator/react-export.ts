@@ -199,13 +199,18 @@ export function buildReactProject(
   ].filter((line) => line !== "").join("\n");
   files["src/App.tsx"] = app;
   files["src/main.tsx"] = [
+    'import { flushSync } from "react-dom";',
     'import { createRoot } from "react-dom/client";',
     'import App from "./App";',
     'import "./globals.css";',
     'import "./site.css";', '',
     'const root = document.getElementById("root");',
     'if (!root) throw new Error("Missing React root");',
-    'createRoot(root).render(<App />);', '',
+    'const app = createRoot(root);',
+    'const render = () => app.render(<App />);',
+    '// Mount the target before the browser performs its initial fragment navigation.',
+    'if (window.location.hash) flushSync(render);',
+    'else render();', '',
   ].join("\n");
 
   files["src/globals.css"] = googleFontsCss(doc) + next.files["app/globals.css"];

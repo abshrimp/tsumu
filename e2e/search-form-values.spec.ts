@@ -171,6 +171,49 @@ test.describe("Next.js search form navigation", () => {
     if (directory) await rm(directory, { recursive: true, force: true });
   });
 
+  test("Back and Forward revisit submitted searches, their fields, and the original fragment @export-navigation", async ({ page }) => {
+    await page.goto(`${origin}/search${firstSearch}#search-form`);
+    await expect(page.locator("#q")).toHaveValue("first");
+    const initialLength = await page.evaluate(() => history.length);
+    for (const value of ["green tea", "black tea"]) {
+      await page.locator("#q").fill(value);
+      await page.locator("#submit").click();
+      await expect(page.locator("#result")).toHaveText("API: " + value);
+    }
+    const revision = await page.locator("#render-revision").textContent();
+    await page.locator("#submit").click();
+    await expect(page.locator("#render-revision")).not.toHaveText(revision!);
+    expect(await page.evaluate(() => history.length)).toBe(initialLength + 2);
+    for (const [direction, query] of [["back", "green tea"], ["back", "first"], ["forward", "green tea"], ["forward", "black tea"]]) {
+      if (direction === "back") await page.goBack();
+      else await page.goForward();
+      await expect(page.locator("#result")).toHaveText("API: " + query);
+      await expect(page.locator("#q")).toHaveValue(query);
+      const url = new URL(page.url());
+      expect(url.searchParams.get("q")).toBe(query);
+      expect(url.hash).toBe("#search-form");
+    }
+  });
+
+  test("delayed actions from an earlier search do not hide the next results", async ({ page }) => {
+    await page.clock.install();
+    await page.goto(origin + "/search" + firstSearch);
+    await expect(page.locator("#result")).toHaveText("API: first");
+    await page.locator("#delay").click();
+    await expect(page.locator("#ready")).toBeHidden();
+
+    await page.locator("#next-link").click();
+    await expect(page.locator("#result")).toHaveText("API: next");
+    await page.clock.fastForward(31_000);
+    await expect(page.locator("#result")).toBeVisible();
+
+    // An anchor within the same results keeps the new page's own action alive.
+    await page.locator("#delay").click();
+    await page.evaluate(() => { location.hash = "result"; });
+    await page.clock.fastForward(31_000);
+    await expect(page.locator("#result")).toBeHidden();
+  });
+
   test("Search forms follow client-side navigation and history while preserving input on same-URL renders", async ({ page }) => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));

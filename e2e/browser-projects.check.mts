@@ -25,6 +25,7 @@ test("all three engines discover the same core editing smoke tests", () => {
   }[] };
   const smoke = new Map<string, Set<string>>();
   const forms = new Map<string, Set<string>>();
+  const navigation = new Map<string, Set<string>>();
   const discoveredFiles = new Set<string>();
   let chromiumOnly = 0;
   function visit(suite: Suite) {
@@ -32,7 +33,8 @@ test("all three engines discover the same core editing smoke tests", () => {
       const normalized = spec.file.startsWith("e2e/") ? spec.file : `e2e/${spec.file}`;
       discoveredFiles.add(normalized);
       const projects = spec.tests.map((t) => t.projectName).sort();
-      const group = spec.tags.includes("core-editing") ? smoke : spec.tags.includes("form-values") ? forms : null;
+      const group = spec.tags.includes("core-editing") ? smoke : spec.tags.includes("form-values") ? forms :
+        spec.tags.includes("export-navigation") ? navigation : null;
       if (group) {
         assert.deepEqual(projects, ["chromium", "firefox", "webkit"], spec.title);
         const titles = group.get(spec.file) ?? new Set<string>();
@@ -52,6 +54,9 @@ test("all three engines discover the same core editing smoke tests", () => {
   assert.equal(smoke.size, 2);
   assert.equal(forms.get("search-form-values.spec.ts")?.size, 3);
   assert.equal(forms.size, 1);
+  assert.deepEqual([...navigation.keys()].sort(), [
+    "export-fragment-navigation.spec.ts", "export-query-fallback.spec.ts", "search-form-values.spec.ts",
+  ]);
   assert.ok(chromiumOnly > 0, "keep the full existing Chromium suite");
 
   const durations = JSON.parse(readFileSync(resolve(root, "scripts/e2e-shard-durations.json"), "utf8")).files as Record<string, [number, number]>;

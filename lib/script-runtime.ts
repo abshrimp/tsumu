@@ -387,6 +387,10 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*/fetch*/
       var pageGeneration = 0;
+      function routeAddress() {
+        return typeof location === "undefined" ? "" : (location.pathname || "") + (location.search || "");
+      }
+      var pageAddress = routeAddress();
       var pageBody = null;
       var pageId = null;
       var pageSeeds = null;
@@ -413,10 +417,13 @@ export const SCRIPT_RUNTIME = `function (env) {
       }
       /*/wait|repeat*/
       // DOM の入れ替え直後（監視の走査前）に始まるスクリプトも、新しいページとして扱う。
-      function syncPage(checkSeeds, newRoute) {
+      function syncPage(checkSeeds) {
         var body = root.querySelector("[data-page-body]");
         var pid = body ? body.getAttribute("data-page-body") : null;
-        var changed = newRoute || body !== pageBody || pid !== pageId;
+        // App Router can keep the same marker while rendering a new search result.
+        var address = routeAddress();
+        var changed = body !== pageBody || pid !== pageId ||
+          ((body || initialVars !== undefined) && address !== pageAddress);
         if (!changed && !checkSeeds) return pageGeneration;
         var seedData = body && body.getAttribute("data-list-seeds");
         var newData = seedData !== pageSeeds || (changed && !!seedData);
@@ -432,6 +439,7 @@ export const SCRIPT_RUNTIME = `function (env) {
           hovering.clear();
           /*/keep*/
           pageGeneration++;
+          pageAddress = address;
           pageBody = body;
           pageSeeds = seedData;
           if (pageId !== null) {
@@ -493,15 +501,12 @@ export const SCRIPT_RUNTIME = `function (env) {
       var setPageVars = null;
       if (typeof window !== "undefined" && initialVars !== undefined) {
         // A framework may reuse its DOM for two query variants of the same page.
-        function routeAddress() {
-          return typeof location === "undefined" ? "" : location.pathname + location.search;
-        }
-        var address = routeAddress();
+        var dataAddress = pageAddress;
         setPageVars = function (next) {
           var nextAddress = routeAddress();
-          if (nextAddress !== address) {
-            address = nextAddress;
-            syncPage(true, true);
+          if (nextAddress !== dataAddress) {
+            dataAddress = nextAddress;
+            syncPage(true);
             /*#scan*/
             Promise.resolve().then(scan);
             /*/scan*/
