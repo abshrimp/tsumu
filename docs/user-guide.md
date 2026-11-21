@@ -444,7 +444,9 @@ Every AI edit is validated on a working copy before it touches your page.
 
 ### Connecting an external AI client (MCP)
 
-To connect an AI app to an existing site, open that site in the editor. The browser tab handles requests from the app, so keep it open during the session.
+On the hosted editor, connect Tsumu from your AI app and select the sites on the authorization screen. Choose whether to allow editing, then open each selected site when prompted. Each editor tab handles requests for its site and must stay open while the app is using it.
+
+For a self-hosted editor, or to pair a site with a connection code, follow these steps.
 
 1. Open **⋯ → MCP connection**. The **See the connection guide** link shows how to add Tsumu to your AI app.
 2. Choose whether to allow editing. Clear the checkbox for read-only access. Select **Start connection** and copy the **Connection code**.

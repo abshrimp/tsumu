@@ -44,7 +44,7 @@ Tsumu lets you create websites with intuitive actions such as dragging and dropp
 
 ## AI integration
 
-- MCP connection: see the [setup guide](https://mcp.tsumu.ebii.net/).
+- Connect an AI app to selected sites with MCP. Keep each site open in the editor while the app reads or edits it. See the [setup guide](https://mcp.tsumu.ebii.net/).
 - Skills: see the [installation guide](docs/skills.md).
 
 ## Screenshots

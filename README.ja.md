@@ -44,7 +44,7 @@ Tsumu を使うと、ドラッグなどの直感的な操作だけで Web サイ
 
 ## AI と連携
 
-- MCP 接続：設定手順は[こちら](https://mcp.tsumu.ebii.net/)。
+- MCP で、選んだサイトを AI アプリから閲覧・編集できます。操作中は各サイトのエディタを開いたままにしてください。[接続ガイド](https://mcp.tsumu.ebii.net/)
 - Skills：導入ガイドは[こちら](docs/skills.ja.md)。
 
 ## スクリーンショット
