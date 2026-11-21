@@ -72,6 +72,7 @@ test("SiteDoc JSON import resolves node IDs into HTML script target attributes o
 
 test("already canonical targets keep their attribute IDs and unrelated nodes unchanged", () => {
   const doc = fixture();
+  doc.pages.home.pageScripts = [];
   doc.nodes.trigger.scripts = [{ id: "click", trigger: "click", steps: [
     { id: "known", kind: "show", target: "known-id" },
     { id: "missing", kind: "show", target: "" },

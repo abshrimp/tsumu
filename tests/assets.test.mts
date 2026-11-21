@@ -1,6 +1,7 @@
 import { describe, before, test, afterEach, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { ZipArchive } from "../lib/zip";
+import { tr } from "../lib/i18n";
 import { exportProjectZip } from "../lib/exportZip";
 import { generateExportProject } from "../lib/export-formats";
 import { parseSiteImport, restoreImportAssets } from "../lib/site-import";
@@ -1705,7 +1706,7 @@ test("browser fallback is an informational notice, while an upload failure remai
     const notices = f.render();
     const info = notices.find((e) => e.props?.role === "status" && e.type === "p");
     assert.ok(info, "a successful fallback must produce a status message");
-    assert.equal(info.props.children, "サーバーに保存できなかったため、このブラウザに保存しました。");
+    assert.equal(info.props.children, tr("Couldn\'t save to the server, so it was saved in this browser."));
     assert.equal(info.props.style?.color, undefined, "a successful fallback must keep the neutral hint color");
     assert.equal(notices.some((e) => e.props?.role === "alert" && e.type === "p"), false);
   } finally { f.ui.unmount(); }
