@@ -2,6 +2,7 @@ import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
+import { buildSync } from "./helpers/bundle";
 import { clearDraftLink, draftFromLocation, hasDraftResumeMarker, prepareDraftSignIn, resumeDraftAfterSignIn } from "../lib/external-edit/draft-link";
 import { DEFAULT_MCP_ENDPOINT, resolveMcpEndpoint } from "../lib/external-edit/config";
 import { configuredHostedEditorOrigin, trustedMcpOrigin, OFFICIAL_MCP_ORIGIN, isOfficialEditorHost, isOfficialEditorOrigin } from "../lib/external-edit/official.mjs";
@@ -94,6 +95,37 @@ JSON.stringify([
   trustedMcpOrigin()
 ]);`, { URL });
   assert.deepEqual(JSON.parse(result), [null, false, false, "https://mcp.tsumu.ebii.net"]);
+});
+
+test("browser build preserves injected hosted origins with no process object", () => {
+  const origin = "https://studio.example.test";
+  const relay = "https://relay.example.test";
+  const bundle = buildSync({
+    stdin: {
+      contents: `
+        import { configuredHostedEditorOrigin, isOfficialEditorHost,
+          isOfficialEditorOrigin, trustedMcpOrigin } from "./lib/external-edit/official.mjs";
+        globalThis.result = JSON.stringify({
+          configured: configuredHostedEditorOrigin(),
+          host: isOfficialEditorHost("studio.example.test"),
+          editor: isOfficialEditorOrigin("https://studio.example.test"),
+          relay: trustedMcpOrigin()
+        });
+      `,
+      resolveDir: process.cwd(),
+      sourcefile: "browser-hosted-check.mjs",
+    },
+    bundle: true, write: false, format: "iife", platform: "browser",
+    define: {
+      "process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN": JSON.stringify(origin),
+      "process.env.NEXT_PUBLIC_TSUMU_MCP_URL": JSON.stringify(relay),
+    },
+  }).outputFiles[0].text;
+  const context: { URL: typeof URL; result?: string } = { URL };
+  runInNewContext(bundle, context);
+  assert.deepEqual(JSON.parse(context.result ?? "{}"), {
+    configured: origin, host: true, editor: true, relay,
+  });
 });
 
 test("hosted MCP integration is explicitly configured and checks exact origins", () => {
