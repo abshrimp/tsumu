@@ -8,7 +8,7 @@
  * Never guess names, repair cross-page references, or override an existing id.
  */
 import { walkSteps } from "./script";
-import { SELF_TARGET, type DocNode, type Script, type SiteDoc } from "./types";
+import { SELF_TARGET, type Script, type SiteDoc } from "./types";
 
 type Scope = { ids: Set<string>; attrs: Set<string> };
 
