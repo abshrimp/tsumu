@@ -53,6 +53,9 @@ test("single HTML export embeds a configured local Open Graph image", async () =
   doc.assets.social = { id: "social", name: "social.png", mimeType: "image/png",
     width: 1, height: 1, dataUrl: "data:image/png;base64,AQID" };
   doc.ogImage = { assetId: "social" };
-  const project = await prepareExportProject(doc, "single-html");
+  const project = await prepareExportProject(doc, {
+    framework: "single-html", language: "javascript", style: "css",
+    scope: "page", pageId: doc.pageOrder[0],
+  });
   assert.match(project.files["index.html"], /property="og:image" content="data:image\/png;base64,AQID"/);
 });
