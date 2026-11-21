@@ -56,7 +56,17 @@ test("Tsumu page title and save preferences survive a reload", { tag: "@core-edi
 });
 
 test("header site name can be renamed in place without a page dropdown", { tag: "@core-editing" }, async ({ page }) => {
-  const id = await openNewSite(page, "Old site name");
+  // The Home workflow seeds the editable document with the chosen site name.
+  // Creating only the site record via POST /api/sites leaves an empty document,
+  // which the editor initializes with the generic "My Site" name.
+  await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
+  await page.goto("/");
+  await page.getByRole("button", { name: "新しいサイト" }).first().click();
+  await page.getByLabel("サイト名").fill("Old site name");
+  await page.getByRole("button", { name: "作成して開く" }).click();
+  await page.waitForURL(/\/sites\//);
+  await expect(canvas(page).getByText(HEADING).first()).toBeVisible();
+  const id = new URL(page.url()).pathname.split("/").at(-1)!;
   const header = page.locator(".hdr-page");
   const trigger = header.getByRole("button", { name: "サイト名: Old site name" });
   await expect(trigger).toBeVisible();
