@@ -47,26 +47,28 @@ reconciliation** checks one KV page per invocation:
 
 ## Storage ledger and the usage meter
 
-D1 table `asset_objects` lists every object in `ASSETS_KV` (path, size,
-upload time, last time an inventory saw it), while `site_assets` tracks which
-sites own or reference each object. Together they power each site's storage
-meter in the Assets tab, scoping displayed usage to assets belonging to that
-site (including removed assets waiting in that site's Trash) without exposing
-other sites' uploads.
+D1 table `asset_objects` records the path, size (when known), upload time
+and last inventory time of each known KV object. Once the inventory is
+complete, the Assets tab shows totals for the shared store, including files
+in Trash.
 
-- An upload adds its `asset_objects` and `site_assets` rows after the KV write;
-  saving a document or copying pages/elements records referenced paths in
-  `site_assets` for the destination site. If an `asset_objects` write fails,
-  the next weekly inventory adds it.
-- A GC delete removes the `asset_objects` and `site_assets` rows in the same
-  D1 batch as the candidate.
+- After writing the file to KV, the upload API records the site's grant in
+  `site_asset_uploads` and the object's size in `asset_objects`. A later
+  inventory can fill in a missing object row.
+- Copying an asset between sites or duplicating a site records grants for
+  the destination. A document save checks incoming paths against existing
+  grants and references in the site's current saved document. GC uses the
+  current documents to decide whether a path is still in use.
+- A GC delete removes the object's `asset_objects` row, its
+  `site_asset_uploads` grants and its candidate row in one D1 batch.
 - The weekly inventory upserts every listed key, filling in sizes from KV
   metadata. When a full pass finishes, rows not seen in that pass (and
   uploaded before it began) are removed.
 - `asset_ledger_state.complete_at` is set after the first full pass that
-  started after the ledger was created. Until then, the meter falls back to
-  counting the files that the site's document references. With more than 1,000
-  keys in KV, this takes one week per 1,000 keys.
+  started after the ledger was created. Until then, the meter combines files
+  in the open document with visible pending candidates, counting each path
+  once. Administrators and anonymous instances also include files referenced
+  by other sites. A full inventory takes one weekly run per 1,000 KV keys.
 - Objects uploaded before sizes were recorded have no size in KV metadata.
   The meter fills these from the open site's document when it can and
   otherwise reports them as unknown.
@@ -74,15 +76,16 @@ other sites' uploads.
 When an asset is deleted, the confirmation dialog states what happens to the
 stored file (`/api/status` → `assetDeletion`): deleted after
 `ASSET_GC_GRACE_DAYS` days when `ASSET_GC_ENABLED=true`, kept otherwise, and
-deleted immediately on Node.js and Docker when no other saved site references
-the file. A direct image URL in another site’s HTML or CSS also counts as a
-reference.
+deleted immediately on Node.js and Docker when no other site has a grant or
+a saved reference and the browser reports no local reference. A direct image
+URL in another site's HTML or CSS also counts as a reference.
 
 ## Trash
 
-The Assets panel shows the open site's pending candidates as **Trash**, under
-the storage meter, with their count and total size. It is available whenever
-the editor runs on D1, whether or not `ASSET_GC_ENABLED` is set.
+The Assets panel shows pending candidates as **Trash**. Signed-in users see
+candidates for which the open site has a grant in `site_asset_uploads`.
+Instance administrators and anonymous instances can see all candidates.
+Trash is available on D1 even when scheduled deletion is disabled.
 
 - **Restore** removes the candidate row and adds the asset back to the site
   you are editing. The KV object is never rewritten. A restore is refused
@@ -102,8 +105,9 @@ the editor runs on D1, whether or not `ASSET_GC_ENABLED` is set.
 
 - D1 tables: `asset_gc_candidates` (path, first-unreferenced time,
   last-seen time, optional size), `asset_gc_runs` (audit),
-  `asset_gc_state` (KV cursor and exclusive run lease), and the storage
-  ledger `asset_objects` / `site_assets` / `asset_ledger_state`.
+  `asset_gc_state` (KV cursor and exclusive run lease), `asset_objects`
+  (KV inventory), `asset_ledger_state` (inventory completion), and
+  `site_asset_uploads` (per-site grants).
 - `ASSET_GC_MAX_DELETES` defaults to 500 and caps eligible paths considered.
   Physical deletion continues until the run has used 900 of the 1,000
   Cloudflare-service subrequests (D1, KV, Durable Objects) that Workers Free
