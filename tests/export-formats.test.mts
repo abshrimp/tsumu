@@ -879,6 +879,7 @@ describe("export-css-roundtrip", () => {
       Object.assign(globalThis, {
         document: { createElement: () => ({ href: "", download: "", click() {} }) },
         fetch: async (input: string, init?: RequestInit) => {
+          if (input === "/api/status") return Response.json({ assets: true });
           if (input.startsWith("data:")) return globals.fetch.value(input, init);
           if (input.startsWith("/api/assets/file?")) {
             const bytes = stored.get(new URL(input, "https://editor.test").searchParams.get("path")!);

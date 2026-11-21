@@ -157,8 +157,10 @@ export async function zipCssBrowser(page: Page, storage: "local" | "remote") {
     if (url.origin === "https://zip-editor.test" && url.pathname === "/") {
       return route.fulfill({ contentType: "text/html", body: '<!doctype html><link rel="icon" href="data:,"><div id="app"></div>' });
     }
-    if (url.origin === "https://zip-editor.test" && url.pathname === "/api/assets" && request.method() === "POST") {
-      if (storage === "local") return route.fulfill({ status: 503, json: { error: "No storage in fixture" } });
+    if (url.origin === "https://zip-editor.test" && url.pathname === "/api/status") {
+      return route.fulfill({ json: { assets: storage === "remote" } });
+    }
+    if (storage === "remote" && url.origin === "https://zip-editor.test" && url.pathname === "/api/assets" && request.method() === "POST") {
       const form = await new Response(new Uint8Array(request.postDataBuffer()!), { headers: { "content-type": request.headers()["content-type"] } }).formData();
       const file = form.get("file") as File;
       const path = `assets/random-storage/${uploaded.size + 1}/${file.name}`;

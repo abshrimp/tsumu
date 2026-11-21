@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { localMode } from "./helpers/local-site";
 import { ZipBuilder } from "../lib/zip";
 import { createInitialDoc, makeIcon, makeImage } from "../lib/presets";
 import { browserDoc, setBrowserDoc } from "./helpers/browser-doc";
@@ -23,15 +24,6 @@ function fixture(withAsset = false) {
     doc.pages[doc.pageOrder[0]].children.push(image.id);
   }
   return doc;
-}
-async function localMode(page: import("@playwright/test").Page) {
-  await page.addInitScript(() => {
-    localStorage.setItem("tsumu-lang", "ja");
-    localStorage.setItem("tsumu-help-seen-v1", "1");
-  });
-  await page.route("**/api/sites**", route => route.fulfill({ status: 503, json: {} }));
-  await page.route("**/api/doc**", route => route.fulfill({ status: 503, json: {} }));
-  await page.route("**/api/assets", route => route.fulfill({ status: 503, json: {} }));
 }
 async function getLocalSite(page: import("@playwright/test").Page) {
   const list = await page.evaluate(key => JSON.parse(localStorage.getItem(key) || "[]") as { id: string; name: string }[], listKey);

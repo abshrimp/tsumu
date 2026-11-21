@@ -380,10 +380,11 @@ for (const storage of ["local", "remote"] as const) {
       if (url.origin === "https://srcset.test" && url.pathname === "/") {
         return route.fulfill({ contentType: "text/html", body: '<!doctype html><link rel="icon" href="data:,">' });
       }
-      if (url.origin === "https://srcset.test" && url.pathname === "/api/assets" && route.request().method() === "POST") {
-        return storage === "local"
-          ? route.fulfill({ status: 503, json: { error: "Local fixture" } })
-          : route.fulfill({ json: { path: "assets/uploaded.svg" } });
+      if (url.origin === "https://srcset.test" && url.pathname === "/api/status") {
+        return route.fulfill({ json: { assets: storage === "remote" } });
+      }
+      if (storage === "remote" && url.origin === "https://srcset.test" && url.pathname === "/api/assets" && route.request().method() === "POST") {
+        return route.fulfill({ json: { path: "assets/uploaded.svg" } });
       }
       if (url.origin === "https://srcset.test" && url.pathname === "/api/assets/file" && url.searchParams.get("path") === "assets/uploaded.svg") {
         return route.fulfill({ contentType: "image/svg+xml", body: archiveImage });

@@ -11,6 +11,7 @@ test.beforeEach(async ({ page }) => {
   await page.route("http://clipboard-artwork.test/**", (route) => route.request().url().endsWith("/")
     ? route.fulfill({ contentType: "text/html", body: '<html><body><div id="app"></div></body></html>' })
     : route.fulfill({ status: 503, body: "{}" }));
+  await page.route("http://clipboard-artwork.test/api/status", route => route.fulfill({ json: { assets: true } }));
   await page.goto("http://clipboard-artwork.test/");
   await page.evaluate(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
   await page.addScriptTag({ content: bundle });
@@ -247,6 +248,7 @@ test.describe("Native paste event scope in the editor", () => {
     await page.route("http://paste-scope.test/**", route => route.request().url().endsWith("/")
       ? route.fulfill({ contentType: "text/html", body: '<html><body><div id="app"></div></body></html>' })
       : route.fulfill({ status: 503, body: "{}" }));
+    await page.route("http://paste-scope.test/api/status", route => route.fulfill({ json: { assets: true } }));
     await page.goto("http://paste-scope.test/");
     await page.evaluate(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
     await page.addScriptTag({ content: bundle });

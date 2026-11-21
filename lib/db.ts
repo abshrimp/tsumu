@@ -184,6 +184,7 @@ export async function getDbFromBinding(binding: D1LikeDatabase): Promise<Db> {
             path TEXT NOT NULL,
             PRIMARY KEY(site_id,path)
           )`,
+          `CREATE INDEX IF NOT EXISTS site_asset_uploads_path ON site_asset_uploads(path)`,
           // サイトごとに、最後に GitHub へ公開した出力形式。D1 と Node.js の SQLite で共通。
           `CREATE TABLE IF NOT EXISTS site_publish_options (
             site_id TEXT PRIMARY KEY,

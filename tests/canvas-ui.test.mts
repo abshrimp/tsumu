@@ -2290,6 +2290,7 @@ beforeEach(() => {
     set src(_value: string) { queueMicrotask(() => this.onload?.()); }
   } as unknown as typeof Image;
   globalThis.fetch = async (url) => {
+    if (url === "/api/status") return Response.json({ assets: true });
     assert.equal(url, "/api/assets");
     return new Promise<Response>((resolve) => {
       const index = pending.length;

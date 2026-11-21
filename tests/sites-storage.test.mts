@@ -917,6 +917,7 @@ test("an import timeout reconciles the reserved site before uploading assets", a
   let saved: typeof doc | null = null;
   const actions: string[] = [];
   t.mock.method(globalThis, "fetch", async (url, init) => {
+    if (url === "/api/status") return Response.json({ assets: true });
     if (String(url).startsWith("data:")) return nativeFetch(url, init);
     actions.push(init?.method ?? "GET");
     if (url === "/api/sites" && init?.method === "POST") {
@@ -1151,7 +1152,7 @@ test("restored URLs follow the newly stored asset without copying a signature in
     '<img data-src="' + old + '" src="' + old + '&amp;sig=private#icon"><style>i{background:url(' + old + ')}</style>';
   page.bodyStyles = { base: { default: { backgroundImage: 'url("' + old + '#icon")' } } };
   const original = globalThis.fetch;
-  globalThis.fetch = async () => Response.json({ path: "assets/new" });
+  globalThis.fetch = async (url) => Response.json(url === "/api/status" ? { assets: true } : { path: "assets/new" });
   try {
     const { doc: restored, createdPaths } = await restoreImportAssets({
       doc, assets: new Map([[asset.id, enc.encode("contents")]]), warnings: [],
@@ -1175,7 +1176,8 @@ test("an upload without a registered destination is never accepted as a restored
   const original = globalThis.fetch;
   try {
     for (const path of [undefined, {}, "assets/", "https://other.test/file"]) {
-      globalThis.fetch = async (_input, init) => {
+      globalThis.fetch = async (url, init) => {
+        if (url === "/api/status") return Response.json({ assets: true });
         assert.equal(init?.credentials, "same-origin");
         assert.equal(init?.redirect, "error");
         return Response.json({ path });

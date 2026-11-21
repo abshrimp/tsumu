@@ -10,7 +10,7 @@ test.describe("html-import-lifecycle", () => {
 let bundle: string;
 test.beforeAll(async () => { bundle = await htmlImportBundle(); });
 test.beforeEach(async ({ page }) => {
-  await page.route("**/api/**", route => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ user: null, path: "assets/import.css" }) }));
+  await page.route("**/api/status", route => route.fulfill({ json: { user: null, assets: true } }));
   await page.goto("/robots.txt");
   await page.setContent('<div id="app"></div>');
   await page.evaluate(() => {

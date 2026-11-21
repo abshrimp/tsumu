@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { localMode } from "./helpers/local-site";
 import { createInitialDoc } from "../lib/presets";
 import { assetConfirmationBundle, candidate, spare } from "../tests/helpers/asset-confirmation";
 import { assetLibraryBundle } from "../tests/helpers/asset-library";
@@ -275,13 +276,7 @@ test.describe("asset download", () => {
 });
 
 test("static ZIP assets have file thumbnails, correct types and download behavior", async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem("tsumu-lang", "ja");
-    localStorage.setItem("tsumu-help-seen-v1", "1");
-  });
-  await page.route("**/api/sites**", route => route.fulfill({ status: 503, json: {} }));
-  await page.route("**/api/doc**", route => route.fulfill({ status: 503, json: {} }));
-  await page.route("**/api/assets", route => route.fulfill({ status: 503, json: {} }));
+  await localMode(page);
 
   const doc = createInitialDoc();
   const binary = (mime: string, content: string) =>
@@ -326,6 +321,7 @@ test.describe("asset-library-history", () => {
 let bundle: string;
 test.beforeAll(async () => { bundle = await assetLibraryBundle(); });
 test.beforeEach(async ({ page }) => {
+  await page.route("http://asset-library.test/api/status", route => route.fulfill({ json: { assets: true } }));
   await page.route("http://asset-library.test/", (route) => route.fulfill({ contentType: "text/html", body: '<html><body><div id="app"></div></body></html>' }));
   await page.goto("http://asset-library.test/"); await page.addScriptTag({ content: bundle });
   await expect(page.locator(".asset-panel")).toBeVisible();
@@ -455,8 +451,9 @@ test.beforeEach(async ({ page }) => {
     const url = new URL(route.request().url());
     if (url.pathname.startsWith("/sites/")) return route.fulfill({ contentType: "text/html", body: `<!doctype html><html lang="ja"><head><style>${css}</style></head><body><div id="app"></div></body></html>` });
     if (url.pathname === "/api/assets/file") return route.fulfill({ contentType: "image/svg+xml", body: '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="900"><rect width="1200" height="900" fill="lightblue"/></svg>' });
+    if (url.pathname === "/api/status") return route.fulfill({ json: { assets: true } });
     if (route.request().method() === "POST") return route.fulfill({ json: { path: "assets/uploaded.svg" } });
-    return route.fulfill({ json: { others: [], assets: false, ok: true } });
+    return route.fulfill({ json: { others: [], ok: true } });
   });
   await page.goto("http://asset-window.test/sites/synthetic");
   await page.addScriptTag({ content: bundle });
