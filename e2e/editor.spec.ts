@@ -40,6 +40,9 @@ test("Create a site from Home and open it in the editor", { tag: "@core-editing"
   await page.getByRole("button", { name: "作成して開く" }).click();
   await page.waitForURL(/\/sites\//);
   await expect(canvas(page).getByText(HEADING).first()).toBeVisible();
+  const siteName = page.locator(".hdr-page");
+  await expect(siteName.getByRole("button", { name: "サイト名: はじめてのサイト" })).toBeVisible();
+  await expect(siteName.locator(".dd")).toHaveCount(0, "page navigation belongs in the Pages tab");
   await saved(page);
   expect(errors).toEqual([]);
 });
@@ -50,51 +53,36 @@ test("Tsumu page title and save preferences survive a reload", { tag: "@core-edi
   await expect(page).toHaveTitle("Tsumu smoke | Tsumu");
   await expect.poll(() => browserDoc(page, id)).not.toBeNull();
   expect((await context.cookies()).find((c) => c.name === "tsumu-lang")?.value).toBe("ja");
-  await page.reload();
-  await expect(canvas(page).getByText(HEADING).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "始める" })).toHaveCount(0);
-});
 
-test("header site name can be renamed in place without a page dropdown", { tag: "@core-editing" }, async ({ page }) => {
-  // The Home workflow seeds the editable document with the chosen site name.
-  // Creating only the site record via POST /api/sites leaves an empty document,
-  // which the editor initializes with the generic "My Site" name.
-  await page.addInitScript(() => localStorage.setItem("tsumu-help-seen-v1", "1"));
-  await page.goto("/");
-  await page.getByRole("button", { name: "新しいサイト" }).first().click();
-  await page.getByLabel("サイト名").fill("Old site name");
-  await page.getByRole("button", { name: "作成して開く" }).click();
-  await page.waitForURL(/\/sites\//);
-  await expect(canvas(page).getByText(HEADING).first()).toBeVisible();
-  const id = new URL(page.url()).pathname.split("/").at(-1)!;
+  // Reuse this smoke test's site and reload for the header's inline editing
+  // regression. This avoids creating and reloading a second site in all three browsers.
   const header = page.locator(".hdr-page");
-  const trigger = header.getByRole("button", { name: "サイト名: Old site name" });
-  await expect(trigger).toBeVisible();
-  await expect(header.locator(".dd")).toHaveCount(0);
-  await trigger.click();
-
+  const edit = header.locator(".hdr-site-name");
+  await edit.click();
   const field = header.getByRole("textbox", { name: "サイト名" });
   await expect(field).toBeFocused();
-  await field.fill("  New site name  ");
+  await field.fill("  Renamed Tsumu smoke  ");
   await field.press("Enter");
-  await expect(header.locator(".hdr-site-name-text")).toHaveText("New site name");
+  await expect(header.locator(".hdr-site-name-text")).toHaveText("Renamed Tsumu smoke");
   await expect.poll(async () => {
     const response = await page.request.get(`/api/doc?site=${id}`);
     return (await response.json()).doc.siteName;
-  }).toBe("New site name");
+  }).toBe("Renamed Tsumu smoke");
 
-  await header.getByRole("button").click();
-  await field.fill("Changed accidentally");
+  await edit.click();
+  await field.fill("Discard this change");
   await field.press("Escape");
-  await expect(header.locator(".hdr-site-name-text")).toHaveText("New site name");
+  await expect(header.locator(".hdr-site-name-text")).toHaveText("Renamed Tsumu smoke");
 
-  await header.getByRole("button").click();
+  await edit.click();
   await field.fill("  ");
   await field.press("Enter");
-  await expect(header.locator(".hdr-site-name-text")).toHaveText("New site name");
+  await expect(header.locator(".hdr-site-name-text")).toHaveText("Renamed Tsumu smoke");
 
   await page.reload();
-  await expect(header.locator(".hdr-site-name-text")).toHaveText("New site name");
+  await expect(canvas(page).getByText(HEADING).first()).toBeVisible();
+  await expect(header.locator(".hdr-site-name-text")).toHaveText("Renamed Tsumu smoke");
+  await expect(page.getByRole("button", { name: "始める" })).toHaveCount(0);
 });
 
 test("Deleting a node is undoable, persists, and survives a reload", { tag: "@core-editing" }, async ({ page }) => {

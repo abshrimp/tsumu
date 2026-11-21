@@ -47,7 +47,7 @@ test("all three engines discover the same core editing smoke tests", () => {
   }
   for (const suite of report.suites) visit(suite);
   // タグが空だったり綴りを誤っていたりして、中身の無い組み合わせのまま成功するのを防ぐ。
-  assert.equal(smoke.get("editor.spec.ts")?.size, 7);
+  assert.equal(smoke.get("editor.spec.ts")?.size, 6);
   assert.equal(smoke.get("text-editing.spec.ts")?.size, 3);
   assert.equal(smoke.size, 2);
   assert.equal(forms.get("search-form-values.spec.ts")?.size, 2);
