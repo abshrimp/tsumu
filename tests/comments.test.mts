@@ -1568,7 +1568,11 @@ test("new and duplicated sites use fresh IDs without clearing the deleted ID's m
     f.home.create(); await f.home.save({ ...emptyDest(), name: source.name });
     const created = f.home.sites().find(s => s.id !== other.id)!;
     assert.notEqual(created.id, source.id); assert.equal(isLocalSiteDeleted(created.id), false);
-    f.home.duplicate(other.id); await f.home.save({ ...emptyDest(), name: source.name });
+    f.home.duplicate(other.id);
+    await assert.rejects(f.home.save({ ...emptyDest(), name: source.name }));
+    assert.equal(f.home.sites().length, 2, "a missing source document cannot produce a starter copy");
+    await f.home.createBrowserDoc(other.id, JSON.stringify(commentTargetDoc()));
+    await f.home.save({ ...emptyDest(), name: source.name });
     const copied = f.home.sites().find(s => s.id !== other.id && s.id !== created.id)!;
     assert.ok(copied); assert.notEqual(copied.id, source.id); assert.equal(isLocalSiteDeleted(copied.id), false);
     f.home.location.pathname = `/sites/${created.id}`;

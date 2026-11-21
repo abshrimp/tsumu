@@ -34,7 +34,7 @@ let compiledHomeNodeBundle: Promise<string> | undefined;
 export async function homeSiteFixture(storage: Storage) {
   compiledHomeNodeBundle ??= build({
     stdin: {
-      contents: "export { default as Home } from './components/Home'; export { loadLocalSites } from './lib/site'; export { useDialogs, closeDialog } from './lib/dialog';",
+      contents: "export { default as Home } from './components/Home'; export { loadLocalSites } from './lib/site'; export { createBrowserDoc } from './lib/browser-doc-storage'; export { useDialogs, closeDialog } from './lib/dialog';",
       resolveDir: repo, loader: "tsx",
     },
     bundle: true, platform: "node", format: "cjs", packages: "external", write: false,
@@ -89,6 +89,7 @@ export async function homeSiteFixture(storage: Storage) {
   render();
   return {
     location,
+    createBrowserDoc: module.exports.createBrowserDoc as typeof import("../../lib/browser-doc-storage").createBrowserDoc,
     sites: () => module.exports.loadLocalSites() as SiteRecord[],
     cards: () => {
       render();

@@ -96,17 +96,12 @@ function localDuplicateError() {
   return new Error(tr("Could not duplicate the site. Check your browser's storage space and settings, then try again."));
 }
 
-/** サイトの編集データ（ブラウザ内の保存）を新しいサイトへ写す。元に無ければ、新しいサイトと同じく作る */
-async function copyLocalDoc(from: string, to: string, name: string): Promise<void> {
+/** 複製した文書が、そのままエディタで開けることを確かめてから保存する。 */
+async function copyLocalDoc(from: string, to: string): Promise<void> {
   const raw = await readBrowserDoc(from);
-  let data = raw;
-  if (data === null) {
-    const { createInitialDoc } = await import("../lib/presets");
-    const doc = createInitialDoc();
-    doc.siteName = name;
-    data = JSON.stringify(doc);
-  }
-  if (!await createBrowserDoc(to, data)) throw localDuplicateError();
+  if (raw === null) throw localDuplicateError();
+  const { validSiteDoc } = await import("../lib/doc-tree");
+  if (!validSiteDoc(JSON.parse(raw)) || !await createBrowserDoc(to, raw)) throw localDuplicateError();
 }
 
 /** サイトを削除したときに、このブラウザに残っている保存も消す */
@@ -823,7 +818,7 @@ export default function Home() {
       site = { ...emptyDest(), ...input, name: input.name ?? "", id: newSiteId(), createdAt: now, updatedAt: now } as SiteRecord;
       let copied = false;
       try {
-        await copyLocalDoc(src.id, site.id, site.name);
+        await copyLocalDoc(src.id, site.id);
         copied = true;
         await withLocalSiteListLock(() => {
           const list = loadLocalSites({ strict: true });
@@ -833,7 +828,7 @@ export default function Home() {
           if (!saveLocalSites(localSites)) throw localDuplicateError();
         });
       } catch {
-        if (copied) await forgetLocal(site.id).catch(() => {});
+        if (copied) await deleteBrowserDoc(site.id).catch(() => {});
         throw localDuplicateError();
       }
     }

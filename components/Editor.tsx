@@ -700,7 +700,7 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
 
   // 起動時: サーバーの文書を取得する（あれば、そちらを正とする）
   const runSyncFromServer = useCallback(async () => {
-    await hydrateBrowserDoc();
+    if (!readOnly) await hydrateBrowserDoc();
     const s = useEditor.getState();
     const localBeforeLoad = s.doc;
     if (readOnly) {
@@ -715,7 +715,6 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
         lastSyncedDoc.current = data.doc;
         observedDoc.current = data.doc;
         cloudDirty.current = false;
-        setUnsyncedFlag(false);
         s.replaceDoc(data.doc);
         s.setCloud("synced", data.savedAt);
         cloudReady.current = true;
@@ -1359,6 +1358,14 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
 
   if (!initialLoadComplete || !status) return onReady ? null : <EditorLoading />;
 
+  if (readOnly && !lastSyncedDoc.current) {
+    return cloudState === "checking" ? <EditorLoading /> : (
+      <div className="safe-page">
+        <p role="alert">{tr("Couldn't load")}</p>
+        <button className="btn" onClick={() => void syncFromServer()}>{tr("Retry")}</button>
+      </div>
+    );
+  }
   if (readOnly) return (
     <div className="app">
       <ViewerHeader />
