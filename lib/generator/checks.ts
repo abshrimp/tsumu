@@ -83,7 +83,7 @@ export function runChecks(
 ): CheckResult[] {
   const results: CheckResult[] = [];
   const routes = new Map<string, { name: string; conditions: string; shareable: boolean }[]>();
-  const published = doc.pageOrder.filter((pid) => !doc.pages[pid].unpublished);
+  const published = doc.pageOrder.filter((pid) => !!doc.pages[pid] && !doc.pages[pid].unpublished);
   /** shareable = 通常のページ（クエリが違えば、同じ URL を共有できる） */
   const registerRoute = (page: Page, shareable = false) => {
     // [slug] を含む URL は固有のルートとして扱う（/events と /events/[slug] は共存できる）
@@ -120,7 +120,7 @@ export function runChecks(
     }
   };
 
-  const isHome = (id: string) => !doc.pages[id].slug.replace(/^\/+|\/+$/g, "");
+  const isHome = (id: string) => !!doc.pages[id] && !doc.pages[id].slug.replace(/^\/+|\/+$/g, "");
   if (!published.length) {
     results.push({
       help: "page-draft",

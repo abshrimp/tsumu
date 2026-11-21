@@ -122,7 +122,7 @@ export function generateProject(
   };
   const routedPages = doc.pageOrder
     .map((id) => doc.pages[id])
-    .filter((page) => !page.unpublished);
+    .filter((page) => page && !page.unpublished);
   const redirects = routedPages
     .filter((page) => page.redirectTo?.trim() && isSafeRedirectTarget(page.redirectTo))
     .map((page) => ({
@@ -159,7 +159,7 @@ export function generateProject(
   let anySmartLink = false;
   for (const pageId of doc.pageOrder) {
     const page = doc.pages[pageId];
-    if (page.unpublished) continue;
+    if (!page || page.unpublished) continue;
     if (page.redirectTo !== undefined || page.rewriteTo !== undefined) continue;
     const slug = page.slug.replace(/^\/+|\/+$/g, "");
     const dir = routeDir(slug);
@@ -306,8 +306,19 @@ ${body || "    null"}
 
   const layoutMeta: string[] = [];
   const siteUrl = doc.siteUrl?.trim();
-  if (siteUrl && /^https?:\/\//.test(siteUrl)) {
-    layoutMeta.push(`  metadataBase: new URL(${codeLiteral(siteUrl)}),`);
+  if (siteUrl) {
+    // Validate before emitting a Next.js metadata URL: a malformed editor value
+    // would otherwise make every generated page fail during module evaluation.
+    // URL also accepts mixed-case HTTP schemes, unlike a case-sensitive prefix check.
+    try {
+      const base = new URL(siteUrl);
+      if ((base.protocol === "http:" || base.protocol === "https:") &&
+          !base.username && !base.password) {
+        layoutMeta.push(`  metadataBase: new URL(${codeLiteral(siteUrl)}),`);
+      }
+    } catch {
+      // An invalid optional site URL must not prevent the rest of the site from building.
+    }
   }
   layoutMeta.push(
     `  title: {\n    default: ${codeLiteral(doc.siteName)},\n    template: ${codeLiteral(`%s | ${doc.siteName}`)},\n  },`
