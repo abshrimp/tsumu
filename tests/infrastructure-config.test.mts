@@ -60,12 +60,12 @@ function ciJob(workflow: string, name: string): string {
 
 test("CI runs the browser discovery regression and shares one production build across locked Playwright shards", () => {
   const workflow = read(".github/workflows/ci.yml");
-  assert.match(ciJob(workflow, "check"),
-    /^      - run: node --import tsx --test e2e\/browser-projects\.check\.mts$/m);
   const producer = ciJob(workflow, "e2e-build");
   const shards = ciJob(workflow, "e2e-shard");
   assert.match(producer, /^      - run: npm run build$/m);
-  assert.match(producer, /tar --exclude=\.next\/cache -cf e2e-build\.tar \.next/);
+  assert.match(producer, /^      - run: node --import tsx --test e2e\/browser-projects\.check\.mts\n        env:\n          E2E_DISCOVERY_OUTPUT: e2e-discovery\.json$/m);
+  assert.match(shards, /^          E2E_DISCOVERY_INPUT: e2e-discovery\.json$/m);
+  assert.match(producer, /tar --exclude=\.next\/cache -cf e2e-build\.tar \.next e2e-discovery\.json/);
   assert.match(producer, /actions\/upload-artifact@[^\n]+\n +with:\n +name: e2e-build\n +path: e2e-build\.tar/);
   assert.match(shards, /^    needs: e2e-build$/m);
   assert.match(shards, /actions\/download-artifact@[^\n]+\n +with:\n +name: e2e-build/);

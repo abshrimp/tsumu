@@ -14,6 +14,7 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   // 1つのサーバーと保存先を共有するため、順に動かす
   workers: 1,
+  forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
   use: {

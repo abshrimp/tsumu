@@ -127,26 +127,35 @@ const workerPaths: Record<ExportFormat, string> = {
 };
 
 // 実際の書き出しの結果を使い、変換元と変換先ごとの配信の場所と所有の情報を確かめる。
-for (const previous of Object.keys(workerPaths).filter(format => format !== "single-html") as ExportFormat[]) {
-  test(`${previous} PWA retirement uses the destination's served worker path across export formats`, async () => {
+test("PWA retirement uses the destination's served worker path across export formats", async () => {
+  const formats = Object.keys(workerPaths) as ExportFormat[];
+  const sources = new Map<ExportFormat, Record<string, string>>();
+  for (const previous of formats.filter(format => format !== "single-html")) {
     const source = await prepareExportProject({ ...doc, pwa: { enabled: true } }, previous);
     const generated = manifest(source.files);
     assert.ok(Object.hasOwn(generated, workerPaths[previous]));
-    for (const format of Object.keys(workerPaths) as ExportFormat[]) {
-      const target = { ...doc, pwa: { enabled: false } };
-      const output = await prepareExportProject(target, format);
-      const paths = Object.keys(output.files);
-      const expected = workerPaths[format];
-      addPwaRetirementWorker(target, generated, output.files, paths, format);
-      assert.match(output.files[expected] ?? "", /registration\.unregister\(\)/, format);
-      assert.deepEqual(paths.filter(path => /^(?:public\/|static\/)?sw\.js$/.test(path)), [expected]);
-      const next = parseGeneratedManifest(serializeGeneratedManifest(manifest(output.files)))!;
-      const repeated = await prepareExportProject(target, format);
-      addPwaRetirementWorker(target, next, repeated.files, Object.keys(repeated.files), format);
-      assert.equal(repeated.files[expected], output.files[expected], "keep retiring late visitors after repeated publishes");
+    sources.set(previous, generated);
+  }
+
+  const target = { ...doc, pwa: { enabled: false } };
+  for (const format of formats) {
+    const { files } = await prepareExportProject(target, format);
+    const expected = workerPaths[format];
+    for (const [previous, generated] of sources) {
+      const transition = `${previous} -> ${format}`;
+      const first = { ...files };
+      const paths = Object.keys(first);
+      addPwaRetirementWorker(target, generated, first, paths, format);
+      assert.match(first[expected] ?? "", /registration\.unregister\(\)/, transition);
+      assert.deepEqual(paths.filter(path => /^(?:public\/|static\/)?sw\.js$/.test(path)), [expected], transition);
+
+      const next = parseGeneratedManifest(serializeGeneratedManifest(manifest(first)))!;
+      const repeated = { ...files };
+      addPwaRetirementWorker(target, next, repeated, Object.keys(repeated), format);
+      assert.equal(repeated[expected], first[expected], `repeated publish after ${transition}`);
     }
-  });
-}
+  }
+});
 
 test("single HTML retires an installed PWA even while the document's PWA setting stays enabled", async () => {
   const target = { ...doc, pwa: { enabled: true } };

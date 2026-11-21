@@ -17,7 +17,10 @@ test.beforeEach(async ({ page }) => {
     const read = FileReader.prototype.readAsText;
     (window as any).htmlReads = [];
     FileReader.prototype.readAsText = function (file, encoding) {
-      (window as any).htmlReads.push(() => read.call(this, file, encoding));
+      (window as any).htmlReads.push(() => new Promise<void>(resolve => {
+        this.addEventListener("loadend", () => resolve(), { once: true });
+        read.call(this, file, encoding);
+      }));
     };
   });
   await page.addScriptTag({ content: bundle });
@@ -43,7 +46,13 @@ test("empty HTML files preserve the existing source, ZIP association and undo hi
   }
 });
 
-for (const zip of [false, true]) for (const interruption of ["edit", "kind", "undo", "page", "unmount", "success", "gesture"]) {
+// The Node suite exercises each interruption with both input formats. Exercise every
+// user action here and keep successful reads and gesture deferral on both native paths.
+const importCases = [
+  { zip: false, interruptions: ["edit", "undo", "success", "gesture"] },
+  { zip: true, interruptions: ["kind", "page", "unmount", "success", "gesture"] },
+];
+for (const { zip, interruptions } of importCases) for (const interruption of interruptions) {
   test(`Slow ${zip ? "ZIP" : "HTML"} import handles ${interruption}`, async ({ page }) => {
     let release!: () => void;
     const gate = new Promise<void>(resolve => { release = resolve; });
@@ -86,8 +95,6 @@ for (const zip of [false, true]) for (const interruption of ["edit", "kind", "un
     if (zip) await expect.poll(() => page.evaluate(() => Object.keys((window as any).htmlEditor.getState().doc.assets).length)).toBe(1);
     else if (interruption === "success" || interruption === "gesture") {
       await expect.poll(() => page.evaluate(() => (window as any).htmlEditor.getState().doc.pages.p.rawHtml)).toContain("Imported");
-    } else {
-      await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 25)));
     }
     const after = await page.evaluate(() => { const s = (window as any).htmlEditor.getState(); return { doc: s.doc, past: s.past.length, future: s.future.length }; });
     if (interruption === "success" || interruption === "gesture") {

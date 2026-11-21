@@ -28,8 +28,8 @@ three projects and retention of the full Chromium suite:
 node --import tsx --test e2e/browser-projects.check.mts
 ```
 
-CI runs this check in the `check` job. The `e2e-build` job builds the Next.js
-server once and shares it with all four shards. Each shard runs its own server
+CI builds the Next.js server and checks Playwright discovery once in `e2e-build`.
+The job shares the build and its verified test list with all four shards. Each shard runs its own server
 and starts with an empty data directory (`playwright.config.ts` also clears
 `GITHUB_TOKEN`, `GITLAB_TOKEN`, and `AI_ENABLED` so local runs ignore shell
 credentials). The four `e2e-shard` jobs (`scripts/run-e2e-shard.mjs`) execute
@@ -57,7 +57,9 @@ only influences load balancing.
   rather than repeating their full Cartesian product. Canvas move coverage
   keeps real mouse, touch cancellation, and keyboard interruption in
   Playwright. The Node suite covers pending and active drags across the full
-  cancellation and editor-state matrix.
+  cancellation and editor-state matrix. The HTML import E2E covers each interruption,
+  plus successful imports and deferred gestures for both HTML and ZIP. The Node
+  suite runs both formats through the full interruption matrix.
 - For input and select defaults and script assignments, `input-default.spec.ts`
   and `script-input-value.spec.ts` compile their browser fixtures once per
   worker via `e2e/helpers/field-editor.ts` (`fieldEditorFixture`), inject the
@@ -80,7 +82,7 @@ only influences load balancing.
 The four shards use `scripts/e2e-shard-durations.json` as an estimate, not
 as a test manifest. It records the sum of Playwright-reported case durations
 from a successful CI run, and `e2e/browser-projects.check.mts` rejects stale
-entries for deleted spec files. Every run still discovers all tests dynamically,
+entries for deleted spec files. Every CI build discovers all tests dynamically,
 including tests added after the last timing snapshot. Refresh the hint data
 only from a successful full CI run, using each file's case count and summed
 Playwright case durations, and inspect shard assignments without starting a

@@ -1,10 +1,9 @@
 /** クラウドで動かす Worker のプレビュー。OpenNext のローカルの `preview` コマンドとは別のもの。 */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { parseJsonc, storageBindings, wranglerConfigPath } from "./cloudflare.mjs";
+import { cloudflareCli, parseJsonc, storageBindings, wranglerConfigPath } from "./cloudflare.mjs";
 
 const LOCAL_DO = { name: "COLLAB_ROOM", class_name: "CollaborationRoom" };
 
@@ -127,9 +126,7 @@ export async function main(args = process.argv.slice(2)) {
   writeFileSync(generated, JSON.stringify(config, null, "\t") + "\n");
   console.error(`Using ${generated}; this creates or updates a hosted Worker Preview, not production.`);
   // インストール済みの CLI を直接使う。パッケージのインストールも、名前のシェルでの展開も行わない。
-  const require = createRequire(import.meta.url);
-  const wranglerPackage = require.resolve("wrangler/package.json");
-  const cli = join(dirname(wranglerPackage), JSON.parse(readFileSync(wranglerPackage, "utf8")).bin.wrangler);
+  const cli = cloudflareCli("wrangler", "wrangler");
   const child = spawnSync(process.execPath, [cli, ...launch.args], {
     stdio: "inherit", env: launch.env,
   });
