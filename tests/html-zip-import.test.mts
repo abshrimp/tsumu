@@ -1763,7 +1763,7 @@ test("import and clipboard validation block unsafe inline SVG across browser and
     assert.throws(() => validateImportedDoc(doc), /invalid element settings/i);
     assert.equal(parseClipPayload(JSON.stringify({
       v: 1, site: "s", breakpoints: doc.breakpoints ?? [], rootIds: [icon.id],
-      nodes: [icon], assets: {}, components: {}, componentNodes: [],
+      nodes: [icon], assets: {}, components: {}, componentNodes: [], customFonts: [], adobeFonts: [], uploadedFonts: [],
     })), null);
   }
   assert.equal(

@@ -43,6 +43,7 @@ export const SITE_SCOPED_KEYS = [
   storageKey("unsynced-v1"),
   storageKey("comments-v1"),
   storageKey("netlify-publish-v1"),
+  storageKey("mcp-reconnect-known-v1"),
   storageKey("scroll-v1"),
   storageKey("collapsed-v1"),
   storageKey("page-folders-closed-v1"),
