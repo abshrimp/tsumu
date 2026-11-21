@@ -50,7 +50,7 @@ test("all three engines discover the same core editing smoke tests", () => {
   assert.equal(smoke.get("editor.spec.ts")?.size, 6);
   assert.equal(smoke.get("text-editing.spec.ts")?.size, 3);
   assert.equal(smoke.size, 2);
-  assert.equal(forms.get("search-form-values.spec.ts")?.size, 2);
+  assert.equal(forms.get("search-form-values.spec.ts")?.size, 3);
   assert.equal(forms.size, 1);
   assert.ok(chromiumOnly > 0, "keep the full existing Chromium suite");
 

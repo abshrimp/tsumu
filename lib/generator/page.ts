@@ -29,7 +29,8 @@ import {
   imageRefSrc,
   jsxString,
   scriptsAttr,
-  hasListsInside,
+  needsPageScope,
+  nodeBindingTemplates,
 } from "./render-helpers";
 import { renderNode, type JsxContext } from "./render";
 import { rewriteHtmlAssetUrls } from "./css";
@@ -175,9 +176,9 @@ export function generatePageFile(
     return true;
   };
 
-  // リストを含む部品は、ページごとの配列・項目・ブラウザの変数の範囲で展開する。
+  // データを参照する部品は、置かれたページ・リスト項目の変数の範囲で展開する。
   ctx.inlineComponents = new Set(Object.values(doc.components ?? {})
-    .filter((comp) => hasListsInside(doc, comp.rootId)).map((comp) => comp.id));
+    .filter((comp) => needsPageScope(doc, comp.rootId)).map((comp) => comp.id));
   // 部品の中も含むリストと、ページを開いたときに取得するデータ
   const listNodes: { node: DocNode; from: string }[] = [];
   const listSeen = new Set<string>();
@@ -765,24 +766,7 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
     const n = doc.nodes[id];
     if (!n || seen.has(id)) return false;
     seen.add(id);
-    const f = n.field;
-    if (scriptsReadQuery(n, inList)) return true;
-    if (
-      unknown(n.text?.content, inList) ||
-      unknown(n.image?.src, inList) ||
-      (n.link?.kind === "url" && unknown(n.link.url, inList)) ||
-      (f &&
-        (unknown(f.label, inList) ||
-          unknown(f.defaultValue, inList) ||
-          unknown(f.placeholder, inList) ||
-          unknown(f.min, inList) ||
-          unknown(f.max, inList) ||
-          unknown(f.step, inList) ||
-          unknown(f.accept, inList) ||
-          (f.options ?? []).some((o) => unknown(o.label, inList) || unknown(o.value, inList))))
-    ) {
-      return true;
-    }
+    if (scriptsReadQuery(n, inList) || nodeBindingTemplates(n).some(value => unknown(value, inList))) return true;
     const childInList = inList || n.type === "list";
     if (n.type === "instance") {
       const comp = doc.components?.[n.componentId ?? ""];

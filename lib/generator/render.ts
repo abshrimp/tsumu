@@ -55,7 +55,7 @@ export interface JsxContext {
   doc: SiteDoc;
   /** 余分な DOM の包みを作らずに、インスタンスごとの表示の切り替えを受け取るコンポーネントのルート。 */
   componentRootId?: string;
-  /** リストを含む部品は、ページのデータの範囲で展開する。 */
+  /** データに依存する部品を、置かれたページの変数の範囲で展開する。 */
   inlineComponents?: Set<string>;
   /** 展開している使用箇所。通常の部品のファイルでは props を使う。 */
   inlineInstance?: { visibilityClass: string; anchor?: string };
@@ -148,7 +148,7 @@ function renderNodeInner(
     // ページ上の使用箇所のアンカー。マスター自身の ID と入れ子の参照は変えない。
     const anchor = !ctx.componentRootId && node.attrId && root && root.type !== "instance" && !root.attrId
       ? ` instanceId=${jsxString(node.attrId)}` : "";
-    // 部品の中のリストも、置かれたページや外側の項目の変数と、実行の計画を使う。
+    // 部品の中の差し込みやリストも、置かれたページや外側の項目の変数を使う。
     // 新しいデータの props は作らず、通常の部品の出力とローディング画面は変えない。
     if (root && ctx.listVars && ctx.inlineComponents?.has(node.componentId!)) {
       const previousRoot = ctx.componentRootId;

@@ -3442,11 +3442,9 @@ for (const framework of ["vue", "nuxt", "sveltekit"] as const) {
     const optionTags = [...source.matchAll(/<option\b([^>]*)>/g)].map(m => m[1]);
     const evaluate = (code: string) => runInNewContext(code, { ...native, scope: sample.scope, row0: sample.row });
     const selectedFlags = optionTags.map(attrs => {
-      const dynamic = framework === "sveltekit" ? /selected=\{(.*)\}/.exec(attrs)?.[1] : /:selected="([^"]*)"/.exec(attrs)?.[1];
-      if (dynamic) {
-        const decoded = framework === "sveltekit" ? dynamic : parse(`<div data-code="${dynamic}"></div>`).querySelector("div").getAttribute("data-code");
-        return evaluate(decoded);
-      }
+      const dynamic = framework === "sveltekit" ? /selected=\{(.*)\}/.exec(attrs)?.[1]
+        : parse("<option " + attrs + "></option>").querySelector("option").getAttribute(":selected");
+      if (dynamic) return evaluate(dynamic);
       return /\bselected\b/.test(attrs);
     });
     const selected = selectedFlags.indexOf(true);

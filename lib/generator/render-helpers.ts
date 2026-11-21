@@ -383,17 +383,35 @@ export function listItemsExpr(
   return code;
 }
 
-/** 部品の参照もたどり、リストを含むツリーかを調べる（循環する参照は打ち切る）。 */
-export function hasListsInside(doc: SiteDoc, id: string, seen = new Set<string>()): boolean {
+/** Templates read by a rendered node, in addition to its compiled script operands. */
+export function nodeBindingTemplates(n: DocNode): (string | undefined)[] {
+  const f = n.field;
+  return [
+    n.text?.content, n.image?.src, n.link?.kind === "url" ? n.link.url : undefined,
+    f?.label, f?.defaultValue, f?.placeholder, f?.min, f?.max, f?.step, f?.accept,
+    ...(f?.options ?? []).flatMap(option => [option.label, option.value]),
+  ];
+}
+
+/** Shared components that read page or row data must render in the placing page's scope. */
+export function needsPageScope(doc: SiteDoc, id: string, seen = new Set<string>()): boolean {
   const n = doc.nodes[id];
   if (!n || seen.has(id)) return false;
   seen.add(id);
-  if (n.type === "list" && n.list && listFromOf(n)) return true;
+  if ((n.type === "list" && n.list && listFromOf(n)) || nodeBindingTemplates(n).some(hasVars)) return true;
   if (n.type === "instance") {
     const comp = doc.components?.[n.componentId ?? ""];
-    return !!comp && hasListsInside(doc, comp.rootId, seen);
+    return !!comp && needsPageScope(doc, comp.rootId, seen);
   }
-  return n.children.some((cid) => hasListsInside(doc, cid, seen));
+  if (hasRunnableScripts(n)) {
+    let bound = false;
+    compileScripts(n, () => "", value => {
+      bound ||= hasVars(value);
+      return value;
+    }, false, undefined, () => { bound = true; return undefined; });
+    if (bound) return true;
+  }
+  return n.children.some(cid => needsPageScope(doc, cid, seen));
 }
 
 /** 要素かその中に、画面上で動くスクリプトがあるか */

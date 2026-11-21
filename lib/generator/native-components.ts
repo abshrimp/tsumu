@@ -60,9 +60,11 @@ function expr(ctx: Context, fn: string, template: string): string {
     (ctx.rows.length ? ", " + ctx.rows.join(", ") : "") + ")";
 }
 function dynamicAttr(ctx: Context, name: string, expression: string): string {
-  return ctx.vue
-    ? " :" + name + '="' + esc(expression) + '"'
-    : " " + name + "={" + expression + "}";
+  if (!ctx.vue) return " " + name + "={" + expression + "}";
+  // vue-tsc reads bound expressions as TypeScript. Keep JSON string delimiters literal.
+  const quote = expression.includes('"') ? "'" : '"';
+  const source = expression.replace(/&/g, "&amp;").replace(/'/g, "&#39;").replace(/</g, "&lt;");
+  return " :" + name + "=" + quote + source + quote;
 }
 function valueAttr(ctx: Context, name: string, value: string | undefined): string {
   if (!value) return value === "" ? literal(name, "") : "";
