@@ -761,11 +761,14 @@ function pageReadsQuery(doc: SiteDoc, pageId: string, plan: ReturnType<typeof pa
     }
   }
   // サーバー側で描画する要素（スクリプトはブラウザで動くため、対象外）
+  // A component can appear both in a list row and outside it. Item field names are
+  // local only in the row, so visiting the master once must not hide query reads elsewhere.
   const seen = new Set<string>();
   const walk = (id: string, inList: boolean): boolean => {
     const n = doc.nodes[id];
-    if (!n || seen.has(id)) return false;
-    seen.add(id);
+    const key = id + ":" + inList;
+    if (!n || seen.has(key)) return false;
+    seen.add(key);
     if (scriptsReadQuery(n, inList) || nodeBindingTemplates(n).some(value => unknown(value, inList))) return true;
     const childInList = inList || n.type === "list";
     if (n.type === "instance") {
