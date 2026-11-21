@@ -96,6 +96,10 @@ ZIP export works without any publishing configuration.
 
 See the [detailed guide](docs/user-guide.md) for deployment steps, per-target setup, environment variables, backups and limitations.
 
+## Contributing
+
+Bug reports, documentation improvements, translations, and code contributions are welcome in English or Japanese. Browse [open issues](https://github.com/abshrimp/tsumu/issues) or [ask in Discussions](https://github.com/abshrimp/tsumu/discussions), then see the [contributing guide](.github/CONTRIBUTING.md) to get started.
+
 ## Documentation
 
 - [Detailed guide](docs/user-guide.md) · [日本語](docs/user-guide.ja.md)
