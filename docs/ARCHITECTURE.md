@@ -145,7 +145,7 @@ Generated server code that fetches external data embeds the editor's own SSRF pr
 
 Each kind of file is handled as follows.
 
-- **Tsumu zip or `doc.json`** (`lib/site-import.ts`). A zip must contain exactly one `_tsumu/doc.json`; `_tsumu/assets.json` maps original asset IDs to files in the archive. The doc is validated, and its assets are uploaded again with their original IDs. Paths aren't guessed: an asset that the manifest doesn't list, and that has no data URL, becomes a warning. Archive names that escape the root are rejected.
+- **Tsumu ZIP or `doc.json`** (`lib/site-import.ts`). A ZIP must contain exactly one `_tsumu/doc.json`. Its `_tsumu/assets.json` manifest must map each asset ID in the document to a distinct archive path. An invalid manifest stops the import. If a mapped file is missing and the asset has no embedded data URL, the importer issues a warning. The importer validates the document, preserves asset IDs when restoring files, and rejects archive paths that escape the root.
 - **HTML file or website zip** (`lib/html-to-site.ts`). Every page is converted into editable nodes (and relative `import` specifiers in imported JS modules are mapped to generated asset URLs via `lib/generator/imported-assets.ts`). Classes and a short list of safe attributes are kept (`lib/imported-html-attrs.ts`); event handlers, URL-bearing attributes and Tsumu's internal `data-*` markers never are.
 - **Limits** (`IMPORT_LIMITS`): 100 MB per zip, 12 MB per `doc.json` or HTML file, 1,500 entries and 300 MB after expansion.
 

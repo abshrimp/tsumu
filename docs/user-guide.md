@@ -444,9 +444,9 @@ Every AI edit is validated on a working copy before it touches your page.
 
 ### Connecting an external AI client (MCP)
 
-On the hosted editor, connect Tsumu from your AI app and select the sites on the authorization screen. Choose whether to allow editing, then open each selected site when prompted. Each editor tab handles requests for its site and must stay open while the app is using it.
+For the hosted editor at `tsumu.ebii.net`, start the connection from your AI app. Select the sites and editing permissions on the authorization screen, then open each selected site when prompted. Each editor tab handles requests for its site and must stay open while the app is using it.
 
-For a self-hosted editor, or to pair a site with a connection code, follow these steps.
+On a self-hosted editor, pair each site with its own connection code.
 
 1. Open **⋯ → MCP connection**. The **See the connection guide** link shows how to add Tsumu to your AI app.
 2. Choose whether to allow editing. Clear the checkbox for read-only access. Select **Start connection** and copy the **Connection code**.
@@ -457,7 +457,7 @@ The connection grants access to the site open in that tab. Editing permission co
 
 If you reload the tab, or later reopen the same site in the same browser, the editor resumes the authorized connection automatically, without a new code, until you select **Disconnect and revoke** or the authorization expires. Your current site permissions are checked again for every request from the AI app.
 
-On the hosted editor at `tsumu.ebii.net`, the MCP server can also send you a link to add more of your sites to an existing authorization. That site picker is not available on self-hosted editors, where you connect each site with its own connection code.
+On the hosted editor, the MCP server can also send you a link to the site picker. Open it to add more sites to an existing authorization.
 
 ## Environment variables
 
