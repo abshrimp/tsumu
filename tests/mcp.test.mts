@@ -2,7 +2,7 @@ import { describe, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { clearDraftLink, draftFromLocation, hasDraftResumeMarker, prepareDraftSignIn, resumeDraftAfterSignIn } from "../lib/external-edit/draft-link";
 import { DEFAULT_MCP_ENDPOINT, resolveMcpEndpoint } from "../lib/external-edit/config";
-import { OFFICIAL_EDITOR_HOST, OFFICIAL_EDITOR_ORIGIN, OFFICIAL_MCP_ORIGIN, isOfficialEditorHost, isOfficialEditorOrigin } from "../lib/external-edit/official.mjs";
+import { configuredHostedEditorOrigin, trustedMcpOrigin, OFFICIAL_MCP_ORIGIN, isOfficialEditorHost, isOfficialEditorOrigin } from "../lib/external-edit/official.mjs";
 import { fakeIndexedDB } from "./helpers/fake-indexeddb";
 import { createLocalBrowserSite } from "../lib/browser-site-create";
 import { readBrowserDoc } from "../lib/browser-doc-storage";
@@ -79,20 +79,29 @@ test("Google OAuth resumes drafts without storing their secrets in Web Storage o
 });
 
 describe("hosted-mcp-integration", () => {
-test("official OAuth features are enabled only for the exact hosted editor", () => {
-  assert.equal(OFFICIAL_EDITOR_HOST, "tsumu.ebii.net");
-  assert.equal(OFFICIAL_EDITOR_ORIGIN, "https://tsumu.ebii.net");
-  assert.equal(OFFICIAL_MCP_ORIGIN, DEFAULT_MCP_ENDPOINT);
-  for (const host of ["tsumu.ebii.net", "TSUMU.EBII.NET", "tsumu.ebii.net:443"]) {
-    assert.equal(isOfficialEditorHost(host), true, host);
+test("hosted MCP integration is explicitly configured and checks exact origins", () => {
+  const editor = "https://studio.example.test";
+  assert.equal(configuredHostedEditorOrigin(""), null);
+  assert.equal(configuredHostedEditorOrigin(editor + "/"), editor);
+  assert.equal(configuredHostedEditorOrigin("https://user:secret@studio.example.test"), null);
+  assert.equal(configuredHostedEditorOrigin("https://studio.example.test/other"), null);
+  assert.equal(configuredHostedEditorOrigin("http://studio.example.test"), null);
+  assert.equal(configuredHostedEditorOrigin("http://localhost:3000"), "http://localhost:3000");
+  assert.equal(trustedMcpOrigin(""), OFFICIAL_MCP_ORIGIN);
+  assert.equal(trustedMcpOrigin("https://relay.example.test/"), "https://relay.example.test");
+  assert.equal(trustedMcpOrigin("http://relay.example.test"), null);
+  assert.equal(trustedMcpOrigin("javascript:alert(1)"), null);
+  for (const host of ["studio.example.test", "STUDIO.EXAMPLE.TEST", "studio.example.test:443"]) {
+    assert.equal(isOfficialEditorHost(host, editor), true, host);
   }
-  for (const host of ["", "localhost:3000", "editor.example.org", "mcp.tsumu.ebii.net",
-    "tsumu.ebii.net.evil.example", "fake-tsumu.ebii.net"]) {
-    assert.equal(isOfficialEditorHost(host), false, host);
+  for (const host of ["", "localhost:3000", "studio.example.test.evil.example",
+    "fake-studio.example.test", "relay.example.test"]) {
+    assert.equal(isOfficialEditorHost(host, editor), false, host);
   }
-  assert.equal(isOfficialEditorOrigin("https://tsumu.ebii.net"), true);
-  assert.equal(isOfficialEditorOrigin("http://tsumu.ebii.net"), false);
-  assert.equal(isOfficialEditorOrigin("https://editor.example.org"), false);
+  assert.equal(isOfficialEditorHost("studio.example.test", ""), false);
+  assert.equal(isOfficialEditorOrigin(editor, editor), true);
+  assert.equal(isOfficialEditorOrigin("http://studio.example.test", editor), false);
+  assert.equal(isOfficialEditorOrigin("https://studio.example.test.evil", editor), false);
 });
 
 test("the hosted connection dialog shows session status while self-hosted editors also offer pairing", async t => {
@@ -101,7 +110,9 @@ test("the hosted connection dialog shows session status while self-hosted editor
   const { default: Connection } = await import("../components/ExternalEditConnection");
   const { useExternalEdit } = await import("../lib/external-edit/bridge");
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
-  const location = new URL("/sites/example", OFFICIAL_EDITOR_ORIGIN);
+  const priorHosted = process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+  process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = "https://studio.example.test";
+  const location = new URL("/sites/example", "https://studio.example.test");
   const storage = new Map<string, string>();
   Object.defineProperty(globalThis, "window", { configurable: true, value: {
     location, localStorage: { getItem: (key: string) => storage.get(key) ?? null },
@@ -110,6 +121,8 @@ test("the hosted connection dialog shows session status while self-hosted editor
   const originalState = { ...initial };
   t.after(() => {
     Object.assign(initial, originalState);
+    if (priorHosted === undefined) delete process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+    else process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = priorHosted;
     if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
     else Reflect.deleteProperty(globalThis, "window");
   });

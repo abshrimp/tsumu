@@ -174,6 +174,17 @@ export function wranglerConfigPath() {
   return generated;
 }
 
+/** Pass public Wrangler settings to the OpenNext browser build. */
+export function publicBuildEnvironment(config, env = process.env) {
+  const merged = { ...env };
+  for (const name of ["NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN", "NEXT_PUBLIC_TSUMU_MCP_URL"]) {
+    if (merged[name] === undefined && typeof config.vars?.[name] === "string") {
+      merged[name] = config.vars[name];
+    }
+  }
+  return merged;
+}
+
 /** コマンドラインでの上書きで、本番のバインディングの検査を迂回させない。 */
 export function assertSafeDeployArgs(args) {
   for (const arg of args) {
@@ -194,6 +205,10 @@ if (command && import.meta.main) {
   }
   const cli = cloudflareCli("@opennextjs/cloudflare", "opennextjs-cloudflare");
   console.log(`Using ${config}`);
-  const r = spawnSync(process.execPath, [cli, command, "--config", config, ...rest], { stdio: "inherit" });
+  const buildEnv = command === "build" ?
+    publicBuildEnvironment(parseJsonc(readFileSync(config, "utf8"))) : process.env;
+  const r = spawnSync(process.execPath, [cli, command, "--config", config, ...rest], {
+    stdio: "inherit", env: buildEnv,
+  });
   process.exit(r.status ?? 1);
 }

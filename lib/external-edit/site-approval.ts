@@ -2,7 +2,7 @@
 
 import { attachMcpSiteInvite, connectExternalEdit, useExternalEdit } from "./bridge";
 import { currentSiteId } from "../site";
-import { OFFICIAL_MCP_ORIGIN, isOfficialEditorOrigin } from "./official.mjs";
+import { trustedMcpOrigin, isOfficialEditorOrigin } from "./official.mjs";
 
 /**
  * An explicit site-picker click opens an editor tab with a fragment-only
@@ -18,7 +18,7 @@ export function hasMcpSiteApproval(): boolean {
 }
 
 export function startMcpSiteApproval(readOnly: boolean): boolean {
-  if (typeof window === "undefined" || !isOfficialEditorOrigin(window.location.origin)) return false;
+  if (typeof window === "undefined" || !isOfficialEditorOrigin(window.location.origin) || !trustedMcpOrigin()) return false;
   const select = SELECT.exec(window.location.hash);
   const join = JOIN.exec(window.location.hash);
   if (!select && !join) return false;
@@ -26,7 +26,7 @@ export function startMcpSiteApproval(readOnly: boolean): boolean {
     window.location.pathname + window.location.search);
   // This must be an editor tab created by Tsumu's trusted chooser.
   if (!window.opener || window.opener.closed) return true;
-  const origin = select ? OFFICIAL_MCP_ORIGIN : window.location.origin;
+  const origin = select ? trustedMcpOrigin()! : window.location.origin;
   const siteId = currentSiteId();
   // A navigation between opening the editor tab and hydration must never
   // attach the invitation to a different site than the one explicitly chosen.

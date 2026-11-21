@@ -125,7 +125,28 @@ test("runtime requirements match between package metadata and CI", () => {
   assert.match(ci, /node-version-file: \.nvmrc/);
 });
 
-test("Next.js editor routes apply the baseline response security headers", async () => {
+test("Cloudflare builds receive hosted public settings from Wrangler vars", async () => {
+  const { parseJsonc, publicBuildEnvironment } = await import("../scripts/cloudflare.mjs");
+  const config = parseJsonc(read("wrangler.jsonc"));
+  const value = config.vars.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+  assert.equal(value, "https://tsumu.ebii.net");
+  assert.equal(publicBuildEnvironment(config, {}).NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN, value);
+  assert.equal(publicBuildEnvironment(config, {
+    NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN: "https://custom.example.test",
+  }).NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN, "https://custom.example.test");
+});
+
+test("Next.js editor routes apply the baseline response security headers", async (t) => {
+  const priorHosted = process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+  const priorRelay = process.env.NEXT_PUBLIC_TSUMU_MCP_URL;
+  process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = "https://studio.example.test";
+  process.env.NEXT_PUBLIC_TSUMU_MCP_URL = "https://relay.example.test";
+  t.after(() => {
+    if (priorHosted === undefined) delete process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+    else process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = priorHosted;
+    if (priorRelay === undefined) delete process.env.NEXT_PUBLIC_TSUMU_MCP_URL;
+    else process.env.NEXT_PUBLIC_TSUMU_MCP_URL = priorRelay;
+  });
   const { default: configForPhase } = await import("../next.config.mjs");
   const { PHASE_PRODUCTION_BUILD } = await import("next/constants.js");
   const nextConfig = await configForPhase(PHASE_PRODUCTION_BUILD);
@@ -136,20 +157,20 @@ test("Next.js editor routes apply the baseline response security headers", async
 
   for (const suffix of ["", "/"]) {
     const directory = "/mcp/sites-bridge" + suffix;
-    const hosted = await headersFor("tsumu.ebii.net", directory);
-    assert.equal(hosted.get("Content-Security-Policy"), "frame-ancestors https://mcp.tsumu.ebii.net");
+    const hosted = await headersFor("studio.example.test", directory);
+    assert.equal(hosted.get("Content-Security-Policy"), "frame-ancestors https://relay.example.test");
     assert.equal(hosted.get("X-Frame-Options"), null);
     assert.equal(hosted.get("Referrer-Policy"), "no-referrer");
     assert.equal(hosted.get("Cache-Control"), "private, no-store");
 
-    for (const host of ["editor.example.org", "tsumu-ebii.net"]) {
+    for (const host of ["editor.example.org", "studio-example.test"]) {
       const selfHosted = await headersFor(host, directory);
       assert.equal(selfHosted.get("X-Frame-Options"), "DENY", host);
       assert.equal(selfHosted.get("Content-Security-Policy"), "frame-ancestors 'none'", host);
       assert.equal(selfHosted.get("Cache-Control"), "private, no-store", host);
     }
 
-    const asset = await headersFor("tsumu.ebii.net", "/api/assets/file" + suffix);
+    const asset = await headersFor("studio.example.test", "/api/assets/file" + suffix);
     assert.equal(asset.get("X-Frame-Options"), null);
     assert.equal(asset.get("Content-Security-Policy"), null);
     assert.equal(asset.get("X-Content-Type-Options"), "nosniff");
@@ -157,12 +178,19 @@ test("Next.js editor routes apply the baseline response security headers", async
 
   for (const path of ["/", "/mcp/choose", "/mcp/sites-bridge-extra", "/mcp/sites-bridge/child",
     "/api/assets/file-info", "/api/assets/file/child"]) {
-    const headers = await headersFor("tsumu.ebii.net", path);
+    const headers = await headersFor("studio.example.test", path);
     assert.equal(headers.get("X-Content-Type-Options"), "nosniff", path);
     assert.equal(headers.get("Referrer-Policy"), "strict-origin-when-cross-origin", path);
     assert.equal(headers.get("X-Frame-Options"), "DENY", path);
     assert.equal(headers.get("Content-Security-Policy"), "frame-ancestors 'none'", path);
   }
+  delete process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+  const disabled = await headersFor("studio.example.test", "/mcp/sites-bridge");
+  assert.equal(disabled.get("X-Frame-Options"), "DENY");
+  assert.equal(disabled.get("Content-Security-Policy"), "frame-ancestors 'none'");
+  process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = "https://studio.example.test";
+  const spoof = await headersFor("studio.example.test.evil.example", "/mcp/sites-bridge");
+  assert.equal(spoof.get("X-Frame-Options"), "DENY");
   for (const page of ["app/mcp/choose/page.tsx", "app/mcp/sites-bridge/page.tsx"]) {
     const source = read(page);
     assert.match(source, /if \(!isOfficialEditorHost\(\(await headers\(\)\)\.get\("host"\)\)\) notFound\(\)/,
