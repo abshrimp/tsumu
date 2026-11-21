@@ -25,20 +25,28 @@ npm run dev
 - **型定義、エディタ、生成コード、テストで、Tsumu のデータ形式と実行時の動作が一致するようにしてください。**
 - **公開時に、利用者が作成したファイルを削除しないでください。** `_tsumu/` は、Tsumu の文書と公開の管理情報を置く専用のディレクトリです。
 
-プルリクエストを作成する前に、次のチェックを実行してください。
+### 変更内容の確認
+
+初めてのPRでは、**ローカルで全テストを実行したり、すべてのブラウザをインストールしたりする必要はありません**。変更内容に関係するチェックを実行してください。PR作成後はGitHub Actionsで全体のチェックが実行されます。
+
+- **ドキュメントのみの変更：** Markdownの表示とリンクを確認してください。ローカルでのビルドやブラウザテストは不要です。
+- **翻訳の変更：** `npm run i18n:check -- --all` を実行してください（未翻訳箇所は警告のみです）。
+- **TypeScriptや実行処理の変更：** `npm run typecheck` と関連する単体テストを実行してください。スクリプトエンジンの変更では、例えば `node --import tsx --test tests/scripts-engine.test.mts` を使用できます。
+- **UIやブラウザ動作の変更：** 可能であれば `npm run build` と `npx playwright install chromium` の後、関連するPlaywrightテストを実行してください。例：`npm run test:e2e -- e2e/page-kind-confirmation.spec.ts --project=chromium`。詳しくは [`e2e/README.md`](../e2e/README.md)（英語）をご覧ください。
+- **コード生成やデプロイ関連の変更：** 下記のビルド・スモークテストを必要に応じて実行してください。Cloudflare関連の変更では `npm run build:worker` も実行します。
+
+ローカルで全テストを実行する場合は、次のコマンドを使用します。
 
 ```sh
 npm run typecheck
 npm test
-npm run i18n:check -- --all   # 未翻訳箇所は警告（CIを失敗させない）
+npm run i18n:check -- --all
 npm run build
 npx playwright install chromium firefox webkit
 npm run test:e2e
 ```
 
-日本語の未翻訳箇所は、必要に応じて `npm run i18n:check -- --strict ja` で確認できます。
-
-Cloudflare と連携する部分を変更した場合は、`npm run build:worker` も実行してください。これらのチェックを実行しても、デプロイは行われません。
+CIではWorkerのビルド、生成プロジェクトの形式、その他の結合テストも確認します。変更に関連するCIの失敗はマージ前に修正してください。日本語訳の網羅率は `npm run i18n:check -- --strict ja` で別途確認できます（任意）。これらのコマンドでデプロイされることはありません。
 
 ### 生成したプロジェクトの確認
 
