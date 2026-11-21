@@ -161,10 +161,15 @@ export async function toSingleHtmlProject(
         get("itemprop").trim().toLowerCase() === "image";
       if (imageMeta && get("content")) {
         const value = get("content");
-        const url = new URL(value, base);
+        // Custom metadata may contain malformed URLs. Preserve it rather than
+        // turning an otherwise valid export into an error.
+        let url: URL | undefined;
+        try { url = new URL(value, base); } catch {}
         let path = "";
-        try { path = decodeURIComponent(url.pathname).slice(1); } catch {}
-        if (url.origin === EXPORT_BASE.origin && path &&
+        if (url) {
+          try { path = decodeURIComponent(url.pathname).slice(1); } catch {}
+        }
+        if (url?.origin === EXPORT_BASE.origin && path &&
             (Object.hasOwn(source.files, path) || Object.hasOwn(source.binaries, path) ||
               Object.hasOwn(source.remoteAssets, path))) {
           set("content", await resources.embed(value, base));

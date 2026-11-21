@@ -15,6 +15,7 @@ test("single HTML embeds bundled social metadata but keeps external images", asy
       '<meta itemprop="image" content="/assets/social.png">' +
       '<meta property="og:image" content="https://example.com/social.png">' +
       '<meta property="og:image" content="/missing.png">' +
+      '<meta property="og:image" content="http://[broken-host">' +
       '</head><body></body></html>' },
     binaries: { "assets/social.png": "AQID" }, remoteAssets: {},
   }, noNetwork);
@@ -25,6 +26,7 @@ test("single HTML embeds bundled social metadata but keeps external images", asy
   assert.match(html, /itemprop="image" content="data:image\/png;base64,AQID"/);
   assert.match(html, /content="https:\/\/example\.com\/social\.png"/);
   assert.match(html, /content="\/missing\.png"/);
+  assert.match(html, /content="http:\/\/\[broken-host"/);
   assert.deepEqual(project.binaries, {});
 });
 
