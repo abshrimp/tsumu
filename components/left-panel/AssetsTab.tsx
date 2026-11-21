@@ -529,7 +529,12 @@ export function AssetsTab() {
         else updateDoc((d) => void (d.assets[asset.id] = asset));
       }
       if (fellBack && request.current()) {
-        setNotice(tr("Couldn't save to the server, so it was saved in this browser."));
+        const message = tr("Couldn't save to the server, so it was saved in this browser.");
+        // Browser-only installations have no server save destination.
+        // With a configured database, falling back is a real save failure.
+        // Treat an unknown server status as an error rather than promising a safe fallback.
+        if (serverStatusSnapshot()?.db === false) setNotice(message);
+        else setError(message);
       }
     } catch (e) {
       if (request.current()) setError(userMessage(e, tr("Couldn't upload")));

@@ -1621,9 +1621,13 @@ function deferred<T>() {
   const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
   return { promise, resolve, reject };
 }
-function setup(upload?: (file: File) => Promise<Asset>, migrate?: (asset: Asset) => Promise<string | null>) {
+function setup(
+  upload?: (file: File) => Promise<Asset>,
+  migrate?: (asset: Asset) => Promise<string | null>,
+  configuredDatabase?: boolean | null,
+) {
   state().endGesture(); state().replaceDoc(assetLibraryDoc()); state().setActivePage("p"); state().select("a");
-  const ui = assetLibraryCallbacks(upload, migrate);
+  const ui = assetLibraryCallbacks(upload, migrate, configuredDatabase);
   const render = () => elements(ui.render());
   const add = (count = 1) => render().find((e) => e.type === "input" && e.props.type === "file").props.onChange({ target: { files: Array.from({ length: count }, () => new File(["audio"], "new.wav", { type: "audio/wav" })), value: "new.wav" } });
   const move = () => render().find((e) => e.props?.["data-tip"] === "Upload to server").props.onClick();
@@ -1697,19 +1701,30 @@ test("overlapping drops remain busy until all complete and old errors cannot ove
   }
 });
 
-test("browser fallback is an informational notice, while an upload failure remains an error", async () => {
-  const work = deferred<Asset>(); const f = setup(() => work.promise);
-  try {
-    f.add();
-    work.resolve({ ...uploaded, path: undefined, dataUrl: "data:audio/wav;base64,bG9jYWw=" });
-    await tick();
-    const notices = f.render();
-    const info = notices.find((e) => e.props?.role === "status" && e.type === "p");
-    assert.ok(info, "a successful fallback must produce a status message");
-    assert.equal(info.props.children, tr("Couldn\'t save to the server, so it was saved in this browser."));
-    assert.equal(info.props.style?.color, undefined, "a successful fallback must keep the neutral hint color");
-    assert.equal(notices.some((e) => e.props?.role === "alert" && e.type === "p"), false);
-  } finally { f.ui.unmount(); }
+test("a fallback is informational only when server database storage is disabled", async () => {
+  for (const configuredDatabase of [false, true, null] as const) {
+    const work = deferred<Asset>();
+    const f = setup(() => work.promise, undefined, configuredDatabase);
+    try {
+      f.add();
+      work.resolve({ ...uploaded, path: undefined, dataUrl: "data:audio/wav;base64,bG9jYWw=" });
+      await tick();
+      const nodes = f.render();
+      const message = tr("Couldn't save to the server, so it was saved in this browser.");
+      const isError = configuredDatabase !== false;
+      const expectedRole = isError ? "alert" : "status";
+      const shown = nodes.find((e) => e.props?.role === expectedRole && e.type === "p" &&
+        e.props?.children === message);
+      assert.ok(shown, `db=${configuredDatabase}: fallback must be shown with role ${expectedRole}`);
+      assert.equal(shown.props.style?.color, isError ? "var(--danger)" : undefined,
+        `db=${configuredDatabase}: severity must match server storage availability`);
+      const otherRole = isError ? "status" : "alert";
+      assert.equal(nodes.some((e) => e.props?.role === otherRole && e.type === "p" &&
+        e.props?.children === message), false, `db=${configuredDatabase}: no conflicting status`);
+      assert.deepEqual(state().doc.assets.uploaded.dataUrl, "data:audio/wav;base64,bG9jYWw=",
+        "the fallback asset must still be retained in browser storage");
+    } finally { f.ui.unmount(); }
+  }
 });
 
 test("a current upload failure can be retried and fallback files remain available", async () => {
