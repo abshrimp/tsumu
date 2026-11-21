@@ -226,8 +226,8 @@ test("同じ書き出し先のURLを検出し、URL修正後は両方のクエ�
   await expect(page.getByRole("button", { name: "zipをダウンロード", exact: true })).toBeDisabled();
   await page.getByRole("button", { name: "キャンセル", exact: true }).click();
 
-  await page.locator(".hdr-page .dd").click();
-  await page.locator(".dd-menu .dd-item").filter({ hasText: /^second/ }).click();
+  await page.locator('[data-tutorial="left-tab-pages"]').click();
+  await page.locator('.page-row[data-page-id="second"]').click();
   await page.locator('[data-tutorial="left-tab-site"]').click();
   const slug = page.locator('[data-tutorial="tutorial-page-slug"]');
   await expect(slug).toHaveValue("about//team");
@@ -285,8 +285,8 @@ test("大文字だけ違う転送を公開・書き出し前に止め、別の�
   expect((await page.request.put(`/api/doc?site=${site.id}`, { data: doc })).ok()).toBeTruthy();
   await page.goto(`/sites/${site.id}`);
   await expect(page.getByText("サーバー保存済み")).toBeVisible();
-  await page.locator(".hdr-page .dd").click();
-  await page.locator(".dd-menu .dd-item").filter({ hasText: /^Old URL/ }).click();
+  await page.locator('[data-tutorial="left-tab-pages"]').click();
+  await page.locator('.page-row[data-page-id="old"]').click();
   await page.locator('[data-tutorial="left-tab-site"]').click();
   const slug = page.locator('[data-tutorial="tutorial-page-slug"]');
   await expect(slug).toHaveValue("redirect-source");

@@ -55,6 +55,38 @@ test("Tsumu page title and save preferences survive a reload", { tag: "@core-edi
   await expect(page.getByRole("button", { name: "始める" })).toHaveCount(0);
 });
 
+test("header site name can be renamed in place without a page dropdown", { tag: "@core-editing" }, async ({ page }) => {
+  const id = await openNewSite(page, "Old site name");
+  const header = page.locator(".hdr-page");
+  const trigger = header.getByRole("button", { name: "サイト名: Old site name" });
+  await expect(trigger).toBeVisible();
+  await expect(header.locator(".dd")).toHaveCount(0);
+  await trigger.click();
+
+  const field = header.getByRole("textbox", { name: "サイト名" });
+  await expect(field).toBeFocused();
+  await field.fill("  New site name  ");
+  await field.press("Enter");
+  await expect(header.locator(".hdr-site-name-text")).toHaveText("New site name");
+  await expect.poll(async () => {
+    const response = await page.request.get(`/api/doc?site=${id}`);
+    return (await response.json()).doc.siteName;
+  }).toBe("New site name");
+
+  await header.getByRole("button").click();
+  await field.fill("Changed accidentally");
+  await field.press("Escape");
+  await expect(header.locator(".hdr-site-name-text")).toHaveText("New site name");
+
+  await header.getByRole("button").click();
+  await field.fill("  ");
+  await field.press("Enter");
+  await expect(header.locator(".hdr-site-name-text")).toHaveText("New site name");
+
+  await page.reload();
+  await expect(header.locator(".hdr-site-name-text")).toHaveText("New site name");
+});
+
 test("Deleting a node is undoable, persists, and survives a reload", { tag: "@core-editing" }, async ({ page }) => {
   const errors = watchErrors(page);
   await openNewSite(page);

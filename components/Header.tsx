@@ -1,12 +1,11 @@
 "use client";
 
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { signOut } from "next-auth/react";
 import {
   CircleHelp,
   Cable,
   Download,
-  FileText,
   Globe,
   History,
   LayoutGrid,
@@ -21,6 +20,7 @@ import {
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
+  Pencil,
   PenTool,
   Play,
   Redo2,
@@ -220,6 +220,63 @@ function LogoutModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** The header shows the site identity, not an alternative page selector. */
+function HeaderSiteName({ name, editable, onRename }: {
+  name: string;
+  editable: boolean;
+  onRename: (name: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const cancelled = useRef(false);
+  const finish = (value: string) => {
+    setEditing(false);
+    if (cancelled.current) {
+      cancelled.current = false;
+      return;
+    }
+    const renamed = value.trim();
+    if (editable && renamed && renamed !== name) onRename(renamed);
+  };
+
+  return (
+    <div className="hdr-page">
+      {editing && editable ? (
+        <input
+          autoFocus
+          className="hdr-site-name-input"
+          aria-label={tr("Site name")}
+          defaultValue={name}
+          onFocus={(event) => event.currentTarget.select()}
+          onBlur={(event) => finish(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              cancelled.current = true;
+              event.currentTarget.blur();
+            } else if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              event.currentTarget.blur();
+            }
+          }}
+        />
+      ) : (
+        <button
+          type="button"
+          className="hdr-site-name"
+          aria-label={tr("Site name") + ": " + name}
+          title={editable ? tr("Rename") : name}
+          disabled={!editable}
+          onClick={() => setEditing(true)}
+        >
+          <span className="hdr-site-name-text">{name}</span>
+          {editable && <Pencil size={12} className="hdr-site-name-pencil" aria-hidden />}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function Header({
   panels,
   onTogglePanel,
@@ -230,34 +287,6 @@ export default function Header({
   onTogglePanel: (side: "l" | "r") => void;
   siteRole: SiteRole | null;
 }) {
-  const pages = useEditor((s) => s.doc.pages);
-  const pageOrder = useEditor((s) => s.doc.pageOrder);
-  const folders = useEditor((s) => s.doc.pageFolders);
-  const loadingScreen = useEditor((s) => s.doc.loadingScreen);
-  const pageOptions = useMemo(() => {
-    const folderNames = new Map(folders?.map((folder) => [folder.id, folder.name]));
-    const options = pageOrder.map((id) => {
-      const page = pages[id];
-      const folder = page.folderId && folderNames.get(page.folderId);
-      return {
-        value: id,
-        label: page.unpublished ? tr("{name} (unpublished)", { name: page.name }) : page.name,
-        desc: `${folder ? folder + " · " : ""}/${page.slug}`,
-        icon: <FileText size={13} />,
-      };
-    });
-    if (loadingScreen?.enabled && loadingScreen.pageId && pages[loadingScreen.pageId]) {
-      options.unshift({
-        value: loadingScreen.pageId,
-        label: tr("Loading screen"),
-        desc: tr("Site-wide"),
-        icon: <LoaderCircle size={13} />,
-      });
-    }
-    return options;
-  }, [pages, pageOrder, folders, loadingScreen]);
-  const activePageId = useEditor((s) => s.activePageId);
-  const setActivePage = useEditor((s) => s.setActivePage);
   const breakpoint = useEditor((s) => s.breakpoint);
   const setBreakpoint = useEditor((s) => s.setBreakpoint);
   const customWidth = useEditor((s) => s.customWidth);
@@ -290,6 +319,9 @@ export default function Header({
   const [logoutOpen, setLogoutOpen] = useState(false);
   const status = useServerStatus();
   const siteName = useEditor((s) => s.doc.siteName);
+  const updateDoc = useEditor((s) => s.updateDoc);
+  const canRenameSite = siteRole !== "viewer" && status?.role !== "viewer" &&
+    (status?.db !== true || siteRole === "owner" || siteRole === "editor");
   const permissionsAvailable = status?.auth === true && status.db === true;
   const canManageMembers = permissionsAvailable && status?.role === "editor" && siteRole === "owner";
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -348,14 +380,11 @@ export default function Header({
             {panels.l ? <PanelLeftClose size={16} /> : <PanelLeftOpen size={16} />}
           </button>
         )}
-        <div className="hdr-page" data-tutorial="pages">
-          <Dropdown
-            value={activePageId}
-            options={pageOptions}
-            onChange={setActivePage}
-            menuWidth={200}
-          />
-        </div>
+        <HeaderSiteName
+          name={siteName}
+          editable={canRenameSite}
+          onRename={(name) => updateDoc((doc) => { doc.siteName = name; })}
+        />
         <div className="hdr-sep" />
         <button
           className="icon-btn"
