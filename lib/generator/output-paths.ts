@@ -46,14 +46,23 @@ export function assertGeneratedPaths(project: GeneratedProject, reservedPaths: r
       portablePaths.set(canonical, path);
     }
   }
+  const directories = new Map<string, string>();
   for (const path of paths) {
     const segments = path.split("/");
     for (let i = 1; i < segments.length; i++) {
       const parent = segments.slice(0, i).join("/");
-      const existing = portablePaths.get(normalize(parent));
+      const key = normalize(parent);
+      const existing = portablePaths.get(key);
       if (existing) {
         throw new Error("Generated file/directory collision: " + existing + " and " + path);
       }
+      // Extraction onto a case- or normalization-insensitive volume coalesces these folders.
+      // Uploading that tree would lose one spelling and break the corresponding public URLs.
+      const directory = directories.get(key);
+      if (directory && directory !== parent) {
+        throw new Error("Case-insensitive generated directory collision: " + directory + " and " + parent);
+      }
+      directories.set(key, parent);
     }
   }
 }

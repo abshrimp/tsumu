@@ -566,6 +566,8 @@ export interface ZipAssetMetadata {
 export interface Asset {
   id: string;
   name: string;
+  /** Keep a numbered public filename when a partial archive omits earlier same-name assets. */
+  exportSuffix?: number;
   /** Workers KV でのパス（/api/assets/file を通して配信する） */
   path?: string;
   /** サーバーの保存先が無いときに、このブラウザの中に保存した中身（data URL） */

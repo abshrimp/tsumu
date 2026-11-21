@@ -16,6 +16,15 @@ import { hasPublishCredentials } from "./publish-security";
 import { tr } from "./i18n";
 import { resolveExportOptions, type ExportFormat, type ExportOptions } from "./generator/export-options";
 
+/** Keep literal /assets/name-N.ext references working after same-name siblings are pruned. */
+function preserveAssetFilenames(scoped: SiteDoc, suffixes: Map<string, number>): SiteDoc {
+  for (const [id, asset] of Object.entries(scoped.assets)) {
+    const suffix = suffixes.get(id);
+    if (suffix && asset.exportSuffix !== suffix) scoped.assets[id] = { ...asset, exportSuffix: suffix };
+  }
+  return scoped;
+}
+
 /**
  * 一部だけを書き出す場合は、他のページの編集可能なノードや無関係なアセットを含めてはいけない。
  * 書き出す ZIP に SiteDoc 全体を入れると、生成したコードが1ページ分だけでも、
@@ -55,10 +64,14 @@ function prunePartialDoc(doc: SiteDoc): SiteDoc {
       folder.beforePageId && !Object.hasOwn(doc.pages, folder.beforePageId)
         ? { id: folder.id, name: folder.name } : folder),
   };
-  const assetIds = scopedAssetIds(scoped, doc.assets);
+  const suffixes = new Map<string, number>();
+  const names = buildAssetNames(doc, suffixes);
+  const assetIds = scopedAssetIds(scoped, doc.assets, names);
   const assets: SiteDoc["assets"] = Object.create(null);
-  for (const id of zipAssetClosure(doc.assets, assetIds)) assets[id] = doc.assets[id];
-  return { ...scoped, assets };
+  const closure = zipAssetClosure(doc.assets, assetIds);
+  // Preserve the original allocation order as well as names referred to by literal URLs.
+  for (const id of Object.keys(doc.assets)) if (closure.has(id)) assets[id] = doc.assets[id];
+  return preserveAssetFilenames({ ...scoped, assets }, suffixes);
 }
 
 /** 選択したノードは、選択したページから実際にたどれなければならない。
@@ -252,7 +265,7 @@ export function generateExportProject(
   const generated = options.framework === "react"
     ? buildReactProject(scoped, next, target, classes)
     : (options.framework === "html" || options.framework === "single-html")
-      ? generateStandaloneHtml(scoped, next, target, classes)
+      ? generateStandaloneHtml(scoped, next, target, classes, options.framework === "html" ? options.htmlPlacement : undefined)
       : (options.framework === "vue" || options.framework === "nuxt" || options.framework === "sveltekit")
         ? buildAdditionalFramework(scoped, next, options.framework, options.language, target, classes)
         : next;
@@ -299,6 +312,9 @@ export async function prepareExportScopeDoc(doc: SiteDoc, options: ExportOptions
   if (scoped !== doc && Object.keys(scoped.assets).length) {
     const { retainImportedDependencies } = await import("./generator/imported-dependencies");
     await retainImportedDependencies(scoped, doc.assets);
+    const suffixes = new Map<string, number>();
+    buildAssetNames(doc, suffixes);
+    preserveAssetFilenames(scoped, suffixes);
   }
   return scoped;
 }

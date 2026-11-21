@@ -270,7 +270,7 @@ describe("export-safety-boundaries", () => {
     const site = doc();
     const options = { language: "typescript", style: "tailwind", scope: "project" } as const;
     const registrations = [
-      ["react", "vite.config.ts", /plugins:\s*\[tailwindcss\(\)\]/],
+      ["react", "vite.config.ts", /plugins:\s*\[tailwindcss\(\)(?:,|\])/],
       ["vue", "vite.config.ts", /plugins:\s*\[vue\(\),\s*tailwindcss\(\)\]/],
       ["nuxt", "nuxt.config.ts", /vite:\s*\{\s*plugins:\s*\[tailwindcss\(\)\]/],
       ["sveltekit", "vite.config.ts", /plugins:\s*\[tailwindcss\(\),\s*sveltekit\(/],
@@ -343,6 +343,18 @@ describe("export-safety-boundaries", () => {
     assert.match(names.get("lower")!, /-2\.png$/i);
   });
 
+
+  test("differently spelled parent directories cannot silently merge when an export is extracted", async () => {
+    const { assertGeneratedPaths } = await import("../lib/generator/output-paths");
+    for (const [first, second] of [["News", "news"], ["café", "cafe\u0301"]]) {
+      const files = { [first + "/index.html"]: "page" };
+      const remoteAssets = { [second + "/images/cover.png"]: "assets/cover.png" };
+      assert.throws(() => assertGeneratedPaths({ files, binaries: {}, remoteAssets }), /generated directory collision/);
+      assert.doesNotThrow(() => assertGeneratedPaths({ files, binaries: {}, remoteAssets: {
+        [first + "/images/cover.png"]: "assets/cover.png",
+      } }));
+    }
+  });
 
   test("editable ZIP metadata cannot collide with generated page paths", async () => {
     const { assertGeneratedPaths } = await import("../lib/generator/output-paths");
@@ -3034,6 +3046,21 @@ describe("vue-ssr-metadata", () => {
       assert.match(result.tree.querySelector("title").text,/Not Found/);
     });
   }
+
+  test("Vue SSR serves the authored 404 metadata with its error page", async () => {
+    const source = structuredClone(doc);
+    source.ogImage = { url: "https://example.com/default.png" };
+    source.pages.missing = { id: "missing", name: "Missing", title: "Introuvable", description: "Page absente",
+      lang: "fr", slug: "404", children: [], ogImage: { url: "https://example.com/missing.png" } };
+    source.pageOrder.push("missing");
+    const result = await harness("typescript", source)("/news/absent");
+    assert.equal(result.status, 404);
+    assert.equal(result.tree.querySelector("title").text, "Introuvable | " + site);
+    assert.equal(result.tree.querySelector("html").getAttribute("lang"), "fr");
+    assert.equal(result.tree.querySelector('meta[name="description"]').getAttribute("content"), "Page absente");
+    assert.deepEqual(result.tree.querySelectorAll('meta[property="og:image"]').map((el: any) => el.getAttribute("content")),
+      ["https://example.com/missing.png"]);
+  });
 
   test("Vue SSR language metadata cannot escape its HTML attribute", async () => {
     const source = structuredClone(doc);

@@ -127,7 +127,7 @@ Git のロールバック（`app/api/publish/history/route.ts`・`app/api/publis
 
 ## 出力形式
 
-`lib/export-formats.ts` の `prepareExportProject(doc, options, target)` は、公開と zip での書き出しが共通で使う処理です。そのため、どちらも常に同じファイルを出力します。
+`lib/export-formats.ts` の `prepareExportProject(doc, options, target)` は、公開とZIP書き出しに共通の生成処理です。直接の静的公開では、設定したURLにページを配置し、サイトのルートを基準にリソースを参照します。ダウンロード用のHTML ZIPは、ディスク上やサブディレクトリからも開けるように相対パスを使います。
 
 1. **出力範囲**：`exportScopeDoc` が、指定に応じて文書を現在のページまたは選択中の要素に絞り込みます。その範囲で使うノード・コンポーネント・アセットだけを残すため、他のページの内容は含まれません。
 2. **制限**：`exportLimitations` が、選択した形式で表現できない機能（動的パス、リダイレクト、HTMLページなど）を列挙します。データ取得に認証情報が含まれる場合は、どの形式でもエラーにします。画面はこれらをエラーとして表示し、解消されるまで先に進みません。

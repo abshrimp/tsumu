@@ -2278,6 +2278,48 @@ test("single HTML mode contains one index.html without build tooling", async () 
   assert.doesNotMatch(result.files["index.html"], /tsumu/i);
 });
 
+test("single HTML preserves head noscript markup and only embeds its real resources", async () => {
+  const comment = '<!-- example: <link rel="stylesheet" href="comment.css"> -->';
+  const meta = '<meta name="description" content="Example &amp; reference">';
+  const cssText = 'content:"url(example.svg)"';
+  const script = '<script>const example = \'<noscript><img src="quoted.png"></noscript>\';</script>';
+  // The first tag belongs to the implicit head and starts at source offset zero.
+  const html = '<noscript>' + comment + meta + '<style>.tip{background:url(pic.svg)}.tip::after{' + cssText + '}</style>' +
+    '<link rel="stylesheet" href="fallback.css"></noscript>' + script;
+  const { files } = await toSingleHtmlProject({
+    files: { "index.html": html, "fallback.css": "p{color:navy}", "pic.svg": '<svg xmlns="http://www.w3.org/2000/svg"/>' },
+    binaries: {}, remoteAssets: {},
+  });
+  const output = files["index.html"];
+  for (const literal of [comment, meta, cssText, script]) assert.ok(output.includes(literal));
+  const doc = parse(output, { scriptingEnabled: false });
+  const element = (parent: Html.ParentNode, tag: string) => parent.childNodes.find(
+    (node): node is Html.Element => "tagName" in node && node.tagName === tag)!;
+  const noscript = element(element(element(doc, "html"), "head"), "noscript");
+  assert.deepEqual(noscript.childNodes.filter(node => "tagName" in node).map(node => node.tagName), ["meta", "style", "link"]);
+  assert.match(element(noscript, "link").attrs.find(a => a.name === "href")!.value, /^data:text\/css;/);
+  assert.match(output, /background:url\(data:image\/svg\+xml;base64,/);
+});
+
+test("single HTML reuses a preloaded font in the stylesheet", async () => {
+  const calls: string[] = [];
+  const font = "https://fonts.example.test/site.woff2";
+  const project = await toSingleHtmlProject({
+    files: {
+      "index.html": '<link rel="preload" as="font" type="font/woff2" crossorigin href="' + font + '">' +
+        '<link rel="stylesheet" href="css/type.css">',
+      "css/type.css": '@font-face {font-family: Site;src:url("' + font + '") format("woff2")}',
+    }, binaries: {}, remoteAssets: {},
+  }, async url => {
+    calls.push(url);
+    return new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "font/woff2" } });
+  });
+  assert.deepEqual(calls, [font]);
+  const html = project.files["index.html"];
+  assert.match(html, /as="font"[^>]*crossorigin[^>]*href="data:font\/woff2;base64,AQID"/);
+  assert.match(html, /src:url\("data:font\/woff2;base64,AQID"\)/);
+});
+
 test("single HTML inlines local media, CSS backgrounds and script source", async () => {
   const file = await toSingleHtmlProject({
     files: {
@@ -2550,7 +2592,7 @@ test("non-Next.js exports emit icons, social preview tags, theme-color, and PWA 
     const out = generateExportProject(doc, { framework, language: "typescript", style: "css", scope: "project" });
     assert.match(out.files["index.html"], /rel="manifest" href="\/manifest\.webmanifest"/, framework);
     assert.match(out.files["index.html"], /rel="apple-touch-icon"/, framework);
-    assert.match(out.files["index.html"], /property="og:image"/, framework);
+    assert.match(out.files[framework === "vue" ? "server.mjs" : "index.html"], /property="og:image"/, framework);
     assert.match(out.files["index.html"], /name="theme-color" content="#112233"/, framework);
     assert.ok(out.files["public/manifest.webmanifest"], framework);
   }
@@ -2566,7 +2608,7 @@ test("non-Next.js exports emit icons, social preview tags, theme-color, and PWA 
   const svelte = generateExportProject(doc, { framework: "sveltekit", language: "typescript", style: "css", scope: "project" });
   assert.match(svelte.files["src/app.html"], /rel="manifest" href="\/manifest\.webmanifest"/);
   assert.match(svelte.files["src/app.html"], /rel="apple-touch-icon"/);
-  assert.match(svelte.files["src/app.html"], /property="og:image"/);
+  assert.match(svelte.files["src/routes/+page.svelte"], /property="og:image"/);
   assert.match(svelte.files["src/app.html"], /name="theme-color" content="#112233"/);
   assert.ok(svelte.files["static/manifest.webmanifest"]);
 });

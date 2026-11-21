@@ -182,7 +182,7 @@ function addTailwind(files: Record<string, string>, framework: ExportFormat) {
         vitePlugins, "plugins: [tailwindcss(), sveltekit(");
     }
     if (framework === "react") files[config] = files[config]
-      .replace('export default defineConfig({', 'export default defineConfig({\n  plugins: [tailwindcss()],');
+      .replace('plugins: [routeDocuments]', 'plugins: [tailwindcss(), routeDocuments]');
   } else if (framework === "nuxt") {
     pkg.devDependencies["@tailwindcss/vite"] = "^4.1.0";
     const config = Object.hasOwn(files, "nuxt.config.ts") ? "nuxt.config.ts" : "nuxt.config.js";

@@ -1,5 +1,6 @@
 import { expect, test, type Route } from "@playwright/test";
-import { makeBox } from "../lib/presets";
+import { makeBox, makeText } from "../lib/presets";
+import { ZipArchive } from "../lib/zip";
 import type { SiteDoc } from "../lib/types";
 
 // 公開のエンドポイントは模擬する。これらのテストは、GitHub に決して書き込まない。
@@ -94,7 +95,9 @@ test("Netlify publishes generated ZIP to the selected team and reuses the projec
     expect(headers["x-netlify-team-id"]).toBe(teamId);
     const archive = route.request().postDataBuffer();
     expect(archive).not.toBeNull();
-    expect(archive!.subarray(0, 2).toString()).toBe("PK");
+    const zip = await ZipArchive.open(archive!);
+    expect(zip.file("campaign/winter/index.html")).not.toBeNull();
+    expect(zip.file("index.html")).not.toBeNull();
     await route.fulfill({ json: {
       provider: "netlify", id: "deploy-12345678", state: "ready",
       deploymentUrl: "https://deploy-12345678--visitor-site.netlify.app",
@@ -110,6 +113,12 @@ test("Netlify publishes generated ZIP to the selected team and reuses the projec
   const response = await page.request.post("/api/sites", { data: { name: "Netlify production flow" } });
   expect(response.ok()).toBeTruthy();
   const { site } = await response.json();
+  const title = makeText("見出しをここに");
+  const doc: SiteDoc = {
+    schemaVersion: 1, siteName: "Winter", assets: {}, nodes: { [title.id]: title }, pageOrder: ["winter"],
+    pages: { winter: { id: "winter", name: "Winter", title: "Winter", description: "", slug: "campaign/winter", children: [title.id] } },
+  };
+  expect((await page.request.put("/api/doc?site=" + site.id, { data: doc })).ok()).toBeTruthy();
   await page.goto(`/sites/${site.id}`);
   await expect(page.locator('[data-tutorial="canvas"]').getByText("見出しをここに").first()).toBeVisible();
   for (let count = 1; count <= 2; count++) {

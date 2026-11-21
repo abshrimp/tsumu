@@ -45,9 +45,9 @@ const NAME_DICT: [RegExp, string][] = [
 function nameAllocator(reserved: Iterable<string> = [], separator = "-", forbidden?: (name: string) => boolean) {
   const used = new Set(Array.from(reserved, (name) => name.toLowerCase()));
   const nextSuffix = new Map<string, number>();
-  return (base: string, extension = ""): string => {
+  return (base: string, extension = "", preferredSuffix = 1): string => {
     const key = base.toLowerCase() + "\0" + extension.toLowerCase();
-    let name = base + extension;
+    let name = (preferredSuffix > 1 ? base + separator + preferredSuffix : base) + extension;
     let next = nextSuffix.get(key) ?? 2;
     while (used.has(name.toLowerCase()) || forbidden?.(name)) {
       name = base + separator + next++ + extension;
@@ -125,7 +125,7 @@ function extFromMime(mimeType?: string, dataUrl?: string): string {
  * アセットの出力ファイル名（public/assets/ の中）。
  * 同じ名前のファイルをアップロードしても上書きされないよう、一意にする
  */
-export function buildAssetNames(doc: SiteDoc): Map<string, string> {
+export function buildAssetNames(doc: Pick<SiteDoc, "assets">, suffixes?: Map<string, number>): Map<string, string> {
   // ZIP は、大文字と小文字を区別しないファイルシステムに展開されることが多い。
   // 元の綴りは保ち、大文字と小文字だけが違う名前には接尾辞を付ける。
   const allocate = nameAllocator();
@@ -155,7 +155,13 @@ export function buildAssetNames(doc: SiteDoc): Map<string, string> {
     // 書き出し全体を失敗させずに、有効なアップロード済みのアセットの名前を変える。
     const base = isWindowsDeviceName(originalBase)
       ? "_" + originalBase : originalBase;
-    map.set(asset.id, allocate(base, ext));
+    const suffix = asset.exportSuffix;
+    const preferred = typeof suffix === "number" && Number.isSafeInteger(suffix) && suffix > 1 ? suffix : 1;
+    const name = allocate(base, ext, preferred);
+    map.set(asset.id, name);
+    if (suffixes && name !== base + ext) {
+      suffixes.set(asset.id, Number(name.slice(base.length + 1, name.length - ext.length)));
+    }
   }
   return map;
 }

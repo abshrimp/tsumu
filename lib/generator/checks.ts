@@ -78,7 +78,9 @@ function hasSelfRedirect(page: Page, earlierRedirects: Page[]): boolean {
   });
 }
 
-export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckResult[] {
+export function runChecks(
+  doc: SiteDoc, { requireHomePage = true }: { requireHomePage?: boolean | "if-defined" } = {},
+): CheckResult[] {
   const results: CheckResult[] = [];
   const routes = new Map<string, { name: string; conditions: string; shareable: boolean }[]>();
   const published = doc.pageOrder.filter((pid) => !doc.pages[pid].unpublished);
@@ -118,6 +120,7 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
     }
   };
 
+  const isHome = (id: string) => !doc.pages[id].slug.replace(/^\/+|\/+$/g, "");
   if (!published.length) {
     results.push({
       help: "page-draft",
@@ -125,9 +128,8 @@ export function runChecks(doc: SiteDoc, { requireHomePage = true } = {}): CheckR
       message: tr("No pages to publish (all pages are unpublished)"),
     });
   } else if (
-    requireHomePage && !published.some(
-      (pid) => doc.pages[pid].slug.replace(/^\/+|\/+$/g, "") === ""
-    )
+    requireHomePage && !published.some(isHome) &&
+    (requireHomePage === true || doc.pageOrder.some(isHome))
   ) {
     results.push({
       help: "page-draft",

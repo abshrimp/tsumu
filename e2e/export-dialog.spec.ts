@@ -192,6 +192,45 @@ test("single HTML preserves deferred script order, inert data attributes, and of
   expect(externalRequests).toEqual([]);
 });
 
+test("single HTML keeps deferred CSS and responsive fallback images offline", async ({ browser }) => {
+  const { toSingleHtmlProject } = await import("../lib/generator/single-html");
+  const image = (width: number) => `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="8"><rect width="100%" height="8"/></svg>`;
+  const project = await toSingleHtmlProject({
+    files: {
+      "index.html": '<!doctype html><head><link rel="preload" as="style" href="css/theme.css" onload="this.rel=\'stylesheet\';this.onload=null">' +
+        '<link rel="stylesheet" type="text/css; charset=UTF-8" href="css/type.css">' +
+        '<noscript><link rel="stylesheet" href="css/theme.css"></noscript></head><body><p id="hero">Hero</p>' +
+        '<noscript><picture><source media="(min-width:600px)" srcset="images/small.svg 1x, images/wide.svg 2x">' +
+        '<img id="fallback" src="images/small.svg"></picture></noscript></body>',
+      "css/theme.css": '@import "colors.css"; #hero { background-image: image-set("../images/wide.svg" 1x) }',
+      "css/colors.css": "#hero { color: rgb(20, 100, 40) }",
+      "css/type.css": "#hero { font-size: 23px }",
+      "images/small.svg": image(8), "images/wide.svg": image(32),
+    },
+    binaries: {}, remoteAssets: {},
+  });
+  for (const javaScriptEnabled of [true, false]) {
+    const page = await browser.newPage({ javaScriptEnabled, viewport: { width: 800, height: 600 }, deviceScaleFactor: 2 });
+    try {
+      const external: string[] = [];
+      await page.route("https://single.test/**", route => {
+        if (route.request().isNavigationRequest()) return route.fulfill({ contentType: "text/html", body: project.files["index.html"] });
+        external.push(route.request().url());
+        return route.abort();
+      });
+      await page.goto("https://single.test/");
+      await expect(page.locator("#hero")).toHaveCSS("color", "rgb(20, 100, 40)");
+      await expect(page.locator("#hero")).toHaveCSS("font-size", "23px");
+      await expect(page.locator("#hero")).toHaveCSS("background-image", /data:image\/svg\+xml/);
+      if (!javaScriptEnabled) {
+        await expect(page.locator("#fallback")).toHaveJSProperty("currentSrc", "data:image/svg+xml;base64," + Buffer.from(image(32)).toString("base64"));
+        await expect(page.locator("#fallback")).toHaveJSProperty("naturalWidth", 16);
+      }
+      expect(external).toEqual([]);
+    } finally { await page.close(); }
+  }
+});
+
 test("同じ書き出し先のURLを検出し、URL修正後は両方のクエリページを書き出す", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));

@@ -536,7 +536,7 @@ export function generateSiteCss(
       `@media ${bpRangeQuery(bp)} {\n${mergeIdenticalRules(hideRules[bp]).join("\n\n")}\n}`
     );
   }
-  const kf = keyframesCss(usedKeyframes, customKeyframes);
+  const kf = resolveValue("customKeyframes", keyframesCss(usedKeyframes, customKeyframes));
   if (kf) blocks.push(kf);
   return blocks.join("\n\n") + "\n";
 }

@@ -518,6 +518,8 @@ export interface ZipAssetMetadata {
 export interface Asset {
   id: string;
   name: string;
+  /** Keep a numbered public filename when a partial archive omits earlier same-name assets. */
+  exportSuffix?: number;
   
   path?: string;
   

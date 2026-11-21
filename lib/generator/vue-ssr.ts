@@ -1,10 +1,11 @@
+import type { NotFoundMetadata } from "./native-components";
 import type { SiteDoc } from "../types";
 import type { ExportLanguage } from "./export-options";
 import { adobeFontHead } from "./adobe-fonts";
 import { frameworkHeadTags } from "./framework-export";
 
 export function withVueSsr(
-  files: Record<string, string>, doc: SiteDoc, language: ExportLanguage,
+  files: Record<string, string>, doc: SiteDoc, language: ExportLanguage, missing: NotFoundMetadata,
 ): void {
   const ts = language === "typescript";
   const ext = ts ? "ts" : "js";
@@ -48,8 +49,7 @@ export function withVueSsr(
     '  if (!selected) {',
     '    const app = createSSRApp(App, { initialPageId: "", initialVars: {} });',
     '    const html = await renderToString(app);',
-    '    return { status: 404, html, id: "", vars: {},',
-    '      title: "Not Found", description: "", language: ' + JSON.stringify(doc.lang || "ja") + ' };',
+    '    return { status: 404, html, id: "", vars: {}, ...' + JSON.stringify(missing) + ' };',
     '  }',
     '  const vars = await loadPageData(selected.plan, url.searchParams,',
     '    (uri, init) => requestPublic(uri, init, url.origin,',
@@ -58,7 +58,7 @@ export function withVueSsr(
     '  const app = createSSRApp(App, { initialPageId: selected.id, initialVars: vars });',
     '  const html = await renderToString(app);',
     '  return { status: 200, html, id: selected.id, vars,',
-    '    title: selected.title + " | " + ' + JSON.stringify(doc.siteName) + ', description: selected.description, noindex: selected.noindex, language: selected.language };',
+    '    title: selected.title + " | " + ' + JSON.stringify(doc.siteName) + ', description: selected.description, noindex: selected.noindex, ogImage: selected.ogImage, language: selected.language };',
     '}',
     "",
   ].join("\n");
@@ -122,10 +122,11 @@ export function withVueSsr(
     '      "app-data": \'<script id="site-payload" type="application/json">\' + sitePayload + "</script>",',
     '      "page-title": escapeHtml(result.title),',
     '      "page-description": escapeHtml(result.description),',
+    `      "page-social": result.ogImage ? '<meta property="og:image" content="' + escapeHtml(result.ogImage) + '"><meta name="twitter:card" content="summary_large_image">' : "",`,
     `      "page-robots": result.noindex ? '<meta name="robots" content="noindex, nofollow">' : "",`,
     '      "page-language": escapeHtml(result.language || ' + JSON.stringify(doc.lang || "ja") + '),',
     '    };',
-    '    let html = template.replace(/<!--(app-html|app-data|page-title|page-description|page-language|page-robots)-->/g, (_, key) => slots[key]);',
+    '    let html = template.replace(/<!--(app-html|app-data|page-title|page-description|page-language|page-robots|page-social)-->/g, (_, key) => slots[key]);',
     '    if (vite) html = await vite.transformIndexHtml(url.pathname, html);',
     '    res.writeHead(result.status, { "Content-Type": "text/html; charset=utf-8", "X-Content-Type-Options": "nosniff" });',
     '    res.end(html);',
@@ -147,7 +148,7 @@ export function withVueSsr(
     "<head>",
     '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
     '<meta name="description" content="<!--page-description-->">',
-    '<!--page-robots-->',
+    '<!--page-robots--><!--page-social-->',
     frameworkHeadTags(doc),
     "<title><!--page-title--></title>",
     adobeFontHead(doc),

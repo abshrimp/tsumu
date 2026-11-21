@@ -2,6 +2,8 @@
  * ビルド不要の HTML / CSS / JavaScript の書き出し。フレームワークのソースは含めない。
  * Next.js の書き出しと同じ、正規化した文書と、生成した CSS・アセットを使う。
  */
+import { codeLiteral } from "./code-literal";
+import type { ExportOptions } from "./export-options";
 import { fieldSubmissionAttributes, submissionAttributes } from "../imported-form";
 import type { DocNode, Page, SiteDoc } from "../types";
 import type { GeneratedProject, PublishTarget } from "../generator";
@@ -26,6 +28,7 @@ import { embedSrc, YOUTUBE_ALLOW } from "../embed";
 import { EMPTY_GIF, buildPwaManifest } from "./templates";
 import { scriptsFile } from "../script-runtime";
 import { PAGE_DATA_RUNTIME, serializePageDataPlan } from "./browser-data";
+import { socialImageSrc } from "./social-image";
 import { QUERY_VARIANT_RUNTIME } from "./query-route";
 import { safeMediaUrl, safeNavigationUrl, safeResourceUrl } from "../url-policy";
 import { importedAttributes, importedClass } from "../imported-html-attrs";
@@ -70,6 +73,26 @@ function standaloneZipBase(html: string, path: string) {
     href: pagePrefix(path) + base.pathname.slice(1) + base.search + base.hash,
     location,
   };
+}
+
+/** A host serves 404.html at the missing request URL, which may be several directories deep. */
+function hostedNotFoundHtml(html: string): string {
+  const { baseElement, elements } = htmlResourceElements(html);
+  const href = baseElement?.attrs.find(attribute => attribute.name === "href")?.value;
+  const location = baseElement?.sourceCodeLocation?.attrs?.href;
+  if (href !== undefined && location) {
+    const base = archiveBaseUrl("404.html", href || "404.html");
+    if (base?.protocol !== "file:") return html;
+    return html.slice(0, location.startOffset) + attr("href", base.pathname + base.search + base.hash).trimStart() +
+      html.slice(location.endOffset);
+  }
+  // A synthetic <base> would make same-document fragment links navigate away from the missing URL.
+  return rewriteHtmlResourceUrls(html, elements, (value) => {
+    const url = value.trim();
+    if (!url || /^(?:[a-z][a-z0-9+.-]*:|[/?#])/i.test(url)) return value;
+    const base = archiveBaseUrl("404.html", url);
+    return base?.protocol === "file:" ? base.pathname + base.search + base.hash : value;
+  }, (key, value) => attr(key, value).trimStart());
 }
 
 /** ルート相対の CSS のリソースの参照だけを書き換える。 */
@@ -479,6 +502,7 @@ export function createReactPageRenderer(doc: SiteDoc, classes = buildClassNames(
 
 export function generateStandaloneHtml(
   doc: SiteDoc, next: GeneratedProject, target: PublishTarget = "production", classes = buildClassNames(doc),
+  placement?: ExportOptions["htmlPlacement"],
 ): GeneratedProject {
   const shared = prepareHtmlExport(doc, classes);
   const { doc: normalized, assets, assetSources } = shared;
@@ -519,7 +543,8 @@ export function generateStandaloneHtml(
 
   const pages = normalized.pageOrder.map((id) => normalized.pages[id])
     .filter((p) => p && !p.unpublished);
-  const single = pages.length === 1;
+  const hosted = placement === "site-root";
+  const single = !hosted && pages.length === 1;
   const groups = new Map<string, Page[]>();
   for (const page of pages) {
     const key = page.slug.replace(/^\/+|\/+$/g, "");
@@ -531,18 +556,18 @@ export function generateStandaloneHtml(
   let adobeHead: string | undefined;
   const outputPaths = new Set<string>();
   for (const group of groups.values()) {
-    const page = group[0];
+    const page = group.find(variant => !pageQueryConditions(variant.query).length) ?? group[0];
     const path = pageFilename(page, single);
     if (outputPaths.has(path)) throw new Error("Duplicate HTML output: " + path);
     outputPaths.add(path);
-    const prefix = pagePrefix(path);
+    const prefix = hosted ? "/" : pagePrefix(path);
     if (page.rawHtml?.trim()) {
       // 共通の HTML / CSS の生成処理で描画する。Next.js のルートのファイル名と、
       // 直列化した TypeScript はフレームワークの出力で、ページのデータの元ではない。
       const source = htmlZipSource(page.rawHtml, page.htmlZip, normalized.assets,
         asset => htmlZipExportSource(asset, assets));
       const html = rawHtmlWithBodyStyles(normalized, page, rewriteHtmlAssetUrls(normalized, source, assets), assets, target);
-      const base = page.htmlZip && standaloneZipBase(html, path);
+      const base = !hosted && page.htmlZip ? standaloneZipBase(html, path) : undefined;
       const assetPrefix = base?.prefix ?? prefix;
       let htmlWithScriptAssets = rewriteHtmlZipScriptUrls(html, page.htmlZip, normalized.assets, asset => {
         const url = htmlZipExportUrl(asset, assets);
@@ -561,6 +586,11 @@ export function generateStandaloneHtml(
       ...shared, page, prefix, single, staticRoutes: groups, authoredBase,
       seen: new Set(), form: false, template: false,
     };
+    const imageFor = (variant: Page) => {
+      const image = socialImageSrc(normalized, variant, assets);
+      return image ? sourceHref(ctx, image) : "";
+    };
+    const hasSocialImage = group.some(variant => !!imageFor(variant));
     const allNoindex = target === "production" && group.every((variant) => variant.noindex);
     const body = group.length === 1
       ? staticPageFragment(ctx, page)
@@ -572,6 +602,7 @@ export function generateStandaloneHtml(
               query: Object.fromEntries(pageQueryConditions(variant.query)),
               title: variant.title || variant.name,
               description: variant.description,
+              ...(hasSocialImage ? { ogImage: imageFor(variant) } : {}),
               noindex: target === "production" && !allNoindex && !!variant.noindex,
               lang: variant.lang || normalized.lang || "ja",
               html: staticPageFragment(context, variant),
@@ -585,9 +616,7 @@ export function generateStandaloneHtml(
       normalized.favicon?.url ? sourceHref(ctx, normalized.favicon.url) : "";
     const appleIcon = normalized.appleTouchIcon?.assetId ? resource(ctx, normalized.appleTouchIcon.assetId) :
       normalized.appleTouchIcon?.url ? sourceHref(ctx, normalized.appleTouchIcon.url) : "";
-    const ogRef = page.ogImage ?? normalized.ogImage;
-    const ogSrc = ogRef?.assetId ? resource(ctx, ogRef.assetId) :
-      ogRef?.url ? sourceHref(ctx, ogRef.url) : "";
+    const ogSrc = imageFor(page);
     const pwaThemeColor = normalized.pwa?.enabled ? normalized.pwa.themeColor?.trim() : "";
     const head = [
       '<meta charset="utf-8">',
@@ -597,8 +626,8 @@ export function generateStandaloneHtml(
       allNoindex ? '<meta name="robots" content="noindex,nofollow">' : "",
       icon && icon !== "#" ? '<link rel="icon"' + attr("href", icon) + ">" : "",
       appleIcon && appleIcon !== "#" ? '<link rel="apple-touch-icon"' + attr("href", appleIcon) + ">" : "",
-      ogSrc && ogSrc !== "#" ? '<meta property="og:image"' + attr("content", ogSrc) + ">" : "",
-      ogSrc && ogSrc !== "#" ? '<meta name="twitter:card" content="summary_large_image">' : "",
+      ogSrc && ogSrc !== "#" ? '<meta property="og:image"' + attr("content", ogSrc) + " data-route-social>" : "",
+      ogSrc && ogSrc !== "#" ? '<meta name="twitter:card" content="summary_large_image" data-route-social>' : "",
       normalized.pwa?.enabled ? '<link rel="manifest" href="' + prefix + 'manifest.webmanifest">' : "",
       pwaThemeColor ? '<meta name="theme-color"' + attr("content", pwaThemeColor) + ">" : "",
       '<link rel="stylesheet" href="' + prefix + 'styles/globals.css">',
@@ -627,11 +656,14 @@ export function generateStandaloneHtml(
       scripts, "</body>", "</html>", "",
     ].join("\n");
   }
+  if (hosted && files["404.html"]) files["404.html"] = hostedNotFoundHtml(files["404.html"]);
   // 公開するページに専用のルートが無くても、アーカイブに必ず開ける入口を用意する。
   if (!files["index.html"] && pages.length) {
-    const first = pageFilename(pages[0], false);
+    const landing = pages.find((page) => pageFilename(page, false) !== "404.html") ?? pages[0];
+    const first = pageFilename(landing, false);
     const target = "./" + first;
     files["index.html"] = '<!doctype html><html><head><meta charset="utf-8">' +
+      '<script>location.replace(' + codeLiteral(target) + '+location.search+location.hash)</script>' +
       '<meta http-equiv="refresh" content="0;url=' + escapeHtml(target) + '">' +
       '</head><body><a href="' + escapeHtml(target) + '">Open site</a></body></html>';
   }

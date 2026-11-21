@@ -29,7 +29,7 @@ import { hasPublishCredentials, readRestoreJson } from "../lib/publish-security"
 import { validateImportedDoc, IMPORT_LIMITS } from "../lib/site-import-format";
 import type { PublishTarget } from "../lib/generator";
 import { exportLimitations, prepareExportProject } from "../lib/export-formats";
-import { DEFAULT_EXPORT_OPTIONS, EXPORT_FRAMEWORK_OPTIONS, type ExportFormat, type ExportLanguage, type ExportOptions, type ExportStyle } from "../lib/generator/export-options";
+import { exportHomeRequirement, DEFAULT_EXPORT_OPTIONS, EXPORT_FRAMEWORK_OPTIONS, type ExportFormat, type ExportLanguage, type ExportOptions, type ExportStyle } from "../lib/generator/export-options";
 import { runChecks, type CheckResult } from "../lib/generator/checks";
 import { Dropdown, Seg } from "./controls";
 import { userMessage } from "../lib/errors";
@@ -267,7 +267,7 @@ export default function PublishModal({
   // 公開先が読み込まれるまでは重い同期チェックを実行しない。
   // 初回のローディングを先に描画してから、公開先が揃った時点で検証する。
   const checks = useMemo<CheckResult[]>(() => configuredTargets ? [
-    ...runChecks(doc),
+    ...runChecks(doc, { requireHomePage: exportHomeRequirement(format, "project") }),
     ...exportLimitations(doc, { framework: format, language, style, scope: "project" })
       .map((message): CheckResult => ({ level: "error", message })),
   ] : [], [configuredTargets, doc, format, language, style]);

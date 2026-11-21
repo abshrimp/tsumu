@@ -31,29 +31,47 @@ export async function toSingleHtmlProject(
     throw new Error("Single HTML requires one fixed page. Export the current page or a selected component.");
   }
   if (textBytes(html) > SINGLE_HTML_LIMIT) throw new Error("The embedded HTML exceeds 48 MB.");
-  const { parse, defaultTreeAdapter } = await import("parse5");
+  const { parse, parseFragment, defaultTreeAdapter } = await import("parse5");
   let elementsCreated = 0;
-  const doc = parse(html, {
+  const options = {
     sourceCodeLocationInfo: true,
     treeAdapter: {
       ...defaultTreeAdapter,
-      createElement(...args) {
+      createElement(...args: Parameters<typeof defaultTreeAdapter.createElement>) {
         if (++elementsCreated > 100000) throw new Error("Too many elements for single HTML export.");
         return defaultTreeAdapter.createElement(...args);
       },
     },
-  });
+  };
+  const doc = parse(html, options);
   // ソース上の位置を使えば、HTML の解析で親が変わっても、変更していないコメント・
   // スクリプトの本文・引用符で囲んだテキストなどの書かれたマークアップを、そのまま写せる。
-  const elements: Html.Element[] = [];
-  const pending: { node: Html.Node; inert: boolean }[] = [{ node: doc, inert: false }];
+  const elements: { node: Html.Element; offset?: number }[] = [];
+  const pending: { node: Html.Node; inert: boolean; offset?: number }[] = [{ node: doc, inert: false }];
   let base = EXPORT_BASE;
   let foundBase = false;
   let hasImportMap = false;
   while (pending.length) {
-    const { node, inert } = pending.pop()!;
+    const { node, inert, offset } = pending.pop()!;
     if ("tagName" in node) {
-      if (node.sourceCodeLocation?.startTag) elements.push(node);
+      const loc = node.sourceCodeLocation;
+      // noscript 内の script は、スクリプトの実行を無効にした環境でしか要素にならない。
+      if (loc?.startTag && !(offset !== undefined && node.tagName === "script")) elements.push({ node, offset });
+      if (offset === undefined && loc?.startTag && node.namespaceURI === HTML && node.tagName === "noscript") {
+        const from = loc.startTag.endOffset;
+        const fallback = html.slice(from, loc.endTag?.startOffset ?? loc.endOffset);
+        const parent = node.parentNode && "tagName" in node.parentNode ? node.parentNode : null;
+        if (fallback.includes("<")) {
+          const disabled = { ...options, scriptingEnabled: false };
+          // head の断片を単独で解析すると body として扱われる。noscript の開始タグを
+          // 含む文書として読み、head 内の noscript 専用の解析規則を適用する。
+          const inHead = parent?.namespaceURI === HTML && parent.tagName === "head";
+          pending.push({
+            node: inHead ? parse(html.slice(loc.startOffset, loc.endOffset), disabled) : parseFragment(parent, fallback, disabled),
+            inert: true, offset: inHead ? loc.startOffset : from,
+          });
+        }
+      }
       if (!inert && !foundBase && node.namespaceURI === HTML && node.tagName === "base") {
         const href = node.attrs.find(a => a.name === "href");
         if (href) {
@@ -68,10 +86,10 @@ export async function toSingleHtmlProject(
           node.attrs.some(attr => attr.name === "type" && attr.value.trim().toLowerCase() === "importmap")) {
         hasImportMap = true;
       }
-      if ("content" in node) pending.push({ node: (node as Html.Template).content, inert: true });
+      if ("content" in node) pending.push({ node: (node as Html.Template).content, inert: true, offset });
     }
     if ("childNodes" in node) {
-      for (let i = node.childNodes.length - 1; i >= 0; i--) pending.push({ node: node.childNodes[i], inert });
+      for (let i = node.childNodes.length - 1; i >= 0; i--) pending.push({ node: node.childNodes[i], inert, offset });
     }
   }
 
@@ -88,10 +106,13 @@ export async function toSingleHtmlProject(
     for (const ref of urls.keys()) urls.set(ref, await resources.embed(ref, base));
     return rewriteSrcsetUrls(value, ref => urls.get(ref)!, SINGLE_HTML_LIMIT);
   };
-  for (const node of elements.sort((a, b) => a.sourceCodeLocation!.startOffset - b.sourceCodeLocation!.startOffset)) {
+  elements.sort((a, b) => ((a.offset ?? 0) + a.node.sourceCodeLocation!.startOffset) - ((b.offset ?? 0) + b.node.sourceCodeLocation!.startOffset));
+  for (const { node, offset: fallbackOffset } of elements) {
+    const offset = fallbackOffset ?? 0;
     const loc = node.sourceCodeLocation!, start = loc.startTag!;
-    if (start.startOffset < cursor) continue;
-    const original = html.slice(start.startOffset, start.endOffset);
+    const begin = offset + start.startOffset, contentStart = offset + start.endOffset;
+    if (begin < cursor) continue;
+    const original = html.slice(begin, contentStart);
     const name = node.tagName;
     const htmlTag = node.namespaceURI === HTML;
     const attrs = attributes(node);
@@ -101,32 +122,39 @@ export async function toSingleHtmlProject(
       if (value !== get(key)) { attrs.set(key, value); modified = true; }
     };
     let replacement: string | undefined;
-    let end = start.endOffset;
+    let end = contentStart;
     for (const key of CSS_ASSET_ATTRIBUTES) {
       if (attrs.has(key)) set(key, await resources.css(get(key), base));
     }
     if (htmlTag && name === "link") {
       const rel = get("rel").toLowerCase().split(/\s+/);
+      const preload = rel.includes("preload") ? get("as").toLowerCase() : "";
       const href = get("href");
       if (rel.includes("manifest")) replacement = "";
-      else if (href && rel.includes("stylesheet") && !/^data:/i.test(href) &&
-               (!get("type") || get("type").toLowerCase() === "text/css")) {
+      else if (href && (rel.includes("stylesheet") || preload === "style") && !/^data:/i.test(href) &&
+               (!get("type") || get("type").split(";", 1)[0].trim().toLowerCase() === "text/css")) {
         const css = await resources.stylesheet(new URL(href, base), new Set(), get("integrity"));
-        if (rel.includes("alternate") || attrs.has("disabled") || attrs.has("title")) {
+        if (fallbackOffset !== undefined || preload === "style" || rel.includes("alternate") || attrs.has("disabled") || attrs.has("title") || attrs.has("onload")) {
+          // noscript の中では、JS が有効なときに CSS 本文が HTML として読まれないよう link を保つ。
+          // 遅延スタイルシートの load ハンドラーは、元の link の rel や media を切り替える。
           set("href", resources.cssUrl(css));
           attrs.delete("integrity"); // 元のバイト列は、CSS を書き換える前に検証済み。
         } else {
+          // style 要素は link と違い、type の MIME パラメーターを受け付けない。
+          if (get("type")) attrs.set("type", "text/css");
           for (const key of ["rel", "href", "integrity", "crossorigin", "referrerpolicy"]) attrs.delete(key);
           replacement = startTag("style", attrs) + "\n" + escapeStyleContent(css) + "\n</style>";
         }
-      } else if (rel.includes("preload") && get("as").toLowerCase() === "image") {
+      } else if (preload === "image") {
         if (href) set("href", await resources.embed(href, base, get("integrity")));
         if (get("imagesrcset")) set("imagesrcset", await embedSrcset(get("imagesrcset")));
+      } else if (href && preload === "font") {
+        set("href", await resources.embed(href, base, get("integrity")));
       } else if (href && (rel.includes("icon") || rel.includes("apple-touch-icon"))) set("href", await resources.embed(href, base));
     } else if (htmlTag && name === "script" && get("src")) {
       const url = new URL(get("src"), base);
       if (url.origin === EXPORT_BASE.origin && url.pathname === "/pwa.js" && Object.hasOwn(source.files, "pwa.js")) {
-        replacement = ""; end = loc.endOffset;
+        replacement = ""; end = offset + loc.endOffset;
       } else if (get("type").trim().toLowerCase() === "module" && url.protocol !== "data:") {
         set("src", await resources.embedModule(url, get("integrity")));
         attrs.delete("integrity"); // 元のバイト列は、モジュールの指定子を書き換える前に検証済み。
@@ -136,8 +164,8 @@ export async function toSingleHtmlProject(
         set("src", await resources.embed(get("src"), base, get("integrity"), true));
       }
     } else if (htmlTag && name === "script" && !attrs.has("src") && executableScriptType(get("type").trim())) {
-      const stop = loc.endTag?.startOffset ?? Math.max(loc.endOffset, ...node.childNodes.map(child => child.sourceCodeLocation?.endOffset ?? 0));
-      const content = html.slice(start.endOffset, stop);
+      const stop = offset + (loc.endTag?.startOffset ?? Math.max(loc.endOffset, ...node.childNodes.map(child => child.sourceCodeLocation?.endOffset ?? 0)));
+      const content = html.slice(contentStart, stop);
       const type = get("type").trim().toLowerCase();
       let rewritten = type === "module" ? await resources.inlineModule(content, base) : content;
       if (zipMedia.size && base.origin === EXPORT_BASE.origin && rewritten.includes("assets/")) {
@@ -173,8 +201,8 @@ export async function toSingleHtmlProject(
       const key = attrs.has("href") ? "href" : "xlink:href";
       if (get(key)) set(key, await resources.embed(get(key), base));
     } else if (name === "style") {
-      const stop = loc.endTag?.startOffset ?? loc.endOffset;
-      const content = html.slice(start.endOffset, stop);
+      const stop = offset + (loc.endTag?.startOffset ?? loc.endOffset);
+      const content = html.slice(contentStart, stop);
       const css = await resources.css(content, base);
       if (css !== content) {
         replacement = (modified ? startTag(name, attrs) : original) + escapeStyleContent(css);
@@ -182,7 +210,7 @@ export async function toSingleHtmlProject(
       }
     }
     if (replacement === undefined && !modified) continue;
-    result.append(html.slice(cursor, start.startOffset));
+    result.append(html.slice(cursor, begin));
     result.append(replacement ?? startTag(name, attrs, !htmlTag && original.endsWith("/>")));
     cursor = end;
   }

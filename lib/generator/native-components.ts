@@ -1,5 +1,6 @@
 import { fieldSubmissionAttributes, submissionAttributes } from "../imported-form";
 import { assetMediaUrl } from "../media-url";
+import { socialImageSrc } from "./social-image";
 import type { PublishTarget } from "../generator";
 import type { SiteDoc, Page, DocNode } from "../types";
 import { listFromOf, obfuscateVarNames, pagePlan } from "../data";
@@ -311,13 +312,22 @@ function node(ctx: Context, id: string, top = false): string {
   }
 }
 
+export interface NotFoundMetadata {
+  title: string;
+  description: string;
+  language: string;
+  ogImage: string | null;
+  noindex: boolean;
+}
+
 interface NativeFiles {
   doc: SiteDoc;
-  pages: { id: string; name: string; title: string; description: string; noindex: boolean; slug: string;
+  pages: { id: string; name: string; title: string; description: string; noindex: boolean; ogImage: string | null; slug: string;
     query: Record<string, string>; language: string; plan: ReturnType<typeof serializePageDataPlan> }[];
   pageFiles: Record<string, string>;
   componentFiles: Record<string, string>;
   notFound?: string;
+  notFoundMetadata: NotFoundMetadata;
 }
 
 /** 書かれたすべてのページとコンポーネントについて、フレームワーク固有の明示的なテンプレートのツリーを生成する。 */
@@ -416,9 +426,14 @@ export function generateNativeFiles(
       const view = { id: page.id, pageScripts: page.pageScripts, serverIds: model.serverIds, listOps: plan.listOps };
       pageFiles[name] = build(page.children, view);
       return { id: page.id, name, title: page.title || page.name,
-        description: page.description, noindex: target === "production" && !!page.noindex, slug: page.slug,
+        ogImage: socialImageSrc(normalized, page, assets), description: page.description, noindex: target === "production" && !!page.noindex, slug: page.slug,
         query: Object.fromEntries(pageQueryConditions(page.query)),
         language: page.lang || normalized.lang || "ja", plan };
     });
-  return { doc: normalized, pages, pageFiles, componentFiles, notFound };
+  const notFoundMetadata = {
+    title: custom404 ? (custom404.title || custom404.name) + " | " + normalized.siteName : "Not Found",
+    description: custom404?.description || "", language: custom404?.lang || normalized.lang || "ja",
+    ogImage: socialImageSrc(normalized, custom404, assets), noindex: target === "production",
+  };
+  return { doc: normalized, pages, pageFiles, componentFiles, notFound, notFoundMetadata };
 }

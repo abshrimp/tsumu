@@ -12,11 +12,15 @@ import { tr } from "./i18n";
  * ZIP and GitHub publishing, no _tsumu/doc.json or other editor state is included.
  */
 export async function buildStaticPublishZip(doc: SiteDoc, target: PublishTarget): Promise<Blob> {
+  if (!doc.pageOrder.some(id => doc.pages[id] && !doc.pages[id].unpublished)) {
+    throw new Error(tr("No pages to publish (all pages are unpublished)"));
+  }
   const project = await prepareExportProject(doc, {
     framework: "html",
     language: "javascript",
     style: "css",
     scope: "project",
+    htmlPlacement: "site-root",
   }, target);
   // Keep the editor's initial JavaScript bundle free of ZIP processing code.
   const { ZipBuilder } = await import("./zip");

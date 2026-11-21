@@ -2,7 +2,7 @@ import type { SiteDoc } from "../types";
 import type { GeneratedProject, PublishTarget } from "../generator";
 import type { ExportLanguage } from "./export-options";
 import { scriptsFile } from "../script-runtime";
-import { generateNativeFiles } from "./native-components";
+import { generateNativeFiles, type NotFoundMetadata } from "./native-components";
 import { nativeDataModule } from "./native-data";
 import { withVueSsr } from "./vue-ssr";
 
@@ -13,8 +13,8 @@ const json = (value: unknown) => JSON.stringify(value)
   .replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
 
 function routesFile(pages: ReturnType<typeof generateNativeFiles>["pages"]): string {
-  const plain = pages.map(({ id, name, title, description, noindex, slug, query, language, plan }) =>
-    ({ id, name, title, description, noindex, path: "/" + slug.replace(/^\/+|\/+$/g, ""), query: Object.entries(query), language, plan }));
+  const plain = pages.map(({ id, name, title, description, noindex, ogImage, slug, query, language, plan }) =>
+    ({ id, name, title, description, noindex, ogImage, path: "/" + slug.replace(/^\/+|\/+$/g, ""), query: Object.entries(query), language, plan }));
   return [
     // __proto__ も条件の名前として保ち、オブジェクトの初期化子の特別な構文にしない。
     "export const pages = " + json(plain) + ".map(page => ({ ...page, query: Object.fromEntries(page.query) }));",
@@ -212,7 +212,7 @@ function vueApp(
   framework: "vue" | "nuxt",
   lang: ExportLanguage,
   siteName: string,
-  siteLanguage = "ja",
+  missing: NotFoundMetadata,
   hasNotFound = false,
 ): string {
   const isNuxt = framework === "nuxt";
@@ -257,10 +257,12 @@ function vueApp(
       "const updateVars = (name" + (typed ? ": string" : "") + ", value" + (typed ? ": unknown" : "") + ") => { vars.value[name] = value; };",
       'watch(loaded, (next) => { vars.value = next?.vars || {}; if (typeof window !== "undefined") syncPageVars(vars.value, updateVars); });',
       "useHead(() => ({",
-      "  htmlAttrs: { lang: selected.value?.language || " + json(siteLanguage) + " },",
-      "  title: selected.value ? selected.value.title + ' | ' + " + json(siteName) + " : " + json(siteName) + ",",
-      "  meta: [{ name: 'description', content: selected.value?.description || '' },",
-      "    ...(selected.value?.noindex ? [{ name: 'robots', content: 'noindex, nofollow' }] : [])],",
+      "  htmlAttrs: { lang: selected.value?.language || " + json(missing.language) + " },",
+      "  title: selected.value ? selected.value.title + ' | ' + " + json(siteName) + " : " + json(missing.title) + ",",
+      "  meta: [{ name: 'description', content: selected.value?.description ?? " + json(missing.description) + " },",
+      "    ...(selected.value?.ogImage ? [{ property: 'og:image', content: selected.value.ogImage }, { name: 'twitter:card', content: 'summary_large_image' }] : !selected.value ? " +
+        json(missing.ogImage ? [{ property: 'og:image', content: missing.ogImage }, { name: 'twitter:card', content: 'summary_large_image' }] : []) + " : []),",
+      "    ...((selected.value?.noindex ?? " + missing.noindex + ") ? [{ name: 'robots', content: 'noindex, nofollow' }] : [])],",
       "}));",
     );
   } else {
@@ -315,7 +317,7 @@ function sveltePage(
     ...pages.map((page) => 'import ' + page.name + ' from "$lib/pages/' + page.name + '.svelte";'),
     ...(hasNotFound ? ['import NotFound from "$lib/pages/NotFound.svelte";'] : []),
     typed
-      ? 'let { data }: { data: { id: string; vars: Record<string, unknown>; title: string; description: string; noindex: boolean; language: string } } = $props();'
+      ? 'let { data }: { data: { id: string; vars: Record<string, unknown>; title: string; description: string; noindex: boolean; language: string; ogImage: string | null } } = $props();'
       : "let { data } = $props();",
     'let scope = $state(data.vars || {});',
     'const updateScope = (name' + (typed ? ': string' : '') + ', value' + (typed ? ': unknown' : '') + ') => { scope = { ...scope, [name]: value }; };',
@@ -328,6 +330,7 @@ function sveltePage(
     '<svelte:head>',
     '  <title>{data.title} | {' + json(siteName).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/\{/g, "\\u007b").replace(/\}/g, "\\u007d") + '}</title>',
     '  <meta name="description" content={data.description} />',
+    '  {#if data.ogImage}<meta property="og:image" content={data.ogImage} /><meta name="twitter:card" content="summary_large_image" />{/if}',
     '  {#if data.noindex}<meta name="robots" content="noindex, nofollow" />{/if}',
     '</svelte:head>',
     ...(pages.length
@@ -370,20 +373,20 @@ export function applyNativeFramework(
   files[root + "browser-start.js"] = browserStarter(scriptFiles);
   const hasNotFound = Boolean(native.notFound);
   if (framework === "vue") {
-    files["src/App.vue"] = vueApp(native.pages, "vue", language, doc.siteName, doc.lang || "ja", hasNotFound);
+    files["src/App.vue"] = vueApp(native.pages, "vue", language, doc.siteName, native.notFoundMetadata, hasNotFound);
     files["src/server-request.js"] = serverRequestSource(native.pages);
-    withVueSsr(files, doc, language);
+    withVueSsr(files, doc, language, native.notFoundMetadata);
   } else if (framework === "nuxt") {
     files["app/app.vue"] = "<template><NuxtPage /></template>\n";
     files["app/generated/server-request.js"] = serverRequestSource(native.pages);
-    files["app/pages/index.vue"] = vueApp(native.pages, "nuxt", language, doc.siteName, doc.lang || "ja", hasNotFound);
+    files["app/pages/index.vue"] = vueApp(native.pages, "nuxt", language, doc.siteName, native.notFoundMetadata, hasNotFound);
     files["app/pages/[...slug].vue"] = files["app/pages/index.vue"];
   } else {
     files["src/lib/server-request.js"] = serverRequestSource(native.pages);
     files["src/hooks.server.js"] = [
       'import { selectPage } from "$lib/site-routes.js";',
       'export async function handle({ event, resolve }) {',
-      '  const language = selectPage(event.url.pathname, event.url.searchParams)?.language || ' + json(doc.lang || "ja") + ';',
+      '  const language = selectPage(event.url.pathname, event.url.searchParams)?.language || ' + json(native.notFoundMetadata.language) + ';',
       `  const escaped = language.replace(/[&"<>]/g, char => ({ "&": "&amp;", '"': "&quot;", "<": "&lt;", ">": "&gt;" })[char]);`,
       '  return resolve(event, { transformPageChunk: ({ html }) => html.replace("%page.language%", () => escaped) });',
       '}', '',
@@ -399,20 +402,28 @@ export function applyNativeFramework(
       '  const vars = await loadPageData(selected.plan, url.searchParams,',
       '    (uri, init) => requestPublic(uri, init, url.origin, fetch));',
       '  return { id: selected.id, title: selected.title, description: selected.description,',
-      '    noindex: selected.noindex, language: selected.language, vars };',
+      '    noindex: selected.noindex, language: selected.language, ogImage: selected.ogImage, vars };',
       '}', "",
     ].join("\n");
     files["src/routes/+page.server.js"] = script;
     files["src/routes/[...path]/+page.server.js"] = script;
     files["src/routes/+page.svelte"] = sveltePage(native.pages, language, doc.siteName, hasNotFound);
     files["src/routes/[...path]/+page.svelte"] = files["src/routes/+page.svelte"];
-    if (hasNotFound) {
+    if (hasNotFound || native.notFoundMetadata.ogImage) {
       files["src/routes/+error.svelte"] = [
         '<script' + (language === "typescript" ? ' lang="ts"' : "") + '>',
         'import { page } from "$app/state";',
-        'import NotFound from "$lib/pages/NotFound.svelte";',
+        ...(hasNotFound ? ['import NotFound from "$lib/pages/NotFound.svelte";'] : []),
+        'const missing = ' + json(native.notFoundMetadata) + ';',
+        '$effect(() => { if (page.status === 404) document.documentElement.lang = missing.language; });',
         '</script>',
-        '{#if page.status === 404}<NotFound scope={{}} />{:else}<h1>{page.status}</h1>{/if}',
+        '<svelte:head>{#if page.status === 404}',
+        '  <title>{missing.title}</title><meta name="description" content={missing.description} />',
+        ...(native.notFoundMetadata.ogImage ? ['  <meta property="og:image" content={missing.ogImage} /><meta name="twitter:card" content="summary_large_image" />'] : []),
+        ...(native.notFoundMetadata.noindex ? ['  <meta name="robots" content="noindex, nofollow" />'] : []),
+        '{/if}</svelte:head>',
+        hasNotFound ? '{#if page.status === 404}<NotFound scope={{}} />{:else}<h1>{page.status}</h1>{/if}'
+          : '<h1>{page.status}</h1><p>{page.error?.message}</p>',
         "",
       ].join("\n");
     }

@@ -1,3 +1,5 @@
+import { UPDATE_SOCIAL_IMAGE } from "./social-image";
+
 /**
  * 静的なページでの URL のクエリ違いの振り分け。1つの HTML ファイルで、サーバーを使わずに、
  * ブラウザの URLSearchParams に応じて、書かれた複数のページを表示し分ける。
@@ -30,6 +32,10 @@ export const QUERY_VARIANT_RUNTIME = [
   "  if (choice.lang) document.documentElement.lang = choice.lang;",
   '  const description = document.querySelector(\'meta[name="description"]\');',
   '  if (description) description.setAttribute("content", choice.description || "");',
+  "  if (choice.ogImage !== undefined) {",
+  '    const image = choice.ogImage || "";',
+  UPDATE_SOCIAL_IMAGE,
+  "  }",
   "  if (choice.noindex) {",
   '    const robots = document.createElement("meta");',
   '    robots.name = "robots";',

@@ -119,7 +119,7 @@ Git rollback (`app/api/publish/history/route.ts` and `app/api/publish/gitlab/his
 
 ## Output formats
 
-`prepareExportProject(doc, options, target)` in `lib/export-formats.ts` is the single pipeline behind both publishing and the zip export, so the two always produce the same files.
+`prepareExportProject(doc, options, target)` in `lib/export-formats.ts` generates both published projects and downloadable ZIPs. Direct static publishing places each page at its configured URL and resolves resources from the site root. Downloadable HTML ZIPs use relative paths so they can also be opened from disk or hosted in a subdirectory.
 
 1. **Scope.** `exportScopeDoc` narrows the doc to the current page or the selected element when asked. The narrowed doc keeps only the nodes, components and assets that scope uses, so a partial export never carries other pages' content.
 2. **Limitations.** `exportLimitations` lists the features the chosen format can't express (dynamic paths, redirects, raw HTML pages, and so on). Credentials in data fetches are an error in every format. The dialogs show them as errors and won't continue.

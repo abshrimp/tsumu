@@ -101,6 +101,7 @@ function entryWithId(id: string, value: unknown): value is Record<string, unknow
 
 export function validAssetEntry(id: string, value: unknown): boolean {
   return safeCollectionId(id) && entryWithId(id, value) && typeof value.name === "string" &&
+    (value.exportSuffix == null || (typeof value.exportSuffix === "number" && Number.isSafeInteger(value.exportSuffix) && value.exportSuffix > 1)) &&
     (value.dataUrl == null || typeof value.dataUrl === "string") &&
     (value.path == null || typeof value.path === "string") &&
     (value.mimeType == null || typeof value.mimeType === "string") &&
