@@ -57,7 +57,7 @@ for (const [framework, modulePath, pagePath, expectedBase] of [
   });
 }
 
-test("Vue SSR production commands work on Windows and serve binary resources with their MIME types", async () => {
+test("Vue SSR production commands are portable and serve binary resources with MIME types and byte ranges", async () => {
   const files = generateExportProject(doc, "vue").files;
   const scripts = JSON.parse(files["package.json"]).scripts;
   assert.equal(scripts.start, "node server.mjs --production");
@@ -94,6 +94,36 @@ test("Vue SSR production commands work on Windows and serve binary resources wit
         assert.equal(response.status, 200);
         assert.equal(response.headers.get("content-type"), mime);
         assert.deepEqual(new Uint8Array(await response.arrayBuffer()), new Uint8Array([0, 1, 2]));
+      }
+      const sound = `http://127.0.0.1:${address.port}/assets/file.m4a`;
+      for (const [range, contentRange, bytes] of [
+        ["bytes=1-1", "bytes 1-1/3", [1]],
+        ["bytes=1-", "bytes 1-2/3", [1, 2]],
+        ["bytes=-1", "bytes 2-2/3", [2]],
+        ["bytes=0-99", "bytes 0-2/3", [0, 1, 2]],
+      ] as const) {
+        const response = await fetch(sound, { headers: { Range: range } });
+        assert.equal(response.status, 206);
+        assert.equal(response.headers.get("content-range"), contentRange);
+        assert.equal(response.headers.get("content-length"), String(bytes.length));
+        assert.deepEqual([...new Uint8Array(await response.arrayBuffer())], bytes);
+      }
+      const pastEnd = await fetch(sound, { headers: { Range: "bytes=3-" } });
+      assert.equal(pastEnd.status, 416);
+      assert.equal(pastEnd.headers.get("content-range"), "bytes */3");
+      assert.equal(await pastEnd.text(), "");
+      const head = await fetch(sound, { method: "HEAD" });
+      assert.equal(head.headers.get("accept-ranges"), "bytes");
+      assert.equal(head.headers.get("content-length"), "3");
+      assert.equal(await head.text(), "");
+      // A conditional or multipart request may fall back to the complete representation.
+      const fullRequests: Record<string, string>[] = [
+        { Range: "bytes=1-", "If-Range": '"old-version"' }, { Range: "bytes=0-0,2-2" },
+      ];
+      for (const headers of fullRequests) {
+        const response = await fetch(sound, { headers });
+        assert.equal(response.status, 200);
+        assert.deepEqual([...new Uint8Array(await response.arrayBuffer())], [0, 1, 2]);
       }
     } finally {
       await new Promise<void>((resolve, reject) => server.close((err: Error | undefined) => err ? reject(err) : resolve()));

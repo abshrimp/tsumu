@@ -23,7 +23,7 @@ const doc: SiteDoc = {
   pageOrder: ["home"],
   pages: {
     home: { id: "home", name: "Home", slug: "", title: "Home", description: "", noindex: true,
-      children: ["heading", "literal-text", "picture", "media-sources", "search", "disabled-submit", "items", "action-button", "status-text", "component-instance"],
+      children: ["heading", "literal-text", "picture", "media-sources", "search-form", "preview-frame", "items", "action-button", "status-text", "component-instance"],
       pageScripts: [{
         id: "load", trigger: "load",        steps: [
           { id: "constant", kind: "set-var", into: "csv", value: "Alpha,Beta" },
@@ -45,6 +45,14 @@ const doc: SiteDoc = {
         { src: "", assetId: "clip", assetSuffix: "?v=a%26b#t=1,2", type: "video/mp4", media: "(min-width: 1px)" },
         { src: "", assetId: "clip", assetSuffix: "#t=2", type: "video/mp4" },
       ] } },
+    "search-form": { ...makeBox(), id: "search-form", attrId: "search-form", semantic: "form",
+      children: ["search", "disabled-submit", "run-search", "preview-submit"] },
+    "run-search": { ...makeBox(), id: "run-search", type: "field",
+      field: { kind: "submit", label: "Search", name: "intent", submitValue: "search" } },
+    "preview-submit": { ...makeBox(), id: "preview-submit", type: "field",
+      field: { kind: "submit", label: "Preview", name: "intent", submitValue: "preview" },
+      htmlAttrs: { formaction: "/preview", formtarget: "previewPane", formmethod: "get" } },
+    "preview-frame": { ...makeBox(), id: "preview-frame", type: "code", code: { html: '<iframe name="previewPane" title="Search preview"></iframe>' } },
     search: { ...makeBox(), id: "search", type: "field", attrId: "searchTerm",
       field: { kind: "input", inputType: "text", defaultValue: "", placeholder: "Search {1 + 2}" } },
     "disabled-submit": { ...makeBox(), id: "disabled-submit", type: "field", attrId: "disabled-submit",

@@ -5,6 +5,7 @@ import { scriptsFile } from "../script-runtime";
 import { generateNativeFiles, type NotFoundMetadata } from "./native-components";
 import { nativeDataModule } from "./native-data";
 import { withVueSsr } from "./vue-ssr";
+import { SVELTEKIT_FORM_TARGETS } from "./search-form";
 
 type Framework = "vue" | "nuxt" | "sveltekit";
 // SFC の <script> やテンプレートの式に入れるデータには、文字どおりのタグの区切りや、
@@ -384,6 +385,7 @@ export function applyNativeFramework(
     files["app/pages/[...slug].vue"] = files["app/pages/index.vue"];
   } else {
     files["src/lib/server-request.js"] = serverRequestSource(native.pages);
+    files["src/hooks.client.js"] = SVELTEKIT_FORM_TARGETS;
     files["src/hooks.server.js"] = [
       'import { selectPage } from "$lib/site-routes.js";',
       'export async function handle({ event, resolve }) {',

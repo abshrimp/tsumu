@@ -7,6 +7,7 @@ import { type ScriptCond, type ScriptStep, type ScriptTrigger, type SiteDoc } fr
 import { listFromOf, pagePlan, toListItem } from "./data";
 import { extractVars, hardNavPatterns } from "./vars";
 import { fieldVarNames } from "./fields";
+import { importedAttributes } from "./imported-html-attrs";
 import { EMPTY_GIF, allScripts, pageNodeIds, walkSteps } from "./script";
 import { evaluateValueRecipe } from "./script-model/recipe-runtime";
 import { parseValueLiteral, matchesValueCondition, removeListItem, setVarPath, withinScriptValueLimit } from "./value-semantics";
@@ -1863,14 +1864,55 @@ export const SCRIPT_RUNTIME = `function (env) {
       // Next.js の Link は先に動くので、捕捉の段階で止める
       function onClickCapture(e) {
         var inner = innerClick(e.target);
+        /*#button-keys*/
+        if (disabledScriptButton(inner)) { e.preventDefault(); return; }
+        /*/button-keys*/
         var a = inner && inner.parentElement && inner.parentElement.closest("a[href]");
         if (a && root.contains(a)) e.preventDefault();
       }
       // 「クリックしたとき」は一番内側の要素のものだけ動かし、外側（親）のものは動かさない
       function onClick(e) {
         var inner = innerClick(e.target);
+        /*#button-keys*/
+        if (disabledScriptButton(inner)) return;
+        /*/button-keys*/
         if (inner) fire(inner, "click");
       }
+      /*#button-keys*/
+      function hasButtonRole(el) {
+        return el && (el.getAttribute("role") || "").trim().toLowerCase() === "button";
+      }
+      function disabledScriptButton(el) {
+        return hasButtonRole(el) && el.closest('[aria-disabled="true" i]');
+      }
+      var spaceButton = null;
+      function onButtonKey(e) {
+        if (e.key !== " " && e.key !== "Enter") return;
+        var down = e.type === "keydown";
+        var armed = spaceButton;
+        if (!down && e.key === " ") spaceButton = null;
+        var button = e.target;
+        if (e.defaultPrevented || e.isComposing || e.keyCode === 229 || e.altKey || e.ctrlKey || e.metaKey ||
+            !button || typeof button.click !== "function" || button.isContentEditable ||
+            !hasButtonRole(button) || button.matches("button,input,select,textarea,summary,audio,video") ||
+            button.closest('[aria-disabled="true" i]') || !button.hasAttribute("data-scripts") || !clickSteps(button).length) return;
+        if (e.key === "Enter") {
+          // Links already generate a click for Enter, including links with a button role.
+          if (!down || button.matches("a[href],area[href]")) return;
+          e.preventDefault();
+          if (!e.repeat) button.click();
+        } else if (down) {
+          e.preventDefault();
+          if (!e.repeat) spaceButton = button;
+        } else if (armed === button) {
+          e.preventDefault();
+          button.click();
+        }
+      }
+      function onButtonFocusOut(e) {
+        if (e.target === spaceButton) spaceButton = null;
+      }
+      /*/button-keys*/
       /*/click*/
       /*#hover*/
       /*#keep*/
@@ -2086,6 +2128,11 @@ export const SCRIPT_RUNTIME = `function (env) {
       /*#click*/
       root.addEventListener("click", onClickCapture, true);
       root.addEventListener("click", onClick);
+      /*#button-keys*/
+      root.addEventListener("keydown", onButtonKey);
+      root.addEventListener("keyup", onButtonKey);
+      root.addEventListener("focusout", onButtonFocusOut);
+      /*/button-keys*/
       /*/click*/
       /*#hover*/
       root.addEventListener("mouseover", onOver);
@@ -2130,6 +2177,12 @@ export const SCRIPT_RUNTIME = `function (env) {
         /*#click*/
         root.removeEventListener("click", onClickCapture, true);
         root.removeEventListener("click", onClick);
+        /*#button-keys*/
+        root.removeEventListener("keydown", onButtonKey);
+        root.removeEventListener("keyup", onButtonKey);
+        root.removeEventListener("focusout", onButtonFocusOut);
+        spaceButton = null;
+        /*/button-keys*/
         /*/click*/
         /*#hover*/
         root.removeEventListener("mouseover", onOver);
@@ -2185,6 +2238,7 @@ type RuntimeFeature =
   | "env"
   | "live"
   | "click"
+  | "button-keys"
   | "hover"
   | "keep"
   | "change"
@@ -2298,6 +2352,10 @@ function runtimeFeatures(doc: SiteDoc): Set<RuntimeFeature> {
           out.add(condition.subject);
       }
     });
+  }
+  if (out.has("click") && Object.values(doc.nodes).some(node =>
+    node.htmlAttrs && importedAttributes(node.htmlAttrs).role?.trim().toLowerCase() === "button")) {
+    out.add("button-keys");
   }
   // 画面上で値が決まる配列を並べるリスト
   for (const page of Object.values(doc.pages)) {

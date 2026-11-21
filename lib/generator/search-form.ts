@@ -33,3 +33,32 @@ export const NATIVE_SEARCH_FORM_QUERY = `(function () {
     for (const [name, value] of submission.extra) if (!present.has(name)) event.formData.append(name, value);
   }, true);
 })();`;
+
+/** SvelteKit intercepts same-origin GET forms even when their destination is a named frame. */
+export const SVELTEKIT_FORM_TARGETS = `export function init() {
+  const flag = "data-sveltekit-reload";
+  const pending = new WeakMap();
+  document.addEventListener("submit", event => {
+    const form = event.target;
+    if (!(form instanceof HTMLFormElement)) return;
+    pending.get(form)?.();
+    const target = event.submitter?.getAttribute("formtarget") ?? form.getAttribute("target") ??
+      document.querySelector("base[target]")?.getAttribute("target");
+    if (event.defaultPrevented || !target || target.toLowerCase() === "_self") return;
+
+    const previous = form.getAttribute(flag);
+    if (previous === "" || previous === "true") return;
+    form.setAttribute(flag, "");
+    // Only this submission bypasses the router. Links and subsequent submits keep the authored setting.
+    function restore() {
+      if (pending.get(form) !== restore) return;
+      pending.delete(form);
+      if (form.getAttribute(flag) !== "") return;
+      if (previous === null) form.removeAttribute(flag);
+      else form.setAttribute(flag, previous);
+    }
+    pending.set(form, restore);
+    setTimeout(restore, 0);
+  }, true);
+}
+`;
