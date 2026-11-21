@@ -621,9 +621,15 @@ export function generateStandaloneHtml(
               html: staticPageFragment(context, variant),
             };
           });
+          // The query router fills the active variant when JavaScript runs. Without it,
+          // show the unconditional page rather than leaving the published page empty.
+          // Never let authored snippets close the noscript container prematurely.
+          const fallback = staticPageFragment({ ...ctx, seen: new Set<string>() }, page)
+            .replace(/<\/noscript(?=[\t\n\f\r />])/gi, "&lt;/noscript");
           return '<script type="application/json" data-page-variants>' +
             JSON.stringify(variants).replace(/</g, "\\u003c") + '</script>' +
-            '<div data-variant-root style="display:contents"></div>';
+            '<div data-variant-root style="display:contents"></div>' +
+            '<noscript>' + fallback + '</noscript>';
         })();
     const icon = normalized.favicon?.assetId ? resource(ctx, normalized.favicon.assetId) :
       normalized.favicon?.url ? sourceHref(ctx, normalized.favicon.url) : "";

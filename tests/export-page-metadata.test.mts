@@ -87,3 +87,13 @@ for (const target of ["production", "test"] as const) {
     assert.deepEqual(metadata(output.get("404.html")!), { title: "missing | Journal", lang: "es", description: ["About missing"], image: ["https://images.example/missing.png"], robots: blocked });
   });
 }
+
+test("HTML query variants include the unconditional page for visitors without JavaScript", () => {
+  const { files } = generateExportProject(doc, "html");
+  const html = files["news/winter/index.html"];
+  const fallback = /<noscript>([\s\S]*?)<\/noscript>/.exec(html)?.[1];
+  assert.ok(fallback, "a noscript fallback must be emitted");
+  assert.match(fallback, /data-page-body="base"/);
+  assert.doesNotMatch(fallback, /data-page-body="fr"/);
+  assert.match(html, /<div data-variant-root style="display:contents"><\/div>/);
+});

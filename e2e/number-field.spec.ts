@@ -401,6 +401,44 @@ test(`component literal attributes persist through editor save, preview and expo
 });
 
 test.describe("html-data-export", () => {
+test("standalone HTML query variants display the default page without JavaScript", async ({ browser }) => {
+  const fallback = { ...makeBox(), id: "nojs-default",
+    text: { content: "Default content without JavaScript", heading: 1 } };
+  const alternate = { ...makeBox(), id: "nojs-alternate",
+    text: { content: "JavaScript-only variant", heading: 1 } };
+  const doc: SiteDoc = {
+    schemaVersion: 1, siteName: "No-script fallback", assets: {},
+    pageOrder: ["alternate", "default"],
+    pages: {
+      alternate: { id: "alternate", name: "Alternate", title: "Alternate",
+        description: "", slug: "", query: "view=alternate", children: ["nojs-alternate"] },
+      default: { id: "default", name: "Default", title: "Default",
+        description: "", slug: "", children: ["nojs-default"] },
+    },
+    nodes: { "nojs-default": fallback, "nojs-alternate": alternate },
+  };
+  const { files } = generateExportProject(doc, "html");
+  const context = await browser.newContext({ javaScriptEnabled: false });
+  try {
+    const noScriptPage = await context.newPage();
+    await noScriptPage.route("**/*", async (route) => {
+      const path = new URL(route.request().url()).pathname.replace(/^\/+/, "") || "index.html";
+      const source = files[path];
+      await route.fulfill({
+        status: source === undefined ? 404 : 200,
+        contentType: path.endsWith(".html") ? "text/html" :
+          path.endsWith(".css") ? "text/css" : "text/javascript",
+        body: source ?? "",
+      });
+    });
+    await noScriptPage.goto("http://nojs.export.test/?view=alternate");
+    await expect(noScriptPage.getByRole("heading", { name: "Default content without JavaScript" })).toBeVisible();
+    await expect(noScriptPage.getByText("JavaScript-only variant")).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
+});
+
 test("standalone HTML selects query-variant pages before loading their data", async ({ page }) => {
   const defaultNode = { ...makeBox(), id: "default-heading", text: { content: "Default page", heading: 1 } };
   const specialNode = { ...makeBox(), id: "special-heading", text: { content: "Query-specific page", heading: 1 } };
