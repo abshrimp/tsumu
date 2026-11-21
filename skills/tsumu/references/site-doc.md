@@ -150,6 +150,14 @@ A simple page-load script:
 
 Put it in `page.pageScripts`. A click script is attached to `node.scripts` instead. Steps are a tagged union; the valid kinds are `show`, `hide`, `toggle`, `set-state`, `open-page`, `open-url`, `scroll-to`, `dialog`, `set-value`, `set-enabled`, `list-display`, `store-save`, `store-load`, `set-var`, `set-list-item`, `remove-list-item`, `transform`, `copy`, `wait`, `repeat`, `for-each`, `break-loop`, `fetch`, and `if`. Value operations such as arithmetic, replacing text, and sorting are `transform` recipes ([`script-model/compose.ts`](script-model/compose.ts)), not step kinds. **For any nontrivial script, copy the precise fields and rules from the current `ScriptStep` union in `lib/types.ts`; do not infer step fields.** A fetch directly under a page's load trigger runs before rendering on the server. Fetch steps elsewhere execute in the browser at runtime, require CORS for remote APIs, and delay subsequent steps until complete.
 
+### Script target IDs are HTML `attrId`, not node IDs
+
+**The `target` of a script step or element condition refers to a node's `attrId` (the generated HTML `id` attribute), not its key in `doc.nodes` or its `id`.** When AI generates a script targeting another element, give that element a unique, nonempty `attrId` on the same page and use that exact value in every step, including steps nested inside `if`, `repeat` and `for-each`. Use `"@self"` for an element script that intentionally targets its triggering element. A variable condition (`subject: "var"`) does not need an element; set its `target` to `""`.
+
+For example, given a node stored under `nodes.panel_node` with `"id": "panel_node"` and `"attrId": "details"`, a script must use `{ "id": "show_details", "kind": "show", "target": "details" }`. Writing `"target": "panel_node"` references the wrong identifier. The script owner is determined by where `scripts` or `pageScripts` is stored; do not put a page ID in an element `target`.
+
+When importing SiteDoc JSON or ZIP, Tsumu can canonicalize an unambiguous target that names a node ID on the same page or within its component; it assigns a missing `attrId` or replaces the target with the existing one. It cannot reliably infer arbitrary element names or out-of-page targets. **Always generate canonical `attrId` references yourself**, and ensure the target exists and is unique within the rendered page before staging or importing.
+
 ## Assets and packaging
 
 Without any assets, set `"assets": {}` and provide a single `doc.json`.

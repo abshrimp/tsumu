@@ -221,7 +221,7 @@ Do not substitute raw HTML, a generated Next.js project, or an image-only mockup
 ## Create and verify
 
 0. Verify design fidelity and originality against the independent Phase 1 layout. The SiteDoc must express that design and not merely reskin the offline starter or another reference. If it is too similar, redesign the native node hierarchy before delivery.
-1. Generate stable, unique page, node, script, component and asset IDs; ensure every reference resolves. Use proper `pages`, `pageOrder`, `nodes`, and `assets`.
+1. Generate stable, unique page, node, script, component and asset IDs; ensure every reference resolves. Script step targets must be the target node\'s HTML `attrId` (or `@self` where allowed), never its internal node ID. Use proper `pages`, `pageOrder`, `nodes`, and `assets`.
 2. Build layout with editable nodes and `styles.base.default`; use real `DocNode` types and properly shaped scripts. Read the reference for correct field names and nested structures.
 3. If packaging assets, keep their original IDs and write an `_tsumu/assets.json` map of archive paths. Do not use remote Tsumu storage keys as local asset paths.
 4. Validate the file and archive using the checks and size limits in [the format reference](references/site-doc.md). If possible, load it in Tsumu and verify that the editor can select and edit its elements.
