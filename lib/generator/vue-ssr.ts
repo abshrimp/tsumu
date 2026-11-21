@@ -52,7 +52,7 @@ export function withVueSsr(
     '    return { status: 404, html, id: "", vars: {}, ...' + JSON.stringify(missing) + ' };',
     '  }',
     '  const vars = await loadPageData(selected.plan, url.searchParams,',
-    '    (uri, init) => requestPublic(uri, init, url.origin,',
+    '    (uri, init) => requestPublic(uri, init, url.href,',
     '      (path' + (ts ? ': string' : '') + ', options' + (ts ? ': RequestInit' : '') + ') =>',
     '        fetch(new URL(path, url.origin).href, options)));',
     '  const app = createSSRApp(App, { initialPageId: selected.id, initialVars: vars });',
@@ -70,7 +70,7 @@ export function withVueSsr(
     'import { resolve, sep, extname } from "node:path";',
     'import { fileURLToPath } from "node:url";',
     'const root = fileURLToPath(new URL(".", import.meta.url));',
-    'const production = process.env.NODE_ENV === "production";',
+    'const production = process.env.NODE_ENV === "production" || process.argv.includes("--production");',
     'const dist = resolve(root, "dist/client");',
     'const templateFile = resolve(production ? dist : root, "index.html");',
     'const vite = production ? null : await (await import("vite")).createServer({',
@@ -81,7 +81,8 @@ export function withVueSsr(
     '  ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".avif": "image/avif",',
     '  ".woff2": "font/woff2", ".woff": "font/woff", ".ttf": "font/ttf", ".otf": "font/otf",',
     '  ".mp4": "video/mp4", ".webm": "video/webm", ".mp3": "audio/mpeg", ".wav": "audio/wav", ".ogg": "audio/ogg",',
-    '  ".ico": "image/x-icon", ".json": "application/json", ".webmanifest": "application/manifest+json", ".txt": "text/plain; charset=utf-8", ".xml": "application/xml" };',
+    '  ".ico": "image/x-icon", ".m4a": "audio/mp4", ".mov": "video/quicktime", ".wasm": "application/wasm",',
+    '  ".json": "application/json", ".webmanifest": "application/manifest+json", ".txt": "text/plain; charset=utf-8", ".xml": "application/xml" };',
     'async function handle(req, res) {',
     '  const origin = new URL("http://127.0.0.1:" + Number(process.env.PORT || 3000));',
     '  let url;',
@@ -166,8 +167,8 @@ export function withVueSsr(
     dev: "node server.mjs",
     build: (ts ? "vue-tsc --noEmit && " : "") +
       "vite build --outDir dist/client && vite build --ssr src/entry-server." + ext + " --outDir dist/server",
-    start: "NODE_ENV=production node server.mjs",
-    preview: "NODE_ENV=production node server.mjs",
+    start: "node server.mjs --production",
+    preview: "node server.mjs --production",
   };
   pkg.dependencies["@vue/server-renderer"] = "^3.5.25";
   files["package.json"] = JSON.stringify(pkg, null, 2) + "\n";
