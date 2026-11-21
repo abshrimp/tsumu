@@ -16,7 +16,7 @@ import { validSiteDoc } from "./doc-tree";
 import { readBrowserDoc, writeBrowserDoc } from "./browser-doc-storage";
 import { tr } from "./i18n";
 import { isSiteLang, siteLangOf } from "./site-lang";
-import { normalizeQuery } from "./vars";
+import { pageQueryKey } from "./page-query";
 import { extractAssetReferences } from "./asset-gc-plan";
 import { transferSiteAssets } from "./assets";
 import { DEFAULT_BREAKPOINTS, MAX_BREAKPOINTS, normalizeBreakpoints } from "./style";
@@ -125,7 +125,7 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
     });
   const pageMap = new Map<string, string>();
   for (const page of p.pages) pageMap.set(page.id, genId("page"));
-  const urlKey = (slug: string, query?: string) => JSON.stringify([slug, normalizeQuery(query)]);
+  const urlKey = (slug: string, query?: string) => JSON.stringify([slug.replace(/^\/+|\/+$/g, ""), pageQueryKey(query)]);
   const byUrl = new Map(Object.values(d.pages).map((x) => [urlKey(x.slug, x.query), x.id]));
   const toPage = (id: string) => {
     const copied = pageMap.get(id);
@@ -141,7 +141,7 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
   const nodeMap = new Map<string, string>();
   for (const n of p.nodes) nodeMap.set(n.id, genId("node"));
   for (const raw of p.nodes) {
-    const n = remapAssetIds(structuredClone(raw), assetMap);
+    const n = remapAssetIds(raw, assetMap);
     n.id = nodeMap.get(raw.id)!;
     n.children = n.children.map((c) => nodeMap.get(c)).filter((c): c is string => !!c);
     if (n.scripts) n.scripts = cloneScripts(n.scripts);
@@ -154,9 +154,10 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
 
   const naming = createPageNaming(d.pages);
   for (const raw of p.pages) {
-    const page = remapAssetIds(structuredClone(raw), assetMap);
+    const sourceId = raw.id;
+    const page = remapAssetIds(raw, assetMap);
     if (page.htmlZip) page.htmlZip.assetIds = page.htmlZip.assetIds.map(id => assetMap.get(id) ?? id);
-    const id = pageMap.get(raw.id)!;
+    const id = pageMap.get(sourceId)!;
     const { name, slug } = naming.copy(raw, "transfer");
     page.id = id;
     if (page.pageScripts) page.pageScripts = cloneScripts(page.pageScripts);
@@ -168,7 +169,7 @@ export function applyPagePayload(d: SiteDoc, p: PagePayload): number {
     remapPageLinks(page, toPage);
     // フォルダは名前で探し、無ければ同じ名前で作る
     delete page.folderId;
-    const folderName = Object.hasOwn(p.folders, raw.id) ? p.folders[raw.id] : undefined;
+    const folderName = Object.hasOwn(p.folders, sourceId) ? p.folders[sourceId] : undefined;
     if (folderName) {
       let folder = d.pageFolders?.find((f) => f.name === folderName);
       if (!folder) {

@@ -1343,6 +1343,19 @@ test("page-scoped ZIP round-trip does not include other pages, nodes or private 
   };
   doc.pages[home].customEndHtml = '<img src="https://external.test/assets/secret.svg"><img src="//export.invalid/assets/secret.svg"><!-- <img src="/assets/secret.svg"> -->';
   doc.pages[home].description = "Example local filename: /assets/secret.svg";
+  doc.pages[home].folderId = "guides";
+  doc.pageFolders = [{ id: "guides", name: "Guides", beforePageId: "private" }];
+  doc.loadingScreen = { enabled: true, pageId: "private" };
+  for (const id of ["heading-font", "draft-font"]) {
+    doc.assets[id] = { id, name: id + ".woff2", width: 0, height: 0,
+      mimeType: "font/woff2", dataUrl: "data:font/woff2;base64,AQID" };
+  }
+  doc.uploadedFonts = [
+    { family: "Heading Font", assetId: "heading-font" },
+    { family: "Draft Font", assetId: "draft-font" },
+  ];
+  doc.pages[home].bodyDarkStyles = { base: { default: { fontFamily: "Heading Font" } } };
+  doc.nodes["private-node"].styles = { base: { default: { fontFamily: "Draft Font" } } };
   const create = URL.createObjectURL;
   const previous = globalThis.document;
   let blob: Blob | null = null;
@@ -1368,6 +1381,13 @@ test("page-scoped ZIP round-trip does not include other pages, nodes or private 
     assert.equal(scoped.pages.private, undefined);
     assert.equal(scoped.nodes["private-node"], undefined);
     assert.equal(scoped.assets["private-asset"], undefined);
+    assert.deepEqual(scoped.pageFolders, [{ id: "guides", name: "Guides" }]);
+    assert.equal(scoped.loadingScreen, undefined);
+    assert.deepEqual(scoped.uploadedFonts, [doc.uploadedFonts[0]]);
+    assert.ok(names.some(name => name.endsWith("/assets/heading-font.woff2")));
+    assert.ok(!names.some(name => name.endsWith("/assets/draft-font.woff2")));
+    assert.equal(doc.pageFolders[0].beforePageId, "private");
+    assert.equal(doc.uploadedFonts.length, 2);
     const imported = await parseSiteImport(new Uint8Array(await (blob as Blob).arrayBuffer()), "zip");
     assert.deepEqual(imported.doc.pageOrder, [home]);
   } finally {

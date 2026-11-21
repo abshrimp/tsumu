@@ -1092,12 +1092,15 @@ test("query matching ignores parameter order and equivalent encoding, but not va
   for (const [from, to] of [
     ["tab=news&page=2", "page=2&tab=news"],
     ["q=hello%20world&tab=news", "tab=news&q=hello+world"],
+    ["tab=news&tab=ignored", "tab=news"],
+    ["=ignored&tab=news", "tab=news"],
     [undefined, ""],
     ["", undefined],
   ]) {
     const { source, target } = queryCopyFixture();
     source.pages["source-news"].query = from;
     target.pages.news.query = to;
+    source.pages["source-news"].slug = "/blog/";
     // slug が同じでクエリが違うページを、最後の項目にする。
     delete target.pages.default;
     target.pageOrder = ["news", "archive"];
@@ -1350,6 +1353,26 @@ for (const slug of ["blog", "posts/[slug]"]) {
     }
   });
 }
+test("renaming a query variant only rewrites URLs that previously opened that page", () => {
+  for (const slug of ["blog", "posts/[slug]"]) {
+    const original = previewQueryDoc(slug);
+    const path = "/" + slug.replace("[slug]", "article");
+    const nextSlug = slug.replace(/^[^/]+/, "updates");
+    const link = "home-news-link";
+    original.nodes[link].link!.url += "&from=menu#top";
+    useEditor.getState().replaceDoc(original);
+    useEditor.getState().updatePage("variant1", { slug: nextSlug });
+    const doc = useEditor.getState().doc;
+    assert.equal(doc.nodes[link].link?.url, "/" + nextSlug.replace("[slug]", "article") + "?tab=news&from=menu#top");
+    assert.equal(doc.nodes["home-archive-link"].link?.url, path + "?tab=archive");
+    assert.equal(doc.nodes["home-default-link"].link?.url, path + "?tab=unknown");
+    const step = doc.nodes["home-specific-button"].scripts![0].steps[0];
+    assert.equal(step.kind === "open-url" && step.url, path + "?lang=ja&tab=news#section");
+    useEditor.getState().undo();
+    assert.deepEqual(useEditor.getState().doc, original);
+  }
+});
+
 test("encoded query keys and values, first-value inputs and equally specific ties match publishing", async () => {
   const navigate = await fixture;
   const doc = previewQueryDoc("blog", ["", "q=hello+world", "q=hello%20world&lang=ja", "lang=ja", "q=hello+world&source=mail", "q=first&q=last"]);

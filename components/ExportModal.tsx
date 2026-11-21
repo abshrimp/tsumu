@@ -9,7 +9,7 @@ import { showAlert } from "../lib/dialog";
 import { useEscapeToClose } from "../lib/use-escape-to-close";
 import { runChecks, type CheckResult } from "../lib/generator/checks";
 import { exportProjectZip } from "../lib/exportZip";
-import { exportLimitations, exportScopeDoc } from "../lib/export-formats";
+import { exportLimitations, exportScopeDoc, prepareExportScopeDoc } from "../lib/export-formats";
 import { DEFAULT_EXPORT_OPTIONS, EXPORT_FRAMEWORK_OPTIONS, type ExportFormat, type ExportLanguage, type ExportStyle, type ExportScope, type ExportOptions } from "../lib/generator/export-options";
 import { Dropdown } from "./controls";
 import { userMessage } from "../lib/errors";
@@ -30,16 +30,16 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
     nodeId: selectedNodeId ?? undefined,
   };
   const checks = useMemo<CheckResult[]>(() => {
-    const compatibility = exportLimitations(doc, options);
-    let scoped: typeof doc | null = null;
+    let scoped: typeof doc;
     try {
       scoped = exportScopeDoc(doc, options);
-    } catch {
-      // The scope error is already included in the compatibility list.
+    } catch (error) {
+      return [{ level: "error", message: (error as Error).message }];
     }
     return [
-      ...(scoped ? runChecks(scoped, { requireHomePage: scope === "project" }) : []),
-      ...compatibility.map((message): CheckResult => ({ level: "error", message })),
+      ...runChecks(scoped, { requireHomePage: scope === "project" }),
+      ...exportLimitations(scoped, { ...options, scope: "project" })
+        .map((message): CheckResult => ({ level: "error", message })),
     ];
   }, [doc, activePageId, selectedNodeId, format, language, style, scope]);
   const hasError = checks.some((check) => check.level === "error");
@@ -173,7 +173,8 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
             onClick={async () => {
               setBusy(true);
               try {
-                const missing = await exportProjectZip(await docWithSvgFilters(doc), options);
+                const scoped = await prepareExportScopeDoc(doc, options);
+                const missing = await exportProjectZip(await docWithSvgFilters(scoped), { ...options, scope: "project" });
                 onClose();
                 if (missing.length) {
                   void showAlert(

@@ -18,24 +18,10 @@ import {
   makeSample,
 } from "../../lib/data";
 import { hasVars, interpolate, interpolateUrl, isSlugPage, pageQueryVars } from "../../lib/vars";
-import { pageQueryConditions } from "../../lib/page-query";
+import { queryPage } from "../../lib/page-query";
 import { fieldDefaults, fieldStateValues, type FieldValues } from "../../lib/fields";
 import { fetchRequestOf } from "../../lib/fetch-request";
 import type { Page, SiteDoc } from "../../lib/types";
-
-/** 公開サイトと同じく、クエリの条件が最も多く一致するページを選ぶ。 */
-function queryPage(pages: Page[], query: URLSearchParams): Page | undefined {
-  let best = pages[0];
-  let score = -1;
-  for (const page of pages) {
-    const conditions = pageQueryConditions(page.query);
-    if (conditions.length > score && conditions.every(([key, value]) => query.get(key) === value)) {
-      best = page;
-      score = conditions.length;
-    }
-  }
-  return best;
-}
 
 /** ページを切り替えた最初の描画から、前のページのフォームの値や取得結果を使わない。 */
 function usePageValues<T extends object>(pageId: string): [T, Dispatch<SetStateAction<T>>] {
