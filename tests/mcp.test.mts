@@ -94,6 +94,58 @@ test("official OAuth features are enabled only for the exact hosted editor", () 
   assert.equal(isOfficialEditorOrigin("http://tsumu.ebii.net"), false);
   assert.equal(isOfficialEditorOrigin("https://editor.example.org"), false);
 });
+
+test("the hosted connection dialog shows session status while self-hosted editors also offer pairing", async t => {
+  const { createElement } = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { default: Connection } = await import("../components/ExternalEditConnection");
+  const { useExternalEdit } = await import("../lib/external-edit/bridge");
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const location = new URL("/sites/example", OFFICIAL_EDITOR_ORIGIN);
+  const storage = new Map<string, string>();
+  Object.defineProperty(globalThis, "window", { configurable: true, value: {
+    location, localStorage: { getItem: (key: string) => storage.get(key) ?? null },
+  } });
+  const initial = useExternalEdit.getInitialState();
+  const originalState = { ...initial };
+  t.after(() => {
+    Object.assign(initial, originalState);
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
+    else Reflect.deleteProperty(globalThis, "window");
+  });
+  const code = "ABCDE-FGHJK-LMNPQ-RSTUV";
+  const render = (phase: typeof initial.phase) => {
+    Object.assign(initial, { phase, code: phase === "connected" ? code : null });
+    return renderToStaticMarkup(createElement(Connection));
+  };
+  for (const [phase, label] of [
+    ["disconnected", "Not connected"], ["connecting", "Connecting…"], ["connected", "Connected"],
+  ] as const) {
+    const html = render(phase);
+    assert.match(html, /Connection status/);
+    assert.match(html, new RegExp(label + "<"));
+    assert.doesNotMatch(html, /Connect an AI app|type="checkbox"|Start connection|Connection code|ABCDE-FGHJK/);
+    assert.match(html, /Add Tsumu to your AI app/);
+    assert.match(html, /See the connection guide/);
+    assert.match(html, /Disconnect and revoke<\/button>/);
+    assert.equal(/<button[^>]* disabled=""[^>]*>Disconnect and revoke/.test(html), phase === "disconnected");
+  }
+  storage.set("tsumu-mcp-reconnect-known-v1:example", "revoke");
+  const retry = render("disconnected");
+  assert.match(retry, /Could not confirm revocation/);
+  assert.match(retry, /<button type="button" class="btn">Disconnect and revoke/);
+  storage.clear();
+
+  location.host = "self-host.example";
+  const idle = render("disconnected");
+  assert.match(idle, /Connect an AI app/);
+  assert.match(idle, /type="checkbox"/);
+  assert.match(idle, /Start connection/);
+  const connected = render("connected");
+  assert.match(connected, /Connection code/);
+  assert.ok(connected.includes(code));
+  assert.match(connected, /Disconnect and revoke/);
+});
 });
 
 describe("mcp-config", () => {
@@ -311,8 +363,8 @@ test("MCP bridge aborts in-flight session fetches on disconnect and scopes idemp
 });
 
 describe("mcp-browser-reconnect", () => {
-test("reload restores an unexpired grant using credentialed cookies, without re-pairing", async t => {
-  const { resumeExternalEdit, disconnectExternalEdit, useExternalEdit } =
+test("reload restores an authorized grant and keeps an unconfirmed disconnect closed", async t => {
+  const { resumeExternalEdit, disconnectExternalEdit, hasPendingRevocation, useExternalEdit } =
     await import("../lib/external-edit/bridge");
   const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   const oldDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
@@ -327,14 +379,12 @@ test("reload restores an unexpired grant using credentialed cookies, without re-
   };
   Object.defineProperty(globalThis, "window", { configurable: true, value: { location, localStorage } });
   Object.defineProperty(globalThis, "document", { configurable: true, value: { cookie: "" } });
-  const sockets: Array<{ url: string; protocols: string[]; onopen?: () => void }> = [];
+  const sockets: FakeWebSocket[] = [];
   class FakeWebSocket {
     static OPEN = 1;
     readyState = 1;
     onopen?: () => void;
-    constructor(url: string, protocols: string[]) {
-      sockets.push({ url, protocols, onopen: () => this.onopen?.() });
-    }
+    constructor() { sockets.push(this); }
     close() { this.readyState = 3; }
   }
   globalThis.WebSocket = FakeWebSocket as unknown as typeof WebSocket;
@@ -375,13 +425,23 @@ test("reload restores an unexpired grant using credentialed cookies, without re-
   assert.equal(useExternalEdit.getState().canEdit, false);
 
   const successfulFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response(null, { status: 503 });
-  await disconnectExternalEdit();
+  let finishRevoke!: (response: Response) => void;
+  globalThis.fetch = () => new Promise(resolve => { finishRevoke = resolve; });
+  const revoking = disconnectExternalEdit();
+  assert.equal(sockets[0]!.readyState, 3, "the tab stops serving before it receives a relay response");
+  assert.equal(useExternalEdit.getState().phase, "disconnected");
+  assert.equal(useExternalEdit.getState().expiresAt, null);
+  finishRevoke(new Response(null, { status: 503 }));
+  await revoking;
   assert.ok(useExternalEdit.getState().error);
   assert.equal(useExternalEdit.getState().revoking, false);
-  assert.equal(useExternalEdit.getState().phase, "connected", "failed revocation remains available to retry");
-  assert.equal(values.get("tsumu-mcp-reconnect-known-v1:site-a"), "1");
+  assert.equal(useExternalEdit.getState().phase, "disconnected");
+  assert.equal(hasPendingRevocation("site-a"), true);
+  assert.equal(values.get("tsumu-mcp-reconnect-known-v1:site-a"), "revoke",
+    "only a non-secret retry marker survives reload");
   globalThis.fetch = successfulFetch;
+  await resumeExternalEdit();
+  assert.equal(requests.length, 1, "failed revocation must not restore the old grant");
 
   location.pathname = "/sites/site-b";
   await resumeExternalEdit();
@@ -393,6 +453,24 @@ test("reload restores an unexpired grant using credentialed cookies, without re-
   await disconnectExternalEdit();
   assert.equal(requests.at(-1)?.url, "https://mcp.tsumu.ebii.net/bridge/restore",
     "an unpaired site must not revoke the prior site's separate grant");
+  location.pathname = "/sites/site-a";
+  await disconnectExternalEdit();
+  assert.deepEqual(requests.at(-1)?.body, { siteId: "site-a", sessionId, connectToken: "s".repeat(43) },
+    "the retry can revoke the same session even when relay cookies are blocked");
+  assert.equal(hasPendingRevocation("site-a"), false);
+  assert.equal(values.has("tsumu-mcp-reconnect-known-v1:site-a"), false);
+
+  // After a full reload, only the pending marker and the relay's HttpOnly
+  // cookie survive. Opening the editor must not initiate a new socket.
+  location.pathname = "/sites/site-c";
+  values.set("tsumu-mcp-reconnect-known-v1:site-c", "revoke");
+  await resumeExternalEdit();
+  assert.equal(requests.filter(r => r.url.endsWith("/bridge/restore")).length, 1);
+  assert.equal(hasPendingRevocation("site-c"), true);
+  await disconnectExternalEdit();
+  assert.deepEqual(requests.at(-1)?.body, { siteId: "site-c" });
+  assert.equal(requests.at(-1)?.credentials, "include");
+  assert.equal(hasPendingRevocation("site-c"), false);
   assert.ok(requests.every(request => !request.url.endsWith("/bridge/sessions")),
     "automatic restoration must never silently issue new pairing codes");
 });
