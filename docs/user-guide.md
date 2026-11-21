@@ -453,6 +453,10 @@ To connect an AI app to an existing site, open that site in the editor. The brow
 
 The connection grants access to the site open in that tab. Editing permission covers page creation and document edits. Publishing and asset deletion stay under your control in Tsumu.
 
+If you reload the tab, or later reopen the same site in the same browser, the editor resumes the authorized connection automatically, without a new code, until you select **Disconnect and revoke** or the authorization expires. Your current site permissions are checked again for every request from the AI app.
+
+On the hosted editor at `tsumu.ebii.net`, the MCP server can also send you a link to add more of your sites to an existing authorization. That site picker is not available on self-hosted editors, where you connect each site with its own connection code.
+
 ## Environment variables
 
 All variables are optional (see [What you need](#what-you-need)).
@@ -555,6 +559,9 @@ app/
   page.tsx            Home (list of sites)
   sites/[id]/         Editor
   login/              Sign-in page
+  netlify/callback/   Return page for Netlify sign-in
+  mcp/                MCP site picker (hosted tsumu.ebii.net only; 404 elsewhere)
+  api/auth/           Google sign-in (Auth.js)
   api/sites/          List, create, configure, delete sites, and manage per-site members
   api/doc/            Per-site editing data and daily backups
   api/comments/       Comment threads on the canvas
@@ -564,6 +571,8 @@ app/
   api/ai/             Ask AI
   api/collab/         Collaboration: sign-in check for the WebSocket, and Server-Sent Events
   api/fetch-json/     Fetch a data source for the editor through the server
+  api/fonts/          Adobe Fonts Web Project checks
+  api/external-edit/  Keeps an MCP import link across sign-in
   api/allowed-users/  Accounts that can sign in
   api/status/         Whether sign-in and storage are configured, and who is signed in
 components/           UI (Home, Editor, Canvas, panels, ScriptEditor, HelpCenter, …)

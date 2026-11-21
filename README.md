@@ -39,13 +39,13 @@ Tsumu lets you create websites with intuitive actions such as dragging and dropp
 - **Flexible output:** Export Next.js, React, Vue, Nuxt, SvelteKit, or HTML projects.
 - **Direct publishing:** Publish to GitHub, GitLab.com, Netlify, or Cloudflare Pages in a few steps.
 - **Real-time collaboration & site permissions:** Edit together in real time and leave comments.
-- **AI integration:** Edit pages using [SKILL.md](skills/tsumu/SKILL.md), the built-in AI chat, or external AI apps through an MCP server.
 - **Self-hosting:** Run on Cloudflare Workers, Node.js, or Docker.
 - **Help and languages:** Built-in tutorials, illustrated Q&A, and on-screen guides.
 
-## Tsumu AI Skill
+## AI integration
 
-Create editable Tsumu sites with the [Tsumu Skill](docs/skills.md). See the [AI-specific installation guide](docs/skills.md) for download and setup.
+- MCP connection: see the [setup guide](https://mcp.tsumu.ebii.net/).
+- Skills: see the [installation guide](docs/skills.md).
 
 ## Screenshots
 
