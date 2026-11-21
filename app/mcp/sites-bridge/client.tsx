@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { loadLocalSites } from "../../../lib/site";
 import { isSiteId, type SiteRecord } from "../../../lib/site-model";
 import { OFFICIAL_MCP_ORIGIN, isOfficialEditorOrigin } from "../../../lib/external-edit/official.mjs";
@@ -15,11 +15,16 @@ type DirectorySite = { id: string; name: string; canEdit: boolean };
  * All actual access still requires user selection and an OAuth pairing code.
  */
 export default function McpSitesBridge() {
+  const receivedNonce = useRef<string | null>(null);
   useEffect(() => {
     if (window.parent === window || !isOfficialEditorOrigin(window.location.origin)) return;
-    const nonce = NONCE_RE.exec(window.location.hash)?.[1];
+    const match = NONCE_RE.exec(window.location.hash);
+    if (match) {
+      receivedNonce.current = match[1];
+      window.history.replaceState(window.history.state, "", window.location.pathname);
+    }
+    const nonce = receivedNonce.current;
     if (!nonce) return;
-    window.history.replaceState(window.history.state, "", window.location.pathname);
     let cancelled = false;
 
     void (async () => {

@@ -20,20 +20,23 @@ export default function McpSiteChooser() {
   const [pending, setPending] = useState<string | null>(null);
   const pendingSiteId = useRef<string | null>(null);
   const [allowEdit, setAllowEdit] = useState(true);
-  const [invite, setInvite] = useState<string | null>(null);
+  const invite = useRef<string | null>(null);
+  const selectedWindow = useRef<Window | null>(null);
   const [added, setAdded] = useState(false);
 
   useEffect(() => {
     if (!isOfficialEditorOrigin(window.location.origin)) return;
     const match = INVITE.exec(window.location.hash);
-    if (!match) {
+    if (match) {
+      invite.current = match[1] + "." + match[2];
+      window.history.replaceState(window.history.state, "",
+        window.location.pathname + window.location.search);
+    }
+    if (!invite.current) {
       setError("有効なサイト追加リンクから開いてください。");
       setLoading(false);
       return;
     }
-    setInvite(match[1] + "." + match[2]);
-    window.history.replaceState(window.history.state, "",
-      window.location.pathname + window.location.search);
     let alive = true;
     void (async () => {
       try {
@@ -61,11 +64,11 @@ export default function McpSiteChooser() {
 
   useEffect(() => {
     const receive = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin || event.source !== selectedWindow) return;
+      if (event.origin !== window.location.origin || !selectedWindow.current || event.source !== selectedWindow.current) return;
       const data = event.data;
       if (!data || typeof data !== "object" || data.type !== "tsumu-mcp-site-ready") return;
       const expectedSiteId = pendingSiteId.current;
-      selectedWindow = null;
+      selectedWindow.current = null;
       pendingSiteId.current = null;
       if (data.siteId !== expectedSiteId) {
         setPending(null);
@@ -82,21 +85,39 @@ export default function McpSiteChooser() {
     };
     window.addEventListener("message", receive);
     return () => window.removeEventListener("message", receive);
-  }, [invite]);
+  }, []);
+
+  useEffect(() => {
+    if (!pending) return;
+    const popup = selectedWindow.current;
+    const stop = () => {
+      if (selectedWindow.current !== popup || !popup) return;
+      selectedWindow.current = null;
+      pendingSiteId.current = null;
+      setPending(null);
+      setError("接続を確認できませんでした。サイトを選び直してください。");
+    };
+    const closed = window.setInterval(() => { if (popup?.closed) stop(); }, 1000);
+    const timeout = window.setTimeout(stop, 90_000);
+    return () => {
+      window.clearInterval(closed);
+      window.clearTimeout(timeout);
+    };
+  }, [pending]);
 
   const select = (site: SelectableSite) => {
     if (pending) return;
-    if (!invite) {
+    if (!invite.current) {
       setError("有効なサイト追加リンクから開いてください。");
       return;
     }
     const permission = allowEdit && site.accessRole !== "viewer" ? "1" : "0";
     const url = sitePath(site.id) +
-      "#mcp-join=" + encodeURIComponent(invite) + "&edit=" + permission +
+      "#mcp-join=" + encodeURIComponent(invite.current) + "&edit=" + permission +
       "&site=" + encodeURIComponent(site.id);
-    selectedWindow = window.open(url, "_blank");
-    pendingSiteId.current = selectedWindow ? site.id : null;
-    if (!selectedWindow) {
+    selectedWindow.current = window.open(url, "_blank");
+    pendingSiteId.current = selectedWindow.current ? site.id : null;
+    if (!selectedWindow.current) {
       setError("ポップアップを許可してから、もう一度お試しください。");
       return;
     }
@@ -139,5 +160,3 @@ export default function McpSiteChooser() {
     </main>
   );
 }
-
-let selectedWindow: Window | null = null;

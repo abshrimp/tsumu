@@ -27,6 +27,7 @@ interface ExternalEditState {
   error: string | null;
   expiresAt: number | null;
   canEdit: boolean;
+  revoking: boolean;
 }
 interface BridgeSession {
   sessionId: string;
@@ -44,7 +45,7 @@ interface BridgeRequest {
 
 export const useExternalEdit = create<ExternalEditState>(() => ({
   phase: "disconnected", code: null,
-  error: null, expiresAt: null, canEdit: true,
+  error: null, expiresAt: null, canEdit: true, revoking: false,
 }));
 
 interface ActiveBridge {
@@ -55,6 +56,7 @@ interface ActiveBridge {
   retryTimer: ReturnType<typeof setTimeout> | null;
   renewTimer: ReturnType<typeof setInterval> | null;
   reconnects: number;
+  completed: Map<string, unknown>;
 }
 
 let active: ActiveBridge | null = null;
@@ -62,7 +64,6 @@ let connectAttempt = 0;
 let pendingAbort: AbortController | null = null;
 let restoreRetryTimer: ReturnType<typeof setTimeout> | null = null;
 let restoreConflicts = 0;
-const completed = new Map<string, unknown>();
 
 function cancelRestoreRetry(): void {
   if (restoreRetryTimer !== null) clearTimeout(restoreRetryTimer);
@@ -82,8 +83,13 @@ async function revision(value: unknown): Promise<string> {
 const MUTATING_ACTIONS = new Set(["apply_operations", "create_page", "create_site"]);
 let writeInProgress = false;
 
-async function execute(action: string, rawArgs: unknown, siteId: string, canEdit: boolean): Promise<unknown> {
-  if (currentSiteId() !== siteId) throw new Error(tr("The active Tsumu site changed"));
+function isCurrentSocket(bridge: ActiveBridge, socket: WebSocket): boolean {
+  return !useExternalEdit.getState().revoking && active === bridge && bridge.ws === socket && socket.readyState === WebSocket.OPEN &&
+    bridge.session.expiresAt > Date.now() && currentSiteId() === bridge.siteId;
+}
+
+async function execute(action: string, rawArgs: unknown, bridge: ActiveBridge, socket: WebSocket): Promise<unknown> {
+  const { siteId, canEdit, completed } = bridge;
   const args = asObject(rawArgs);
   const status = serverStatusSnapshot() ?? await loadServerStatus();
   if (!status) throw new Error(tr("Connection failed"));
@@ -91,9 +97,9 @@ async function execute(action: string, rawArgs: unknown, siteId: string, canEdit
   // when the long-lived browser pairing was first approved. This also prevents
   // local data disclosure after a user's server-side site access is revoked.
   const siteRole = await externalEditSiteRole(siteId, status);
-  if (currentSiteId() !== siteId) throw new Error(tr("The active Tsumu site changed"));
+  if (!isCurrentSocket(bridge, socket)) throw new Error(tr("The active Tsumu site changed"));
   const s = useEditor.getState();
-  const isServerBacked = Boolean(status?.db);
+  const isServerBacked = status.db;
 
   if (action === "list_sites") {
     return [{ id: siteId, name: s.doc.siteName, storage: isServerBacked ? "server" : "browser" }];
@@ -134,7 +140,7 @@ async function execute(action: string, rawArgs: unknown, siteId: string, canEdit
       if (typeof name !== "string" || !name.trim() || name.trim().length > 100) {
         throw new Error(tr("Enter a site name"));
       }
-      if (!status || status.db) {
+      if (status.db) {
         throw new Error(tr("MCP site creation currently requires browser-only storage. Create server-backed sites in Tsumu."));
       }
       const created = await createLocalBrowserSite({ name: name.trim() });
@@ -172,7 +178,7 @@ async function execute(action: string, rawArgs: unknown, siteId: string, canEdit
       const currentRevision = await revision(context.doc);
       // Do not validate a revision against one document and then mutate a
       // different one if the user edits or navigates during the hash.
-      if (currentSiteId() !== siteId || useEditor.getState().doc !== s.doc) {
+      if (!isCurrentSocket(bridge, socket) || useEditor.getState().doc !== s.doc) {
         throw new Error(tr("The page changed. Call get_page to obtain the latest revision"));
       }
       if (args.expectedRevision !== currentRevision) {
@@ -211,24 +217,27 @@ async function execute(action: string, rawArgs: unknown, siteId: string, canEdit
   }
 }
 
-async function onMessage(socket: WebSocket, siteId: string, canEdit: boolean, data: unknown): Promise<void> {
-  if (typeof data !== "string" || data.length > MAX_REQUEST_BYTES) return;
+async function onMessage(bridge: ActiveBridge, socket: WebSocket, data: unknown): Promise<void> {
+  if (typeof data !== "string" || data.length > MAX_REQUEST_BYTES || new TextEncoder().encode(data).byteLength > MAX_REQUEST_BYTES) return;
   let message: BridgeRequest;
   try { message = JSON.parse(data) as BridgeRequest; } catch { return; }
-  if (!message || message.type !== "request" || !/^[\w-]{8,80}$/.test(message.requestId)) return;
+  if (!message || message.type !== "request" || typeof message.requestId !== "string" || !/^[\w-]{8,80}$/.test(message.requestId)) return;
   const reply: Record<string, unknown> = { type: "response", requestId: message.requestId };
+  let json: string;
   try {
-    reply.result = await execute(message.action, message.args, siteId, canEdit);
+    reply.result = await execute(message.action, message.args, bridge, socket);
     reply.ok = true;
-    if (JSON.stringify(reply).length > MAX_REPLY_BYTES) {
+    json = JSON.stringify(reply);
+    if (json.length > MAX_REPLY_BYTES || new TextEncoder().encode(json).byteLength > MAX_REPLY_BYTES) {
       throw new Error(tr("The result is too large. Reduce the page or request scope"));
     }
   } catch (error) {
     delete reply.result;
     reply.ok = false;
     reply.error = error instanceof Error ? error.message : tr("Operation failed");
+    json = JSON.stringify(reply);
   }
-  if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(reply));
+  if (isCurrentSocket(bridge, socket)) socket.send(json);
 }
 
 /** Confirm that the relay has not returned a socket on another origin. */
@@ -299,7 +308,7 @@ function openSocket(bridge: ActiveBridge): void {
   };
   socket.onmessage = (event) => {
     if (active === bridge && bridge.ws === socket) {
-      void onMessage(socket, bridge.siteId, bridge.canEdit, event.data);
+      void onMessage(bridge, socket, event.data);
     }
   };
   socket.onerror = () => {
@@ -321,13 +330,13 @@ function openSocket(bridge: ActiveBridge): void {
 
 /** Close this tab's transport without revoking the site's long-lived grant. */
 function abandonLocalBridge(bridge: ActiveBridge): void {
-  if (active === bridge) active = null;
+  if (active !== bridge) return;
+  active = null;
   if (bridge.retryTimer !== null) clearTimeout(bridge.retryTimer);
   if (bridge.renewTimer !== null) clearInterval(bridge.renewTimer);
   bridge.retryTimer = null;
   bridge.renewTimer = null;
   try { bridge.ws?.close(1000, "Disconnected"); } catch { /* The old tab is already closed. */ }
-  completed.clear();
   useExternalEdit.setState({ phase: "disconnected", code: null, expiresAt: null, error: null });
 }
 
@@ -339,6 +348,7 @@ async function renewBridgeSession(bridge: ActiveBridge): Promise<void> {
       body: JSON.stringify({ siteId: bridge.siteId }),
       credentials: "include", cache: "no-store",
     });
+    if (active !== bridge || currentSiteId() !== bridge.siteId) return;
     if (!response.ok) {
       if (response.status === 403 || response.status === 404) {
         abandonLocalBridge(bridge);
@@ -363,7 +373,7 @@ export async function resumeExternalEdit(): Promise<void> {
     if (active.siteId !== siteId) abandonLocalBridge(active);
     else return;
   }
-  if (!knownReconnectSite(siteId) || pendingAbort) return;
+  if (!knownReconnectSite(siteId) || pendingAbort || useExternalEdit.getState().revoking) return;
   const attempt = ++connectAttempt;
   const abort = new AbortController();
   pendingAbort = abort;
@@ -400,7 +410,7 @@ export async function resumeExternalEdit(): Promise<void> {
     cancelRestoreRetry();
     const bridge: ActiveBridge = {
       ws: null, session, siteId, canEdit: session.canEdit,
-      retryTimer: null, renewTimer: null, reconnects: 0,
+      retryTimer: null, renewTimer: null, reconnects: 0, completed: new Map(),
     };
     active = bridge;
     useExternalEdit.setState({
@@ -420,26 +430,38 @@ export async function resumeExternalEdit(): Promise<void> {
 
 /** Revoke both the active transport and its server-side persistent grant. */
 export async function disconnectExternalEdit(): Promise<void> {
-  connectAttempt++;
+  if (useExternalEdit.getState().revoking) return;
+  const attempt = ++connectAttempt;
   cancelRestoreRetry();
   pendingAbort?.abort();
   pendingAbort = null;
-  const siteId = active?.siteId || currentSiteId();
-  const wasConnected = !!active || (siteId && knownReconnectSite(siteId));
-  if (siteId) forgetReconnectSite(siteId);
-  const session = active?.session;
-  if (active) abandonLocalBridge(active);
-  else useExternalEdit.setState({ phase: "disconnected", code: null, expiresAt: null, error: null });
-  if (!wasConnected) return;
+  const bridge = active;
+  const siteId = bridge?.siteId || currentSiteId();
+  if (!siteId || (!bridge && !knownReconnectSite(siteId))) {
+    useExternalEdit.setState({ phase: "disconnected", code: null, expiresAt: null, error: null });
+    return;
+  }
+  useExternalEdit.setState({ revoking: true, error: null });
   try {
-    await fetch(ENDPOINT + "/bridge/revoke", {
+    const response = await fetch(ENDPOINT + "/bridge/revoke", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ siteId, ...(session
-        ? { sessionId: session.sessionId, connectToken: session.connectToken }
+      body: JSON.stringify({ siteId, ...(bridge
+        ? { sessionId: bridge.session.sessionId, connectToken: bridge.session.connectToken }
         : {}) }),
-      credentials: "include", cache: "no-store",
+      credentials: "include", cache: "no-store", signal: AbortSignal.timeout(15_000),
     });
-  } catch { /* A server-side grant is also bounded by its expiry. */ }
+    if (attempt !== connectAttempt) return;
+    if (!response.ok && response.status !== 410) throw new Error();
+    forgetReconnectSite(siteId);
+    if (bridge) abandonLocalBridge(bridge);
+    else useExternalEdit.setState({ phase: "disconnected", code: null, expiresAt: null, error: null });
+  } catch {
+    if (attempt === connectAttempt && currentSiteId() === siteId) {
+      useExternalEdit.setState({ error: tr("Could not confirm revocation. Check your connection and try again.") });
+    }
+  } finally {
+    if (attempt === connectAttempt) useExternalEdit.setState({ revoking: false });
+  }
 }
 
 /** Associate an expressly selected site with a grant after verifying the live editor socket. */
@@ -458,6 +480,7 @@ export async function attachMcpSiteInvite(invite: string): Promise<void> {
 }
 
 export async function connectExternalEdit(canEdit: boolean): Promise<void> {
+  if (useExternalEdit.getState().revoking) return;
   // Disconnect updates the browser state synchronously. Do not delay a fresh
   // connection while an unavailable relay is still processing old revocation.
   cancelRestoreRetry();
@@ -485,7 +508,7 @@ export async function connectExternalEdit(canEdit: boolean): Promise<void> {
     if (!validSession(session)) throw new Error(tr("Invalid MCP session"));
     if (pendingAbort === abort) pendingAbort = null;
     const bridge: ActiveBridge = {
-      ws: null, session, siteId, canEdit, retryTimer: null, renewTimer: null, reconnects: 0,
+      ws: null, session, siteId, canEdit, retryTimer: null, renewTimer: null, reconnects: 0, completed: new Map(),
     };
     active = bridge;
     openSocket(bridge);

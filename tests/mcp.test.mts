@@ -374,6 +374,15 @@ test("reload restores an unexpired grant using credentialed cookies, without re-
   assert.equal(useExternalEdit.getState().code, null, "no reusable pairing code is exposed");
   assert.equal(useExternalEdit.getState().canEdit, false);
 
+  const successfulFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(null, { status: 503 });
+  await disconnectExternalEdit();
+  assert.ok(useExternalEdit.getState().error);
+  assert.equal(useExternalEdit.getState().revoking, false);
+  assert.equal(useExternalEdit.getState().phase, "connected", "failed revocation remains available to retry");
+  assert.equal(values.get("tsumu-mcp-reconnect-known-v1:site-a"), "1");
+  globalThis.fetch = successfulFetch;
+
   location.pathname = "/sites/site-b";
   await resumeExternalEdit();
   assert.equal(sockets.length, 1, "a cookie for site A must never authorize site B");
@@ -503,22 +512,29 @@ test("viewer access cannot silently become editing access through a stored MCP g
     requests.push({ url: String(url), init: init ?? {} });
     return Response.json({ site: { accessRole: role } }, { status });
   }) as typeof fetch;
-  assert.equal(await externalEditSiteRole("site-a", { db: true }, getRole("viewer")), "viewer");
+  assert.equal(await externalEditSiteRole("site-a", { db: true, auth: false }, getRole("viewer")), "viewer");
   assert.deepEqual(requests[0], {
     url: "/api/sites/site-a",
     init: { method: "GET", cache: "no-store", credentials: "same-origin" },
   });
-  assert.equal(await externalEditSiteRole("site-a", { db: true }, getRole("editor")), "editor");
-  assert.equal(await externalEditSiteRole("site-a", { db: true }, getRole("owner")), "owner");
+  assert.equal(await externalEditSiteRole("site-a", { db: true, auth: false }, getRole("editor")), "editor");
+  assert.equal(await externalEditSiteRole("site-a", { db: true, auth: false }, getRole("owner")), "owner");
   await assert.rejects(
-    externalEditSiteRole("site-a", { db: true }, getRole("viewer", 403)),
+    externalEditSiteRole("site-a", { db: true, auth: false }, getRole("viewer", 403)),
     /no longer authorized/,
   );
   await assert.rejects(
-    externalEditSiteRole("site-a", { db: true }, getRole("unknown")),
+    externalEditSiteRole("site-a", { db: true, auth: false }, getRole("unknown")),
     /no longer authorized/,
   );
-  assert.equal(await externalEditSiteRole("local-site", { db: false }, (() => {
+  const user = { email: "member@example.test", name: null, image: null };
+  for (const db of [true, false]) {
+    const currentPermissions: typeof fetch = async url => String(url) === "/api/status"
+      ? Response.json({ auth: true, db, role: "viewer", user })
+      : Response.json({ site: { accessRole: "owner" } });
+    assert.equal(await externalEditSiteRole("site-a", { auth: true, db, user }, currentPermissions), "viewer");
+  }
+  assert.equal(await externalEditSiteRole("local-site", { db: false, auth: false }, (() => {
     throw new Error("browser-only permissions should not call a server");
   }) as typeof fetch), null);
 });

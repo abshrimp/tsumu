@@ -1,5 +1,5 @@
 import type { ServerStatus } from "../status";
-import type { SiteRole } from "../site-model";
+import { isSiteRole, type SiteRole } from "../site-model";
 
 /**
  * A long-lived MCP grant is not proof that the signed-in user's per-site role
@@ -8,22 +8,24 @@ import type { SiteRole } from "../site-model";
  */
 export async function externalEditSiteRole(
   siteId: string,
-  status: Pick<ServerStatus, "db">,
+  status: Pick<ServerStatus, "auth" | "db" | "user">,
   request: typeof fetch = fetch,
 ): Promise<SiteRole | null> {
-  if (!status.db) return null; // Browser-only sites have no per-user server roles.
-  const response = await request("/api/sites/" + encodeURIComponent(siteId), {
-    method: "GET",
-    cache: "no-store",
-    credentials: "same-origin",
-  });
-  if (!response.ok) throw new Error("Site access is no longer authorized");
-  const data: unknown = await response.json();
-  const role = data && typeof data === "object" && "site" in data &&
-    data.site && typeof data.site === "object" && "accessRole" in data.site
-    ? data.site.accessRole : null;
-  if (role !== "owner" && role !== "editor" && role !== "viewer") {
-    throw new Error("Site access is no longer authorized");
+  const init: RequestInit = { method: "GET", cache: "no-store", credentials: "same-origin" };
+  let accountReadOnly = false;
+  if (status.auth) {
+    const response = await request("/api/status", init);
+    const account = response.ok ? await response.json() : null;
+    if (!account?.auth || account.db !== status.db || !status.user?.email ||
+        account.user?.email !== status.user.email || !["editor", "viewer"].includes(account.role)) {
+      throw new Error("Site access is no longer authorized");
+    }
+    accountReadOnly = account.role === "viewer";
   }
-  return role;
+  if (!status.db) return accountReadOnly ? "viewer" : null;
+  const response = await request("/api/sites/" + encodeURIComponent(siteId), init);
+  const data = response.ok ? await response.json() : null;
+  const role = data?.site?.accessRole;
+  if (!isSiteRole(role)) throw new Error("Site access is no longer authorized");
+  return accountReadOnly ? "viewer" : role;
 }

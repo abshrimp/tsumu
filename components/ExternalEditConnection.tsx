@@ -4,6 +4,8 @@ import { useState } from "react";
 import { Cable, Check, Copy, ExternalLink, LoaderCircle } from "lucide-react";
 import { tr } from "../lib/i18n";
 import { connectExternalEdit, disconnectExternalEdit, useExternalEdit } from "../lib/external-edit/bridge";
+import { currentSiteId } from "../lib/site";
+import { knownReconnectSite } from "../lib/external-edit/reconnect-hint";
 import { MCP_GUIDE_URL, useMcpPlugins } from "../lib/external-edit/plugins";
 
 /** Published AI client plugins, plus a link to the relay's connection guide. */
@@ -80,7 +82,7 @@ export default function ExternalEditConnection({ siteCanEdit = true }: { siteCan
                 onChange={(e) => setAllowEdit(e.target.checked)} />
               <span>{tr("Allow editing (not publishing or deleting assets)")}</span>
             </label>
-            <button type="button" className="btn btn-primary mcp-main-action" onClick={() => { void connectExternalEdit(effectiveAllowEdit); }}>
+            <button type="button" className="btn btn-primary mcp-main-action" disabled={state.revoking} onClick={() => { void connectExternalEdit(effectiveAllowEdit); }}>
               <Cable size={15} aria-hidden />
               {tr("Start connection")}
             </button>
@@ -95,43 +97,51 @@ export default function ExternalEditConnection({ siteCanEdit = true }: { siteCan
 
         {state.phase === "connected" && (
           <>
-            <label className="mcp-code-label" htmlFor="mcp-connection-code">{tr("Connection code")}</label>
-            <div className="mcp-code-row">
-              <input
-                id="mcp-connection-code"
-                className="input mcp-code-input"
-                readOnly
-                value={state.code ?? ""}
-                onFocus={(e) => e.currentTarget.select()}
-              />
-              <button
-                type="button"
-                className="btn mcp-copy-button"
-                onClick={() => { void copyCode(); }}
-                disabled={!state.code}
-                aria-label={tr("Copy connection code")}
-              >
-                {copiedCode === state.code ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
-                {copiedCode === state.code ? tr("Copied") : tr("Copy")}
-              </button>
-            </div>
-            <p className="mcp-instructions">
-              {tr("Connect to Tsumu from your AI app, then enter this code on its authorization page. It expires in 10 minutes.")}
-            </p>
-            {copyErrorCode === state.code && (
-              <p role="alert" className="mcp-error">{tr("Could not copy the code. Select it to copy manually.")}</p>
+            {state.code && (
+              <>
+                <label className="mcp-code-label" htmlFor="mcp-connection-code">{tr("Connection code")}</label>
+                <div className="mcp-code-row">
+                  <input
+                    id="mcp-connection-code"
+                    className="input mcp-code-input"
+                    readOnly
+                    value={state.code}
+                    onFocus={(e) => e.currentTarget.select()}
+                  />
+                  <button
+                    type="button"
+                    className="btn mcp-copy-button"
+                    onClick={() => { void copyCode(); }}
+                    aria-label={tr("Copy connection code")}
+                  >
+                    {copiedCode === state.code ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
+                    {copiedCode === state.code ? tr("Copied") : tr("Copy")}
+                  </button>
+                </div>
+                <p className="mcp-instructions">
+                  {tr("Connect to Tsumu from your AI app, then enter this code on its authorization page. It expires in 10 minutes.")}
+                </p>
+                {copyErrorCode === state.code && (
+                  <p role="alert" className="mcp-error">{tr("Could not copy the code. Select it to copy manually.")}</p>
+                )}
+              </>
             )}
             <div className="mcp-session-footer">
               <span className="mcp-access">{tr("Access: {permission}", {
                 permission: state.canEdit ? tr("Read and edit") : tr("Read only"),
               })}</span>
-              <button type="button" className="btn" onClick={() => { void disconnectExternalEdit(); }}>
+              <button type="button" className="btn" disabled={state.revoking} onClick={() => { void disconnectExternalEdit(); }}>
                 {tr("Disconnect and revoke")}
               </button>
             </div>
           </>
         )}
 
+        {state.phase !== "connected" && state.error && knownReconnectSite(currentSiteId()) && (
+          <button type="button" className="btn" disabled={state.revoking} onClick={() => { void disconnectExternalEdit(); }}>
+            {tr("Disconnect and revoke")}
+          </button>
+        )}
         {state.error && <p role="alert" className="mcp-error">{state.error}</p>}
       </div>
 
