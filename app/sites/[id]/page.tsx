@@ -30,7 +30,7 @@ function SiteNotFound() {
 type SiteState =
   | { kind: "checking" }
   | { kind: "missing" }
-  | { kind: "ok"; Editor: ComponentType<EditorProps>; siteRole: "owner" | "editor" | "viewer" | null }
+  | { kind: "ok"; Editor: ComponentType<EditorProps>; siteRole: "owner" | "editor" | "viewer" | null; siteName: string | null }
   | { kind: "failed"; error: unknown };
 
 /**
@@ -49,16 +49,20 @@ function useSiteCheck(): SiteState {
     void (async () => {
       let result: "ok" | "missing" = "ok";
       let siteRole: "owner" | "editor" | "viewer" | null = null;
+      let siteName: string | null = null;
       try {
         const res = await fetch(`/api/sites/${encodeURIComponent(id)}`);
         if ([400, 401, 403, 404].includes(res.status)) result = "missing";
         else if (res.ok) {
           const data = await res.json();
-          if (data.site?.name) document.title = `${data.site.name} | Tsumu`;
+          if (typeof data.site?.name === "string" && data.site.name.trim()) {
+            siteName = data.site.name;
+            document.title = `${siteName} | Tsumu`;
+          }
           if (["owner", "editor", "viewer"].includes(data.site?.accessRole)) siteRole = data.site.accessRole;
         } else if (res.status === 503) {
           const site = loadLocalSites().find((s) => s.id === id);
-          if (site) { document.title = `${site.name} | Tsumu`; siteRole = "owner"; }
+          if (site) { siteName = site.name; document.title = `${site.name} | Tsumu`; siteRole = "owner"; }
           else result = "missing";
         }
       } catch {
@@ -71,7 +75,7 @@ function useSiteCheck(): SiteState {
       }
       try {
         const { default: Editor } = await editor;
-        if (alive) setState({ kind: "ok", Editor, siteRole });
+        if (alive) setState({ kind: "ok", Editor, siteRole, siteName });
       } catch (error) {
         // 読み込めなかった場合（デプロイ直後の古いチャンクなど）は、エラー画面に任せる
         if (alive) setState({ kind: "failed", error });
@@ -96,7 +100,7 @@ export default function SitePage() {
   return (
     <>
       {!ready && <EditorLoading />}
-      {state.kind === "ok" && <state.Editor onReady={onReady} siteRole={state.siteRole} />}
+      {state.kind === "ok" && <state.Editor onReady={onReady} siteRole={state.siteRole} siteName={state.siteName} />}
     </>
   );
 }

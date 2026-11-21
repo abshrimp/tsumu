@@ -58,6 +58,8 @@ test("Tsumu page title and save preferences survive a reload", { tag: "@core-edi
   // regression. This avoids creating and reloading a second site in all three browsers.
   const header = page.locator(".hdr-page");
   const edit = header.locator(".hdr-site-name");
+  await expect(edit).toHaveText("Tsumu smoke");
+  const originalDocSiteName = (await (await page.request.get(`/api/doc?site=${id}`)).json()).doc.siteName;
   await edit.click();
   const field = header.getByRole("textbox", { name: "サイト名" });
   await expect(field).toBeFocused();
@@ -65,9 +67,10 @@ test("Tsumu page title and save preferences survive a reload", { tag: "@core-edi
   await field.press("Enter");
   await expect(header.locator(".hdr-site-name-text")).toHaveText("Renamed Tsumu smoke");
   await expect.poll(async () => {
-    const response = await page.request.get(`/api/doc?site=${id}`);
-    return (await response.json()).doc.siteName;
+    const response = await page.request.get(`/api/sites/${id}`);
+    return (await response.json()).site.name;
   }).toBe("Renamed Tsumu smoke");
+  expect((await (await page.request.get(`/api/doc?site=${id}`)).json()).doc.siteName).toBe(originalDocSiteName);
 
   await edit.click();
   await field.fill("Discard this change");
@@ -82,6 +85,7 @@ test("Tsumu page title and save preferences survive a reload", { tag: "@core-edi
   await page.reload();
   await expect(canvas(page).getByText(HEADING).first()).toBeVisible();
   await expect(header.locator(".hdr-site-name-text")).toHaveText("Renamed Tsumu smoke");
+  await expect(page).toHaveTitle("Renamed Tsumu smoke | Tsumu");
   await expect(page.getByRole("button", { name: "始める" })).toHaveCount(0);
 });
 

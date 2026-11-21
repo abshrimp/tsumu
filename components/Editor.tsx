@@ -128,9 +128,9 @@ function PanelResizer({
   );
 }
 
-export type EditorProps = { onReady?: () => void; siteRole?: "owner" | "editor" | "viewer" | null };
+export type EditorProps = { onReady?: () => void; siteRole?: "owner" | "editor" | "viewer" | null; siteName?: string | null };
 
-export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
+export default function Editor({ onReady, siteRole = null, siteName = null }: EditorProps = {}) {
   useApplyEditorTheme();
   // モジュール内の仮の初期データは見せず、最初の読み込み結果が決まるまで準備画面を表示し続ける。
   // 再接続や保存の途中では準備画面に戻さない（入力欄やキャンバスをアンマウントしないため）。
@@ -1376,6 +1376,7 @@ export default function Editor({ onReady, siteRole = null }: EditorProps = {}) {
         panels={{ l: !closedL, r: !closedR }}
         onTogglePanel={togglePanel}
         siteRole={siteRole}
+        siteName={siteName}
       />
       {browserSaveState === "deleted" && cloudState !== "synced" && (
         <div className="local-save-notice" role="alert">

@@ -19,6 +19,8 @@ import { assetFileName, nodeAssetStore, nodeDatabase } from "../lib/node-storage
 import { readCurrentDoc, saveCurrentDoc } from "../lib/doc-storage";
 import * as siteModel from "../lib/site-model";
 import { isSiteId, isSiteRole, normalizeSiteInput } from "../lib/site-model";
+import { renameSiteRecord, loadLocalSites } from "../lib/site";
+import { storageKey } from "../lib/storage-keys";
 import * as sites from "../lib/sites";
 import { deleteSite, insertSite, listSites, getSite, getSiteRoomKey, updateSite } from "../lib/sites";
 import { permits } from "../lib/site-access";
@@ -34,6 +36,35 @@ import { buildAssetNames } from "../lib/generator/names";
 import { createSiteFromFile, importFileKind } from "../lib/import-site-file";
 import { siteThumbnailImages } from "../lib/site-thumbnail";
 import { type SiteDoc } from "../lib/types";
+
+test("renaming a browser-only site updates its Home record without touching the edit document", async (t) => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const storage = new Map<string, string>();
+  const localStorage = {
+    getItem: (key: string) => storage.get(key) ?? null,
+    setItem: (key: string, value: string) => { storage.set(key, value); },
+    removeItem: (key: string) => { storage.delete(key); },
+  };
+  const saved = {
+    id: "site1", name: "Original home name", createdAt: 1, updatedAt: 1,
+    repo: null, branch: "main", previewBranch: "preview", siteUrl: null, previewUrl: null,
+  };
+  storage.set(storageKey("sites-v1"), JSON.stringify([saved]));
+  Object.defineProperty(globalThis, "window", {
+    configurable: true, value: { localStorage, navigator: null },
+  });
+  t.after(() => {
+    if (original) Object.defineProperty(globalThis, "window", original);
+    else Reflect.deleteProperty(globalThis, "window");
+  });
+  assert.equal(await renameSiteRecord("site1", "  Updated home name  ", false), "Updated home name");
+  assert.equal(loadLocalSites({ strict: true })[0].name, "Updated home name");
+  assert.equal(loadLocalSites({ strict: true })[0].repo, null);
+  await assert.rejects(renameSiteRecord("absent", "Test", false), /Site not found/);
+  await assert.rejects(renameSiteRecord("site1", " ", false), /Enter a site name/);
+  await assert.rejects(renameSiteRecord("site1", "x".repeat(101), false), /100 characters/);
+  assert.equal(loadLocalSites({ strict: true })[0].name, "Updated home name");
+});
 
 describe("backup-day-input", () => {
 function handler(options: { siteExists?: boolean; body?: string } = {}) {

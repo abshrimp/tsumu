@@ -44,13 +44,13 @@ import { toggleAi, useAi, useAiAvailability } from "../lib/ai-store";
 import { toggleCommentMode, useComments } from "../lib/comment-store";
 import { useEscapeToClose } from "../lib/use-escape-to-close";
 import SafeBoundary from "./SafeBoundary";
-import { showPrompt } from "../lib/dialog";
+import { showAlert, showPrompt } from "../lib/dialog";
 import { BP_INFO, BP_ORDER, breakpointForWidth, DEVICE_WIDTHS, parseNumeric } from "../lib/style";
 import { BpIcon, Dropdown, NumField } from "./controls";
 import { tr } from "../lib/i18n";
 import LanguageSelector from "./LanguageSelector";
 import ModalHeading from "./ModalHeading";
-import { currentSiteId } from "../lib/site";
+import { currentSiteId, renameSiteRecord } from "../lib/site";
 import type { SiteRole } from "../lib/site-model";
 
 const ExternalEditConnection = lazy(() => import("./ExternalEditConnection"));
@@ -224,9 +224,10 @@ function LogoutModal({ onClose }: { onClose: () => void }) {
 function HeaderSiteName({ name, editable, onRename }: {
   name: string;
   editable: boolean;
-  onRename: (name: string) => void;
+  onRename: (name: string) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const cancelled = useRef(false);
   const finish = (value: string) => {
     setEditing(false);
@@ -235,7 +236,10 @@ function HeaderSiteName({ name, editable, onRename }: {
       return;
     }
     const renamed = value.trim();
-    if (editable && renamed && renamed !== name) onRename(renamed);
+    if (editable && renamed && renamed !== name) {
+      setSaving(true);
+      void Promise.resolve(onRename(renamed)).finally(() => setSaving(false));
+    }
   };
 
   return (
@@ -246,6 +250,7 @@ function HeaderSiteName({ name, editable, onRename }: {
           className="hdr-site-name-input"
           aria-label={tr("Site name")}
           defaultValue={name}
+          maxLength={100}
           onFocus={(event) => event.currentTarget.select()}
           onBlur={(event) => finish(event.currentTarget.value)}
           onKeyDown={(event) => {
@@ -266,11 +271,12 @@ function HeaderSiteName({ name, editable, onRename }: {
           className="hdr-site-name"
           aria-label={tr("Site name") + ": " + name}
           title={editable ? tr("Rename") : name}
-          disabled={!editable}
+          disabled={!editable || saving}
           onClick={() => setEditing(true)}
         >
           <span className="hdr-site-name-text">{name}</span>
-          {editable && <Pencil size={12} className="hdr-site-name-pencil" aria-hidden />}
+          {saving ? <LoaderCircle size={12} className="spin" aria-hidden />
+            : editable && <Pencil size={12} className="hdr-site-name-pencil" aria-hidden />}
         </button>
       )}
     </div>
@@ -281,11 +287,13 @@ export default function Header({
   panels,
   onTogglePanel,
   siteRole,
+  siteName,
 }: {
   /** 左右のパネルが開いているか */
   panels: { l: boolean; r: boolean };
   onTogglePanel: (side: "l" | "r") => void;
   siteRole: SiteRole | null;
+  siteName: string | null;
 }) {
   const breakpoint = useEditor((s) => s.breakpoint);
   const setBreakpoint = useEditor((s) => s.setBreakpoint);
@@ -318,10 +326,23 @@ export default function Header({
   const [mcpOpen, setMcpOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const status = useServerStatus();
-  const siteName = useEditor((s) => s.doc.siteName);
-  const updateDoc = useEditor((s) => s.updateDoc);
-  const canRenameSite = siteRole !== "viewer" && status?.role !== "viewer" &&
-    (status?.db !== true || siteRole === "owner" || siteRole === "editor");
+  // SiteRecord.name is shown on Home. SiteDoc.siteName is a separate
+  // published-page field and must not be changed by renaming the site card.
+  const [recordName, setRecordName] = useState<string | null>(siteName);
+  useEffect(() => setRecordName(siteName), [siteName]);
+  const canRenameSite = !!recordName && status?.role !== "viewer" &&
+    (status?.db === false || (status?.db === true && (siteRole === "owner" || siteRole === "editor")));
+  const renameRecord = async (name: string) => {
+    try {
+      if (status?.db === undefined || !recordName) return;
+      const savedName = await renameSiteRecord(currentSiteId(), name, status.db);
+      setRecordName(savedName);
+      document.title = `${savedName} | Tsumu`;
+    } catch (error) {
+      void showAlert(tr(error instanceof Error ? error.message : "Couldn't save"),
+        { title: tr("Couldn't save") });
+    }
+  };
   const permissionsAvailable = status?.auth === true && status.db === true;
   const canManageMembers = permissionsAvailable && status?.role === "editor" && siteRole === "owner";
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -381,9 +402,9 @@ export default function Header({
           </button>
         )}
         <HeaderSiteName
-          name={siteName}
+          name={recordName ?? tr("Site name")}
           editable={canRenameSite}
-          onRename={(name) => updateDoc((doc) => { doc.siteName = name; })}
+          onRename={renameRecord}
         />
         <div className="hdr-sep" />
         <button
@@ -685,7 +706,7 @@ export default function Header({
       {membersOpen && (
         <SafeBoundary label={tr("Members and permissions")} onClose={() => setMembersOpen(false)}>
           <Suspense fallback={<ModalLoading onClose={() => setMembersOpen(false)} />}>
-            <SiteMembers siteId={currentSiteId()} siteName={siteName} onClose={() => setMembersOpen(false)} />
+            <SiteMembers siteId={currentSiteId()} siteName={recordName ?? tr("Site name")} onClose={() => setMembersOpen(false)} />
           </Suspense>
         </SafeBoundary>
       )}
