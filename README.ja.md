@@ -96,6 +96,10 @@ npm run dev
 
 デプロイの手順、公開先ごとの設定、環境変数、バックアップ、制限事項は[詳細ガイド](docs/user-guide.ja.md)を参照してください。
 
+## コントリビュート
+
+不具合報告、ドキュメントの改善、翻訳、コードの修正を日本語・英語のどちらでも歓迎します。[Issues](https://github.com/abshrimp/tsumu/issues)から課題を探すか、[Discussions](https://github.com/abshrimp/tsumu/discussions)で相談できます。参加方法は[貢献ガイド](.github/CONTRIBUTING.ja.md)をご覧ください。
+
 ## ドキュメント
 
 - [詳細ガイド](docs/user-guide.ja.md) · [English](docs/user-guide.md)
