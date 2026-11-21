@@ -543,11 +543,15 @@ test("a concurrent cookie rotation retries restoration without discarding the si
 });
 
 test("site authorization uses fragment-only requests and does not expose connection tokens", async t => {
+  const priorHosted = process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+  process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = "https://studio.example.test";
   const { hasMcpSiteApproval, startMcpSiteApproval } = await import("../lib/external-edit/site-approval");
   const oldWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
-  const location = { origin: "https://tsumu.ebii.net", hash: "#mcp-select=1" };
+  const location = { origin: "https://studio.example.test", hash: "#mcp-select=1" };
   Object.defineProperty(globalThis, "window", { configurable: true, value: { location } });
   t.after(() => {
+    if (priorHosted === undefined) delete process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+    else process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = priorHosted;
     if (oldWindow) Object.defineProperty(globalThis, "window", oldWindow);
     else Reflect.deleteProperty(globalThis, "window");
   });
@@ -562,17 +566,19 @@ test("site authorization uses fragment-only requests and does not expose connect
   location.origin = "https://selfhost.example.org";
   assert.equal(hasMcpSiteApproval(), false, "self-hosted editors must not accept the hosted OAuth fragment");
   assert.equal(startMcpSiteApproval(true), false, "no connection attempt is started on self-hosted domains");
-  location.origin = "http://tsumu.ebii.net";
+  location.origin = "http://studio.example.test";
   assert.equal(hasMcpSiteApproval(), false, "insecure origin must not receive official-site approval");
 });
 });
 
 test("a changed invitation target never attempts to connect the unintended editor", async t => {
+  const priorHosted = process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+  process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = "https://studio.example.test";
   const { startMcpSiteApproval } = await import("../lib/external-edit/site-approval");
   const previous = Object.getOwnPropertyDescriptor(globalThis, "window");
   const messages: Array<{ data: unknown; target: string }> = [];
   const location = {
-    origin: "https://tsumu.ebii.net",
+    origin: "https://studio.example.test",
     pathname: "/sites/site-b",
     search: "",
     hash: "#mcp-join=12345678-1234-4234-8234-123456789abc." + "a".repeat(43) +
@@ -584,6 +590,8 @@ test("a changed invitation target never attempts to connect the unintended edito
     opener: { closed: false, postMessage(data: unknown, target: string) { messages.push({ data, target }); } },
   } });
   t.after(() => {
+    if (priorHosted === undefined) delete process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN;
+    else process.env.NEXT_PUBLIC_TSUMU_HOSTED_EDITOR_ORIGIN = priorHosted;
     if (previous) Object.defineProperty(globalThis, "window", previous);
     else Reflect.deleteProperty(globalThis, "window");
   });
@@ -591,7 +599,7 @@ test("a changed invitation target never attempts to connect the unintended edito
   assert.deepEqual(messages, [{
     data: { type: "tsumu-mcp-site-ready", siteId: "site-b", ok: false,
       error: "Selected site mismatch" },
-    target: "https://tsumu.ebii.net",
+    target: "https://studio.example.test",
   }]);
 });
 
