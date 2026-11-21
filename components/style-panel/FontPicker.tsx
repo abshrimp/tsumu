@@ -6,6 +6,7 @@ import { CircleHelp, Plus, Search, X } from "lucide-react";
 import type { CustomFont } from "../../lib/types";
 import { parseAdobeKitInput } from "../../lib/adobe-fonts-embed";
 import { registerAdobeFont, removeAdobeWebProject } from "../../lib/adobe-fonts-registration";
+import { googleFontWeightAxis } from "../../lib/google-font-weights";
 import type { GoogleFontFilter } from "../../lib/google-font-catalog";
 import { allFonts } from "../../lib/style";
 import { assetSrc, uploadStaticAsset } from "../../lib/assets";
@@ -238,7 +239,7 @@ export function FontPicker({ inheritedValue }: { inheritedValue: string }) {
       const body = await tryFetch(":wght@" + (knownWeights?.[0] ?? "400"));
       const found: CustomFont | null = body ? {
         family: name,
-        weights: knownWeights?.length ? knownWeights
+        weights: googleFontWeightAxis(name) ? "variable" : knownWeights?.length ? knownWeights
           : /font-weight:\s*100\s+900\b/.test(body) ? "variable"
           : [...new Set([...body.matchAll(/font-weight:\s*(\d+)/g)].map(match => match[1]))].sort(),
       } : null;

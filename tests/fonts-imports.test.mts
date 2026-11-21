@@ -10,6 +10,7 @@ import { parseAdobeEmbed, parseAdobeKitInput } from "../lib/adobe-fonts-embed";
 import { adobeCssFamilies, adobePublishedFamilies, inspectAdobeProject } from "../lib/adobe-fonts-project";
 import { registerAdobeFont, removeAdobeWebProject } from "../lib/adobe-fonts-registration";
 import { useEditor } from "../lib/store";
+import { css2FamilyToken, googleFontWeightAxis } from "../lib/google-font-weights";
 import { GOOGLE_FONT_CATALOG, GOOGLE_FONT_CATEGORIES, SUGGESTED_GOOGLE_FONTS, searchGoogleFonts } from "../lib/google-font-catalog";
 import { elements, importCallbacks } from "./helpers/pending-import";
 import { buildAssetNames } from "../lib/generator/names";
@@ -392,6 +393,53 @@ test("adding a CSS family to a dynamic Web Project preserves dynamic loading", (
 });
 });
 
+describe("font stacks and variable weights", () => {
+  test("the editor and exports request each family’s supported weight axis", () => {
+    assert.equal(css2FamilyToken({ family: "Syne", weights: "variable" }), "family=Syne:wght@400..800");
+    assert.equal(css2FamilyToken({ family: "Roboto Flex", weights: "variable" }), "family=Roboto+Flex:wght@100..1000");
+    assert.equal(css2FamilyToken({ family: "Noto Serif JP", weights: "variable" }), "family=Noto+Serif+JP:wght@200..900");
+    assert.equal(css2FamilyToken({ family: "Instrument Serif", weights: ["400"] }), "family=Instrument+Serif");
+    assert.equal(css2FamilyToken({ family: "Space Mono", weights: ["700", "400"] }), "family=Space+Mono:wght@400;700");
+    assert.equal(googleFontWeightAxis("Instrument Serif"), undefined);
+    assert.equal(googleFontWeightAxis("Outside the catalog"), undefined);
+  });
+
+  test("all export formats load fonts in quoted stacks and retain the given fallback order", () => {
+    const doc = createInitialDoc();
+    doc.customFonts = [
+      { family: "Syne", weights: "variable" }, { family: "Instrument Serif", weights: ["400"] },
+      { family: "Space Mono", weights: ["400", "700"] }, { family: "sYnE", weights: "variable" },
+    ];
+    const page = doc.pages[doc.pageOrder[0]];
+    const node = makeText("ODD/FORM");
+    doc.pageOrder = [page.id];
+    doc.pages = { [page.id]: page };
+    doc.nodes = { [node.id]: node };
+    page.children = [node.id];
+    page.bodyDarkStyles = { base: { default: { fontFamily: '"Noto Sans JP", sans-serif' } } };
+    node.styles.base = { default: {
+      fontFamily: `'syne', "Fallback, With Comma", var(--theme, "Instrument Serif", serif), serif`,
+      fontWeight: "725",
+    } };
+    for (const target of ["html", "single-html", "react", "vue", "nuxt", "sveltekit", "nextjs"] as const) {
+      const files = generateExportProject(doc, target).files;
+      const source = Object.values(files).join("\n");
+      assert.ok(source.includes('var(--font-syne, "Syne"), "Fallback, With Comma", var(--theme, var(--font-instrument-serif, "Instrument Serif"), serif), serif'), target);
+      if (target === "nextjs") {
+        assert.match(files["app/layout.tsx"], /Syne\(\{[^}]+variable: "--font-syne", adjustFontFallback: false/);
+        assert.match(files["app/layout.tsx"], /Noto_Sans_JP\(/);
+        assert.doesNotMatch(files["app/layout.tsx"], /Space_Mono|sYnE/);
+      } else {
+        assert.match(source, /family=Syne:wght@400\.\.800/, target);
+        assert.match(source, /family=Noto\+Sans\+JP:wght@100\.\.900/, target);
+        assert.match(source, /family=Instrument\+Serif&display=swap/, target);
+        assert.doesNotMatch(source, /family=Space\+Mono/, target);
+        assert.match(source, /--font-syne: "Syne";/, target);
+      }
+    }
+  });
+});
+
 describe("google-font-catalog", () => {
 test("Google Fonts search covers diverse families without an API key", () => {
   assert.ok(GOOGLE_FONT_CATALOG.length > 1500);
@@ -675,7 +723,7 @@ test("an ineffective Undo or Redo leaves the pending upload valid and normally u
   } finally { f.ui.unmount(); }
 });
 
-function fontFixture() {
+function fontFixture(family = "New Font") {
   open();
   const work = deferred<Response>();
   const oldFetch = globalThis.fetch;
@@ -683,11 +731,22 @@ function fontFixture() {
   const ui = importCallbacks("font");
   const render = () => elements(ui.render({ inheritedValue: "Arial" }));
   render().find((e) => e.props?.["data-tip"] === "Add a font").props.onClick();
-  render().find((e) => e.type === "input" && e.props.type === "search").props.onChange({ target: { value: "New Font" } });
+  render().find((e) => e.type === "input" && e.props.type === "search").props.onChange({ target: { value: family } });
   render().find((e) => e.type === "button" && e.props?.children === "Add").props.onClick();
   render();
   return { work, ui, render, close: () => { ui.unmount(); globalThis.fetch = oldFetch; } };
 }
+
+test("the font picker registers real variable axes and keeps fixed-weight families", async () => {
+  for (const [name, weights] of [["Syne", "variable"], ["Space Mono", ["400", "700"]]] as const) {
+    const f = fontFixture(name);
+    try {
+      f.work.resolve(new Response("@font-face { font-weight: 400; }"));
+      await tick(); await tick();
+      assert.deepEqual(state().doc.customFonts, [{ family: name, weights }]);
+    } finally { f.close(); }
+  }
+});
 
 test("pending fonts cannot write into a changed breakpoint, state, selection, or multiselection", async () => {
   for (const change of [
@@ -817,6 +876,21 @@ test("Tailwind exports keep Google Fonts @import rules before Tailwind CSS impor
   const tailwindImportIndex = css.indexOf('@import "tailwindcss/theme.css";');
   assert.ok(fontImportIndex >= 0, "Expected Google Fonts @import");
   assert.ok(tailwindImportIndex > fontImportIndex, "Google Fonts @import must precede tailwindcss/theme.css");
+});
+
+test("Adobe and uploaded families work as entries in a mixed fallback list", () => {
+  const doc = fixture();
+  doc.adobeFonts = [{ family: "acumin-pro", kitId: "abc1234", loading: "css" }];
+  const node = Object.values(doc.nodes).find(node => !!node.text)!;
+  const family = `'My Local Font', acumin-pro, monospace`;
+  node.styles.base.default!.fontFamily = family;
+  const source = Object.values(generateExportProject(doc, "html").files).join("\n");
+  assert.match(source, /@font-face \{ font-family: "My Local Font"/);
+  assert.match(source, /use\.typekit\.net\/abc1234\.css/);
+  assert.ok(source.includes('font-family: "My Local Font", "acumin-pro", monospace;'));
+  node.styles.base.default!.fontFamily = `"other, My Local Font", var(--other, "acumin-pro, different", serif)`;
+  assert.equal(uploadedFontsCss(doc, buildAssetNames(doc)), "");
+  assert.equal(usedAdobeFonts(doc).length, 0);
 });
 
 test("unused or missing font assets are not emitted as CSS font faces", () => {

@@ -49,6 +49,7 @@
     "skill:package": "node scripts/package-tsumu-skill.mjs"
   },
   "dependencies": {
+    "@csstools/css-tokenizer": "4.0.3",
     "@noble/hashes": "1.8.0",
     "@typescript/typescript6": "6.0.2",
     "acorn": "8.19.0",

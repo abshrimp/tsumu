@@ -10,12 +10,18 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 
 import { useEditor } from "./lib/store";
+import { makeBox } from "./lib/presets";
 import { loadLocale } from "./lib/i18n";
 void loadLocale().then(async () => {
   const { default: Canvas } = await import("./components/Canvas");
 const doc = {
-  siteName: "Frame resize", assets: {}, nodes: {}, components: {}, pageOrder: ["p", "q", "h"],
+  siteName: "Frame resize", assets: {}, components: {}, pageOrder: ["p", "q", "h", "v"],
+  nodes: { artwork: { ...makeBox("Artwork", {
+    fontSize: "clamp(45px, 11.25vw, 66px)", width: "115vw", height: "calc(100svh - 68px)",
+    paddingLeft: "1vmin", paddingTop: "1vmax",
+  }), id: "artwork" } },
   pages: {
+    v: { id: "v", name: "Hero", slug: "hero", title: "", description: "", children: ["artwork"] },
     p: { id: "p", name: "Page", slug: "", title: "", description: "", children: [] },
     q: { id: "q", name: "Redirect", slug: "redirect", title: "", description: "", children: [], redirectTo: "/" },
     h: { id: "h", name: "HTML", slug: "html", title: "", description: "", children: [], rawHtml:

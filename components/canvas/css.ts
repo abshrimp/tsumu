@@ -2,6 +2,7 @@
  * キャンバスに当てる CSS（要素のスタイル・画面幅・状態）と、HTMLページのプレビュー用の本文のスタイル
  */
 
+import { TokenType, tokenize } from "@csstools/css-tokenizer";
 import { escapeStyleContent, rewriteCssAssetUrls } from "../../lib/css-assets";
 import { withSiteAssetUrl } from "../../lib/assets";
 import { currentSiteId } from "../../lib/site";
@@ -20,6 +21,22 @@ import {
 } from "../../lib/style";
 
 /* ---------- キャンバス用CSS生成 ---------- */
+
+// ビジュアルキャンバスは iframe ではない。端末の論理寸法を使い、ズームは描画だけに適用する。
+// CSS の寸法トークンだけを変換し、URL、文字列、カスタムプロパティの名前は保持する。
+function canvasViewportLengths(css: string): string {
+  if (!/v(?:w|h|min|max)\b|\\/i.test(css)) return css;
+  const width = "var(--tsumu-frame-vw)";
+  const height = "var(--tsumu-frame-vh, 1vh)";
+  return tokenize({ css }).map((token) => {
+    if (token[0] !== TokenType.Dimension) return token[1];
+    const { unit, value } = token[4];
+    const axis = /^[sld]?v(w|h|min|max)$/i.exec(unit)?.[1].toLowerCase();
+    if (!axis || !Number.isFinite(value)) return token[1];
+    const length = axis === "w" ? width : axis === "h" ? height : `${axis}(${width}, ${height})`;
+    return `calc(${value} * ${length})`;
+  }).join("");
+}
 
 function withCanvasSiteAssetUrls(declaration: string, site: string): string {
   if (!site || !declaration.includes("/api/assets/file?")) return declaration;
@@ -152,7 +169,7 @@ function buildNodeCss(
     }
   }
   return {
-    rules: rules.join("\n"),
+    rules: canvasViewportLengths(rules.join("\n")),
     usedKeyframes: mCss.usedKeyframes,
     customKeyframes: mCss.customKeyframes,
   };
@@ -216,7 +233,7 @@ export function buildCanvasCss(
   bodyMap.width ??= "auto";
   bodyMap.height ??= "auto";
   if (Object.keys(bodyMap).length) {
-    rules.push(`.cv-root { ${cssBody(bodyMap)} }`);
+    rules.push(`.cv-root { ${canvasViewportLengths(cssBody(bodyMap))} }`);
   }
   rootIds.forEach(walk);
   if (cache) {
@@ -225,6 +242,6 @@ export function buildCanvasCss(
     }
   }
   // モーションで使うキーフレーム
-  const kf = keyframesCss(usedKeyframes, customKeyframes);
+  const kf = canvasViewportLengths(keyframesCss(usedKeyframes, customKeyframes));
   return (kf ? kf + "\n" : "") + rules.join("\n");
 }

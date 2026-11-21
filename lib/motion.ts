@@ -129,18 +129,16 @@ function customKeyframeName(m: Motion, scope?: string): string {
 }
 
 /** animation の一括指定の値を組み立てる */
-function animationValue(m: Motion, paused = false, scope?: string): string {
+function animationValue(m: Motion, name: string): string {
   const iter = m.repeat === -1 ? "infinite" : String(m.repeat ?? 1);
   return [
-    // カスタムでは、モーションごとに固有の @keyframes の名前を使う
-    m.keyframes === "custom" ? customKeyframeName(m, scope) : `anim-${m.keyframes}`,
+    name,
     `${m.duration}s`,
     m.easing || "ease",
     `${m.delay || 0}s`,
     iter,
     m.direction ?? "normal",
     m.fillMode ?? "both",
-    ...(paused ? ["paused"] : []),
   ].join(" ");
 }
 
@@ -165,8 +163,8 @@ interface MotionCss {
   usedKeyframes: string[];
   /** カスタムキーフレーム（名前 → @keyframes 本体） */
   customKeyframes: { name: string; css: string }[];
-  /** in-view のきっかけを含むか */
-  hasInView: boolean;
+  /** 交差を検出した要素に追加する宣言。読み込み時の動きも元の順序で含む。 */
+  inView: string[];
 }
 
 function isSafeMotion(m: Motion): boolean {
@@ -188,12 +186,12 @@ function isSafeMotion(m: Motion): boolean {
 
 /**
  * モーションの設定から CSS の宣言を組み立てる。
- * inViewMode: "paused" = 停止した状態で始め、.is-inview で再生する（書き出し用）、
+ * inViewMode: "observe" = .is-inview が付いたときに初めて適用する（書き出し用）、
  *             "run" = すぐに再生する（エディタのプレビュー用）
  */
 export function motionCss(
   rawMotions: Motion[] | undefined,
-  inViewMode: "paused" | "run",
+  inViewMode: "observe" | "run",
   /** 要素ごとに分けるカスタムの @keyframes の名前に付ける名前（要素の ID など） */
   scope?: string
 ): MotionCss {
@@ -202,7 +200,7 @@ export function motionCss(
     pseudo: [],
     usedKeyframes: [],
     customKeyframes: [],
-    hasInView: false,
+    inView: [],
   };
   const motions = rawMotions?.filter(isSafeMotion);
   if (!motions?.length) return out;
@@ -211,7 +209,10 @@ export function motionCss(
   if (trans) out.base.push(`transition: ${trans};`);
 
   const baseAnimations: string[] = [];
+  const enteredAnimations: string[] = [];
+  const loadPresets = new Set(motions.filter((m) => m.trigger === "load").map((m) => m.keyframes));
   const baseExtras = new Set<string>();
+  const enteredExtras = new Set<string>();
   const pseudoGroups = new Map<
     string,
     { animations: string[]; extras: Set<string> }
@@ -219,41 +220,47 @@ export function motionCss(
 
   for (const m of motions) {
     if (m.trigger === "state" || !m.keyframes) continue;
+    let name = `anim-${m.keyframes}`;
     if (m.keyframes === "custom") {
       if (!m.customKeyframes?.trim()) continue;
-      out.customKeyframes.push({
-        name: customKeyframeName(m, scope),
-        css: m.customKeyframes.trim(),
-      });
+      name = customKeyframeName(m, scope);
+      out.customKeyframes.push({ name, css: m.customKeyframes.trim() });
+    } else if (inViewMode === "observe" && m.trigger === "in-view" && loadPresets.has(m.keyframes)) {
+      // CSS は同名の再生中モーションを末尾から照合する。入場時にロード側の経過時間を引き継がないようにする。
+      name = `inview-anim-${m.keyframes}`;
+      out.customKeyframes.push({ name, css: KEYFRAMES.find((kf) => kf.key === m.keyframes)!.css });
     } else {
       out.usedKeyframes.push(m.keyframes);
     }
     const extras =
       m.keyframes === "swing" ? ["transform-origin: top center;"] : [];
-    if (m.trigger === "load") {
-      baseAnimations.push(animationValue(m, false, scope));
-      extras.forEach((extra) => baseExtras.add(extra));
-    } else if (m.trigger === "in-view") {
-      out.hasInView = true;
-      baseAnimations.push(animationValue(m, inViewMode === "paused", scope));
-      extras.forEach((extra) => baseExtras.add(extra));
+    const animation = animationValue(m, name);
+    if (m.trigger === "load" || m.trigger === "in-view") {
+      enteredAnimations.push(animation);
+      if (m.trigger === "load" || inViewMode === "run") {
+        baseAnimations.push(animation);
+        extras.forEach((extra) => baseExtras.add(extra));
+      } else {
+        extras.forEach((extra) => enteredExtras.add(extra));
+      }
     } else {
       const pseudo = `:${m.trigger}`;
       const group = pseudoGroups.get(pseudo) ?? {
         animations: [],
         extras: new Set<string>(),
       };
-      group.animations.push(animationValue(m, false, scope));
+      group.animations.push(animation);
       extras.forEach((extra) => group.extras.add(extra));
       pseudoGroups.set(pseudo, group);
     }
   }
 
   if (baseAnimations.length) {
-    out.base.push(
-      `animation: ${baseAnimations.join(", ")};`,
-      ...baseExtras
-    );
+    out.base.push(`animation: ${baseAnimations.join(", ")};`);
+  }
+  out.base.push(...baseExtras);
+  if (enteredAnimations.length > baseAnimations.length) {
+    out.inView.push(`animation: ${enteredAnimations.join(", ")};`, ...enteredExtras);
   }
   for (const [pseudo, group] of pseudoGroups) {
     out.pseudo.push({

@@ -441,8 +441,11 @@ export default function Canvas() {
     // clientWidth はスクロールバーの表示の有無で変わる。それを基準にすると、倍率の変更 →
     // 内容の高さの変化 → スクロールバーの表示の切り替え…が繰り返し起きるため、
     // スクロールバーを含む offsetWidth を基準にする
-    const update = () =>
+    const update = () => {
+      // 端末の高さ指定はないので、スクロールする文書の高さではなく表示領域の高さを使う。
+      area.style.setProperty("--tsumu-frame-vh", `${area.clientHeight / 100}px`);
       setFitScale(Math.min(1, (area.offsetWidth - 56) / frameWidth));
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(area);
@@ -1067,7 +1070,7 @@ export default function Canvas() {
         <div
           ref={frameRef}
           className={`canvas-frame${mode === "preview" ? " is-preview" : ""}`}
-          style={{ width: frameWidth, zoom: scale } as React.CSSProperties}
+          style={{ width: frameWidth, zoom: scale, "--tsumu-frame-vw": `${frameWidth / 100}px` } as React.CSSProperties}
         >
           <div
             className={`cv-root${mode === "design" ? " cv-design" : ""}`}

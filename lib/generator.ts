@@ -293,7 +293,9 @@ ${body || "    null"}
       const weights = g.weights
         ? `, weight: ${JSON.stringify(g.weights)}`
         : "";
-      return `const ${varName} = ${g.importName}({ subsets: ["latin"], variable: "${g.cssVar}"${weights} });`;
+      // next/font otherwise inserts its metric-adjusted system font ahead of the authored fallbacks.
+      const fallback = f.hasAuthoredFallback ? ", adjustFontFallback: false" : "";
+      return `const ${varName} = ${g.importName}({ subsets: ["latin"], variable: "${g.cssVar}"${weights}${fallback} });`;
     })
     .join("\n");
   const fontClassList = fonts
@@ -597,6 +599,7 @@ body {
   overflow-x: clip;
   margin: 0;
   font-family: system-ui, -apple-system, "Hiragino Sans", sans-serif;
+  line-height: 1.6;
   color: #18181b;
   -webkit-font-smoothing: antialiased;
 }
@@ -665,6 +668,13 @@ img {
 input, textarea, select, button {
   font: inherit;
   color: inherit;
+}
+
+button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
 }
 
 a {

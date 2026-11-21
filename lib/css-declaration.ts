@@ -82,6 +82,11 @@ export function safeCssKeyframesBody(input: unknown): input is string {
  * カスタム CSS を宣言ごとに分ける。url(data:image/png;base64,…) や引用符の中の「;」では分けない。
  */
 export function cssDecls(css: string): string[] {
+  return splitCssList(css, ";");
+}
+
+/** Split at top-level delimiters, respecting CSS strings, functions, escapes and comments. */
+export function splitCssList(css: string, separator: ";" | ","): string[] {
   const out: string[] = [];
   let cur = "";
   let depth = 0;
@@ -109,7 +114,7 @@ export function cssDecls(css: string): string[] {
       depth++;
     } else if (c === ")") {
       depth = Math.max(0, depth - 1);
-    } else if (c === ";" && depth === 0) {
+    } else if (c === separator && depth === 0) {
       if (cur.trim()) out.push(cur.trim());
       cur = "";
       continue;

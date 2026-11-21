@@ -16,7 +16,7 @@ import { applyDocPatchAtRevision } from "../lib/doc-patch";
 import { shareUnchangedDoc } from "../lib/doc-share";
 import { canReceiveCloudDoc, errorOf, scheduleCloudSave, sendCloudDoc, type CollabRequestInput, type DeferredCloudConflict } from "../lib/cloud-save";
 import { mergeDocs } from "../lib/merge";
-import { css2FamilyToken } from "../lib/style";
+import { css2FamilyToken } from "../lib/google-font-weights";
 import {
   replaceEmbeddedAsset,
   uploadEmbeddedAsset,

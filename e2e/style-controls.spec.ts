@@ -4,6 +4,27 @@ import { resolve } from "node:path";
 import { parseColor } from "../components/controls";
 import { aspectRatioBundle } from "../tests/helpers/aspect-ratio";
 import { transformOriginBundle } from "../tests/helpers/transform-origin";
+import { generateExportProject } from "../lib/export-formats";
+import { toSingleHtmlProject } from "../lib/generator/single-html";
+import { makeButton } from "../lib/presets";
+
+test("exported buttons keep the canvas defaults and authored border", async ({ page }) => {
+  const button = makeButton("View work");
+  button.styles = { base: { default: { color: "#f5f4eb", borderBottom: "1px solid" } } };
+  const result = await toSingleHtmlProject(generateExportProject({
+    schemaVersion: 1, siteName: "Studio", assets: {}, nodes: { [button.id]: button }, pageOrder: ["home"],
+    pages: { home: { id: "home", name: "Home", slug: "", title: "Home", description: "", children: [button.id] } },
+  }, "html"));
+  await page.setContent(result.files["index.html"]);
+  const linkButton = page.getByRole("button", { name: "View work" });
+  await expect(linkButton).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(linkButton).toHaveCSS("border-top-style", "none");
+  await expect(linkButton).toHaveCSS("border-bottom-width", "1px");
+  await expect(linkButton).toHaveCSS("border-bottom-color", "rgb(245, 244, 235)");
+  await expect(linkButton).toHaveCSS("padding-left", "0px");
+  await expect(linkButton).toHaveCSS("line-height", "25.6px");
+  await expect(linkButton).toHaveCSS("cursor", "pointer");
+});
 
 test.describe("color and fill controls", () => {
   let compiledColorBundle: Promise<string> | undefined;

@@ -904,36 +904,24 @@ export function allFonts(
   adobeFonts: AdobeFont[] | undefined = [],
   uploadedFonts: UploadedFont[] | undefined = [],
 ): FontOption[] {
-  const google: FontOption[] = (customFonts ?? [])
-    .filter((f) => !FONTS.some((b) => b.value === f.family))
-    .map((font) => ({
-      label: font.family,
-      value: font.family,
-      google: googleFontMeta(font),
-    }));
-  const occupied = new Set([...FONTS, ...google].map((f) => f.value));
-  const adobe: FontOption[] = (adobeFonts ?? [])
-    .filter((f) => !occupied.has(f.family))
-    .map((font) => ({
-      label: font.family,
-      value: font.family,
-      adobe: { kitId: font.kitId, loading: font.loading },
-    }));
-  const occupiedWithAdobe = new Set([...occupied, ...adobe.map(f => f.value)]);
-  const uploaded: FontOption[] = (uploadedFonts ?? [])
-    .filter(font => !occupiedWithAdobe.has(font.family))
-    .map(font => ({ label: font.family, value: font.family, uploaded: { assetId: font.assetId } }));
-  return [...FONTS, ...google, ...adobe, ...uploaded];
-}
-
-/** css2 の URL の family のトークン（プレビューでの読み込み用） */
-export function css2FamilyToken(font: CustomFont): string {
-  const name = encodeURIComponent(font.family).replace(/%20/g, "+");
-  if (font.weights === "variable") return `family=${name}:wght@100..900`;
-  if (font.weights.length === 1 && font.weights[0] === "400") {
-    return `family=${name}`;
+  const fonts: FontOption[] = [...FONTS];
+  const occupied = new Set(fonts.map(font => font.value.toLowerCase()));
+  function add(font: FontOption) {
+    const key = font.value.toLowerCase();
+    if (occupied.has(key)) return;
+    occupied.add(key);
+    fonts.push(font);
   }
-  return `family=${name}:wght@${font.weights.join(";")}`;
+  for (const font of customFonts ?? []) {
+    add({ label: font.family, value: font.family, google: googleFontMeta(font) });
+  }
+  for (const font of adobeFonts ?? []) {
+    add({ label: font.family, value: font.family, adobe: { kitId: font.kitId, loading: font.loading } });
+  }
+  for (const font of uploadedFonts ?? []) {
+    add({ label: font.family, value: font.family, uploaded: { assetId: font.assetId } });
+  }
+  return fonts;
 }
 
 /** モーションのイージングのプリセット（右のパネルのドロップダウン。編集画面と同じ一覧） */
